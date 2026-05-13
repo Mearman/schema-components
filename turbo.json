@@ -3,7 +3,7 @@
     "tasks": {
         "_typecheck": {
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "tsconfig.json"],
-            "outputs": [".tsbuildinfo"]
+            "outputs": []
         },
         "_lint": {
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "eslint.config.ts"],
@@ -24,7 +24,7 @@
         },
         "_build": {
             "dependsOn": ["_typecheck", "_lint"],
-            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json", "package.json"],
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json", "tsdown.config.ts", "package.json"],
             "outputs": ["dist/**"]
         },
         "_check": {
