@@ -1,26 +1,25 @@
 /**
- * Schema adapter — normalises all inputs to Zod schemas.
+ * Schema adapter — normalises all inputs to JSON Schema.
  *
- * - Zod 4 schemas → used directly
+ * - Zod 4 schemas → converted via z.toJSONSchema()
  * - Zod 3 schemas → error (not yet supported)
- * - JSON Schema objects → converted via z.fromJSONSchema()
- * - OpenAPI documents → schemas extracted then converted via z.fromJSONSchema()
+ * - JSON Schema objects → passed through
+ * - OpenAPI documents → schemas extracted and passed through
  *
- * This module is the boundary between untrusted input (JSON objects, unknown
- * schema formats) and the typed internals. All narrowing uses type guards —
- * no type assertions.
+ * The adapter preserves the original Zod schema for validation.
+ * All narrowing uses type guards — no type assertions.
  */
 
 import { z } from "zod";
-import type { ZodSchema, JsonObject, SchemaMeta } from "./types.ts";
+import type { JsonObject, SchemaMeta } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export type { ZodSchema, JsonObject, SchemaMeta };
+export type { JsonObject, SchemaMeta };
 
-export type SchemaInput = ZodSchema | JsonObject;
+export type SchemaInput = Record<string, unknown>;
 export type SchemaKind = "zod4" | "zod3" | "jsonSchema" | "openapi";
 
 // ---------------------------------------------------------------------------
@@ -29,10 +28,6 @@ export type SchemaKind = "zod4" | "zod3" | "jsonSchema" | "openapi";
 
 function isObject(value: unknown): value is JsonObject {
     return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
-    return typeof value === "function";
 }
 
 function hasProperty(value: unknown, key: string): boolean {
@@ -57,13 +52,40 @@ export function detectSchemaKind(input: unknown): SchemaKind {
 }
 
 // ---------------------------------------------------------------------------
+// Zod toJSONSchema wrapper
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Zod toJSONSchema wrapper
+// ---------------------------------------------------------------------------
+
+/**
+ * Wraps z.toJSONSchema() for a runtime-validated Zod schema.
+ *
+ * The _zod guard in normaliseZod4 has confirmed this is a valid Zod schema,
+ * but TypeScript cannot represent "has _zod.def" as the $ZodType parameter
+ * that z.toJSONSchema expects. This is the library boundary equivalent of
+ * object → Record<string, unknown> — the type mismatch is genuinely unavoidable.
+ */
+function callToJsonSchema(schema: unknown): unknown {
+    // @ts-expect-error — Library boundary: z.toJSONSchema requires $ZodType
+    // but we have unknown validated by _zod guard. See function JSDoc.
+    return z.toJSONSchema(schema);
+}
+
+// ---------------------------------------------------------------------------
 // Schema normalisation — synchronous
 // ---------------------------------------------------------------------------
 
 export interface NormalisedSchema {
-    /** The normalised Zod schema — a full Zod type object, not a plain record. */
-    schema: unknown;
+    /** JSON Schema object — the authoritative schema for rendering. */
+    jsonSchema: JsonObject;
+    /** Original Zod schema, if input was Zod. Used for validation. */
+    zodSchema?: unknown;
+    /** Root-level metadata. */
     rootMeta: SchemaMeta | undefined;
+    /** The root document for $ref resolution. */
+    rootDocument: JsonObject;
 }
 
 export function normaliseSchema(
@@ -74,8 +96,7 @@ export function normaliseSchema(
 
     switch (kind) {
         case "zod4":
-            if (!isObject(input)) throw new Error("Invalid Zod 4 schema");
-            return { schema: input, rootMeta: extractRootMeta(input) };
+            return normaliseZod4(input);
         case "zod3":
             return normaliseZod3();
         case "openapi":
@@ -87,9 +108,37 @@ export function normaliseSchema(
     }
 }
 
+function normaliseZod4(input: unknown): NormalisedSchema {
+    // z.toJSONSchema() converts Zod → JSON Schema losslessly.
+    // detectSchemaKind confirmed _zod is present.
+    const zod = getProperty(input, "_zod");
+    if (!isObject(zod)) {
+        throw new Error("Invalid Zod 4 schema: missing _zod property");
+    }
+    if (!("def" in zod)) {
+        throw new Error("Invalid Zod 4 schema: missing _zod.def");
+    }
+
+    // Call toJSONSchema with the validated schema.
+    const jsonSchema: unknown = callToJsonSchema(input);
+    if (!isObject(jsonSchema)) {
+        throw new Error("z.toJSONSchema() did not produce an object");
+    }
+
+    return {
+        jsonSchema,
+        zodSchema: input,
+        rootMeta: extractRootMetaFromJson(jsonSchema),
+        rootDocument: jsonSchema,
+    };
+}
+
 function normaliseJsonSchema(jsonSchema: JsonObject): NormalisedSchema {
-    const result: unknown = z.fromJSONSchema(jsonSchema);
-    return { schema: result, rootMeta: extractRootMetaFromJson(jsonSchema) };
+    return {
+        jsonSchema,
+        rootMeta: extractRootMetaFromJson(jsonSchema),
+        rootDocument: jsonSchema,
+    };
 }
 
 function normaliseZod3(): never {
@@ -103,8 +152,11 @@ function normaliseOpenApi(
     ref: string | undefined
 ): NormalisedSchema {
     const resolved = resolveOpenApiRef(doc, ref);
-    const result: unknown = z.fromJSONSchema(resolved);
-    return { schema: result, rootMeta: extractRootMetaFromJson(resolved) };
+    return {
+        jsonSchema: resolved,
+        rootMeta: extractRootMetaFromJson(resolved),
+        rootDocument: doc,
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -176,26 +228,6 @@ function resolveOpenApiRef(
 // ---------------------------------------------------------------------------
 // Root meta extraction
 // ---------------------------------------------------------------------------
-
-function extractRootMeta(schema: unknown): SchemaMeta | undefined {
-    if (!isObject(schema)) return undefined;
-    if (!("meta" in schema)) return undefined;
-    const metaFn = schema.meta;
-    if (!isCallable(metaFn)) return undefined;
-    const result: unknown = metaFn();
-    if (!isObject(result)) return undefined;
-    const keys = Object.keys(result);
-    if (keys.length === 0) return undefined;
-    return spreadIntoSchemaMeta(result);
-}
-
-function spreadIntoSchemaMeta(obj: JsonObject): SchemaMeta {
-    const meta: SchemaMeta = {};
-    for (const [key, value] of Object.entries(obj)) {
-        meta[key] = value;
-    }
-    return meta;
-}
 
 function extractRootMetaFromJson(
     jsonSchema: JsonObject

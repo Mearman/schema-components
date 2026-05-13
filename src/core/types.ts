@@ -6,12 +6,8 @@
  */
 
 // ---------------------------------------------------------------------------
-// Schema types — Zod schema and JSON Schema object
+// Schema types — JSON Schema object
 // ---------------------------------------------------------------------------
-
-/** Zod schema — Zod 4 or Zod 3. Represented as a generic record since we
- * inspect ._zod.def dynamically rather than relying on Zod's type hierarchy. */
-export type ZodSchema = Record<string, unknown>;
 
 /** A raw JSON object (JSON Schema or OpenAPI document). */
 export type JsonObject = Record<string, unknown>;

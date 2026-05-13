@@ -1,18 +1,14 @@
 /**
  * Unit tests for the schema adapter.
  *
- * Tests format detection, Zod 4 passthrough, JSON Schema conversion,
- * and OpenAPI ref resolution.
+ * Tests format detection, Zod 4 → JSON Schema conversion,
+ * JSON Schema passthrough, and OpenAPI ref resolution.
  */
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import { detectSchemaKind, normaliseSchema } from "../src/core/adapter.ts";
-
-function isZod4Schema(value: unknown): boolean {
-    return typeof value === "object" && value !== null && "_zod" in value;
-}
 
 // ---------------------------------------------------------------------------
 // detectSchemaKind
@@ -44,17 +40,26 @@ describe("detectSchemaKind", () => {
 });
 
 // ---------------------------------------------------------------------------
-// normaliseSchema — Zod 4 passthrough
+// normaliseSchema — Zod 4 → JSON Schema
 // ---------------------------------------------------------------------------
 
 describe("normaliseSchema — Zod 4", () => {
-    it("passes through a Zod 4 schema unchanged", () => {
+    it("converts Zod schema to JSON Schema", () => {
         const schema = z.object({ name: z.string() });
         const result = normaliseSchema(schema);
-        assert.equal(result.schema, schema);
+        assert.equal(result.jsonSchema.type, "object");
+        const props = result.jsonSchema.properties;
+        assert.ok(typeof props === "object" && props !== null);
+        assert.ok("name" in props);
     });
 
-    it("extracts root meta from a Zod schema", () => {
+    it("preserves original Zod schema for validation", () => {
+        const schema = z.object({ name: z.string() });
+        const result = normaliseSchema(schema);
+        assert.equal(result.zodSchema, schema);
+    });
+
+    it("extracts root meta from a Zod schema's JSON Schema output", () => {
         const schema = z.object({ name: z.string() }).meta({ readOnly: true });
         const result = normaliseSchema(schema);
         assert.equal(result.rootMeta?.readOnly, true);
@@ -68,11 +73,11 @@ describe("normaliseSchema — Zod 4", () => {
 });
 
 // ---------------------------------------------------------------------------
-// normaliseSchema — JSON Schema
+// normaliseSchema — JSON Schema passthrough
 // ---------------------------------------------------------------------------
 
 describe("normaliseSchema — JSON Schema", () => {
-    it("converts a JSON Schema to a Zod schema", () => {
+    it("passes JSON Schema through unchanged", () => {
         const jsonSchema = {
             type: "object" as const,
             properties: {
@@ -82,8 +87,8 @@ describe("normaliseSchema — JSON Schema", () => {
             required: ["name"],
         };
         const result = normaliseSchema(jsonSchema);
-        // The result should be a Zod schema (has _zod)
-        assert.ok(isZod4Schema(result.schema));
+        assert.equal(result.jsonSchema, jsonSchema);
+        assert.equal(result.zodSchema, undefined);
     });
 
     it("extracts rootMeta from JSON Schema", () => {
@@ -124,7 +129,13 @@ describe("normaliseSchema — OpenAPI", () => {
 
     it("resolves #/components/schemas/User", () => {
         const result = normaliseSchema(openApiDoc, "#/components/schemas/User");
-        assert.ok(isZod4Schema(result.schema));
+        assert.equal(result.jsonSchema.type, "object");
+        assert.ok(result.jsonSchema.properties);
+    });
+
+    it("uses the full OpenAPI doc as rootDocument for $ref resolution", () => {
+        const result = normaliseSchema(openApiDoc, "#/components/schemas/User");
+        assert.equal(result.rootDocument, openApiDoc);
     });
 
     it("throws for missing ref", () => {
@@ -135,7 +146,7 @@ describe("normaliseSchema — OpenAPI", () => {
 
     it("uses first schema when no ref is given", () => {
         const result = normaliseSchema(openApiDoc);
-        assert.ok(isZod4Schema(result.schema));
+        assert.equal(result.jsonSchema.type, "object");
     });
 
     it("throws for empty components/schemas", () => {
@@ -172,6 +183,7 @@ describe("normaliseSchema — OpenAPI", () => {
             },
         };
         const result = normaliseSchema(doc, "/users/post");
-        assert.ok(isZod4Schema(result.schema));
+        assert.equal(result.jsonSchema.type, "object");
+        assert.ok(result.jsonSchema.properties);
     });
 });

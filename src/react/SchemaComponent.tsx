@@ -1,8 +1,8 @@
 /**
  * <SchemaComponent> — renders UI from Zod, JSON Schema, or OpenAPI schemas.
  *
- * Auto-detects the input format, normalises to Zod via the adapter,
- * walks the Zod schema tree, and delegates rendering to the
+ * Auto-detects the input format, normalises to JSON Schema via the adapter,
+ * walks the JSON Schema tree, and delegates rendering to the
  * ComponentResolver (theme adapter). Falls back to headless HTML.
  *
  * The `fields` prop type is inferred from the `schema` prop:
@@ -74,14 +74,6 @@ export function registerWidget(
 // Generic props with type-safe fields dispatch
 // ---------------------------------------------------------------------------
 
-/**
- * Infer the `fields` prop type from the schema input.
- *
- * - Zod schemas → FieldOverrides<z.infer<T>> (full recursive inference)
- * - OpenAPI document with ref → FieldOverrides<ResolveOpenAPIRef<T, Ref>>
- * - JSON Schema `as const` → FieldOverrides<FromJSONSchema<T>>
- * - Runtime / uninferrable → Record<string, FieldOverride>
- */
 type InferFields<T, Ref extends string | undefined> = T extends z.ZodType
     ? FieldOverrides<z.infer<T>>
     : T extends { openapi: unknown }
@@ -92,10 +84,6 @@ type InferFields<T, Ref extends string | undefined> = T extends z.ZodType
         ? FieldOverrides<FromJSONSchema<T>>
         : Record<string, FieldOverride>;
 
-/**
- * Props for <SchemaComponent>. Generic over the schema type T and
- * the optional ref string Ref to provide type-safe `fields`.
- */
 export interface SchemaComponentProps<
     T = unknown,
     Ref extends string | undefined = undefined,
@@ -128,11 +116,6 @@ export interface SchemaComponentProps<
 // <SchemaComponent>
 // ---------------------------------------------------------------------------
 
-/**
- * Render UI from any schema format. The `fields` prop is type-safe
- * when the schema is statically known (Zod schema, JSON Schema `as const`,
- * or OpenAPI `as const` + `ref`).
- */
 export function SchemaComponent<
     T = unknown,
     Ref extends string | undefined = undefined,
@@ -159,50 +142,45 @@ export function SchemaComponent<
         return merged;
     }, [componentMeta, readOnly, writeOnly, description]);
 
-    const handleChange = useCallback(
-        (nextValue: unknown) => {
-            if (validate) {
-                const normalised = normaliseSchema(schemaInput, refInput);
-                if (isObject(normalised.schema)) {
-                    const schemaRecord = toRecord(normalised.schema);
-                    const safeParseFn = getProperty(schemaRecord, "safeParse");
-                    if (isCallable(safeParseFn)) {
-                        const result: unknown = safeParseFn(nextValue);
-                        if (
-                            isObject(result) &&
-                            "success" in result &&
-                            result.success !== true
-                        ) {
-                            onValidationError?.(getProperty(result, "error"));
-                            return;
-                        }
-                    }
-                }
-            }
-            onChange?.(nextValue);
-        },
-        [validate, schemaInput, refInput, onChange, onValidationError]
-    );
-
-    // Normalise input → Zod schema
+    // Normalise input → JSON Schema
+    let jsonSchema: Record<string, unknown>;
     let zodSchema: unknown;
     let rootMeta: SchemaMeta | undefined;
+    let rootDocument: Record<string, unknown>;
     try {
         const normalised = normaliseSchema(schemaInput, refInput);
-        zodSchema = normalised.schema;
+        jsonSchema = normalised.jsonSchema;
+        zodSchema = normalised.zodSchema;
         rootMeta = normalised.rootMeta;
+        rootDocument = normalised.rootDocument;
     } catch {
         return <div>Unable to parse schema</div>;
     }
 
-    // Walk the Zod schema tree
+    const handleChange = useCallback(
+        (nextValue: unknown) => {
+            if (validate) {
+                runValidation(
+                    zodSchema,
+                    jsonSchema,
+                    nextValue,
+                    onValidationError
+                );
+            }
+            onChange?.(nextValue);
+        },
+        [validate, zodSchema, jsonSchema, onChange, onValidationError]
+    );
+
+    // Walk the JSON Schema tree
     const walkOptions: WalkOptions = {
         componentMeta: mergedMeta,
         rootMeta,
         fieldOverrides: fields,
+        rootDocument,
     };
 
-    const tree = walk(zodSchema, walkOptions);
+    const tree = walk(jsonSchema, walkOptions);
 
     const renderChild = (
         childTree: WalkedField,
@@ -219,6 +197,50 @@ export function SchemaComponent<
     };
 
     return renderField(tree, value, handleChange, userResolver, renderChild);
+}
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+function runValidation(
+    zodSchema: unknown,
+    jsonSchema: Record<string, unknown>,
+    value: unknown,
+    onError: ((error: unknown) => void) | undefined
+): void {
+    // Prefer original Zod schema for validation (most accurate)
+    if (zodSchema !== undefined && isObject(zodSchema)) {
+        const safeParseFn = zodSchema.safeParse;
+        if (isCallable(safeParseFn)) {
+            const result: unknown = safeParseFn(value);
+            if (
+                isObject(result) &&
+                "success" in result &&
+                result.success !== true
+            ) {
+                onError?.(result.error);
+                return;
+            }
+            return;
+        }
+    }
+
+    // Fallback: convert JSON Schema to Zod for validation
+    const parsed: unknown = z.fromJSONSchema(jsonSchema);
+    if (isObject(parsed)) {
+        const safeParseFn = parsed.safeParse;
+        if (isCallable(safeParseFn)) {
+            const result: unknown = safeParseFn(value);
+            if (
+                isObject(result) &&
+                "success" in result &&
+                result.success !== true
+            ) {
+                onError?.(result.error);
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -253,7 +275,6 @@ function renderField(
     }
 
     // 2. Build merged resolver: user overrides → headless fallback
-
     const resolver =
         userResolver !== undefined
             ? mergeResolvers(userResolver, headlessResolver)
@@ -375,12 +396,16 @@ export function SchemaField({
 }: SchemaFieldProps): ReactNode {
     const userResolver = useContext(UserResolverContext);
 
+    let jsonSchema: Record<string, unknown>;
     let zodSchema: unknown;
     let rootMeta: SchemaMeta | undefined;
+    let rootDocument: Record<string, unknown>;
     try {
         const normalised = normaliseSchema(schemaInput, refInput);
-        zodSchema = normalised.schema;
+        jsonSchema = normalised.jsonSchema;
+        zodSchema = normalised.zodSchema;
         rootMeta = normalised.rootMeta;
+        rootDocument = normalised.rootDocument;
     } catch {
         return <div>Unable to parse schema</div>;
     }
@@ -388,9 +413,10 @@ export function SchemaField({
     const walkOptions: WalkOptions = {
         componentMeta: fieldMeta,
         rootMeta,
+        rootDocument,
     };
 
-    const fullTree = walk(zodSchema, walkOptions);
+    const fullTree = walk(jsonSchema, walkOptions);
     const fieldTree = resolvePath(fullTree, path);
     if (fieldTree === undefined) {
         return <div>Field not found: {path}</div>;
@@ -400,30 +426,31 @@ export function SchemaField({
 
     const handleChange = useCallback(
         (nextFieldValue: unknown) => {
-            if (validate && isObject(zodSchema)) {
-                const schemaRecord = toRecord(zodSchema);
-                const safeParseFn = getProperty(schemaRecord, "safeParse");
-                if (isCallable(safeParseFn)) {
-                    const newRootValue = setNestedValue(
-                        value,
-                        path,
-                        nextFieldValue
-                    );
-                    const result: unknown = safeParseFn(newRootValue);
-                    if (
-                        isObject(result) &&
-                        "success" in result &&
-                        result.success !== true
-                    ) {
-                        onValidationError?.(getProperty(result, "error"));
-                        return;
-                    }
-                }
+            if (validate) {
+                const newRootValue = setNestedValue(
+                    value,
+                    path,
+                    nextFieldValue
+                );
+                runValidation(
+                    zodSchema,
+                    jsonSchema,
+                    newRootValue,
+                    onValidationError
+                );
             }
             const newRootValue = setNestedValue(value, path, nextFieldValue);
             onChange?.(newRootValue);
         },
-        [validate, zodSchema, value, path, onChange, onValidationError]
+        [
+            validate,
+            zodSchema,
+            jsonSchema,
+            value,
+            path,
+            onChange,
+            onValidationError,
+        ]
     );
 
     const renderChild = (
@@ -581,8 +608,4 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
     return typeof value === "function";
-}
-
-function getProperty(obj: Record<string, unknown>, key: string): unknown {
-    return obj[key];
 }
