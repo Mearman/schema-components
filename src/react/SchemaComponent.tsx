@@ -29,6 +29,7 @@ import type {
     FieldOverride,
     FieldOverrides,
     FromJSONSchema,
+    PathOfType,
     ResolveOpenAPIRef,
     SchemaMeta,
     WalkedField,
@@ -368,16 +369,37 @@ function mergeResolvers(
 // <SchemaField> — renders a single field from a schema by path
 // ---------------------------------------------------------------------------
 
-export interface SchemaFieldProps {
-    /** Dot-separated path to the field (e.g. "address.city"). */
-    path: string;
+/**
+ * Infer the schema's output type for SchemaField path inference.
+ */
+type InferSchemaType<T> = T extends z.ZodType
+    ? z.infer<T>
+    : T extends object
+      ? unknown extends FromJSONSchema<T>
+          ? unknown
+          : FromJSONSchema<T>
+      : unknown;
+
+export interface SchemaFieldProps<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+    P extends string =
+        | PathOfType<InferSchemaType<T>>
+        | (string extends PathOfType<InferSchemaType<T>> ? string : never),
+> {
+    /**
+     * Dot-separated path to the field (e.g. "address.city").
+     * When the schema is a Zod schema or typed `as const`, only valid
+     * paths are accepted. Falls back to `string` for runtime schemas.
+     */
+    path: P;
     /** The schema to extract the field from. */
-    schema: unknown;
+    schema: T;
     /** For OpenAPI: a ref string. */
-    ref?: string;
-    /** Current value of the entire schema object. */
+    ref?: Ref;
+    /** Current value of the field at the given path. */
     value?: unknown;
-    /** Called with the updated value when this field changes. */
+    /** Called with the updated root value when this field changes. */
     onChange?: (value: unknown) => void;
     /** Override meta for this specific field. */
     meta?: SchemaMeta;
@@ -386,7 +408,11 @@ export interface SchemaFieldProps {
     onValidationError?: (error: unknown) => void;
 }
 
-export function SchemaField({
+export function SchemaField<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+    P extends string = string,
+>({
     path,
     schema: schemaInput,
     ref: refInput,
@@ -395,7 +421,7 @@ export function SchemaField({
     meta: fieldMeta,
     validate,
     onValidationError,
-}: SchemaFieldProps): ReactNode {
+}: SchemaFieldProps<T, Ref, P>): ReactNode {
     const userResolver = useContext(UserResolverContext);
 
     let jsonSchema: Record<string, unknown>;

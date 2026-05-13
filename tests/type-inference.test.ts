@@ -343,3 +343,97 @@ const runtimeOpenApiFields: RuntimeRequestBody["fields"] = {
     anyKey: { readOnly: true },
 };
 void runtimeOpenApiFields;
+
+// ---------------------------------------------------------------------------
+// SchemaField: type-safe path inference
+// ---------------------------------------------------------------------------
+
+import type { SchemaFieldProps } from "../src/react/SchemaComponent.tsx";
+import type { PathOfType, TypeAtPath } from "../src/core/types.ts";
+
+// --- Zod schema: path is inferred from z.infer ---
+
+const addressSchema = z.object({
+    name: z.string(),
+    address: z.object({
+        street: z.string(),
+        city: z.string(),
+        postcode: z.string(),
+    }),
+    tags: z.array(z.string()),
+});
+void addressSchema;
+
+type AddressType = z.infer<typeof addressSchema>;
+
+// PathOfType produces all valid dot-paths
+type AddressPaths = PathOfType<AddressType>;
+const validPath: AddressPaths = "address.city";
+void validPath;
+
+// TypeAtPath resolves the leaf type
+type CityType = TypeAtPath<AddressType, "address.city">;
+const cityValue: CityType = "London";
+void cityValue;
+
+// SchemaField with Zod schema: path is type-safe
+type ZodFieldProps = SchemaFieldProps<typeof addressSchema>;
+
+const zodFieldValid: ZodFieldProps = {
+    path: "address.city",
+    schema: addressSchema,
+};
+void zodFieldValid;
+
+const zodFieldInvalid: ZodFieldProps = {
+    // @ts-expect-error — 'address.cty' is not a valid path
+    path: "address.cty",
+    schema: addressSchema,
+};
+void zodFieldInvalid;
+
+// --- JSON Schema as const: path inferred from FromJSONSchema ---
+
+const personJsonSchema = {
+    type: "object" as const,
+    properties: {
+        name: { type: "string" as const },
+        age: { type: "number" as const },
+        address: {
+            type: "object" as const,
+            properties: {
+                city: { type: "string" as const },
+            },
+            required: ["city"],
+        },
+    },
+    required: ["name"],
+} as const;
+void personJsonSchema;
+
+type JsonFieldProps = SchemaFieldProps<typeof personJsonSchema>;
+
+const jsonFieldValid: JsonFieldProps = {
+    path: "address.city",
+    schema: personJsonSchema,
+};
+void jsonFieldValid;
+
+const jsonFieldInvalid: JsonFieldProps = {
+    // @ts-expect-error — 'address.cty' is not a valid path
+    path: "address.cty",
+    schema: personJsonSchema,
+};
+void jsonFieldInvalid;
+
+// --- Runtime schema: falls back to string ---
+
+const runtimeSchema: Record<string, unknown> = { type: "object" };
+void runtimeSchema;
+
+type RuntimeFieldProps = SchemaFieldProps<typeof runtimeSchema>;
+const runtimeField: RuntimeFieldProps = {
+    path: "any.path.at.all",
+    schema: runtimeSchema,
+};
+void runtimeField;
