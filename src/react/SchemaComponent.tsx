@@ -163,16 +163,19 @@ export function SchemaComponent<
         (nextValue: unknown) => {
             if (validate) {
                 const normalised = normaliseSchema(schemaInput, refInput);
-                const safeParseFn = getProperty(normalised.schema, "safeParse");
-                if (isCallable(safeParseFn)) {
-                    const result: unknown = safeParseFn(nextValue);
-                    if (
-                        isObject(result) &&
-                        "success" in result &&
-                        result.success !== true
-                    ) {
-                        onValidationError?.(getProperty(result, "error"));
-                        return;
+                if (isObject(normalised.schema)) {
+                    const schemaRecord = toRecord(normalised.schema);
+                    const safeParseFn = getProperty(schemaRecord, "safeParse");
+                    if (isCallable(safeParseFn)) {
+                        const result: unknown = safeParseFn(nextValue);
+                        if (
+                            isObject(result) &&
+                            "success" in result &&
+                            result.success !== true
+                        ) {
+                            onValidationError?.(getProperty(result, "error"));
+                            return;
+                        }
                     }
                 }
             }
@@ -182,7 +185,7 @@ export function SchemaComponent<
     );
 
     // Normalise input → Zod schema
-    let zodSchema: Record<string, unknown>;
+    let zodSchema: unknown;
     let rootMeta: SchemaMeta | undefined;
     try {
         const normalised = normaliseSchema(schemaInput, refInput);
@@ -366,7 +369,7 @@ export function SchemaField({
 }: SchemaFieldProps): ReactNode {
     const userResolver = useContext(UserResolverContext);
 
-    let zodSchema: Record<string, unknown>;
+    let zodSchema: unknown;
     let rootMeta: SchemaMeta | undefined;
     try {
         const normalised = normaliseSchema(schemaInput, refInput);
@@ -391,8 +394,9 @@ export function SchemaField({
 
     const handleChange = useCallback(
         (nextFieldValue: unknown) => {
-            if (validate) {
-                const safeParseFn = getProperty(zodSchema, "safeParse");
+            if (validate && isObject(zodSchema)) {
+                const schemaRecord = toRecord(zodSchema);
+                const safeParseFn = getProperty(schemaRecord, "safeParse");
                 if (isCallable(safeParseFn)) {
                     const newRootValue = setNestedValue(
                         value,

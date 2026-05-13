@@ -61,7 +61,8 @@ export function detectSchemaKind(input: unknown): SchemaKind {
 // ---------------------------------------------------------------------------
 
 export interface NormalisedSchema {
-    schema: ZodSchema;
+    /** The normalised Zod schema — a full Zod type object, not a plain record. */
+    schema: unknown;
     rootMeta: SchemaMeta | undefined;
 }
 
@@ -88,8 +89,7 @@ export function normaliseSchema(
 
 function normaliseJsonSchema(jsonSchema: JsonObject): NormalisedSchema {
     const result: unknown = z.fromJSONSchema(jsonSchema);
-    const schema = zodResultToRecord(result);
-    return { schema, rootMeta: extractRootMetaFromJson(jsonSchema) };
+    return { schema: result, rootMeta: extractRootMetaFromJson(jsonSchema) };
 }
 
 function normaliseZod3(): never {
@@ -104,25 +104,7 @@ function normaliseOpenApi(
 ): NormalisedSchema {
     const resolved = resolveOpenApiRef(doc, ref);
     const result: unknown = z.fromJSONSchema(resolved);
-    const schema = zodResultToRecord(result);
-    return { schema, rootMeta: extractRootMetaFromJson(resolved) };
-}
-
-/**
- * Convert a z.fromJSONSchema() result into our generic ZodSchema record.
- *
- * Object.entries() returns [string, unknown][] from a narrowed object,
- * so we build the record without any assertion — just iteration.
- */
-function zodResultToRecord(result: unknown): ZodSchema {
-    if (!isObject(result)) {
-        throw new Error("z.fromJSONSchema() returned a non-object");
-    }
-    const record: ZodSchema = {};
-    for (const [key, value] of Object.entries(result)) {
-        record[key] = value;
-    }
-    return record;
+    return { schema: result, rootMeta: extractRootMetaFromJson(resolved) };
 }
 
 // ---------------------------------------------------------------------------
