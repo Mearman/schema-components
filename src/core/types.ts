@@ -155,33 +155,11 @@ export interface FieldConstraints {
     maxItems?: number;
 }
 
-// ---------------------------------------------------------------------------
-// Component resolver — the theme adapter interface
-// ---------------------------------------------------------------------------
-
-export interface RenderContext {
-    editability: Editability;
-    meta: SchemaMeta;
-    constraints: FieldConstraints;
-    /** The full path to this field from the root (e.g. "address.city"). */
-    path: string;
-}
-
-export type RenderFunction = (context: RenderContext) => unknown;
-
-export interface ComponentResolver {
-    string?: RenderFunction;
-    number?: RenderFunction;
-    boolean?: RenderFunction;
-    enum?: RenderFunction;
-    object?: RenderFunction;
-    array?: RenderFunction;
-    record?: RenderFunction;
-    union?: RenderFunction;
-    literal?: RenderFunction;
-    file?: RenderFunction;
-    unknown?: RenderFunction;
-}
+export type {
+    ComponentResolver,
+    RenderFunction,
+    RenderProps,
+} from "./renderer.ts";
 
 // ---------------------------------------------------------------------------
 // Type-level JSON Schema parser (for `as const` literals)
