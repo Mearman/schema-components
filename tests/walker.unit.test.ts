@@ -1,20 +1,18 @@
 /**
- * Unit tests for resolveEditability and the schema walker.
+ * Unit tests for resolveEditability and the JSON Schema walker.
  *
  * Tests the three-source editability resolution (property, component, root)
- * and the walker's handling of field overrides, nested overrides,
- * and readOnly/writeOnly propagation.
+ * and the walker's handling of JSON Schema types, objects, arrays, unions,
+ * field overrides, nested overrides, and readOnly/writeOnly propagation.
  */
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { z } from "zod";
 import { resolveEditability } from "../src/core/types.ts";
 import { walk } from "../src/core/walker.ts";
 import type { WalkedField } from "../src/core/types.ts";
 
-// Helper: non-null field access for tests (the walker returns optional
-// fields, but our test schemas produce deterministic structures).
+// Helper: non-null field access for tests.
 function getField(tree: WalkedField, ...keys: string[]): WalkedField {
     let current: WalkedField = tree;
     for (const key of keys) {
@@ -149,39 +147,39 @@ describe("resolveEditability", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Walker — basic schema types
+// Walker — basic JSON Schema types
 // ---------------------------------------------------------------------------
 
 describe("walk — basic types", () => {
     it("walks a string field", () => {
-        const tree = walk(z.string(), {});
+        const tree = walk({ type: "string" }, {});
         assert.equal(tree.type, "string");
         assert.equal(tree.editability, "editable");
     });
 
     it("walks a number field", () => {
-        const tree = walk(z.number(), {});
+        const tree = walk({ type: "number" }, {});
         assert.equal(tree.type, "number");
     });
 
     it("walks a boolean field", () => {
-        const tree = walk(z.boolean(), {});
+        const tree = walk({ type: "boolean" }, {});
         assert.equal(tree.type, "boolean");
     });
 
     it("walks an enum", () => {
-        const tree = walk(z.enum(["admin", "editor", "viewer"]), {});
+        const tree = walk({ enum: ["admin", "editor", "viewer"] }, {});
         assert.equal(tree.type, "enum");
         assert.deepEqual(tree.enumValues, ["admin", "editor", "viewer"]);
     });
 
-    it("walks a literal", () => {
-        const tree = walk(z.literal("active"), {});
+    it("walks a literal (const)", () => {
+        const tree = walk({ const: "active" }, {});
         assert.equal(tree.type, "literal");
         assert.deepEqual(tree.literalValues, ["active"]);
     });
 
-    it("returns unknown for non-Zod input", () => {
+    it("returns unknown for non-object input", () => {
         const tree = walk("not a schema", {});
         assert.equal(tree.type, "unknown");
     });
@@ -192,10 +190,14 @@ describe("walk — basic types", () => {
 // ---------------------------------------------------------------------------
 
 describe("walk — objects", () => {
-    const schema = z.object({
-        name: z.string(),
-        age: z.number(),
-    });
+    const schema = {
+        type: "object",
+        properties: {
+            name: { type: "string" },
+            age: { type: "number" },
+        },
+        required: ["name"],
+    };
 
     it("walks an object with fields", () => {
         const tree = walk(schema, {});
@@ -214,6 +216,16 @@ describe("walk — objects", () => {
         const tree = walk(schema, {});
         assert.equal(getField(tree, "age").type, "number");
     });
+
+    it("marks required fields as not optional", () => {
+        const tree = walk(schema, {});
+        assert.equal(getField(tree, "name").isOptional, false);
+    });
+
+    it("marks non-required fields as optional", () => {
+        const tree = walk(schema, {});
+        assert.equal(getField(tree, "age").isOptional, true);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -221,14 +233,22 @@ describe("walk — objects", () => {
 // ---------------------------------------------------------------------------
 
 describe("walk — nested objects", () => {
-    const schema = z.object({
-        name: z.string(),
-        address: z.object({
-            street: z.string(),
-            city: z.string(),
-            postcode: z.string(),
-        }),
-    });
+    const schema = {
+        type: "object",
+        properties: {
+            name: { type: "string" },
+            address: {
+                type: "object",
+                properties: {
+                    street: { type: "string" },
+                    city: { type: "string" },
+                    postcode: { type: "string" },
+                },
+                required: ["street", "city"],
+            },
+        },
+        required: ["name"],
+    };
 
     it("walks nested objects", () => {
         const tree = walk(schema, {});
@@ -243,41 +263,56 @@ describe("walk — nested objects", () => {
 // ---------------------------------------------------------------------------
 
 describe("walk — editability", () => {
-    const schema = z.object({
-        id: z.string(),
-        name: z.string(),
-        password: z.string(),
-    });
+    const schema = {
+        type: "object",
+        properties: {
+            id: { type: "string", readOnly: true },
+            name: { type: "string" },
+            password: { type: "string", writeOnly: true },
+        },
+        required: ["id", "name"],
+    };
 
     it("defaults to editable", () => {
         const tree = walk(schema, {});
         assert.equal(getField(tree, "name").editability, "editable");
     });
 
-    it("component readOnly makes all fields presentation", () => {
-        const tree = walk(schema, { componentMeta: { readOnly: true } });
+    it("readOnly on property makes field presentation", () => {
+        const tree = walk(schema, {});
         assert.equal(getField(tree, "id").editability, "presentation");
-        assert.equal(getField(tree, "name").editability, "presentation");
     });
 
-    it("component writeOnly makes all fields input", () => {
-        const tree = walk(schema, { componentMeta: { writeOnly: true } });
-        assert.equal(getField(tree, "name").editability, "input");
+    it("writeOnly on property makes field input", () => {
+        const tree = walk(schema, {});
+        assert.equal(getField(tree, "password").editability, "input");
+    });
+
+    it("component readOnly makes all fields presentation", () => {
+        const schema2 = {
+            type: "object",
+            properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+            },
+            required: ["id"],
+        };
+        const tree = walk(schema2, { componentMeta: { readOnly: true } });
+        assert.equal(getField(tree, "id").editability, "presentation");
+        assert.equal(getField(tree, "name").editability, "presentation");
     });
 
     it("root readOnly makes all fields presentation", () => {
-        const tree = walk(schema, { rootMeta: { readOnly: true } });
-        assert.equal(getField(tree, "name").editability, "presentation");
-    });
-
-    it("property readOnly overrides component writeOnly", () => {
-        const idWithMeta = z.string().meta({ readOnly: true });
-        const schemaWithMeta = z.object({ id: idWithMeta, name: z.string() });
-        const tree = walk(schemaWithMeta, {
-            componentMeta: { writeOnly: true },
-        });
+        const schema2 = {
+            type: "object",
+            properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+            },
+            required: ["id"],
+        };
+        const tree = walk(schema2, { rootMeta: { readOnly: true } });
         assert.equal(getField(tree, "id").editability, "presentation");
-        assert.equal(getField(tree, "name").editability, "input");
     });
 });
 
@@ -286,14 +321,22 @@ describe("walk — editability", () => {
 // ---------------------------------------------------------------------------
 
 describe("walk — field overrides", () => {
-    const schema = z.object({
-        name: z.string(),
-        age: z.number(),
-        address: z.object({
-            street: z.string(),
-            city: z.string(),
-        }),
-    });
+    const schema = {
+        type: "object",
+        properties: {
+            name: { type: "string" },
+            age: { type: "number" },
+            address: {
+                type: "object",
+                properties: {
+                    street: { type: "string" },
+                    city: { type: "string" },
+                },
+                required: ["street"],
+            },
+        },
+        required: ["name"],
+    };
 
     it("applies top-level field override", () => {
         const tree = walk(schema, {
@@ -365,64 +408,41 @@ describe("walk — field overrides", () => {
 // ---------------------------------------------------------------------------
 
 describe("walk — constraints", () => {
-    it("extracts string constraints", () => {
-        const tree = walk(z.string().min(1).max(100), {});
+    it("extracts string constraints (minLength, maxLength)", () => {
+        const tree = walk({ type: "string", minLength: 1, maxLength: 100 }, {});
         assert.equal(tree.constraints.minLength, 1);
         assert.equal(tree.constraints.maxLength, 100);
     });
 
-    it("extracts number constraints", () => {
-        const tree = walk(z.number().min(0).max(150), {});
+    it("extracts number constraints (minimum, maximum)", () => {
+        const tree = walk({ type: "number", minimum: 0, maximum: 150 }, {});
         assert.equal(tree.constraints.minimum, 0);
         assert.equal(tree.constraints.maximum, 150);
     });
 
     it("extracts email format", () => {
-        const tree = walk(z.email(), {});
+        const tree = walk({ type: "string", format: "email" }, {});
         assert.equal(tree.constraints.format, "email");
     });
 
     it("extracts url format", () => {
-        const tree = walk(z.url(), {});
-        assert.equal(tree.constraints.format, "url");
+        const tree = walk({ type: "string", format: "uri" }, {});
+        assert.equal(tree.constraints.format, "uri");
     });
 });
 
 // ---------------------------------------------------------------------------
-// Walker — wrappers (optional, nullable, default, readonly)
+// Walker — nullable (anyOf [T, null])
 // ---------------------------------------------------------------------------
 
-describe("walk — wrappers", () => {
-    it("unwraps optional", () => {
-        const tree = walk(z.string().optional(), {});
-        assert.equal(tree.type, "string");
-        assert.equal(tree.isOptional, true);
-    });
-
-    it("unwraps nullable", () => {
-        const tree = walk(z.string().nullable(), {});
+describe("walk — nullable", () => {
+    it("detects nullable from anyOf [T, null]", () => {
+        const tree = walk(
+            { anyOf: [{ type: "string" }, { type: "null" }] },
+            {}
+        );
         assert.equal(tree.type, "string");
         assert.equal(tree.isNullable, true);
-    });
-
-    it("unwraps default", () => {
-        const tree = walk(z.string().default("hello"), {});
-        assert.equal(tree.type, "string");
-        assert.equal(tree.defaultValue, "hello");
-    });
-
-    it("unwraps readonly — marks as readOnly in meta", () => {
-        const tree = walk(z.string().readonly(), {});
-        assert.equal(tree.type, "string");
-        assert.equal(tree.meta.readOnly, true);
-    });
-
-    it("unwraps multiple layers", () => {
-        const tree = walk(z.string().optional().nullable().default("x"), {});
-        assert.equal(tree.type, "string");
-        assert.equal(tree.isOptional, true);
-        assert.equal(tree.isNullable, true);
-        assert.equal(tree.defaultValue, "x");
     });
 });
 
@@ -431,41 +451,69 @@ describe("walk — wrappers", () => {
 // ---------------------------------------------------------------------------
 
 describe("walk — arrays", () => {
-    it("walks an array with element schema", () => {
-        const tree = walk(z.array(z.string()), {});
+    it("walks an array with items schema", () => {
+        const tree = walk({ type: "array", items: { type: "string" } }, {});
         assert.equal(tree.type, "array");
         assert.ok(tree.element);
         assert.equal(tree.element.type, "string");
     });
 
     it("walks an array of objects", () => {
-        const tree = walk(z.array(z.object({ name: z.string() })), {});
+        const tree = walk(
+            {
+                type: "array",
+                items: {
+                    type: "object",
+                    properties: { name: { type: "string" } },
+                    required: ["name"],
+                },
+            },
+            {}
+        );
         assert.equal(tree.type, "array");
         assert.ok(tree.element);
         assert.equal(tree.element.type, "object");
         assert.ok(tree.element.fields);
-        assert.ok(tree.element.fields.name);
+        assert.ok("name" in tree.element.fields);
     });
 });
 
 // ---------------------------------------------------------------------------
-// Walker — unions
+// Walker — unions (oneOf, anyOf)
 // ---------------------------------------------------------------------------
 
 describe("walk — unions", () => {
-    it("walks a union", () => {
-        const tree = walk(z.union([z.string(), z.number()]), {});
+    it("walks a oneOf union", () => {
+        const tree = walk(
+            { oneOf: [{ type: "string" }, { type: "number" }] },
+            {}
+        );
         assert.equal(tree.type, "union");
-        assert.ok(tree.options);
-        assert.equal(tree.options.length, 2);
+        assert.equal(tree.options?.length, 2);
     });
 
-    it("walks a discriminated union", () => {
+    it("walks a discriminated union (oneOf with const)", () => {
         const tree = walk(
-            z.discriminatedUnion("type", [
-                z.object({ type: z.literal("a"), value: z.string() }),
-                z.object({ type: z.literal("b"), count: z.number() }),
-            ]),
+            {
+                oneOf: [
+                    {
+                        type: "object",
+                        properties: {
+                            type: { const: "a" },
+                            value: { type: "string" },
+                        },
+                        required: ["type", "value"],
+                    },
+                    {
+                        type: "object",
+                        properties: {
+                            type: { const: "b" },
+                            count: { type: "number" },
+                        },
+                        required: ["type", "count"],
+                    },
+                ],
+            },
             {}
         );
         assert.equal(tree.type, "discriminatedUnion");
@@ -474,26 +522,110 @@ describe("walk — unions", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Walker — allOf merging
+// ---------------------------------------------------------------------------
+
+describe("walk — allOf", () => {
+    it("merges properties from allOf", () => {
+        const tree = walk(
+            {
+                allOf: [
+                    {
+                        type: "object",
+                        properties: { name: { type: "string" } },
+                        required: ["name"],
+                    },
+                    {
+                        type: "object",
+                        properties: { age: { type: "number" } },
+                        required: ["age"],
+                    },
+                ],
+            },
+            {}
+        );
+        assert.equal(tree.type, "object");
+        assert.ok(tree.fields);
+        assert.ok("name" in tree.fields);
+        assert.ok("age" in tree.fields);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Walker — meta extraction
 // ---------------------------------------------------------------------------
 
 describe("walk — meta", () => {
-    it("extracts description from .describe()", () => {
-        const tree = walk(z.string().describe("Full name"), {});
+    it("extracts description from JSON Schema", () => {
+        const tree = walk({ type: "string", description: "Full name" }, {});
         assert.equal(tree.meta.description, "Full name");
     });
 
-    it("extracts custom meta via .meta()", () => {
+    it("extracts custom meta (component hint)", () => {
         const tree = walk(
-            z.string().meta({ description: "Email", component: "text" }),
+            { type: "string", description: "Email", component: "text" },
             {}
         );
         assert.equal(tree.meta.description, "Email");
         assert.equal(tree.meta.component, "text");
     });
 
-    it("extracts readOnly from .meta()", () => {
-        const tree = walk(z.string().meta({ readOnly: true }), {});
+    it("extracts readOnly from JSON Schema", () => {
+        const tree = walk({ type: "string", readOnly: true }, {});
         assert.equal(tree.meta.readOnly, true);
+    });
+
+    it("extracts writeOnly from JSON Schema", () => {
+        const tree = walk({ type: "string", writeOnly: true }, {});
+        assert.equal(tree.meta.writeOnly, true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Walker — $ref resolution
+// ---------------------------------------------------------------------------
+
+describe("walk — $ref resolution", () => {
+    it("resolves $ref within root document", () => {
+        const rootDocument = {
+            type: "object",
+            properties: {
+                user: { $ref: "#/$defs/User" },
+            },
+            required: ["user"],
+            $defs: {
+                User: {
+                    type: "object",
+                    properties: {
+                        name: { type: "string" },
+                    },
+                    required: ["name"],
+                },
+            },
+        };
+        const tree = walk(rootDocument, { rootDocument });
+        assert.equal(tree.type, "object");
+        const user = getField(tree, "user");
+        assert.equal(user.type, "object");
+        assert.equal(getField(user, "name").type, "string");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Walker — record (additionalProperties)
+// ---------------------------------------------------------------------------
+
+describe("walk — record", () => {
+    it("walks an object with additionalProperties as a record", () => {
+        const tree = walk(
+            {
+                type: "object",
+                additionalProperties: { type: "number" },
+            },
+            {}
+        );
+        assert.equal(tree.type, "record");
+        assert.ok(tree.valueType);
+        assert.equal(tree.valueType.type, "number");
     });
 });
