@@ -7,7 +7,7 @@ Define your data model once. Get presentational views, input fields, and editabl
 ## Install
 
 ```bash
-npm install @scope/schema-components
+npm install @scalar/schema-components
 ```
 
 Peer dependencies: `zod@^4.0.0`, `react@^18.0.0 || ^19.0.0`.
@@ -16,7 +16,7 @@ Peer dependencies: `zod@^4.0.0`, `react@^18.0.0 || ^19.0.0`.
 
 ```tsx
 import { z } from "zod";
-import { SchemaComponent } from "@scope/schema-components/react";
+import { SchemaComponent } from "@scalar/schema-components/react/SchemaComponent";
 
 const userSchema = z.object({
   name: z.string().min(1).meta({ description: "Full name" }),
@@ -98,8 +98,6 @@ A field override can explicitly opt out of a higher-level `readOnly`:
 />
 ```
 
-`readOnly: false` overrides the component-level `readOnly: true` for the `address` subtree. Its children inherit editable, and `city` re-applies presentation.
-
 ## Type-safe field overrides
 
 The `fields` prop type is inferred from the schema:
@@ -159,14 +157,24 @@ const spec = {
     id: { readOnly: true },              // ✓ inferred through ref
   }}
 />
+```
 
-// Runtime schema — no autocomplete
-const dynamicSchema = await fetch("/api/schema").then(r => r.json());
-<SchemaComponent
-  schema={dynamicSchema}
-  fields={{ anyKey: { readOnly: true } }}   // any key accepted
+## Individual fields
+
+```tsx
+import { SchemaField } from "@scalar/schema-components/react/SchemaComponent";
+
+// Type-safe path — only valid dot-paths accepted
+<SchemaField
+  schema={userSchema}
+  path="address.city"      // ✓ type-safe
+  // path="address.cty"   // ✗ TypeScript error
+  value={user}
+  onChange={setUser}
 />
 ```
+
+When the schema is a Zod schema or typed `as const`, only valid dot-paths like `"address.city"` are accepted. Invalid paths trigger TypeScript errors. Runtime schemas accept any string.
 
 ## All input formats
 
@@ -190,13 +198,74 @@ const dynamicSchema = await fetch("/api/schema").then(r => r.json());
 />
 ```
 
+## OpenAPI components
+
+Render API operations with type-safe field overrides:
+
+```tsx
+import { ApiOperation } from "@scalar/schema-components/openapi/components";
+import type { ApiRequestBodyProps } from "@scalar/schema-components/openapi/components";
+
+const petStore = {
+  openapi: "3.1.0",
+  paths: {
+    "/pets": {
+      post: {
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object" as const,
+                properties: {
+                  name: { type: "string" as const },
+                  tag: { type: "string" as const },
+                },
+                required: ["name"],
+              },
+            },
+          },
+        },
+        responses: { "201": { description: "Created" } },
+      },
+    },
+  },
+} as const;
+
+// Full operation — parameters, request body, responses
+<ApiOperation schema={petStore} path="/pets" method="post" />
+
+// Just the request body with type-safe fields
+<ApiRequestBody
+  schema={petStore}
+  path="/pets"
+  method="post"
+  fields={{
+    name: { description: "Pet name" },    // ✓ inferred from as const
+    // nme: { description: "X" },         // ✗ TypeScript error
+  }}
+/>
+
+// Just parameters with type-safe overrides
+<ApiParameters
+  schema={petStore}
+  path="/pets"
+  method="get"
+  overrides={{
+    limit: { description: "Max results" }, // ✓ inferred parameter names
+  }}
+/>
+
+// Response schema
+<ApiResponse schema={petStore} path="/pets" method="get" status="200" />
+```
+
 ## Theme adapters
 
 Headless by default (plain HTML). Wrap with a theme adapter for styled components:
 
 ```tsx
-import { SchemaProvider } from "@scope/schema-components/react";
-import { shadcnResolver } from "@scope/schema-components/themes/shadcn";
+import { SchemaProvider } from "@scalar/schema-components/react/SchemaComponent";
+import { shadcnResolver } from "@scalar/schema-components/themes/shadcn";
 
 <SchemaProvider resolver={shadcnResolver}>
   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
@@ -206,7 +275,7 @@ import { shadcnResolver } from "@scope/schema-components/themes/shadcn";
 Write a custom adapter:
 
 ```tsx
-import type { RenderProps, ComponentResolver } from "@scope/schema-components/core";
+import type { RenderProps, ComponentResolver } from "@scalar/schema-components/core/renderer";
 
 const myResolver: ComponentResolver = {
   string: (props: RenderProps) => {
@@ -238,7 +307,7 @@ Every render function receives `props.renderChild` for recursive rendering — n
 Register widgets by `.meta({ component })` hint:
 
 ```tsx
-import { registerWidget } from "@scope/schema-components/react";
+import { registerWidget } from "@scalar/schema-components/react/SchemaComponent";
 
 registerWidget("richtext", ({ value, onChange }) => (
   <RichTextEditor value={value} onChange={onChange} />
@@ -264,29 +333,16 @@ Resolution order: `.meta({ component })` → registered widget → theme adapter
 />
 ```
 
-Validation uses `schema.safeParse()` — always available because the library always has a Zod schema internally.
-
-## Individual fields
-
-```tsx
-import { SchemaField } from "@scope/schema-components/react";
-
-<SchemaField
-  path="address.city"
-  schema={userSchema}
-  value={user}
-  onChange={setUser}
-/>
-```
+Validation uses the original Zod schema (if input was Zod) or `z.fromJSONSchema()` (if input was JSON Schema / OpenAPI).
 
 ## Architecture
 
 ```
-@scope/schema-components
+@scalar/schema-components
 ├── core            # JSON Schema walker, ComponentResolver, RenderProps, type-level parsers
 ├── react           # SchemaComponent, SchemaProvider, SchemaField, headless renderer
-├── themes          # shadcn, MUI, custom adapters (separate packages)
-└── openapi         # OpenAPI document parsing, operation extraction
+├── openapi         # Document parser, ApiOperation, ApiParameters, ApiRequestBody, ApiResponse
+└── themes          # shadcn, MUI, custom adapters (separate packages)
 ```
 
 ## Source files
@@ -295,10 +351,11 @@ Every module is imported directly — no barrel files.
 
 | File | Role |
 |---|---|
-| `core/types.ts` | SchemaMeta, Editability, WalkedField, FieldOverrides, FromJSONSchema, ResolveOpenAPIRef |
+| `core/types.ts` | SchemaMeta, Editability, WalkedField, FieldOverrides, FromJSONSchema, PathOfType, OpenAPI type-level parsers |
 | `core/walker.ts` | JSON Schema walker (Draft 2020-12), `$ref` resolution, `allOf` merging, nullable/discriminated union detection |
 | `core/adapter.ts` | Normalises all inputs to JSON Schema (Zod via `z.toJSONSchema()`, JSON Schema passthrough, OpenAPI extraction) |
 | `core/renderer.ts` | `ComponentResolver` interface, `RenderProps` with `renderChild` |
-| `react/SchemaComponent.tsx` | Generic `<SchemaComponent<T, Ref>>`, `SchemaProvider`, `registerWidget` |
+| `react/SchemaComponent.tsx` | Generic `<SchemaComponent<T, Ref>>`, `SchemaProvider`, `registerWidget`, `SchemaField<P>` |
 | `react/headless.tsx` | Headless default resolver producing plain HTML |
 | `openapi/parser.ts` | OpenAPI document parsing, operation extraction, `$ref` resolution |
+| `openapi/components.tsx` | `ApiOperation`, `ApiParameters`, `ApiRequestBody`, `ApiResponse` with generic type inference |

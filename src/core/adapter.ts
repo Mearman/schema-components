@@ -14,6 +14,12 @@ import { z } from "zod";
 import type { JsonObject, SchemaMeta } from "./types.ts";
 
 // ---------------------------------------------------------------------------
+// Schema cache — avoids redundant z.toJSONSchema() calls
+// ---------------------------------------------------------------------------
+
+const schemaCache = new WeakMap<object, NormalisedSchema>();
+
+// ---------------------------------------------------------------------------
 // Re-exports
 // ---------------------------------------------------------------------------
 
@@ -92,20 +98,40 @@ export function normaliseSchema(
     input: unknown,
     ref?: string
 ): NormalisedSchema {
+    // Cache lookup for object identity (Zod schemas, JSON Schema objects)
+    // Only cache when no ref is provided — refs produce different results
+    if (ref === undefined && isObject(input)) {
+        const cached = schemaCache.get(input);
+        if (cached !== undefined) return cached;
+    }
+
     const kind = detectSchemaKind(input);
+
+    let result: NormalisedSchema;
 
     switch (kind) {
         case "zod4":
-            return normaliseZod4(input);
+            result = normaliseZod4(input);
+            break;
         case "zod3":
-            return normaliseZod3();
+            result = normaliseZod3();
+            break;
         case "openapi":
             if (!isObject(input)) throw new Error("Invalid OpenAPI document");
-            return normaliseOpenApi(input, ref);
+            result = normaliseOpenApi(input, ref);
+            break;
         case "jsonSchema":
             if (!isObject(input)) throw new Error("Invalid JSON Schema");
-            return normaliseJsonSchema(input);
+            result = normaliseJsonSchema(input);
+            break;
     }
+
+    // Cache for future calls (same object identity, no ref)
+    if (ref === undefined && isObject(input)) {
+        schemaCache.set(input, result);
+    }
+
+    return result;
 }
 
 function normaliseZod4(input: unknown): NormalisedSchema {

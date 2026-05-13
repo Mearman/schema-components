@@ -19,7 +19,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function toReactNode(value: unknown): ReactNode {
+export function toReactNode(value: unknown): ReactNode {
     if (value === null || value === undefined) return null;
     if (
         typeof value === "string" ||

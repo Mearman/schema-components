@@ -1,14 +1,26 @@
 {
-    "name": "schema-components",
+    "name": "@scalar/schema-components",
     "version": "0.0.0-development",
     "description": "React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents",
     "type": "module",
     "main": "./dist/index.mjs",
     "types": "./dist/index.d.mts",
     "exports": {
-        "./*": {
-            "types": "./dist/*.d.mts",
-            "import": "./dist/*.mjs"
+        "./core/*": {
+            "types": "./dist/core/*.d.mts",
+            "import": "./dist/core/*.mjs"
+        },
+        "./react/*": {
+            "types": "./dist/react/*.d.mts",
+            "import": "./dist/react/*.mjs"
+        },
+        "./openapi/*": {
+            "types": "./dist/openapi/*.d.mts",
+            "import": "./dist/openapi/*.mjs"
+        },
+        "./themes/*": {
+            "types": "./dist/themes/*.d.mts",
+            "import": "./dist/themes/*.mjs"
         }
     },
     "files": [
