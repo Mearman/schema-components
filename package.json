@@ -6,25 +6,9 @@
     "main": "./dist/index.mjs",
     "types": "./dist/index.d.mts",
     "exports": {
-        ".": {
-            "types": "./dist/index.d.mts",
-            "import": "./dist/index.mjs"
-        },
-        "./react": {
-            "types": "./dist/react/index.d.mts",
-            "import": "./dist/react/index.mjs"
-        },
-        "./core": {
-            "types": "./dist/core/index.d.mts",
-            "import": "./dist/core/index.mjs"
-        },
-        "./openapi": {
-            "types": "./dist/openapi/index.d.mts",
-            "import": "./dist/openapi/index.mjs"
-        },
-        "./themes/*": {
-            "types": "./dist/themes/*/index.d.mts",
-            "import": "./dist/themes/*/index.mjs"
+        "./*": {
+            "types": "./dist/*.d.mts",
+            "import": "./dist/*.mjs"
         }
     },
     "files": [

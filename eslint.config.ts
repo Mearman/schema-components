@@ -106,6 +106,34 @@ const noPointlessReassignments: Rule.RuleModule = {
     },
 };
 
+const noBarrelFiles: Rule.RuleModule = {
+    meta: {
+        type: "problem",
+        messages: {
+            noBarrelFile:
+                "Barrel files (index.ts/index.tsx) are banned. Every module should be imported directly by its name, not re-exported through a barrel.",
+        },
+        docs: {
+            description:
+                "Bans barrel files (index.ts / index.tsx) — every module is imported directly.",
+        },
+    },
+    create(context) {
+        const filename = context.filename;
+        if (filename.endsWith("/index.ts") || filename.endsWith("/index.tsx")) {
+            return {
+                Program(node) {
+                    context.report({
+                        node,
+                        messageId: "noBarrelFile",
+                    });
+                },
+            };
+        }
+        return {};
+    },
+};
+
 const configFiles = [
     "eslint.config.ts",
     "commitlint.config.ts",
@@ -118,6 +146,7 @@ const sharedPluginRules = {
     custom: {
         rules: {
             "no-pointless-reassignments": noPointlessReassignments,
+            "no-barrel-files": noBarrelFiles,
         },
     },
     prettier: eslintPluginPrettier,
@@ -125,6 +154,7 @@ const sharedPluginRules = {
 
 const sharedRules = {
     "custom/no-pointless-reassignments": "error",
+    "custom/no-barrel-files": "error",
     "prettier/prettier": "error",
     "@typescript-eslint/consistent-type-assertions": [
         "error",
