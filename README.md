@@ -52,14 +52,16 @@ Renders every field as an editable input. Add `readOnly` to the component for a 
 ## How it works
 
 ```
-Zod schema ──────────────────────────────────┐
-                                              ▼
-JSON Schema ─── z.fromJSONSchema() ─────► Zod schema ──► Zod-aware walker ──► React
-                                              ▲
-OpenAPI doc ── extract schemas ── z.fromJSONSchema() ──┘
+Zod schema ─── z.toJSONSchema() ──→ JSON Schema ──────────┐
+                                                           ▼
+JSON Schema ─────────────────────────────────────────► JSON Schema ──► walker ──► React
+                                                           ▲
+OpenAPI doc ── extract schemas ───────────────────────────┘
 ```
 
-Two paths in, one walker. The walker inspects Zod schemas directly via `._zod.def` — no JSON Schema in the rendering pipeline. `z.toJSONSchema()` is available for export (producing specs for external consumers) but is never used for rendering.
+One walker, one input format. The walker reads standard JSON Schema keywords (Draft 2020-12) — decoupled from Zod's internal API. `z.toJSONSchema()` is lossless: it preserves `readOnly`, `writeOnly`, custom `.meta()` properties, constraints, formats, and defaults.
+
+`z.fromJSONSchema()` is used **only for validation** — converting JSON Schema / OpenAPI inputs back to Zod when `validate` is true and the original wasn't a Zod schema.
 
 ## Component editability
 
@@ -281,7 +283,7 @@ import { SchemaField } from "@scope/schema-components/react";
 
 ```
 @scope/schema-components
-├── core            # Zod walker, ComponentResolver, RenderProps, type-level parsers
+├── core            # JSON Schema walker, ComponentResolver, RenderProps, type-level parsers
 ├── react           # SchemaComponent, SchemaProvider, SchemaField, headless renderer
 ├── themes          # shadcn, MUI, custom adapters (separate packages)
 └── openapi         # OpenAPI document parsing, operation extraction
@@ -294,8 +296,8 @@ Every module is imported directly — no barrel files.
 | File | Role |
 |---|---|
 | `core/types.ts` | SchemaMeta, Editability, WalkedField, FieldOverrides, FromJSONSchema, ResolveOpenAPIRef |
-| `core/walker.ts` | Zod 4 schema walker via `._zod.def`, nested field override resolution |
-| `core/adapter.ts` | Normalises all inputs to Zod schemas via `z.fromJSONSchema()` |
+| `core/walker.ts` | JSON Schema walker (Draft 2020-12), `$ref` resolution, `allOf` merging, nullable/discriminated union detection |
+| `core/adapter.ts` | Normalises all inputs to JSON Schema (Zod via `z.toJSONSchema()`, JSON Schema passthrough, OpenAPI extraction) |
 | `core/renderer.ts` | `ComponentResolver` interface, `RenderProps` with `renderChild` |
 | `react/SchemaComponent.tsx` | Generic `<SchemaComponent<T, Ref>>`, `SchemaProvider`, `registerWidget` |
 | `react/headless.tsx` | Headless default resolver producing plain HTML |
