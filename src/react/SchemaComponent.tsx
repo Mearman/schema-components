@@ -77,8 +77,8 @@ export interface SchemaComponentProps {
     validate?: boolean;
     /** Called with the ZodError when validation fails. */
     onValidationError?: (error: unknown) => void;
-    /** Per-field meta overrides keyed by dot-separated path. */
-    fields?: Record<string, Partial<SchemaMeta>>;
+    /** Per-field meta overrides — nested object mirroring schema shape. */
+    fields?: Record<string, unknown>;
     /** Meta overrides applied to the root schema. */
     meta?: SchemaMeta;
     /** Convenience: sets readOnly on all fields. */
@@ -155,7 +155,7 @@ export function SchemaComponent({
     const walkOptions: WalkOptions = {
         componentMeta: mergedMeta,
         rootMeta,
-        fieldOverrides: fields,
+        fieldOverrides: flattenFieldOverrides(fields),
     };
 
     const tree = walk(zodSchema, walkOptions);
@@ -540,4 +540,76 @@ function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
 
 function getProperty(obj: Record<string, unknown>, key: string): unknown {
     return obj[key];
+}
+
+function flattenFieldOverrides(
+    overrides: Record<string, unknown> | undefined,
+    prefix = ""
+): Record<string, Partial<SchemaMeta>> | undefined {
+    if (overrides === undefined) return undefined;
+
+    const result: Record<string, Partial<SchemaMeta>> = {};
+
+    for (const [key, value] of Object.entries(overrides)) {
+        if (value === undefined || value === null) continue;
+
+        const path = prefix.length > 0 ? `${prefix}.${key}` : key;
+
+        if (typeof value === "object" && !Array.isArray(value)) {
+            const obj = toRecord(value);
+
+            // Check if this is a SchemaMeta (has known meta keys) or a nested override
+            const knownMetaKeys = new Set([
+                "readOnly",
+                "writeOnly",
+                "description",
+                "title",
+                "deprecated",
+                "component",
+            ]);
+            const keys = Object.keys(obj);
+            const hasMetaKeys = keys.some((k) => knownMetaKeys.has(k));
+            const hasUnknownKeys = keys.some((k) => !knownMetaKeys.has(k));
+
+            // Extract any SchemaMeta fields at this level
+            if (hasMetaKeys) {
+                const metaEntries: [string, unknown][] = [];
+                for (const k of keys) {
+                    if (knownMetaKeys.has(k)) {
+                        const v = obj[k];
+                        if (
+                            k === "readOnly" ||
+                            k === "writeOnly" ||
+                            k === "deprecated"
+                        ) {
+                            if (v === true) metaEntries.push([k, v]);
+                        } else if (typeof v === "string") {
+                            metaEntries.push([k, v]);
+                        }
+                    }
+                }
+                if (metaEntries.length > 0) {
+                    const meta: SchemaMeta = {};
+                    for (const [k, v] of metaEntries) {
+                        meta[k] = v;
+                    }
+                    result[path] = meta;
+                }
+            }
+
+            // Recurse into nested fields
+            if (hasUnknownKeys) {
+                const nested = flattenFieldOverrides(obj, path);
+                if (nested !== undefined) {
+                    for (const [nestedPath, nestedMeta] of Object.entries(
+                        nested
+                    )) {
+                        result[nestedPath] = nestedMeta;
+                    }
+                }
+            }
+        }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
 }
