@@ -2,7 +2,7 @@
  * Schema adapter — normalises all inputs to Zod schemas.
  *
  * - Zod 4 schemas → used directly
- * - Zod 3 schemas → converted via JSON Schema round-trip
+ * - Zod 3 schemas → error (not yet supported)
  * - JSON Schema objects → converted via z.fromJSONSchema()
  * - OpenAPI documents → schemas extracted then converted via z.fromJSONSchema()
  *
@@ -11,6 +11,7 @@
  * no type assertions.
  */
 
+import { z } from "zod";
 import type { ZodSchema, JsonObject, SchemaMeta } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -56,7 +57,7 @@ export function detectSchemaKind(input: unknown): SchemaKind {
 }
 
 // ---------------------------------------------------------------------------
-// Schema normalisation
+// Schema normalisation — synchronous
 // ---------------------------------------------------------------------------
 
 export interface NormalisedSchema {
@@ -64,48 +65,45 @@ export interface NormalisedSchema {
     rootMeta: SchemaMeta | undefined;
 }
 
-export async function normaliseSchema(
-    input: SchemaInput,
+export function normaliseSchema(
+    input: unknown,
     ref?: string
-): Promise<NormalisedSchema> {
+): NormalisedSchema {
     const kind = detectSchemaKind(input);
 
     switch (kind) {
         case "zod4":
+            if (!isObject(input)) throw new Error("Invalid Zod 4 schema");
             return { schema: input, rootMeta: extractRootMeta(input) };
         case "zod3":
             return normaliseZod3();
         case "openapi":
+            if (!isObject(input)) throw new Error("Invalid OpenAPI document");
             return normaliseOpenApi(input, ref);
         case "jsonSchema":
+            if (!isObject(input)) throw new Error("Invalid JSON Schema");
             return normaliseJsonSchema(input);
     }
 }
 
-async function normaliseJsonSchema(
-    jsonSchema: JsonObject
-): Promise<NormalisedSchema> {
-    const zod = await import("zod");
-    const result: unknown = zod.fromJSONSchema(jsonSchema);
+function normaliseJsonSchema(jsonSchema: JsonObject): NormalisedSchema {
+    const result: unknown = z.fromJSONSchema(jsonSchema);
     const schema = zodResultToRecord(result);
     return { schema, rootMeta: extractRootMetaFromJson(jsonSchema) };
 }
 
-// normaliseZod3 will need await when implemented
-async function normaliseZod3(): Promise<never> {
-    await Promise.resolve();
+function normaliseZod3(): never {
     throw new Error(
         "Zod 3 schemas are not yet supported. Convert to Zod 4 or provide JSON Schema directly."
     );
 }
 
-async function normaliseOpenApi(
+function normaliseOpenApi(
     doc: JsonObject,
     ref: string | undefined
-): Promise<NormalisedSchema> {
+): NormalisedSchema {
     const resolved = resolveOpenApiRef(doc, ref);
-    const zod = await import("zod");
-    const result: unknown = zod.fromJSONSchema(resolved);
+    const result: unknown = z.fromJSONSchema(resolved);
     const schema = zodResultToRecord(result);
     return { schema, rootMeta: extractRootMetaFromJson(resolved) };
 }

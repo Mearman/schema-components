@@ -1,102 +1,80 @@
 /**
- * Headless default renderer.
+ * Component resolver interface and headless default descriptor renderer.
  *
- * Produces descriptor objects describing what to render.
- * Theme adapters replace these with actual components.
+ * The ComponentResolver maps schema types to render functions. Theme adapters
+ * implement this interface. The headless default produces descriptor objects
+ * (not React elements) — the React module converts these or replaces them
+ * entirely with its own rendering.
+ *
+ * The render function returns `unknown` so that different view layers can
+ * produce their own output types. The React module casts to ReactNode.
  */
 
-import type { ComponentResolver, RenderContext, WalkedField } from "./types.ts";
+import type { FieldConstraints, SchemaMeta, WalkedField } from "./types.ts";
 
-function renderString(ctx: RenderContext): unknown {
-    if (ctx.editability === "presentation") {
-        return { tag: "span", props: {}, children: [] };
-    }
+// ---------------------------------------------------------------------------
+// Render props — what every render function receives
+// ---------------------------------------------------------------------------
 
-    return {
-        tag: "input",
-        props: {
-            type:
-                ctx.constraints.format === "email"
-                    ? "email"
-                    : ctx.constraints.format === "uri"
-                      ? "url"
-                      : "text",
-            minLength: ctx.constraints.minLength,
-            maxLength: ctx.constraints.maxLength,
-            pattern: ctx.constraints.pattern,
-            placeholder: ctx.meta.description,
-        },
-        children: [],
-    };
+export interface RenderProps {
+    /** Current field value. Undefined for Input editability. */
+    value: unknown;
+    /** Callback to update the field value. */
+    onChange: (value: unknown) => void;
+    /** Resolved editability for this field. */
+    readOnly: boolean;
+    writeOnly: boolean;
+    /** Schema metadata for this field. */
+    meta: SchemaMeta;
+    /** Constraints from Zod checks. */
+    constraints: FieldConstraints;
+    /** Dot-separated path from root (e.g. "address.city"). */
+    path: string;
+    /** For enums: the allowed values. */
+    enumValues?: string[];
+    /** For arrays: the element schema. */
+    element?: WalkedField;
+    /** For objects: map of field name → WalkedField. */
+    fields?: Record<string, WalkedField>;
+    /** For unions: the option schemas. */
+    options?: WalkedField[];
+    /** For discriminated unions: the discriminator key. */
+    discriminator?: string;
+    /** For records: key and value schemas. */
+    keyType?: WalkedField;
+    valueType?: WalkedField;
+    /** Walked field tree for recursive rendering. */
+    tree: WalkedField;
 }
 
-function renderNumber(ctx: RenderContext): unknown {
-    if (ctx.editability === "presentation") {
-        return { tag: "span", props: {}, children: [] };
-    }
+// ---------------------------------------------------------------------------
+// ComponentResolver — the theme adapter interface
+// ---------------------------------------------------------------------------
 
-    return {
-        tag: "input",
-        props: {
-            type: "number",
-            min: ctx.constraints.minimum,
-            max: ctx.constraints.maximum,
-        },
-        children: [],
-    };
+export type RenderFunction = (props: RenderProps) => unknown;
+
+export interface ComponentResolver {
+    string?: RenderFunction;
+    number?: RenderFunction;
+    boolean?: RenderFunction;
+    enum?: RenderFunction;
+    object?: RenderFunction;
+    array?: RenderFunction;
+    record?: RenderFunction;
+    union?: RenderFunction;
+    literal?: RenderFunction;
+    file?: RenderFunction;
+    unknown?: RenderFunction;
 }
 
-function renderBoolean(ctx: RenderContext): unknown {
-    if (ctx.editability === "presentation") {
-        return { tag: "span", props: {}, children: [] };
-    }
+// ---------------------------------------------------------------------------
+// Resolver lookup
+// ---------------------------------------------------------------------------
 
-    return {
-        tag: "input",
-        props: { type: "checkbox" },
-        children: [],
-    };
-}
-
-function renderEnum(ctx: RenderContext): unknown {
-    if (ctx.editability === "presentation") {
-        return { tag: "span", props: {}, children: [] };
-    }
-
-    return {
-        tag: "select",
-        props: {},
-        children: [],
-    };
-}
-
-function renderUnknown(ctx: RenderContext): unknown {
-    if (ctx.editability === "presentation") {
-        return { tag: "span", props: {}, children: [] };
-    }
-
-    return {
-        tag: "input",
-        props: { type: "text" },
-        children: [],
-    };
-}
-
-export const headlessResolver: ComponentResolver = {
-    string: renderString,
-    number: renderNumber,
-    boolean: renderBoolean,
-    enum: renderEnum,
-    unknown: renderUnknown,
-};
-
-/**
- * Look up the render function for a schema type from the resolver.
- */
 export function getRenderFunction(
     type: WalkedField["type"],
     resolver: ComponentResolver
-): ((ctx: RenderContext) => unknown) | undefined {
+): RenderFunction | undefined {
     switch (type) {
         case "string":
             return resolver.string;
@@ -113,7 +91,6 @@ export function getRenderFunction(
         case "record":
             return resolver.record;
         case "union":
-            return resolver.union;
         case "discriminatedUnion":
             return resolver.union;
         case "literal":

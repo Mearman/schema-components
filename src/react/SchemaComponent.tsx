@@ -1,14 +1,37 @@
-import { createContext, useContext, useCallback, type ReactNode } from "react";
-import { walk, type WalkOptions } from "../core/walker.ts";
-import { headlessResolver } from "../core/renderer.ts";
-import type {
-    ComponentResolver,
-    SchemaMeta,
-    WalkedField,
-    ZodSchema,
-} from "../core/types.ts";
+/**
+ * <SchemaComponent> — renders UI from Zod, JSON Schema, or OpenAPI schemas.
+ *
+ * Auto-detects the input format, normalises to Zod via the adapter,
+ * walks the Zod schema tree, and delegates rendering to the
+ * ComponentResolver (theme adapter). Falls back to headless HTML.
+ */
 
-const ResolverContext = createContext<ComponentResolver>(headlessResolver);
+import {
+    createContext,
+    useContext,
+    useCallback,
+    useMemo,
+    isValidElement,
+    type ReactNode,
+} from "react";
+import { walk, type WalkOptions } from "../core/walker.ts";
+import { normaliseSchema } from "../core/adapter.ts";
+import { getRenderFunction } from "../core/renderer.ts";
+import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
+import type { SchemaMeta, WalkedField } from "../core/types.ts";
+import { createHeadlessResolver } from "./headless.tsx";
+
+// ---------------------------------------------------------------------------
+// Context — theme adapter
+// ---------------------------------------------------------------------------
+
+/**
+ * The user-supplied resolver from <SchemaProvider>. undefined means no
+ * provider is present — the headless resolver will be used.
+ */
+const UserResolverContext = createContext<ComponentResolver | undefined>(
+    undefined
+);
 
 export function SchemaProvider({
     resolver,
@@ -18,36 +41,61 @@ export function SchemaProvider({
     children: ReactNode;
 }) {
     return (
-        <ResolverContext.Provider value={resolver}>
+        <UserResolverContext.Provider value={resolver}>
             {children}
-        </ResolverContext.Provider>
+        </UserResolverContext.Provider>
     );
 }
 
+// ---------------------------------------------------------------------------
+// Widget registry — custom renderers registered by .meta({ component }) hint
+// ---------------------------------------------------------------------------
+
+const widgetRegistry = new Map<string, (props: RenderProps) => unknown>();
+
+export function registerWidget(
+    name: string,
+    render: (props: RenderProps) => unknown
+): void {
+    widgetRegistry.set(name, render);
+}
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
 export interface SchemaComponentProps {
+    /** Zod schema, JSON Schema object, or OpenAPI document. */
     schema: unknown;
+    /** For OpenAPI: a ref string like "#/components/schemas/User" or "/users/post". */
     ref?: string;
+    /** Current value to render. */
     value?: unknown;
+    /** Called when the value changes (editable fields). */
     onChange?: (value: unknown) => void;
+    /** Run schema.safeParse() on change and surface errors via onValidationError. */
     validate?: boolean;
+    /** Called with the ZodError when validation fails. */
     onValidationError?: (error: unknown) => void;
+    /** Per-field meta overrides keyed by dot-separated path. */
     fields?: Record<string, Partial<SchemaMeta>>;
+    /** Meta overrides applied to the root schema. */
     meta?: SchemaMeta;
+    /** Convenience: sets readOnly on all fields. */
     readOnly?: boolean;
+    /** Convenience: sets writeOnly on all fields. */
     writeOnly?: boolean;
+    /** Convenience: sets description on the root. */
     description?: string;
 }
 
-export interface SchemaFieldProps {
-    path: string;
-    render?: (props: {
-        value: unknown;
-        onChange: (v: unknown) => void;
-    }) => ReactNode;
-}
+// ---------------------------------------------------------------------------
+// <SchemaComponent>
+// ---------------------------------------------------------------------------
 
 export function SchemaComponent({
     schema: schemaInput,
+    ref: refInput,
     value,
     onChange,
     validate,
@@ -58,17 +106,23 @@ export function SchemaComponent({
     writeOnly,
     description,
 }: SchemaComponentProps): ReactNode {
-    const resolver = useContext(ResolverContext);
+    const userResolver = useContext(UserResolverContext);
 
-    const mergedMeta: SchemaMeta = { ...componentMeta };
-    if (readOnly === true) mergedMeta.readOnly = true;
-    if (writeOnly === true) mergedMeta.writeOnly = true;
-    if (description !== undefined) mergedMeta.description = description;
+    // Merge component-level meta from convenience props
+    const mergedMeta: SchemaMeta = useMemo(() => {
+        const merged: SchemaMeta = { ...componentMeta };
+        if (readOnly === true) merged.readOnly = true;
+        if (writeOnly === true) merged.writeOnly = true;
+        if (description !== undefined) merged.description = description;
+        return merged;
+    }, [componentMeta, readOnly, writeOnly, description]);
 
+    // Validate on change
     const handleChange = useCallback(
         (nextValue: unknown) => {
-            if (validate && isZodSchema(schemaInput)) {
-                const safeParseFn = getProperty(schemaInput, "safeParse");
+            if (validate) {
+                const normalised = normaliseSchema(schemaInput, refInput);
+                const safeParseFn = getProperty(normalised.schema, "safeParse");
                 if (isCallable(safeParseFn)) {
                     const result: unknown = safeParseFn(nextValue);
                     if (
@@ -76,250 +130,408 @@ export function SchemaComponent({
                         "success" in result &&
                         result.success !== true
                     ) {
-                        const error = getProperty(result, "error");
-                        onValidationError?.(error);
+                        onValidationError?.(getProperty(result, "error"));
                         return;
                     }
                 }
             }
             onChange?.(nextValue);
         },
-        [validate, schemaInput, onChange, onValidationError]
+        [validate, schemaInput, refInput, onChange, onValidationError]
     );
 
-    if (isZodSchema(schemaInput)) {
-        const walkOptions: WalkOptions = {
-            componentMeta: mergedMeta,
-            fieldOverrides: fields,
-        };
-
-        const tree = walk(schemaInput, walkOptions);
-        return renderTree(tree, resolver, value, handleChange);
+    // Normalise input → Zod schema
+    let zodSchema: Record<string, unknown>;
+    let rootMeta: SchemaMeta | undefined;
+    try {
+        const normalised = normaliseSchema(schemaInput, refInput);
+        zodSchema = normalised.schema;
+        rootMeta = normalised.rootMeta;
+    } catch {
+        return <div>Unable to parse schema</div>;
     }
 
-    return null;
+    // Walk the Zod schema tree
+    const walkOptions: WalkOptions = {
+        componentMeta: mergedMeta,
+        rootMeta,
+        fieldOverrides: fields,
+    };
+
+    const tree = walk(zodSchema, walkOptions);
+
+    // Recursive rendering with resolver delegation
+    const renderChild = (
+        childTree: WalkedField,
+        childValue: unknown,
+        childOnChange: (v: unknown) => void
+    ): ReactNode => {
+        return renderField(
+            childTree,
+            childValue,
+            childOnChange,
+            userResolver,
+            renderChild
+        );
+    };
+
+    return renderField(tree, value, handleChange, userResolver, renderChild);
 }
 
-export function SchemaField(_props: SchemaFieldProps): ReactNode {
-    void _props;
-    return null;
-}
+// ---------------------------------------------------------------------------
+// Field rendering — delegates to resolver or headless fallback
+// ---------------------------------------------------------------------------
 
-function renderTree(
+function renderField(
     tree: WalkedField,
-    resolver: ComponentResolver,
     value: unknown,
     onChange: (v: unknown) => void,
-    path = ""
+    userResolver: ComponentResolver | undefined,
+    renderChild: (
+        tree: WalkedField,
+        value: unknown,
+        onChange: (v: unknown) => void
+    ) => ReactNode
 ): ReactNode {
-    if (tree.type === "object" && tree.fields) {
-        const obj = isObject(value) ? value : {};
-        return (
-            <fieldset>
-                {typeof tree.meta.description === "string" && (
-                    <legend>{tree.meta.description}</legend>
-                )}
-                {Object.entries(tree.fields).map(([key, field]) => {
-                    const childPath = path ? `${path}.${key}` : key;
-                    const childValue = getProperty(obj, key);
-                    const childOnChange = (v: unknown) => {
-                        const updated: Record<string, unknown> = {};
-                        for (const [k, val] of Object.entries(obj)) {
-                            updated[k] = val;
-                        }
-                        updated[key] = v;
-                        onChange(updated);
-                    };
-                    return (
-                        <div key={key}>
-                            {typeof field.meta.description === "string" && (
-                                <label>{field.meta.description}</label>
-                            )}
-                            {renderTree(
-                                field,
-                                resolver,
-                                childValue,
-                                childOnChange,
-                                childPath
-                            )}
-                        </div>
-                    );
-                })}
-            </fieldset>
+    // 1. Check widget registry for .meta({ component }) hint
+    const componentHint = tree.meta.component;
+    if (typeof componentHint === "string") {
+        const widget = widgetRegistry.get(componentHint);
+        if (widget !== undefined) {
+            const props = buildRenderProps(tree, value, onChange);
+            const result: unknown = widget(props);
+            if (result !== undefined && result !== null) {
+                if (isValidElement(result)) return result;
+                if (typeof result === "string" || typeof result === "number")
+                    return result;
+                return null;
+            }
+        }
+    }
+
+    // 2. Build merged resolver: user overrides → headless fallback
+    const headless = createHeadlessResolver(renderChild);
+    const resolver =
+        userResolver !== undefined
+            ? mergeResolvers(userResolver, headless)
+            : headless;
+
+    // 3. Look up the render function for this schema type
+    const renderFn = getRenderFunction(tree.type, resolver);
+    if (renderFn !== undefined) {
+        const result: unknown = renderFn(
+            buildRenderProps(tree, value, onChange)
         );
+        if (result !== undefined && result !== null) {
+            if (isValidElement(result)) return result;
+            if (typeof result === "string" || typeof result === "number")
+                return result;
+        }
     }
 
-    if (tree.type === "array" && tree.element) {
-        const arr = Array.isArray(value) ? value : [];
-        return (
-            <div>
-                {arr.map((item, i) => {
-                    const childPath = `${path}[${String(i)}]`;
-                    const childOnChange = (v: unknown) => {
-                        const next = arr.slice();
-                        next[i] = v;
-                        onChange(next);
-                    };
-                    return (
-                        <div key={i}>
-                            {tree.element &&
-                                renderTree(
-                                    tree.element,
-                                    resolver,
-                                    item,
-                                    childOnChange,
-                                    childPath
-                                )}
-                        </div>
-                    );
-                })}
-            </div>
-        );
-    }
-
-    if (tree.editability === "presentation") {
-        return renderPresentation(tree, value);
-    }
-
-    if (tree.editability === "input") {
-        return renderEditable(tree, undefined, onChange);
-    }
-
-    return renderEditable(tree, value, onChange);
+    // 4. Final fallback for unhandled types
+    if (value === undefined || value === null) return <span>—</span>;
+    return (
+        <span>{typeof value === "string" ? value : JSON.stringify(value)}</span>
+    );
 }
 
-function renderPresentation(tree: WalkedField, value: unknown): ReactNode {
-    if (value === null || value === undefined) return <span>—</span>;
-    if (typeof value === "boolean") return <span>{value ? "Yes" : "No"}</span>;
-    if (typeof value === "number") return <span>{value.toLocaleString()}</span>;
-    if (typeof value === "string") {
-        const format = tree.constraints.format;
-        if (format === "email" && value.length > 0) {
-            return <a href={`mailto:${value}`}>{value}</a>;
-        }
-        if ((format === "uri" || format === "url") && value.length > 0) {
-            return <a href={value}>{value}</a>;
-        }
-        return <span>{value}</span>;
-    }
-    return <span>{JSON.stringify(value)}</span>;
-}
-
-function renderEditable(
+function buildRenderProps(
     tree: WalkedField,
     value: unknown,
     onChange: (v: unknown) => void
-): ReactNode {
-    switch (tree.type) {
-        case "string": {
-            const strValue = typeof value === "string" ? value : "";
-            if (tree.enumValues !== undefined && tree.enumValues.length > 0) {
-                return (
-                    <select
-                        value={strValue}
-                        onChange={(e) => {
-                            onChange(e.target.value);
-                        }}
-                    >
-                        <option value="">Select…</option>
-                        {tree.enumValues.map((v) => (
-                            <option key={v} value={v}>
-                                {v}
-                            </option>
-                        ))}
-                    </select>
-                );
-            }
-            return (
-                <input
-                    type={
-                        tree.constraints.format === "email"
-                            ? "email"
-                            : tree.constraints.format === "uri"
-                              ? "url"
-                              : "text"
-                    }
-                    value={strValue}
-                    onChange={(e) => {
-                        onChange(e.target.value);
-                    }}
-                    placeholder={
-                        typeof tree.meta.description === "string"
-                            ? tree.meta.description
-                            : undefined
-                    }
-                    minLength={tree.constraints.minLength}
-                    maxLength={tree.constraints.maxLength}
-                />
-            );
-        }
-
-        case "number": {
-            const numValue = typeof value === "number" ? value : "";
-            return (
-                <input
-                    type="number"
-                    value={numValue}
-                    onChange={(e) => {
-                        onChange(Number(e.target.value));
-                    }}
-                    min={tree.constraints.minimum}
-                    max={tree.constraints.maximum}
-                />
-            );
-        }
-
-        case "boolean": {
-            const boolValue = value === true;
-            return (
-                <input
-                    type="checkbox"
-                    checked={boolValue}
-                    onChange={(e) => {
-                        onChange(e.target.checked);
-                    }}
-                />
-            );
-        }
-
-        case "enum": {
-            const enumValue = typeof value === "string" ? value : "";
-            return (
-                <select
-                    value={enumValue}
-                    onChange={(e) => {
-                        onChange(e.target.value);
-                    }}
-                >
-                    <option value="">Select…</option>
-                    {tree.enumValues?.map((v) => (
-                        <option key={v} value={v}>
-                            {v}
-                        </option>
-                    ))}
-                </select>
-            );
-        }
-
-        default:
-            return (
-                <span>
-                    {typeof value === "string" ? value : JSON.stringify(value)}
-                </span>
-            );
-    }
+): RenderProps {
+    const props: RenderProps = {
+        value,
+        onChange,
+        readOnly: tree.editability === "presentation",
+        writeOnly: tree.editability === "input",
+        meta: tree.meta,
+        constraints: tree.constraints,
+        path: "",
+        tree,
+    };
+    if (tree.enumValues !== undefined) props.enumValues = tree.enumValues;
+    if (tree.element !== undefined) props.element = tree.element;
+    if (tree.fields !== undefined) props.fields = tree.fields;
+    if (tree.options !== undefined) props.options = tree.options;
+    if (tree.discriminator !== undefined)
+        props.discriminator = tree.discriminator;
+    if (tree.keyType !== undefined) props.keyType = tree.keyType;
+    if (tree.valueType !== undefined) props.valueType = tree.valueType;
+    return props;
 }
 
-function isZodSchema(value: unknown): value is ZodSchema {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        ("_zod" in value || "_def" in value)
+function mergeResolvers(
+    user: ComponentResolver,
+    fallback: ComponentResolver
+): ComponentResolver {
+    const merged: ComponentResolver = {};
+    const userStr = user.string ?? fallback.string;
+    if (userStr !== undefined) merged.string = userStr;
+    const userNum = user.number ?? fallback.number;
+    if (userNum !== undefined) merged.number = userNum;
+    const userBool = user.boolean ?? fallback.boolean;
+    if (userBool !== undefined) merged.boolean = userBool;
+    const userEnum = user.enum ?? fallback.enum;
+    if (userEnum !== undefined) merged.enum = userEnum;
+    const userObj = user.object ?? fallback.object;
+    if (userObj !== undefined) merged.object = userObj;
+    const userArr = user.array ?? fallback.array;
+    if (userArr !== undefined) merged.array = userArr;
+    const userRec = user.record ?? fallback.record;
+    if (userRec !== undefined) merged.record = userRec;
+    const userUnion = user.union ?? fallback.union;
+    if (userUnion !== undefined) merged.union = userUnion;
+    const userLit = user.literal ?? fallback.literal;
+    if (userLit !== undefined) merged.literal = userLit;
+    const userFile = user.file ?? fallback.file;
+    if (userFile !== undefined) merged.file = userFile;
+    const userUnk = user.unknown ?? fallback.unknown;
+    if (userUnk !== undefined) merged.unknown = userUnk;
+    return merged;
+}
+
+// ---------------------------------------------------------------------------
+// <SchemaField> — renders a single field from a schema by path
+// ---------------------------------------------------------------------------
+
+export interface SchemaFieldProps {
+    /** Dot-separated path to the field (e.g. "address.city"). */
+    path: string;
+    /** The schema to extract the field from. */
+    schema: unknown;
+    /** For OpenAPI: a ref string. */
+    ref?: string;
+    /** Current value of the entire schema object. */
+    value?: unknown;
+    /** Called with the updated value when this field changes. */
+    onChange?: (value: unknown) => void;
+    /** Override meta for this specific field. */
+    meta?: SchemaMeta;
+    /** Run validation on change. */
+    validate?: boolean;
+    onValidationError?: (error: unknown) => void;
+}
+
+export function SchemaField({
+    path,
+    schema: schemaInput,
+    ref: refInput,
+    value,
+    onChange,
+    meta: fieldMeta,
+    validate,
+    onValidationError,
+}: SchemaFieldProps): ReactNode {
+    const userResolver = useContext(UserResolverContext);
+
+    // Normalise and walk the schema
+    let zodSchema: Record<string, unknown>;
+    let rootMeta: SchemaMeta | undefined;
+    try {
+        const normalised = normaliseSchema(schemaInput, refInput);
+        zodSchema = normalised.schema;
+        rootMeta = normalised.rootMeta;
+    } catch {
+        return <div>Unable to parse schema</div>;
+    }
+
+    const walkOptions: WalkOptions = {
+        componentMeta: fieldMeta,
+        rootMeta,
+        path: "",
+    };
+
+    const fullTree = walk(zodSchema, walkOptions);
+    const fieldTree = resolvePath(fullTree, path);
+    if (fieldTree === undefined) {
+        return <div>Field not found: {path}</div>;
+    }
+
+    // Extract the value at the given path
+    const fieldValue = resolveValue(value, path);
+
+    const handleChange = useCallback(
+        (nextFieldValue: unknown) => {
+            if (validate) {
+                const safeParseFn = getProperty(zodSchema, "safeParse");
+                if (isCallable(safeParseFn)) {
+                    const newRootValue = setNestedValue(
+                        value,
+                        path,
+                        nextFieldValue
+                    );
+                    const result: unknown = safeParseFn(newRootValue);
+                    if (
+                        isObject(result) &&
+                        "success" in result &&
+                        result.success !== true
+                    ) {
+                        onValidationError?.(getProperty(result, "error"));
+                        return;
+                    }
+                }
+            }
+            const newRootValue = setNestedValue(value, path, nextFieldValue);
+            onChange?.(newRootValue);
+        },
+        [validate, zodSchema, value, path, onChange, onValidationError]
+    );
+
+    const renderChild = (
+        childTree: WalkedField,
+        childValue: unknown,
+        childOnChange: (v: unknown) => void
+    ): ReactNode => {
+        return renderField(
+            childTree,
+            childValue,
+            childOnChange,
+            userResolver,
+            renderChild
+        );
+    };
+
+    return renderField(
+        fieldTree,
+        fieldValue,
+        handleChange,
+        userResolver,
+        renderChild
     );
 }
 
+// ---------------------------------------------------------------------------
+// Path utilities
+// ---------------------------------------------------------------------------
+
+function resolvePath(tree: WalkedField, path: string): WalkedField | undefined {
+    if (path.length === 0) return tree;
+
+    const parts = path.split(".");
+    let current: WalkedField | undefined = tree;
+
+    for (const part of parts) {
+        if (current === undefined) return undefined;
+
+        // Handle array indices: "items[0]" → descend into array, then index
+        const bracketMatch = /^(.+)\[(\d+)\]$/.exec(part);
+        if (bracketMatch?.[1] !== undefined && bracketMatch[2] !== undefined) {
+            const arrayField = bracketMatch[1];
+            if (current.fields !== undefined) {
+                current = current.fields[arrayField];
+            }
+            // Array element
+            if (current?.element !== undefined) {
+                current = current.element;
+            }
+            continue;
+        }
+
+        if (current.fields !== undefined) {
+            current = current.fields[part];
+        } else if (current.element !== undefined) {
+            current = current.element;
+        } else {
+            return undefined;
+        }
+    }
+
+    return current;
+}
+
+function resolveValue(root: unknown, path: string): unknown {
+    if (path.length === 0) return root;
+
+    const parts = path.split(".");
+    let current: unknown = root;
+
+    for (const part of parts) {
+        if (typeof current !== "object" || current === null) return undefined;
+
+        const bracketMatch = /^(.+)\[(\d+)\]$/.exec(part);
+        if (bracketMatch?.[1] !== undefined && bracketMatch[2] !== undefined) {
+            const key = bracketMatch[1];
+            const index = Number(bracketMatch[2]);
+            const obj = toRecord(current);
+            const arr = obj[key];
+            if (Array.isArray(arr)) {
+                current = arr[index];
+            } else {
+                return undefined;
+            }
+        } else {
+            const obj = toRecord(current);
+            current = obj[part];
+        }
+    }
+
+    return current;
+}
+
+function setNestedValue(
+    root: unknown,
+    path: string,
+    leafValue: unknown
+): unknown {
+    if (path.length === 0) return leafValue;
+
+    const parts = path.split(".");
+    const result = isObject(root) ? { ...toRecord(root) } : {};
+
+    let current: Record<string, unknown> = result;
+
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (part === undefined) break;
+        const isLast = i === parts.length - 1;
+
+        const bracketMatch = /^(.+)\[(\d+)\]$/.exec(part);
+        if (bracketMatch?.[1] !== undefined && bracketMatch[2] !== undefined) {
+            const key = bracketMatch[1];
+            const index = Number(bracketMatch[2]);
+            const existing: unknown = current[key];
+            const arr: unknown[] = Array.isArray(existing)
+                ? existing.slice()
+                : [];
+            if (isLast) {
+                arr[index] = leafValue;
+            }
+            current[key] = arr;
+            const nextCurrent = arr[index];
+            if (nextCurrent !== undefined && isObject(nextCurrent)) {
+                current = toRecord(nextCurrent);
+            }
+        } else if (isLast) {
+            current[part] = leafValue;
+        } else {
+            const existing = current[part];
+            const next = isObject(existing) ? { ...toRecord(existing) } : {};
+            current[part] = next;
+            current = next;
+        }
+    }
+
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Narrowing helpers
+// ---------------------------------------------------------------------------
+
 function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
+}
+
+function toRecord(value: object): Record<string, unknown> {
+    // TypeScript's `object` type has no index signature.
+    // Iterating Object.entries builds the record without assertion.
+    const record: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value)) {
+        record[key] = val;
+    }
+    return record;
 }
 
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
