@@ -3,28 +3,28 @@
     "version": "0.0.0-development",
     "description": "React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents",
     "type": "module",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
+    "main": "./dist/index.mjs",
+    "types": "./dist/index.d.mts",
     "exports": {
         ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js"
+            "types": "./dist/index.d.mts",
+            "import": "./dist/index.mjs"
         },
         "./react": {
-            "types": "./dist/react/index.d.ts",
-            "import": "./dist/react/index.js"
+            "types": "./dist/react/index.d.mts",
+            "import": "./dist/react/index.mjs"
         },
         "./core": {
-            "types": "./dist/core/index.d.ts",
-            "import": "./dist/core/index.js"
+            "types": "./dist/core/index.d.mts",
+            "import": "./dist/core/index.mjs"
         },
         "./openapi": {
-            "types": "./dist/openapi/index.d.ts",
-            "import": "./dist/openapi/index.js"
+            "types": "./dist/openapi/index.d.mts",
+            "import": "./dist/openapi/index.mjs"
         },
         "./themes/*": {
-            "types": "./dist/themes/*/index.d.ts",
-            "import": "./dist/themes/*/index.js"
+            "types": "./dist/themes/*/index.d.mts",
+            "import": "./dist/themes/*/index.mjs"
         }
     },
     "files": [
@@ -40,7 +40,7 @@
         "_lint:fix": "eslint --cache --fix",
         "_test": "node --test 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'",
         "_test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 --test-coverage-include='src/**/*.ts' --test-coverage-include='src/**/*.tsx' 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'",
-        "_build": "tsc -p tsconfig.build.json",
+        "_build": "tsdown",
         "typecheck": "turbo run _typecheck",
         "lint": "turbo run _lint",
         "lint:fix": "turbo run _lint:fix",
@@ -96,6 +96,7 @@
         "prettier": "3.8.3",
         "react": "19.1.0",
         "semantic-release": "25.0.3",
+        "tsdown": "0.21.10",
         "turbo": "2.9.7",
         "typescript": "6.0.3",
         "typescript-eslint": "8.59.1",

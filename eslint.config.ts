@@ -111,6 +111,7 @@ const configFiles = [
     "commitlint.config.ts",
     "release.config.ts",
     "lint-staged.config.ts",
+    "tsdown.config.ts",
 ];
 
 const sharedPluginRules = {
