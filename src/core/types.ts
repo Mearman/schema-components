@@ -61,12 +61,54 @@ export function resolveEditability(
     componentMeta: SchemaMeta | undefined,
     rootMeta: SchemaMeta | undefined
 ): Editability {
-    if (propertyMeta?.readOnly) return "presentation";
-    if (propertyMeta?.writeOnly) return "input";
-    if (componentMeta?.readOnly) return "presentation";
-    if (componentMeta?.writeOnly) return "input";
-    if (rootMeta?.readOnly) return "presentation";
-    if (rootMeta?.writeOnly) return "input";
+    // Property-level overrides always win. Check for explicit presence
+    // of the key — `readOnly: false` means "not read-only", overriding
+    // a higher-level `readOnly: true`.
+    if (propertyMeta !== undefined && "readOnly" in propertyMeta) {
+        if (propertyMeta.readOnly) return "presentation";
+        // readOnly: false — not presentation, check writeOnly
+    }
+    if (propertyMeta !== undefined && "writeOnly" in propertyMeta) {
+        if (propertyMeta.writeOnly) return "input";
+        // writeOnly: false — not input, fall through
+    }
+    // If property explicitly set readOnly or writeOnly (even to false),
+    // that overrides higher levels — the field is editable.
+    if (
+        propertyMeta !== undefined &&
+        ("readOnly" in propertyMeta || "writeOnly" in propertyMeta)
+    ) {
+        return "editable";
+    }
+
+    // Component-level (rendering context)
+    if (componentMeta !== undefined && "readOnly" in componentMeta) {
+        if (componentMeta.readOnly) return "presentation";
+    }
+    if (componentMeta !== undefined && "writeOnly" in componentMeta) {
+        if (componentMeta.writeOnly) return "input";
+    }
+    if (
+        componentMeta !== undefined &&
+        ("readOnly" in componentMeta || "writeOnly" in componentMeta)
+    ) {
+        return "editable";
+    }
+
+    // Schema root (fallback default)
+    if (rootMeta !== undefined && "readOnly" in rootMeta) {
+        if (rootMeta.readOnly) return "presentation";
+    }
+    if (rootMeta !== undefined && "writeOnly" in rootMeta) {
+        if (rootMeta.writeOnly) return "input";
+    }
+    if (
+        rootMeta !== undefined &&
+        ("readOnly" in rootMeta || "writeOnly" in rootMeta)
+    ) {
+        return "editable";
+    }
+
     return "editable";
 }
 

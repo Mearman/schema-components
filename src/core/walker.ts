@@ -240,6 +240,16 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         constraints,
     };
 
+    // If this field explicitly overrides editability (readOnly/writeOnly
+    // in the field override or schema meta), children should NOT inherit
+    // the component-level default — the override controls the subtree.
+    const hasExplicitOverride =
+        (overrideMeta !== undefined &&
+            ("readOnly" in overrideMeta || "writeOnly" in overrideMeta)) ||
+        Boolean(propertyMeta.readOnly) ||
+        Boolean(propertyMeta.writeOnly);
+    const childComponentMeta = hasExplicitOverride ? undefined : componentMeta;
+
     // --- Object ---
     if (schemaType === "object") {
         const shape = def.shape;
@@ -248,7 +258,7 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
             for (const [key, fieldSchema] of Object.entries(shape)) {
                 const childOverride = extractChildOverride(fieldOverrides, key);
                 fields[key] = walk(fieldSchema, {
-                    componentMeta,
+                    componentMeta: childComponentMeta,
                     rootMeta,
                     fieldOverrides: childOverride,
                 });
@@ -264,7 +274,7 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         return {
             ...base,
             element: walk(element, {
-                componentMeta,
+                componentMeta: childComponentMeta,
                 rootMeta,
                 fieldOverrides: elementOverride,
             }),
@@ -438,8 +448,9 @@ function extractSchemaMetaFields(
 }
 
 /**
- * Extract the child override for a specific key, stripping out meta fields.
- * Returns undefined if there are no child-level overrides.
+ * Extract the child override for a specific key.
+ * Returns the full override value for that key — the child walk()
+ * call will separate meta fields from nested child overrides itself.
  */
 function extractChildOverride(
     overrides: Record<string, unknown> | undefined,
@@ -453,10 +464,7 @@ function extractChildOverride(
 
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(child)) {
-        // Strip meta keys — those apply at this level, not to children
-        if (!META_KEYS.has(k)) {
-            result[k] = v;
-        }
+        result[k] = v;
     }
 
     return Object.keys(result).length > 0 ? result : undefined;
