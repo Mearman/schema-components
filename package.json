@@ -20,8 +20,8 @@
     "scripts": {
         "build": "turbo run _build",
         "_typecheck": "tsc --noEmit",
-        "_lint": "eslint --cache",
-        "_lint:fix": "eslint --cache --fix",
+        "_lint": "eslint --cache 'src/**/*.{ts,tsx}'",
+        "_lint:fix": "eslint --cache --fix 'src/**/*.{ts,tsx}'",
         "_test": "node --test 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'",
         "_test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 --test-coverage-include='src/**/*.ts' --test-coverage-include='src/**/*.tsx' 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'",
         "_build": "tsdown",

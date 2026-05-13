@@ -152,7 +152,7 @@ const sharedPluginRules = {
     prettier: eslintPluginPrettier,
 };
 
-const sharedRules = {
+const sharedRules: Record<string, unknown> = {
     "custom/no-pointless-reassignments": "error",
     "custom/no-barrel-files": "error",
     "prettier/prettier": "error",
