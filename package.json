@@ -1,0 +1,105 @@
+{
+    "name": "schema-components",
+    "version": "0.0.0-development",
+    "description": "React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./react": {
+            "types": "./dist/react/index.d.ts",
+            "import": "./dist/react/index.js"
+        },
+        "./core": {
+            "types": "./dist/core/index.d.ts",
+            "import": "./dist/core/index.js"
+        },
+        "./openapi": {
+            "types": "./dist/openapi/index.d.ts",
+            "import": "./dist/openapi/index.js"
+        },
+        "./themes/*": {
+            "types": "./dist/themes/*/index.d.ts",
+            "import": "./dist/themes/*/index.js"
+        }
+    },
+    "files": [
+        "dist",
+        "LICENSE",
+        "README.md",
+        "CHANGELOG.md"
+    ],
+    "scripts": {
+        "build": "turbo run _build",
+        "_typecheck": "tsc --noEmit",
+        "_lint": "eslint --cache",
+        "_lint:fix": "eslint --cache --fix",
+        "_test": "node --test 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'",
+        "_test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 --test-coverage-include='src/**/*.ts' --test-coverage-include='src/**/*.tsx' 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'",
+        "_build": "tsc -p tsconfig.build.json",
+        "typecheck": "turbo run _typecheck",
+        "lint": "turbo run _lint",
+        "lint:fix": "turbo run _lint:fix",
+        "test": "turbo run _test",
+        "test:coverage": "turbo run _test:coverage",
+        "check": "turbo run _check",
+        "validate": "turbo run _validate",
+        "release": "semantic-release",
+        "release:dry": "semantic-release --dry-run",
+        "prepare": "husky",
+        "prepublishOnly": "pnpm validate"
+    },
+    "keywords": [
+        "react",
+        "zod",
+        "json-schema",
+        "openapi",
+        "schema",
+        "form",
+        "components",
+        "headless",
+        "ui"
+    ],
+    "author": "Joseph Mearman",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Mearman/schema-components.git"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "peerDependencies": {
+        "react": "^18.0.0 || ^19.0.0",
+        "zod": "^4.0.0"
+    },
+    "devDependencies": {
+        "@commitlint/cli": "20.5.3",
+        "@commitlint/config-conventional": "20.5.3",
+        "@eslint/js": "10.0.1",
+        "@semantic-release/changelog": "6.0.3",
+        "@semantic-release/git": "10.0.1",
+        "@semantic-release/github": "12.0.6",
+        "@types/node": "25.6.0",
+        "@types/react": "19.1.6",
+        "conventional-changelog-conventionalcommits": "9.3.1",
+        "eslint": "10.3.0",
+        "eslint-config-prettier": "10.1.8",
+        "eslint-plugin-prettier": "5.5.5",
+        "husky": "9.1.7",
+        "lint-staged": "16.4.0",
+        "prettier": "3.8.3",
+        "react": "19.1.0",
+        "semantic-release": "25.0.3",
+        "turbo": "2.9.7",
+        "typescript": "6.0.3",
+        "typescript-eslint": "8.59.1",
+        "zod": "4.4.2"
+    },
+    "packageManager": "pnpm@10.33.1"
+}
