@@ -384,3 +384,70 @@ export type InferParameterOverrides<
     string extends ParameterNamesOf<Doc, Path, Method>
         ? Record<string, FieldOverride>
         : Partial<Record<ParameterNamesOf<Doc, Path, Method>, FieldOverride>>;
+
+// ---------------------------------------------------------------------------
+// Type-level path utilities for SchemaField
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if T is a "narrow" type (not wide like object, Record, or unknown).
+ * Used to determine if we can enumerate keys for path inference.
+ */
+type IsNarrowObject<T> = T extends
+    | string
+    | number
+    | boolean
+    | null
+    | undefined
+    | unknown[]
+    ? false
+    : T extends object
+      ? Record<string, never> extends T
+          ? false
+          : true
+      : false;
+
+/**
+ * Extract all valid dot-separated paths from an object type.
+ * Produces paths like "name" | "address.city" | "address.postcode".
+ * Stops at leaf types (string, number, boolean, null) and arrays.
+ * Returns `string` for wide types (object, Record, unknown).
+ * Handles optional/nullable fields by unwrapping T | undefined.
+ */
+export type PathOfType<T, Prefix extends string = ""> =
+    IsNarrowObject<T> extends true
+        ? {
+              [K in keyof T & string]: T[K] extends
+                  | string
+                  | number
+                  | boolean
+                  | null
+                  | undefined
+                  ? `${Prefix}${K}`
+                  : T[K] extends unknown[]
+                    ? `${Prefix}${K}`
+                    : T[K] extends object | undefined
+                      ?
+                            | PathOfType<
+                                  Exclude<T[K], undefined>,
+                                  `${Prefix}${K}.`
+                              >
+                            | `${Prefix}${K}`
+                      : `${Prefix}${K}`;
+          }[keyof T & string]
+        : string;
+
+/**
+ * Extract the type at a given dot-separated path.
+ * PathOfType<T> produces valid paths; TypeAtPath resolves the leaf type.
+ */
+export type TypeAtPath<
+    T,
+    P extends string,
+> = P extends `${infer Key}.${infer Rest}`
+    ? Key extends keyof T
+        ? TypeAtPath<T[Key], Rest>
+        : unknown
+    : P extends keyof T
+      ? T[P]
+      : unknown;
