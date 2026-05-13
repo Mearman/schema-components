@@ -171,8 +171,8 @@ function unwrap(schema: unknown): Unwrapped {
 export interface WalkOptions {
     componentMeta?: SchemaMeta | undefined;
     rootMeta?: SchemaMeta | undefined;
-    fieldOverrides?: Record<string, Partial<SchemaMeta>> | undefined;
-    path?: string | undefined;
+    /** Nested field overrides — same shape as the schema. */
+    fieldOverrides?: Record<string, unknown> | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,7 +180,7 @@ export interface WalkOptions {
 // ---------------------------------------------------------------------------
 
 export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
-    const { componentMeta, rootMeta, fieldOverrides, path = "" } = options;
+    const { componentMeta, rootMeta, fieldOverrides } = options;
 
     if (!isZod4Schema(schema)) {
         return {
@@ -220,10 +220,11 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
     const propertyMeta = extractMeta(schema);
     const constraints = extractConstraints(innerSchema);
 
-    const fieldOverride = fieldOverrides?.[path];
+    // Extract SchemaMeta fields from the current override level
+    const overrideMeta = extractSchemaMetaFields(fieldOverrides);
 
     const editability = resolveEditability(
-        { ...propertyMeta, ...fieldOverride },
+        { ...propertyMeta, ...overrideMeta },
         componentMeta,
         rootMeta
     );
@@ -245,12 +246,11 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         if (isObject(shape)) {
             const fields: Record<string, WalkedField> = {};
             for (const [key, fieldSchema] of Object.entries(shape)) {
-                const childPath = path ? `${path}.${key}` : key;
+                const childOverride = extractChildOverride(fieldOverrides, key);
                 fields[key] = walk(fieldSchema, {
                     componentMeta,
                     rootMeta,
-                    fieldOverrides,
-                    path: childPath,
+                    fieldOverrides: childOverride,
                 });
             }
             return { ...base, fields };
@@ -260,14 +260,13 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
     // --- Array ---
     if (schemaType === "array") {
         const element = def.element;
-        const childPath = path ? `${path}[]` : "[]";
+        const elementOverride = extractChildOverride(fieldOverrides, "[]");
         return {
             ...base,
             element: walk(element, {
                 componentMeta,
                 rootMeta,
-                fieldOverrides,
-                path: childPath,
+                fieldOverrides: elementOverride,
             }),
         };
     }
@@ -302,7 +301,7 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         return {
             ...base,
             options: optionsArray.map((opt) =>
-                walk(opt, { componentMeta, rootMeta, fieldOverrides, path })
+                walk(opt, { componentMeta, rootMeta, fieldOverrides })
             ),
             discriminator:
                 typeof discriminator === "string" ? discriminator : undefined,
@@ -315,8 +314,8 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         const valueType = def.valueType;
         return {
             ...base,
-            keyType: walk(keyType, { componentMeta, rootMeta, path }),
-            valueType: walk(valueType, { componentMeta, rootMeta, path }),
+            keyType: walk(keyType, { componentMeta, rootMeta }),
+            valueType: walk(valueType, { componentMeta, rootMeta }),
         };
     }
 
@@ -404,4 +403,61 @@ function isPrimitive(
 
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
     return typeof value === "function";
+}
+
+// ---------------------------------------------------------------------------
+// Field override helpers — consume nested structure directly
+// ---------------------------------------------------------------------------
+
+const META_KEYS = new Set([
+    "readOnly",
+    "writeOnly",
+    "description",
+    "title",
+    "deprecated",
+    "component",
+]);
+
+/**
+ * Extract SchemaMeta fields from a field override object.
+ * Only known meta keys are extracted; everything else is a child override.
+ */
+function extractSchemaMetaFields(
+    overrides: Record<string, unknown> | undefined
+): Partial<SchemaMeta> | undefined {
+    if (overrides === undefined) return undefined;
+
+    const meta: SchemaMeta = {};
+    for (const key of Object.keys(overrides)) {
+        if (META_KEYS.has(key)) {
+            meta[key] = overrides[key];
+        }
+    }
+
+    return Object.keys(meta).length > 0 ? meta : undefined;
+}
+
+/**
+ * Extract the child override for a specific key, stripping out meta fields.
+ * Returns undefined if there are no child-level overrides.
+ */
+function extractChildOverride(
+    overrides: Record<string, unknown> | undefined,
+    key: string
+): Record<string, unknown> | undefined {
+    if (overrides === undefined) return undefined;
+
+    const child = overrides[key];
+    if (child === undefined || child === null) return undefined;
+    if (typeof child !== "object" || Array.isArray(child)) return undefined;
+
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(child)) {
+        // Strip meta keys — those apply at this level, not to children
+        if (!META_KEYS.has(k)) {
+            result[k] = v;
+        }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
 }

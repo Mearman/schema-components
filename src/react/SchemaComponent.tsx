@@ -4,8 +4,15 @@
  * Auto-detects the input format, normalises to Zod via the adapter,
  * walks the Zod schema tree, and delegates rendering to the
  * ComponentResolver (theme adapter). Falls back to headless HTML.
+ *
+ * The `fields` prop type is inferred from the `schema` prop:
+ * - Zod schemas → FieldOverrides<z.infer<T>> (full autocomplete)
+ * - JSON Schema `as const` → FieldOverrides<FromJSONSchema<T>> (full autocomplete)
+ * - OpenAPI `as const` + `ref` → FieldOverrides<ResolveOpenAPIRef<T, Ref>>
+ * - Runtime schemas → Record<string, FieldOverride> (no autocomplete)
  */
 
+import { z } from "zod";
 import {
     createContext,
     useContext,
@@ -18,17 +25,20 @@ import { walk, type WalkOptions } from "../core/walker.ts";
 import { normaliseSchema } from "../core/adapter.ts";
 import { getRenderFunction } from "../core/renderer.ts";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
-import type { SchemaMeta, WalkedField } from "../core/types.ts";
+import type {
+    FieldOverride,
+    FieldOverrides,
+    FromJSONSchema,
+    ResolveOpenAPIRef,
+    SchemaMeta,
+    WalkedField,
+} from "../core/types.ts";
 import { createHeadlessResolver } from "./headless.tsx";
 
 // ---------------------------------------------------------------------------
 // Context — theme adapter
 // ---------------------------------------------------------------------------
 
-/**
- * The user-supplied resolver from <SchemaProvider>. undefined means no
- * provider is present — the headless resolver will be used.
- */
 const UserResolverContext = createContext<ComponentResolver | undefined>(
     undefined
 );
@@ -61,14 +71,39 @@ export function registerWidget(
 }
 
 // ---------------------------------------------------------------------------
-// Props
+// Generic props with type-safe fields dispatch
 // ---------------------------------------------------------------------------
 
-export interface SchemaComponentProps {
+/**
+ * Infer the `fields` prop type from the schema input.
+ *
+ * - Zod schemas → FieldOverrides<z.infer<T>> (full recursive inference)
+ * - OpenAPI document with ref → FieldOverrides<ResolveOpenAPIRef<T, Ref>>
+ * - JSON Schema `as const` → FieldOverrides<FromJSONSchema<T>>
+ * - Runtime / uninferrable → Record<string, FieldOverride>
+ */
+type InferFields<T, Ref extends string | undefined> = T extends z.ZodType
+    ? FieldOverrides<z.infer<T>>
+    : T extends { openapi: unknown }
+      ? Ref extends string
+          ? FieldOverrides<ResolveOpenAPIRef<T & Record<string, unknown>, Ref>>
+          : Record<string, FieldOverride>
+      : T extends object
+        ? FieldOverrides<FromJSONSchema<T>>
+        : Record<string, FieldOverride>;
+
+/**
+ * Props for <SchemaComponent>. Generic over the schema type T and
+ * the optional ref string Ref to provide type-safe `fields`.
+ */
+export interface SchemaComponentProps<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+> {
     /** Zod schema, JSON Schema object, or OpenAPI document. */
-    schema: unknown;
+    schema: T;
     /** For OpenAPI: a ref string like "#/components/schemas/User" or "/users/post". */
-    ref?: string;
+    ref?: Ref;
     /** Current value to render. */
     value?: unknown;
     /** Called when the value changes (editable fields). */
@@ -78,7 +113,7 @@ export interface SchemaComponentProps {
     /** Called with the ZodError when validation fails. */
     onValidationError?: (error: unknown) => void;
     /** Per-field meta overrides — nested object mirroring schema shape. */
-    fields?: Record<string, unknown>;
+    fields?: InferFields<T, Ref>;
     /** Meta overrides applied to the root schema. */
     meta?: SchemaMeta;
     /** Convenience: sets readOnly on all fields. */
@@ -93,7 +128,15 @@ export interface SchemaComponentProps {
 // <SchemaComponent>
 // ---------------------------------------------------------------------------
 
-export function SchemaComponent({
+/**
+ * Render UI from any schema format. The `fields` prop is type-safe
+ * when the schema is statically known (Zod schema, JSON Schema `as const`,
+ * or OpenAPI `as const` + `ref`).
+ */
+export function SchemaComponent<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+>({
     schema: schemaInput,
     ref: refInput,
     value,
@@ -105,10 +148,9 @@ export function SchemaComponent({
     readOnly,
     writeOnly,
     description,
-}: SchemaComponentProps): ReactNode {
+}: SchemaComponentProps<T, Ref>): ReactNode {
     const userResolver = useContext(UserResolverContext);
 
-    // Merge component-level meta from convenience props
     const mergedMeta: SchemaMeta = useMemo(() => {
         const merged: SchemaMeta = { ...componentMeta };
         if (readOnly === true) merged.readOnly = true;
@@ -117,7 +159,6 @@ export function SchemaComponent({
         return merged;
     }, [componentMeta, readOnly, writeOnly, description]);
 
-    // Validate on change
     const handleChange = useCallback(
         (nextValue: unknown) => {
             if (validate) {
@@ -155,12 +196,11 @@ export function SchemaComponent({
     const walkOptions: WalkOptions = {
         componentMeta: mergedMeta,
         rootMeta,
-        fieldOverrides: flattenFieldOverrides(fields),
+        fieldOverrides: fields,
     };
 
     const tree = walk(zodSchema, walkOptions);
 
-    // Recursive rendering with resolver delegation
     const renderChild = (
         childTree: WalkedField,
         childValue: unknown,
@@ -326,7 +366,6 @@ export function SchemaField({
 }: SchemaFieldProps): ReactNode {
     const userResolver = useContext(UserResolverContext);
 
-    // Normalise and walk the schema
     let zodSchema: Record<string, unknown>;
     let rootMeta: SchemaMeta | undefined;
     try {
@@ -340,7 +379,6 @@ export function SchemaField({
     const walkOptions: WalkOptions = {
         componentMeta: fieldMeta,
         rootMeta,
-        path: "",
     };
 
     const fullTree = walk(zodSchema, walkOptions);
@@ -349,7 +387,6 @@ export function SchemaField({
         return <div>Field not found: {path}</div>;
     }
 
-    // Extract the value at the given path
     const fieldValue = resolveValue(value, path);
 
     const handleChange = useCallback(
@@ -415,14 +452,12 @@ function resolvePath(tree: WalkedField, path: string): WalkedField | undefined {
     for (const part of parts) {
         if (current === undefined) return undefined;
 
-        // Handle array indices: "items[0]" → descend into array, then index
         const bracketMatch = /^(.+)\[(\d+)\]$/.exec(part);
         if (bracketMatch?.[1] !== undefined && bracketMatch[2] !== undefined) {
             const arrayField = bracketMatch[1];
             if (current.fields !== undefined) {
                 current = current.fields[arrayField];
             }
-            // Array element
             if (current?.element !== undefined) {
                 current = current.element;
             }
@@ -506,7 +541,7 @@ function setNestedValue(
         } else if (isLast) {
             current[part] = leafValue;
         } else {
-            const existing = current[part];
+            const existing: unknown = current[part];
             const next = isObject(existing) ? { ...toRecord(existing) } : {};
             current[part] = next;
             current = next;
@@ -520,10 +555,6 @@ function setNestedValue(
 // Narrowing helpers
 // ---------------------------------------------------------------------------
 
-function isObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
-
 function toRecord(value: object): Record<string, unknown> {
     // TypeScript's `object` type has no index signature.
     // Iterating Object.entries builds the record without assertion.
@@ -534,82 +565,14 @@ function toRecord(value: object): Record<string, unknown> {
     return record;
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
     return typeof value === "function";
 }
 
 function getProperty(obj: Record<string, unknown>, key: string): unknown {
     return obj[key];
-}
-
-function flattenFieldOverrides(
-    overrides: Record<string, unknown> | undefined,
-    prefix = ""
-): Record<string, Partial<SchemaMeta>> | undefined {
-    if (overrides === undefined) return undefined;
-
-    const result: Record<string, Partial<SchemaMeta>> = {};
-
-    for (const [key, value] of Object.entries(overrides)) {
-        if (value === undefined || value === null) continue;
-
-        const path = prefix.length > 0 ? `${prefix}.${key}` : key;
-
-        if (typeof value === "object" && !Array.isArray(value)) {
-            const obj = toRecord(value);
-
-            // Check if this is a SchemaMeta (has known meta keys) or a nested override
-            const knownMetaKeys = new Set([
-                "readOnly",
-                "writeOnly",
-                "description",
-                "title",
-                "deprecated",
-                "component",
-            ]);
-            const keys = Object.keys(obj);
-            const hasMetaKeys = keys.some((k) => knownMetaKeys.has(k));
-            const hasUnknownKeys = keys.some((k) => !knownMetaKeys.has(k));
-
-            // Extract any SchemaMeta fields at this level
-            if (hasMetaKeys) {
-                const metaEntries: [string, unknown][] = [];
-                for (const k of keys) {
-                    if (knownMetaKeys.has(k)) {
-                        const v = obj[k];
-                        if (
-                            k === "readOnly" ||
-                            k === "writeOnly" ||
-                            k === "deprecated"
-                        ) {
-                            if (v === true) metaEntries.push([k, v]);
-                        } else if (typeof v === "string") {
-                            metaEntries.push([k, v]);
-                        }
-                    }
-                }
-                if (metaEntries.length > 0) {
-                    const meta: SchemaMeta = {};
-                    for (const [k, v] of metaEntries) {
-                        meta[k] = v;
-                    }
-                    result[path] = meta;
-                }
-            }
-
-            // Recurse into nested fields
-            if (hasUnknownKeys) {
-                const nested = flattenFieldOverrides(obj, path);
-                if (nested !== undefined) {
-                    for (const [nestedPath, nestedMeta] of Object.entries(
-                        nested
-                    )) {
-                        result[nestedPath] = nestedMeta;
-                    }
-                }
-            }
-        }
-    }
-
-    return Object.keys(result).length > 0 ? result : undefined;
 }
