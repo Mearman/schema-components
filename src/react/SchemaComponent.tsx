@@ -81,7 +81,9 @@ type InferFields<T, Ref extends string | undefined> = T extends z.ZodType
           ? FieldOverrides<ResolveOpenAPIRef<T & Record<string, unknown>, Ref>>
           : Record<string, FieldOverride>
       : T extends object
-        ? FieldOverrides<FromJSONSchema<T>>
+        ? unknown extends FromJSONSchema<T>
+            ? Record<string, FieldOverride>
+            : FieldOverrides<FromJSONSchema<T>>
         : Record<string, FieldOverride>;
 
 export interface SchemaComponentProps<
@@ -247,7 +249,7 @@ function runValidation(
 // Field rendering — delegates to resolver or headless fallback
 // ---------------------------------------------------------------------------
 
-function renderField(
+export function renderField(
     tree: WalkedField,
     value: unknown,
     onChange: (v: unknown) => void,

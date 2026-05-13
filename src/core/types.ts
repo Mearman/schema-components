@@ -246,3 +246,141 @@ export type ResolveOpenAPIRef<
     : Ref extends `${string}/${string}`
       ? unknown // Path-based ref resolution is too deep to type statically
       : unknown;
+
+// ---------------------------------------------------------------------------
+// Type-level OpenAPI path traversal (for as const literals)
+// ---------------------------------------------------------------------------
+
+/** Navigate to a path item in an OpenAPI document. */
+type PathItemOf<Doc, Path extends string> = Doc extends {
+    paths: Record<string, unknown>;
+}
+    ? Path extends keyof Doc["paths"]
+        ? Doc["paths"][Path]
+        : unknown
+    : unknown;
+
+/** Navigate to an operation within a path item. */
+type OperationOf<PathItem, Method extends string> =
+    PathItem extends Record<string, unknown>
+        ? Method extends keyof PathItem
+            ? PathItem[Method]
+            : unknown
+        : unknown;
+
+/** Extract the schema from request body content. */
+type RequestBodySchemaOf<Op> = Op extends {
+    requestBody: { content: { "application/json": { schema: infer S } } };
+}
+    ? S
+    : Op extends {
+            requestBody: { content: Record<string, { schema: infer S }> };
+        }
+      ? S
+      : unknown;
+
+/** Extract the schema from response content. */
+type ResponseSchemaOf<Op, Status extends string> = Op extends {
+    responses: Record<string, unknown>;
+}
+    ? Status extends keyof Op["responses"]
+        ? Op["responses"][Status] extends {
+              content: { "application/json": { schema: infer S } };
+          }
+            ? S
+            : Op["responses"][Status] extends {
+                    content: Record<string, { schema: infer S }>;
+                }
+              ? S
+              : unknown
+        : unknown
+    : unknown;
+
+/** Resolve a schema that may be a $ref pointer. */
+type ResolveMaybeRef<Doc, S> = S extends { $ref: infer R extends string }
+    ? ResolveOpenAPIRef<Doc & Record<string, unknown>, R>
+    : S extends Record<string, unknown>
+      ? FromJSONSchema<S>
+      : unknown;
+
+/** Extract parameter names from an operation. */
+type ParameterNamesOf<Doc, Path extends string, Method extends string> =
+    OperationOf<PathItemOf<Doc, Path>, Method> extends {
+        parameters: readonly unknown[];
+    }
+        ? OperationOf<
+              PathItemOf<Doc, Path>,
+              Method
+          >["parameters"][number] extends {
+              name: infer N;
+          }
+            ? N extends string
+                ? N
+                : never
+            : never
+        : never;
+
+/**
+ * Infer the TypeScript type of an OpenAPI operation's request body.
+ */
+export type OpenAPIRequestBodyType<
+    Doc,
+    Path extends string,
+    Method extends string,
+> = ResolveMaybeRef<
+    Doc,
+    RequestBodySchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>>
+>;
+
+/**
+ * Infer the TypeScript type of an OpenAPI operation's response.
+ */
+export type OpenAPIResponseType<
+    Doc,
+    Path extends string,
+    Method extends string,
+    Status extends string,
+> = ResolveMaybeRef<
+    Doc,
+    ResponseSchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>, Status>
+>;
+
+/**
+ * Infer the fields prop type for ApiRequestBody.
+ * Falls back to Record<string, FieldOverride> for runtime documents.
+ */
+export type InferRequestBodyFields<
+    Doc,
+    Path extends string,
+    Method extends string,
+> =
+    unknown extends OpenAPIRequestBodyType<Doc, Path, Method>
+        ? Record<string, FieldOverride>
+        : FieldOverrides<OpenAPIRequestBodyType<Doc, Path, Method>>;
+
+/**
+ * Infer the fields prop type for ApiResponse.
+ * Falls back to Record<string, FieldOverride> for runtime documents.
+ */
+export type InferResponseFields<
+    Doc,
+    Path extends string,
+    Method extends string,
+    Status extends string,
+> =
+    unknown extends OpenAPIResponseType<Doc, Path, Method, Status>
+        ? Record<string, FieldOverride>
+        : FieldOverrides<OpenAPIResponseType<Doc, Path, Method, Status>>;
+
+/**
+ * Infer the overrides prop type for ApiParameters.
+ * Falls back to Record<string, FieldOverride> for runtime documents.
+ */
+export type InferParameterOverrides<
+    Doc,
+    Path extends string,
+    Method extends string,
+> =
+    string extends ParameterNamesOf<Doc, Path, Method>
+        ? Record<string, FieldOverride>
+        : Partial<Record<ParameterNamesOf<Doc, Path, Method>, FieldOverride>>;
