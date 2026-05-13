@@ -84,7 +84,10 @@ function spreadMeta(obj: Record<string, unknown>): SchemaMeta {
 // Constraint extraction from ._zod.bag
 // ---------------------------------------------------------------------------
 
-function extractConstraints(schema: unknown): FieldConstraints {
+function extractConstraints(
+    schema: unknown,
+    schemaType: string
+): FieldConstraints {
     const zod = getProperty(schema, "_zod");
     if (!isObject(zod)) return {};
     const bag = getProperty(zod, "bag");
@@ -93,16 +96,22 @@ function extractConstraints(schema: unknown): FieldConstraints {
     const result: FieldConstraints = {};
 
     const minimum = bag.minimum;
-    if (typeof minimum === "number") result.minimum = minimum;
+    if (typeof minimum === "number") {
+        if (schemaType === "string") {
+            result.minLength = minimum;
+        } else {
+            result.minimum = minimum;
+        }
+    }
 
     const maximum = bag.maximum;
-    if (typeof maximum === "number") result.maximum = maximum;
-
-    const minLength = bag.minLength;
-    if (typeof minLength === "number") result.minLength = minLength;
-
-    const maxLength = bag.maxLength;
-    if (typeof maxLength === "number") result.maxLength = maxLength;
+    if (typeof maximum === "number") {
+        if (schemaType === "string") {
+            result.maxLength = maximum;
+        } else {
+            result.maximum = maximum;
+        }
+    }
 
     const format = bag.format;
     if (typeof format === "string") result.format = format;
@@ -218,22 +227,19 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
 
     const type = getType(def);
     const propertyMeta = extractMeta(schema);
-    const constraints = extractConstraints(innerSchema);
+    const schemaType = mapType(type, def);
+    const constraints = extractConstraints(innerSchema, schemaType);
 
     // Extract SchemaMeta fields from the current override level
     const overrideMeta = extractSchemaMetaFields(fieldOverrides);
+    const mergedMeta: SchemaMeta = { ...propertyMeta, ...overrideMeta };
 
-    const editability = resolveEditability(
-        { ...propertyMeta, ...overrideMeta },
-        componentMeta,
-        rootMeta
-    );
+    const editability = resolveEditability(mergedMeta, componentMeta, rootMeta);
 
-    const schemaType = mapType(type, def);
     const base: WalkedField = {
         type: schemaType,
         editability,
-        meta: propertyMeta,
+        meta: mergedMeta,
         isOptional: unwrapped.isOptional,
         isNullable: unwrapped.isNullable,
         defaultValue: unwrapped.defaultValue,
