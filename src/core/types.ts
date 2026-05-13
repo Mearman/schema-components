@@ -198,8 +198,12 @@ export type ResolveOpenAPIRef<
     Spec extends Record<string, unknown>,
     Ref extends string,
 > = Ref extends `#/components/schemas/${infer Name}`
-    ? Name extends keyof Spec["components"]
-        ? FromJSONSchema<Spec["components"][Name]>
+    ? Spec["components"] extends Record<string, unknown>
+        ? Spec["components"]["schemas"] extends Record<string, unknown>
+            ? Name extends keyof Spec["components"]["schemas"]
+                ? FromJSONSchema<Spec["components"]["schemas"][Name]>
+                : unknown
+            : unknown
         : unknown
     : Ref extends `${string}/${string}`
       ? unknown // Path-based ref resolution is too deep to type statically
