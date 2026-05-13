@@ -1,6 +1,8 @@
 import type { GlobalConfig } from "semantic-release";
 
 const config: GlobalConfig = {
+    repositoryUrl: "https://github.com/Mearman/schema-components.git",
+    tagFormat: "v${version}",
     branches: [{ name: "main", channel: "latest" }],
     plugins: [
         [
