@@ -45,6 +45,16 @@ export interface RenderProps {
     valueType?: WalkedField;
     /** Walked field tree for recursive rendering. */
     tree: WalkedField;
+    /**
+     * Render a child field. Theme adapters call this to recursively render
+     * nested structures (object fields, array elements, union options).
+     * The resolver and rendering context are already wired in.
+     */
+    renderChild: (
+        tree: WalkedField,
+        value: unknown,
+        onChange: (v: unknown) => void
+    ) => unknown;
 }
 
 // ---------------------------------------------------------------------------

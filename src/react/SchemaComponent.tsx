@@ -33,7 +33,7 @@ import type {
     SchemaMeta,
     WalkedField,
 } from "../core/types.ts";
-import { createHeadlessResolver } from "./headless.tsx";
+import { headlessResolver } from "./headless.tsx";
 
 // ---------------------------------------------------------------------------
 // Context — theme adapter
@@ -241,7 +241,7 @@ function renderField(
     if (typeof componentHint === "string") {
         const widget = widgetRegistry.get(componentHint);
         if (widget !== undefined) {
-            const props = buildRenderProps(tree, value, onChange);
+            const props = buildRenderProps(tree, value, onChange, renderChild);
             const result: unknown = widget(props);
             if (result !== undefined && result !== null) {
                 if (isValidElement(result)) return result;
@@ -253,17 +253,17 @@ function renderField(
     }
 
     // 2. Build merged resolver: user overrides → headless fallback
-    const headless = createHeadlessResolver(renderChild);
+
     const resolver =
         userResolver !== undefined
-            ? mergeResolvers(userResolver, headless)
-            : headless;
+            ? mergeResolvers(userResolver, headlessResolver)
+            : headlessResolver;
 
     // 3. Look up the render function for this schema type
     const renderFn = getRenderFunction(tree.type, resolver);
     if (renderFn !== undefined) {
         const result: unknown = renderFn(
-            buildRenderProps(tree, value, onChange)
+            buildRenderProps(tree, value, onChange, renderChild)
         );
         if (result !== undefined && result !== null) {
             if (isValidElement(result)) return result;
@@ -282,7 +282,12 @@ function renderField(
 function buildRenderProps(
     tree: WalkedField,
     value: unknown,
-    onChange: (v: unknown) => void
+    onChange: (v: unknown) => void,
+    renderChild: (
+        tree: WalkedField,
+        value: unknown,
+        onChange: (v: unknown) => void
+    ) => ReactNode
 ): RenderProps {
     const props: RenderProps = {
         value,
@@ -293,6 +298,7 @@ function buildRenderProps(
         constraints: tree.constraints,
         path: "",
         tree,
+        renderChild,
     };
     if (tree.enumValues !== undefined) props.enumValues = tree.enumValues;
     if (tree.element !== undefined) props.element = tree.element;

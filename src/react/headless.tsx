@@ -8,7 +8,7 @@
  * because it produces ReactNode values.
  */
 
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 
 // ---------------------------------------------------------------------------
@@ -17,6 +17,18 @@ import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toReactNode(value: unknown): ReactNode {
+    if (value === null || value === undefined) return null;
+    if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+    )
+        return value;
+    if (isValidElement(value)) return value;
+    return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -142,14 +154,7 @@ function renderEnum(props: RenderProps): ReactNode {
     );
 }
 
-function renderObject(
-    props: RenderProps,
-    renderChild: (
-        tree: import("../core/types.ts").WalkedField,
-        value: unknown,
-        onChange: (v: unknown) => void
-    ) => ReactNode
-): ReactNode {
+function renderObject(props: RenderProps): ReactNode {
     const obj = isRecord(props.value) ? props.value : {};
     const fields = props.fields;
     if (fields === undefined) return null;
@@ -174,7 +179,9 @@ function renderObject(
                         {typeof field.meta.description === "string" && (
                             <label>{field.meta.description}</label>
                         )}
-                        {renderChild(field, childValue, childOnChange)}
+                        {toReactNode(
+                            props.renderChild(field, childValue, childOnChange)
+                        )}
                     </div>
                 );
             })}
@@ -182,14 +189,7 @@ function renderObject(
     );
 }
 
-function renderArray(
-    props: RenderProps,
-    renderChild: (
-        tree: import("../core/types.ts").WalkedField,
-        value: unknown,
-        onChange: (v: unknown) => void
-    ) => ReactNode
-): ReactNode {
+function renderArray(props: RenderProps): ReactNode {
     const arr = Array.isArray(props.value) ? props.value : [];
     const element = props.element;
     if (element === undefined) return null;
@@ -204,7 +204,9 @@ function renderArray(
                 };
                 return (
                     <div key={String(i)}>
-                        {renderChild(element, item, childOnChange)}
+                        {toReactNode(
+                            props.renderChild(element, item, childOnChange)
+                        )}
                     </div>
                 );
             })}
@@ -242,28 +244,16 @@ function renderUnknown(props: RenderProps): ReactNode {
 // ---------------------------------------------------------------------------
 
 /**
- * The headless resolver returns render functions for primitive types.
- * Object and array rendering need a `renderChild` callback for recursion,
- * which is provided by the SchemaComponent at render time.
- *
- * The string/number/boolean/enum/unknown renderers are pure functions.
- * The object/array renderers are returned as factory functions that close
- * over the `renderChild` callback.
+ * The headless resolver uses props.renderChild for recursive rendering.
+ * No factory function needed — the renderChild is always available
+ * on RenderProps.
  */
-export function createHeadlessResolver(
-    renderChild: (
-        tree: import("../core/types.ts").WalkedField,
-        value: unknown,
-        onChange: (v: unknown) => void
-    ) => ReactNode
-): ComponentResolver {
-    return {
-        string: renderString,
-        number: renderNumber,
-        boolean: renderBoolean,
-        enum: renderEnum,
-        object: (props) => renderObject(props, renderChild),
-        array: (props) => renderArray(props, renderChild),
-        unknown: renderUnknown,
-    };
-}
+export const headlessResolver: ComponentResolver = {
+    string: renderString,
+    number: renderNumber,
+    boolean: renderBoolean,
+    enum: renderEnum,
+    object: renderObject,
+    array: renderArray,
+    unknown: renderUnknown,
+};
