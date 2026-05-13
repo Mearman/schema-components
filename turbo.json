@@ -1,0 +1,37 @@
+{
+    "$schema": "https://turbo.build/schema.json",
+    "tasks": {
+        "_typecheck": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "tsconfig.json"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "_lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "eslint.config.ts"],
+            "outputs": [".eslintcache"]
+        },
+        "_lint:fix": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "eslint.config.ts"],
+            "outputs": [".eslintcache"],
+            "cache": false
+        },
+        "_test": {
+            "dependsOn": ["_typecheck"],
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"]
+        },
+        "_test:coverage": {
+            "dependsOn": ["_typecheck"],
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"]
+        },
+        "_build": {
+            "dependsOn": ["_typecheck", "_lint"],
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json", "package.json"],
+            "outputs": ["dist/**"]
+        },
+        "_check": {
+            "dependsOn": ["_typecheck", "_lint", "_build"]
+        },
+        "_validate": {
+            "dependsOn": ["_check", "_test"]
+        }
+    }
+}
