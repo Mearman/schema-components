@@ -12,10 +12,11 @@ const preview: Preview = {
             storySort: {
                 order: [
                     "Introduction",
+                    "JSON Schema",
                     "React",
-                    ["Headless", "Shadcn"],
+                    ["Headless", "SchemaField", "Unions"],
                     "HTML",
-                    ["Static", "Streaming"],
+                    ["Static", "Streaming", "Custom Resolver"],
                     "OpenAPI",
                 ],
             },
