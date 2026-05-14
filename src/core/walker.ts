@@ -11,14 +11,10 @@
 
 import type { FieldConstraints, SchemaMeta, WalkedField } from "./types.ts";
 import { resolveEditability } from "./types.ts";
+import { isObject } from "./guards.ts";
 
-// ---------------------------------------------------------------------------
-// Type guards and safe access
-// ---------------------------------------------------------------------------
-
-function isObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+// Object/record guards are imported from core/guards.ts.
+// Remaining helpers are walker-specific.
 
 function getString(
     obj: Record<string, unknown>,

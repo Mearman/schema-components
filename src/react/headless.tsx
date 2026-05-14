@@ -10,14 +10,11 @@
 
 import { isValidElement, type ReactNode } from "react";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
+import { isObject } from "../core/guards.ts";
 
 // ---------------------------------------------------------------------------
-// Helper: safe property access on record types
+// Helpers
 // ---------------------------------------------------------------------------
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function toReactNode(value: unknown): ReactNode {
     if (value === null || value === undefined) return null;
@@ -155,7 +152,7 @@ function renderEnum(props: RenderProps): ReactNode {
 }
 
 function renderObject(props: RenderProps): ReactNode {
-    const obj = isRecord(props.value) ? props.value : {};
+    const obj = isObject(props.value) ? props.value : {};
     const fields = props.fields;
     if (fields === undefined) return null;
 

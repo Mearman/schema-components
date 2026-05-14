@@ -12,19 +12,9 @@
  */
 
 import type { JsonObject } from "../core/types.ts";
+import { getProperty, isObject } from "../core/guards.ts";
 
-// ---------------------------------------------------------------------------
-// Type guards
-// ---------------------------------------------------------------------------
-
-function isObject(value: unknown): value is JsonObject {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getProperty(value: unknown, key: string): unknown {
-    if (!isObject(value)) return undefined;
-    return value[key];
-}
+// Type guards imported from core/guards.ts
 
 function getString(value: unknown, key: string): string | undefined {
     const result = isObject(value) ? value[key] : undefined;

@@ -23,7 +23,7 @@ import {
 } from "react";
 import { walk, type WalkOptions } from "../core/walker.ts";
 import { normaliseSchema } from "../core/adapter.ts";
-import { getRenderFunction } from "../core/renderer.ts";
+import { getRenderFunction, mergeResolvers } from "../core/renderer.ts";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import type {
     FieldOverride,
@@ -35,6 +35,7 @@ import type {
     WalkedField,
 } from "../core/types.ts";
 import { headlessResolver } from "./headless.tsx";
+import { isObject, toRecord } from "../core/guards.ts";
 
 // ---------------------------------------------------------------------------
 // Context — theme adapter
@@ -335,35 +336,7 @@ function buildRenderProps(
     return props;
 }
 
-function mergeResolvers(
-    user: ComponentResolver,
-    fallback: ComponentResolver
-): ComponentResolver {
-    const merged: ComponentResolver = {};
-    const userStr = user.string ?? fallback.string;
-    if (userStr !== undefined) merged.string = userStr;
-    const userNum = user.number ?? fallback.number;
-    if (userNum !== undefined) merged.number = userNum;
-    const userBool = user.boolean ?? fallback.boolean;
-    if (userBool !== undefined) merged.boolean = userBool;
-    const userEnum = user.enum ?? fallback.enum;
-    if (userEnum !== undefined) merged.enum = userEnum;
-    const userObj = user.object ?? fallback.object;
-    if (userObj !== undefined) merged.object = userObj;
-    const userArr = user.array ?? fallback.array;
-    if (userArr !== undefined) merged.array = userArr;
-    const userRec = user.record ?? fallback.record;
-    if (userRec !== undefined) merged.record = userRec;
-    const userUnion = user.union ?? fallback.union;
-    if (userUnion !== undefined) merged.union = userUnion;
-    const userLit = user.literal ?? fallback.literal;
-    if (userLit !== undefined) merged.literal = userLit;
-    const userFile = user.file ?? fallback.file;
-    if (userFile !== undefined) merged.file = userFile;
-    const userUnk = user.unknown ?? fallback.unknown;
-    if (userUnk !== undefined) merged.unknown = userUnk;
-    return merged;
-}
+// mergeResolvers imported from core/renderer.ts
 
 // ---------------------------------------------------------------------------
 // <SchemaField> — renders a single field from a schema by path
@@ -620,19 +593,8 @@ function setNestedValue(
 // Narrowing helpers
 // ---------------------------------------------------------------------------
 
-function toRecord(value: object): Record<string, unknown> {
-    // TypeScript's `object` type has no index signature.
-    // Iterating Object.entries builds the record without assertion.
-    const record: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value)) {
-        record[key] = val;
-    }
-    return record;
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
+// Narrowing helpers imported from core/guards.ts.
+// isCallable is local — specific to the validation boundary.
 
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
     return typeof value === "function";

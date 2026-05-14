@@ -1,13 +1,13 @@
 /**
- * Component resolver interface and headless default descriptor renderer.
+ * Component resolver interface — shared between React and HTML renderers.
  *
- * The ComponentResolver maps schema types to render functions. Theme adapters
- * implement this interface. The headless default produces descriptor objects
- * (not React elements) — the React module converts these or replaces them
- * entirely with its own rendering.
+ * The resolver maps schema types to render functions. Theme adapters
+ * implement this interface. The return type of render functions is
+ * `unknown` so that different view layers can produce their own output.
  *
- * The render function returns `unknown` so that different view layers can
- * produce their own output types. The React module casts to ReactNode.
+ * `RenderProps` carries the data and callbacks every render function needs.
+ * `renderChild` on RenderProps enables recursive rendering without the
+ * theme adapter needing to know about the resolver.
  */
 
 import type { FieldConstraints, SchemaMeta, WalkedField } from "./types.ts";
@@ -81,33 +81,80 @@ export interface ComponentResolver {
 // Resolver lookup
 // ---------------------------------------------------------------------------
 
+export const RESOLVER_KEYS = [
+    "string",
+    "number",
+    "boolean",
+    "enum",
+    "object",
+    "array",
+    "record",
+    "union",
+    "literal",
+    "file",
+    "unknown",
+] as const;
+
+type ResolverKey = (typeof RESOLVER_KEYS)[number];
+
+/**
+ * Map a schema type to the resolver key that handles it.
+ * `discriminatedUnion` → `union`. Unknown types → `unknown`.
+ * Exported so HTML and React resolvers can share the mapping
+ * without duplicating the switch.
+ */
+export function typeToKey(type: WalkedField["type"]): ResolverKey {
+    switch (type) {
+        case "string":
+        case "number":
+        case "boolean":
+        case "enum":
+        case "object":
+        case "array":
+        case "record":
+        case "union":
+        case "literal":
+        case "file":
+        case "unknown":
+            return type;
+        case "discriminatedUnion":
+            return "union";
+        default:
+            return "unknown";
+    }
+}
+
+/**
+ * Look up the render function for a schema type in a ComponentResolver.
+ */
 export function getRenderFunction(
     type: WalkedField["type"],
     resolver: ComponentResolver
 ): RenderFunction | undefined {
-    switch (type) {
-        case "string":
-            return resolver.string;
-        case "number":
-            return resolver.number;
-        case "boolean":
-            return resolver.boolean;
-        case "enum":
-            return resolver.enum;
-        case "object":
-            return resolver.object;
-        case "array":
-            return resolver.array;
-        case "record":
-            return resolver.record;
-        case "union":
-        case "discriminatedUnion":
-            return resolver.union;
-        case "literal":
-            return resolver.literal;
-        case "file":
-            return resolver.file;
-        default:
-            return resolver.unknown;
-    }
+    return resolver[typeToKey(type)];
 }
+
+// ---------------------------------------------------------------------------
+// Resolver merge — user values take priority, fallback fills gaps
+// ---------------------------------------------------------------------------
+
+/**
+ * Merge two ComponentResolvers — user values take priority, fallback fills gaps.
+ */
+export function mergeResolvers(
+    user: ComponentResolver,
+    fallback: ComponentResolver
+): ComponentResolver {
+    const merged: ComponentResolver = {};
+    for (const key of RESOLVER_KEYS) {
+        const fn = user[key] ?? fallback[key];
+        if (fn !== undefined) {
+            merged[key] = fn;
+        }
+    }
+    return merged;
+}
+
+// HTML resolver merge is in the html module — the HtmlResolver type
+// has (props: HtmlRenderProps) => string which is incompatible with
+// a generic (props: unknown) => unknown due to exactOptionalPropertyTypes.
