@@ -1,3 +1,13 @@
+## [1.6.0](https://github.com/Mearman/schema-components/compare/v1.5.1...v1.6.0) (2026-05-14)
+
+### Features
+
+* add per-field onValidationError and writeOnly tests ([bc65589](https://github.com/Mearman/schema-components/commit/bc655893601b8e015dd3c717eccc9bf9dffbbb42))
+
+### Tests
+
+* add writeOnly behaviour tests across all renderers ([abfb293](https://github.com/Mearman/schema-components/commit/abfb293498efc4d4095dec072fd1e5a9c3239035))
+
 ## [1.5.1](https://github.com/Mearman/schema-components/compare/v1.5.0...v1.5.1) (2026-05-14)
 
 ### Bug Fixes
