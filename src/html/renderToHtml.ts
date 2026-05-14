@@ -253,7 +253,7 @@ function renderBooleanEditable(props: HtmlRenderProps): HtmlNode {
         name: id,
     };
 
-    if (props.value === true) {
+    if (!props.writeOnly && props.value === true) {
         attrs.checked = true;
     }
 

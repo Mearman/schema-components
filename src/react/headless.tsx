@@ -293,7 +293,7 @@ function renderBoolean(props: RenderProps): ReactNode {
         <input
             id={id}
             type="checkbox"
-            checked={props.value === true}
+            checked={props.writeOnly ? false : props.value === true}
             onChange={(e) => {
                 props.onChange(e.target.checked);
             }}

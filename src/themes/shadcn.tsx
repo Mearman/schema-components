@@ -103,7 +103,13 @@ function renderNumberInput(props: RenderProps): ReactNode {
         <input
             type="number"
             className={className}
-            value={typeof props.value === "number" ? props.value : ""}
+            value={
+                props.writeOnly
+                    ? ""
+                    : typeof props.value === "number"
+                      ? props.value
+                      : ""
+            }
             onChange={(e) => {
                 props.onChange(Number(e.target.value));
             }}
@@ -130,7 +136,7 @@ function renderBooleanInput(props: RenderProps): ReactNode {
         <input
             type="checkbox"
             className={className}
-            checked={props.value === true}
+            checked={props.writeOnly ? false : props.value === true}
             onChange={(e) => {
                 props.onChange(e.target.checked);
             }}
