@@ -18,6 +18,6 @@
         "verbatimModuleSyntax": true,
         "jsx": "react-jsx"
     },
-    "include": ["src", "tests", "stories", ".storybook"],
+    "include": ["src", "tests", "stories", ".storybook", "vitest.config.ts"],
     "exclude": ["node_modules", "dist", "tests/ssr.e2e.test.ts"]
 }
