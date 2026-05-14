@@ -585,6 +585,37 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
     );
 }
 
+function renderFileHtml(props: HtmlRenderProps): string {
+    const id = fieldId(props.path);
+    const accept = props.constraints.mimeTypes?.join(",");
+
+    if (props.readOnly) {
+        return serialize(
+            h(
+                "span",
+                { class: "sc-value", id, ...ariaReadonlyAttrs() },
+                "File field"
+            )
+        );
+    }
+
+    const attrs: HtmlAttributes = {
+        class: "sc-input",
+        id,
+        type: "file",
+        name: id,
+    };
+    if (accept !== undefined) {
+        attrs.accept = accept;
+    }
+    Object.assign(attrs, ariaRequiredAttrs(props.tree));
+    if (typeof props.meta.description === "string") {
+        Object.assign(attrs, ariaLabelAttrs(props.meta.description));
+    }
+
+    return serialize(h("input", attrs));
+}
+
 function renderUnknownHtml(props: HtmlRenderProps): string {
     if (props.readOnly) {
         if (props.value === undefined || props.value === null) {
@@ -656,6 +687,7 @@ export const defaultHtmlResolver: HtmlResolver = {
     literal: renderLiteralHtml,
     union: renderUnionHtml,
     discriminatedUnion: renderDiscriminatedUnionHtml,
+    file: renderFileHtml,
     unknown: renderUnknownHtml,
 };
 

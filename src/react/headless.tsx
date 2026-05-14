@@ -620,6 +620,43 @@ function DiscriminatedUnionTabs({
     );
 }
 
+function renderFile(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
+    const accept = props.constraints.mimeTypes?.join(",");
+
+    if (props.readOnly) {
+        // Read-only: no file input, indicate file field
+        return (
+            <span id={id} aria-readonly="true">
+                {"File field"}
+            </span>
+        );
+    }
+
+    const ariaAttrs: Record<string, string> = {};
+    if (props.tree.isOptional === false) {
+        ariaAttrs["aria-required"] = "true";
+    }
+    if (typeof props.meta.description === "string") {
+        ariaAttrs["aria-label"] = props.meta.description;
+    }
+
+    return (
+        <input
+            id={id}
+            type="file"
+            accept={accept}
+            onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file !== undefined) {
+                    props.onChange(file);
+                }
+            }}
+            {...ariaAttrs}
+        />
+    );
+}
+
 function renderUnknown(props: RenderProps): ReactNode {
     const id = inputId(props.path);
 
@@ -696,5 +733,6 @@ export const headlessResolver: ComponentResolver = {
     array: renderArray,
     union: renderUnion,
     discriminatedUnion: renderDiscriminatedUnion,
+    file: renderFile,
     unknown: renderUnknown,
 };
