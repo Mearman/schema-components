@@ -18,6 +18,9 @@
  * - Record: opening tag, one chunk per entry, closing tag
  * - Leaf types (string, number, boolean, enum, literal, unknown):
  *   rendered entirely as one chunk
+ *
+ * All HTML construction uses `h()` from `html.ts` — the streaming module
+ * manually yields the opening tag, then children, then the closing tag.
  */
 
 import { normaliseSchema } from "../core/adapter.ts";
@@ -28,10 +31,20 @@ import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
 import { defaultHtmlResolver } from "./renderToHtml.ts";
 import { isObject } from "../core/guards.ts";
 import {
-    escapeHtml,
+    h,
+    serialize,
+    serializeAttributes,
+    VOID_ELEMENTS,
+    raw,
+    type HtmlNode,
+    type HtmlElement,
+    type HtmlAttributes,
+} from "./html.ts";
+import {
     buildInputId,
-    buildHintHtml,
+    buildHintElement,
     requiredIndicator,
+    ariaLabelAttrs,
 } from "./a11y.ts";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +54,27 @@ import {
 export type StreamRenderOptions =
     import("./renderToHtml.ts").RenderToHtmlOptions;
 
-// HTML escaping imported from html/a11y.ts
+// ---------------------------------------------------------------------------
+// Helpers for streaming h() nodes
+// ---------------------------------------------------------------------------
+
+/**
+ * Yield the opening tag of an element (e.g. `<fieldset class="sc-object">`).
+ * For void elements, yields the complete self-closing tag.
+ */
+function yieldOpen(el: HtmlElement): string {
+    const attrs = serializeAttributes(el.attributes);
+    return `<${el.tag}${attrs}>`;
+}
+
+/**
+ * Yield the closing tag of an element (e.g. `</fieldset>`).
+ * Returns empty string for void elements.
+ */
+function yieldClose(el: HtmlElement): string {
+    if (VOID_ELEMENTS.has(el.tag)) return "";
+    return `</${el.tag}>`;
+}
 
 // ---------------------------------------------------------------------------
 // Chunked rendering — sync generator (foundation)
@@ -86,9 +119,6 @@ export async function* renderToHtmlStream(
     const resolver = options.resolver ?? defaultHtmlResolver;
     const mergedResolver = mergeHtmlResolvers(resolver, defaultHtmlResolver);
 
-    // Yield each chunk with an await to give the event loop a chance
-    // between fields. This is the key difference from the sync version —
-    // it allows the runtime to flush network buffers between chunks.
     for (const chunk of streamField(
         tree,
         options.value,
@@ -97,16 +127,12 @@ export async function* renderToHtmlStream(
         resolver
     )) {
         yield chunk;
-        // Yield control back to the event loop so that the runtime can
-        // flush any pending I/O (e.g. HTTP response buffers) before
-        // continuing with the next field.
         await schedulerYield();
     }
 }
 
 /**
  * No-op await that yields control to the event loop.
- * `await undefined` resolves on the next microtask.
  */
 function schedulerYield(): Promise<undefined> {
     return Promise.resolve(undefined);
@@ -118,8 +144,6 @@ function schedulerYield(): Promise<undefined> {
 
 /**
  * Render a schema to a web `ReadableStream<string>`.
- *
- * Use with `Response`, `TransformStream`, or any web streams API consumer.
  *
  * ```ts
  * return new Response(renderToHtmlReadable(schema, { value }), {
@@ -250,40 +274,62 @@ function* streamObject(
     const obj = isObject(value) ? value : {};
     const readOnly = tree.editability === "presentation";
     const descriptionText =
-        typeof tree.meta.description === "string" ? tree.meta.description : "";
-    const hasDescription = descriptionText.length > 0;
-    const legend = hasDescription
-        ? `<legend>${escapeHtml(descriptionText)}</legend>`
-        : "";
-    const groupAria = hasDescription
-        ? ` aria-label="${escapeHtml(descriptionText)}"`
-        : "";
+        typeof tree.meta.description === "string"
+            ? tree.meta.description
+            : undefined;
+
+    const labelAttrs = ariaLabelAttrs(descriptionText);
 
     if (readOnly) {
-        yield `<dl class="sc-object"${groupAria}>${legend}`;
+        const dlAttrs: HtmlAttributes = { class: "sc-object" };
+        Object.assign(dlAttrs, labelAttrs);
+        const dl = h("dl", dlAttrs);
+
+        const legend =
+            descriptionText !== undefined
+                ? serialize(h("legend", {}, descriptionText))
+                : "";
+
+        yield `${yieldOpen(dl)}${legend}`;
+
         for (const [key, field] of Object.entries(fields)) {
             const label =
                 typeof field.meta.description === "string"
-                    ? escapeHtml(field.meta.description)
-                    : escapeHtml(key);
+                    ? field.meta.description
+                    : key;
             const childValue = obj[key];
             const childHtml = renderFieldSync(
                 field,
                 childValue,
                 mergedResolver,
-                path ? `${path}.${key}` : key,
+                key,
                 rawResolver
             );
-            yield `<dt class="sc-label">${label}</dt><dd class="sc-value">${childHtml}</dd>`;
+            const dt = serialize(h("dt", { class: "sc-label" }, label));
+            const dd = serialize(
+                h("dd", { class: "sc-value" }, raw(childHtml))
+            );
+            yield `${dt}${dd}`;
         }
-        yield `</dl>`;
+
+        yield yieldClose(dl);
     } else {
-        yield `<fieldset class="sc-object"${groupAria}>${legend}`;
+        const fieldsetAttrs: HtmlAttributes = { class: "sc-object" };
+        Object.assign(fieldsetAttrs, labelAttrs);
+        const fieldset = h("fieldset", fieldsetAttrs);
+
+        const legend =
+            descriptionText !== undefined
+                ? serialize(h("legend", {}, descriptionText))
+                : "";
+
+        yield `${yieldOpen(fieldset)}${legend}`;
+
         for (const [key, field] of Object.entries(fields)) {
             const label =
                 typeof field.meta.description === "string"
-                    ? escapeHtml(field.meta.description)
-                    : escapeHtml(key);
+                    ? field.meta.description
+                    : key;
             const fieldId = buildInputId(path, key);
             const childValue = obj[key];
             const childChunks = [
@@ -291,15 +337,32 @@ function* streamObject(
                     field,
                     childValue,
                     mergedResolver,
-                    path ? `${path}.${key}` : key,
+                    key,
                     rawResolver
                 ),
             ].join("");
-            const hint = buildHintHtml(fieldId, field.constraints);
+
             const required = requiredIndicator(field);
-            yield `<div class="sc-field"><label class="sc-label" for="${fieldId}">${label}${required}</label>${childChunks}${hint}</div>`;
+
+            const labelContent: HtmlNode[] = [label];
+            if (required !== undefined) labelContent.push(required);
+
+            const fieldChildren: HtmlNode[] = [
+                h(
+                    "label",
+                    { class: "sc-label", for: fieldId },
+                    ...labelContent
+                ),
+                raw(childChunks),
+            ];
+            const hint = buildHintElement(key, field.constraints);
+            if (hint !== undefined) fieldChildren.push(hint);
+
+            const fieldDiv = h("div", { class: "sc-field" }, ...fieldChildren);
+            yield serialize(fieldDiv);
         }
-        yield `</fieldset>`;
+
+        yield yieldClose(fieldset);
     }
 }
 
@@ -320,32 +383,39 @@ function* streamArray(
 
     const readOnly = tree.editability === "presentation";
 
+    const elementPath =
+        typeof element.meta.description === "string"
+            ? element.meta.description
+            : "";
+
     if (readOnly) {
-        yield `<ul class="sc-array">`;
+        const ul = h("ul", { class: "sc-array" });
+        yield yieldOpen(ul);
         for (const item of arr) {
             const childHtml = renderFieldSync(
                 element,
                 item,
                 mergedResolver,
-                path,
+                elementPath,
                 rawResolver
             );
-            yield `<li class="sc-item">${childHtml}</li>`;
+            yield serialize(h("li", { class: "sc-item" }, raw(childHtml)));
         }
-        yield `</ul>`;
+        yield yieldClose(ul);
     } else {
-        yield `<div class="sc-array">`;
+        const div = h("div", { class: "sc-array" });
+        yield yieldOpen(div);
         for (const item of arr) {
             const childHtml = renderFieldSync(
                 element,
                 item,
                 mergedResolver,
-                path,
+                elementPath,
                 rawResolver
             );
-            yield `<div>${childHtml}</div>`;
+            yield serialize(h("div", {}, raw(childHtml)));
         }
-        yield `</div>`;
+        yield yieldClose(div);
     }
 }
 
@@ -365,33 +435,47 @@ function* streamRecord(
     if (valueType === undefined) return;
 
     const readOnly = tree.editability === "presentation";
+    const attrs: HtmlAttributes = { class: "sc-record", role: "group" };
 
     if (readOnly) {
-        yield `<dl class="sc-record" role="group">`;
+        const dl = h("dl", attrs);
+        yield yieldOpen(dl);
         for (const [key, val] of Object.entries(obj)) {
             const childHtml = renderFieldSync(
                 valueType,
                 val,
                 mergedResolver,
-                path,
+                key,
                 rawResolver
             );
-            yield `<dt class="sc-label">${escapeHtml(key)}</dt><dd class="sc-value">${childHtml}</dd>`;
+            const dt = serialize(h("dt", { class: "sc-label" }, key));
+            const dd = serialize(
+                h("dd", { class: "sc-value" }, raw(childHtml))
+            );
+            yield `${dt}${dd}`;
         }
-        yield `</dl>`;
+        yield yieldClose(dl);
     } else {
-        yield `<div class="sc-record" role="group">`;
+        const container = h("div", attrs);
+        yield yieldOpen(container);
         for (const [key, val] of Object.entries(obj)) {
             const childHtml = renderFieldSync(
                 valueType,
                 val,
                 mergedResolver,
-                path,
+                key,
                 rawResolver
             );
-            yield `<div class="sc-field"><label class="sc-label">${escapeHtml(key)}</label>${childHtml}</div>`;
+            yield serialize(
+                h(
+                    "div",
+                    { class: "sc-field" },
+                    h("label", { class: "sc-label" }, key),
+                    raw(childHtml)
+                )
+            );
         }
-        yield `</div>`;
+        yield yieldClose(container);
     }
 }
 
@@ -409,9 +493,13 @@ function* streamUnion(
     const options = tree.options;
     if (options === undefined || options.length === 0) {
         if (value === undefined || value === null) {
-            yield '<span class="sc-value sc-value--empty">—</span>';
+            yield serialize(
+                h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+            );
         } else {
-            yield `<span class="sc-value">${escapeHtml(JSON.stringify(value))}</span>`;
+            yield serialize(
+                h("span", { class: "sc-value" }, JSON.stringify(value))
+            );
         }
         return;
     }
@@ -419,9 +507,21 @@ function* streamUnion(
     const matched = matchUnionOption(options, value);
     const target = matched ?? options[0];
     if (target !== undefined) {
-        yield* streamField(target, value, mergedResolver, path, rawResolver);
+        const targetPath =
+            typeof target.meta.description === "string"
+                ? target.meta.description
+                : "";
+        yield* streamField(
+            target,
+            value,
+            mergedResolver,
+            targetPath,
+            rawResolver
+        );
     } else {
-        yield '<span class="sc-value sc-value--empty">—</span>';
+        yield serialize(
+            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+        );
     }
 }
 
@@ -461,15 +561,21 @@ function renderLeaf(
     }
 
     if (value === undefined || value === null) {
-        return '<span class="sc-value sc-value--empty">—</span>';
+        return serialize(
+            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+        );
     }
-    return `<span class="sc-value">${escapeHtml(typeof value === "string" ? value : JSON.stringify(value))}</span>`;
+    return serialize(
+        h(
+            "span",
+            { class: "sc-value" },
+            typeof value === "string" ? value : JSON.stringify(value)
+        )
+    );
 }
 
 /**
  * Render a field synchronously to a string, recursively streaming children.
- * Used for children of object/array/record that are yielded as part of
- * their parent's chunk.
  */
 function renderFieldSync(
     tree: WalkedField,
