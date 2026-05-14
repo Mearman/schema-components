@@ -518,6 +518,32 @@ const schema = z.object({
 
 Defaults propagate through nested objects — each field uses its own default independently.
 
+## Server Components
+
+For read-only rendering in a React Server Component, use `<SchemaView>`. It has zero hooks — no `useContext`, no `useMemo`, no `useCallback` — so it works without the `"use client"` directive.
+
+```tsx
+import { SchemaView } from "schema-components/react/SchemaView";
+
+export default async function Page() {
+  const user = await getUser();
+  return <SchemaView schema={userSchema} value={user} />;
+}
+```
+
+`SchemaView` always renders read-only. For editable forms, use `<SchemaComponent>` (which requires `"use client"`).
+
+Pass the resolver explicitly since React context is unavailable in Server Components:
+
+```tsx
+import { SchemaView } from "schema-components/react/SchemaView";
+import { shadcnResolver } from "schema-components/themes/shadcn";
+
+<SchemaView schema={schema} value={data} resolver={shadcnResolver} />
+```
+
+`SchemaView` produces identical output to `<SchemaComponent readOnly>` — verified by parity tests.
+
 ## Error handling
 
 Typed errors with `onError` callback for graceful degradation:
@@ -549,31 +575,19 @@ Without `onError`, errors re-throw. Error hierarchy: `SchemaError` → `SchemaNo
 ```
 schema-components
 ├── core            # JSON Schema walker, ComponentResolver, RenderProps, typed errors, type guards
-├── react           # SchemaComponent, SchemaProvider, SchemaField, headless renderer, error boundary
+├── react           # SchemaComponent ("use client"), SchemaView (server component), headless renderer, error boundary
 ├── openapi         # Document parser, ApiOperation, ApiParameters, ApiRequestBody, ApiResponse
 ├── html            # h() builder, renderToHtml, streaming renderers, ARIA helpers
 └── themes          # shadcn, MUI, custom adapters (separate packages)
 ```
 
-## Source files
+Every module is imported directly — no barrel files. Organised exports:
 
-Every module is imported directly — no barrel files.
-
-| File | Role |
-|---|---|
-| `core/types.ts` | SchemaMeta, Editability, WalkedField, FieldConstraints, FieldOverrides, FromJSONSchema, PathOfType |
-| `core/walker.ts` | JSON Schema walker (Draft 2020-12), `$ref` resolution, `allOf` merging, nullable/discriminated union detection |
-| `core/adapter.ts` | Normalises all inputs to JSON Schema. WeakMap schema cache. |
-| `core/renderer.ts` | `BaseFieldProps`, `RenderProps`, `HtmlRenderProps`, `ComponentResolver`, `HtmlResolver`, `mergeResolvers` |
-| `core/guards.ts` | Shared type guards: `isObject`, `getProperty`, `hasProperty`, `toRecord` |
-| `core/errors.ts` | `SchemaError`, `SchemaNormalisationError`, `SchemaRenderError`, `SchemaFieldError` |
-| `react/SchemaComponent.tsx` | Generic `<SchemaComponent<T, Ref>>`, `SchemaProvider`, `registerWidget`, `SchemaField<P>` |
-| `react/headless.tsx` | Headless default resolver, `createHeadlessResolver(renderChild)` factory |
-| `react/SchemaErrorBoundary.tsx` | React error boundary catching render errors |
-| `html/html.ts` | Typed `h()` builder — `serialize()`, `serializeChunks()`, `raw()`, `text()`, `fragment()` |
-| `html/a11y.ts` | ARIA helpers — `ariaRequiredAttrs()`, `ariaDescribedByAttrs()`, `buildHintElement()`, `requiredIndicator()` |
-| `html/renderToHtml.ts` | `renderToHtml()`, `defaultHtmlResolver` — schema → HTML string via `h()` builder |
-| `html/renderToHtmlStream.ts` | `renderToHtmlChunks()` (sync), `renderToHtmlStream()` (async), `renderToHtmlReadable()` (web ReadableStream) |
-| `openapi/parser.ts` | OpenAPI document parsing, operation extraction, `$ref` resolution |
-| `openapi/components.tsx` | `ApiOperation`, `ApiParameters`, `ApiRequestBody`, `ApiResponse` with generic type inference |
-| `themes/shadcn.tsx` | shadcn/ui theme adapter |
+```
+schema-components/core/*         # Walker, types, guards, errors, resolver
+schema-components/react/*        # SchemaComponent, SchemaView, SchemaErrorBoundary, headless
+schema-components/openapi/*      # Parser, ApiOperation, ApiParameters, etc.
+schema-components/html/*         # renderToHtml, renderToHtmlChunks, h() builder, styles
+schema-components/themes/*       # shadcn, MUI, custom adapters
+schema-components/styles.css     # Default stylesheet for HTML output
+```

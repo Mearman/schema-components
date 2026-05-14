@@ -1,0 +1,193 @@
+/**
+ * React Server Component for read-only schema rendering.
+ *
+ * This component has zero hooks — no `useContext`, no `useMemo`,
+ * no `useCallback`. It can run in a React Server Component environment
+ * without the `"use client"` directive.
+ *
+ * **Read-only only.** For interactive forms with `onChange`, use
+ * `<SchemaComponent>` (which requires `"use client"`).
+ *
+ * Usage in a Server Component:
+ * ```tsx
+ * import { SchemaView } from "schema-components/react/SchemaView";
+ *
+ * export default async function Page() {
+ *   const user = await getUser();
+ *   return <SchemaView schema={userSchema} value={user} />;
+ * }
+ * ```
+ *
+ * The `resolver` prop replaces the `SchemaProvider` context —
+ * Server Components cannot use React context, so the resolver
+ * is passed explicitly.
+ */
+
+import { isValidElement, type ReactNode } from "react";
+import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
+import { mergeResolvers, getRenderFunction } from "../core/renderer.ts";
+import { headlessResolver } from "./headless.tsx";
+import { normaliseSchema } from "../core/adapter.ts";
+import { walk, type WalkOptions } from "../core/walker.ts";
+import type { SchemaMeta, WalkedField } from "../core/types.ts";
+import { SchemaNormalisationError, SchemaRenderError } from "../core/errors.ts";
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+export interface SchemaViewProps {
+    /** Zod schema, JSON Schema object, or OpenAPI document. */
+    schema: unknown;
+    /** For OpenAPI: a ref string like "#/components/schemas/User". */
+    ref?: string;
+    /** Current value to render. */
+    value?: unknown;
+    /** Per-field meta overrides. */
+    fields?: Record<string, unknown>;
+    /** Meta overrides applied to the root schema. */
+    meta?: SchemaMeta;
+    /** Convenience: sets description on the root. */
+    description?: string;
+    /**
+     * Theme resolver. In a Server Component you pass this explicitly
+     * since `SchemaProvider` (React context) is unavailable.
+     * Falls back to the headless resolver if omitted.
+     */
+    resolver?: ComponentResolver;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+function noop() {
+    /* intentional no-op */
+}
+
+/**
+ * Server-safe schema renderer — no hooks, no context, no state.
+ *
+ * Always renders in read-only mode. For editable forms, use
+ * `<SchemaComponent>` with `"use client"`.
+ */
+export function SchemaView({
+    schema: schemaInput,
+    ref: refInput,
+    value,
+    fields,
+    meta: componentMeta,
+    description,
+    resolver,
+}: SchemaViewProps): ReactNode {
+    const mergedMeta: SchemaMeta = { ...componentMeta, readOnly: true };
+    if (description !== undefined) mergedMeta.description = description;
+
+    // Normalise input → JSON Schema
+    let jsonSchema: Record<string, unknown>;
+    let rootMeta: SchemaMeta | undefined;
+    let rootDocument: Record<string, unknown>;
+    try {
+        const normalised = normaliseSchema(schemaInput, refInput);
+        jsonSchema = normalised.jsonSchema;
+        rootMeta = normalised.rootMeta;
+        rootDocument = normalised.rootDocument;
+    } catch (err: unknown) {
+        throw new SchemaNormalisationError(
+            err instanceof Error ? err.message : "Failed to normalise schema",
+            schemaInput,
+            "unknown"
+        );
+    }
+
+    // Walk the JSON Schema tree
+    const walkOptions: WalkOptions = {
+        componentMeta: mergedMeta,
+        rootMeta,
+        fieldOverrides: fields,
+        rootDocument,
+    };
+
+    const tree = walk(jsonSchema, walkOptions);
+
+    // Build resolver: explicit prop → headless fallback
+    const userResolver =
+        resolver !== undefined
+            ? mergeResolvers(resolver, headlessResolver)
+            : headlessResolver;
+
+    // Recursive render — no hooks, pure functions
+    const renderChild = (
+        childTree: WalkedField,
+        childValue: unknown
+    ): ReactNode =>
+        renderFieldServer(childTree, childValue, userResolver, renderChild);
+
+    return renderFieldServer(
+        tree,
+        value ?? tree.defaultValue,
+        userResolver,
+        renderChild
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Field rendering — mirrors renderField from SchemaComponent but
+// without hooks, error boundaries, or widget registry.
+// ---------------------------------------------------------------------------
+
+function renderFieldServer(
+    tree: WalkedField,
+    value: unknown,
+    resolver: ComponentResolver,
+    renderChild: (tree: WalkedField, value: unknown) => ReactNode
+): ReactNode {
+    const renderFn = getRenderFunction(tree.type, resolver);
+
+    if (renderFn !== undefined) {
+        const props: RenderProps = {
+            value,
+            onChange: noop,
+            readOnly: true,
+            writeOnly: false,
+            meta: tree.meta,
+            constraints: tree.constraints,
+            path: "",
+            tree,
+            renderChild: (childTree: WalkedField, childValue: unknown) =>
+                renderChild(childTree, childValue),
+        };
+        if (tree.enumValues !== undefined) props.enumValues = tree.enumValues;
+        if (tree.element !== undefined) props.element = tree.element;
+        if (tree.fields !== undefined) props.fields = tree.fields;
+        if (tree.options !== undefined) props.options = tree.options;
+        if (tree.discriminator !== undefined)
+            props.discriminator = tree.discriminator;
+        if (tree.keyType !== undefined) props.keyType = tree.keyType;
+        if (tree.valueType !== undefined) props.valueType = tree.valueType;
+
+        try {
+            const result: unknown = renderFn(props);
+            if (result !== undefined && result !== null) {
+                if (isValidElement(result)) return result;
+                if (typeof result === "string" || typeof result === "number")
+                    return result;
+            }
+        } catch (err: unknown) {
+            throw new SchemaRenderError(
+                err instanceof Error
+                    ? err.message
+                    : `Render function threw for type "${tree.type}"`,
+                tree,
+                tree.type,
+                err
+            );
+        }
+    }
+
+    // Fallback
+    if (value === undefined || value === null) return <span>\u2014</span>;
+    return (
+        <span>{typeof value === "string" ? value : JSON.stringify(value)}</span>
+    );
+}
