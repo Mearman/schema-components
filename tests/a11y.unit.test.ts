@@ -71,7 +71,7 @@ describe("Constraint hints", () => {
         const schema = z.object({ name: z.string().min(3) });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
         assert.match(html, /aria-describedby="name-hint"/);
-        assert.match(html, /id="sc-name-hint"/);
+        assert.match(html, /id="name-hint"/);
         assert.match(html, /Minimum 3 characters/);
     });
 
