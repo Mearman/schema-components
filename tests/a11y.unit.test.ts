@@ -70,8 +70,8 @@ describe("Constraint hints", () => {
     it("shows minLength constraint hint", () => {
         const schema = z.object({ name: z.string().min(3) });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /aria-describedby="name-hint"/);
-        assert.match(html, /id="name-hint"/);
+        assert.match(html, /aria-describedby="sc-name-hint"/);
+        assert.match(html, /id="sc-name-hint"/);
         assert.match(html, /Minimum 3 characters/);
     });
 
@@ -84,7 +84,7 @@ describe("Constraint hints", () => {
     it("shows min/max constraint hint for numbers", () => {
         const schema = z.object({ age: z.number().min(0).max(150) });
         const html = renderToHtml(schema, { value: { age: 36 } });
-        assert.match(html, /aria-describedby="age-hint"/);
+        assert.match(html, /aria-describedby="sc-age-hint"/);
         assert.match(html, /Minimum 0/);
         assert.match(html, /Maximum 150/);
     });
@@ -112,25 +112,25 @@ describe("Input IDs", () => {
     it("adds id to string inputs", () => {
         const schema = z.object({ name: z.string() });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /id="name"/);
+        assert.match(html, /id="sc-name"/);
     });
 
     it("adds id to number inputs", () => {
         const schema = z.object({ age: z.number() });
         const html = renderToHtml(schema, { value: { age: 36 } });
-        assert.match(html, /id="age"/);
+        assert.match(html, /id="sc-age"/);
     });
 
     it("adds id to selects", () => {
         const schema = z.object({ role: z.enum(["admin"]) });
         const html = renderToHtml(schema, { value: { role: "admin" } });
-        assert.match(html, /id="role"/);
+        assert.match(html, /id="sc-role"/);
     });
 
     it("adds id to checkboxes", () => {
         const schema = z.object({ active: z.boolean() });
         const html = renderToHtml(schema, { value: { active: true } });
-        assert.match(html, /id="active"/);
+        assert.match(html, /id="sc-active"/);
     });
 });
 

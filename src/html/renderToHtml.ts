@@ -84,6 +84,18 @@ function dateInputType(format: string | undefined): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// ID normalisation — dots become hyphens for valid HTML IDs
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalise a dot-separated path into a valid, `sc-` prefixed HTML ID.
+ * Dots in paths (from nested objects) become hyphens.
+ */
+function fieldId(path: string): string {
+    return `sc-${path.replace(/\./g, "-")}`;
+}
+
+// ---------------------------------------------------------------------------
 // Default HTML renderers — all use h() builder
 // ---------------------------------------------------------------------------
 
@@ -132,7 +144,7 @@ function renderStringEditable(props: HtmlRenderProps): HtmlNode {
     const inputType =
         dateType ??
         (format === "email" ? "email" : format === "uri" ? "url" : "text");
-    const id = props.path;
+    const id = fieldId(props.path);
 
     const attrs: HtmlAttributes = {
         class: "sc-input",
@@ -184,7 +196,7 @@ function renderNumberReadOnly(props: HtmlRenderProps): HtmlNode {
 
 function renderNumberEditable(props: HtmlRenderProps): HtmlNode {
     const numValue = typeof props.value === "number" ? String(props.value) : "";
-    const id = props.path;
+    const id = fieldId(props.path);
 
     const attrs: HtmlAttributes = {
         class: "sc-input",
@@ -232,7 +244,7 @@ function renderBooleanReadOnly(props: HtmlRenderProps): HtmlNode {
 }
 
 function renderBooleanEditable(props: HtmlRenderProps): HtmlNode {
-    const id = props.path;
+    const id = fieldId(props.path);
 
     const attrs: HtmlAttributes = {
         class: "sc-input",
@@ -272,7 +284,7 @@ function renderEnumReadOnly(props: HtmlRenderProps): HtmlNode {
 
 function renderEnumEditable(props: HtmlRenderProps): HtmlNode {
     const enumValue = typeof props.value === "string" ? props.value : "";
-    const id = props.path;
+    const id = fieldId(props.path);
     const selectedValue = props.writeOnly ? "" : enumValue;
 
     const optionNodes = [
@@ -328,7 +340,11 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
                     ? field.meta.description
                     : key;
             const childValue = obj[key];
-            const childHtml = props.renderChild(field, childValue, key);
+            const childHtml = props.renderChild(
+                field,
+                childValue,
+                props.path ? `${props.path}.${key}` : key
+            );
             children.push(h("dt", { class: "sc-label" }, label));
             children.push(h("dd", { class: "sc-value" }, raw(childHtml)));
         }
@@ -347,8 +363,9 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
                 ? field.meta.description
                 : key;
         const fieldId = buildInputId(props.path, key);
+        const childPath = props.path ? `${props.path}.${key}` : key;
         const childValue = obj[key];
-        const childHtml = props.renderChild(field, childValue, key);
+        const childHtml = props.renderChild(field, childValue, childPath);
         const required = requiredIndicator(field);
 
         const labelContent: HtmlNode[] = [label];
@@ -359,8 +376,8 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
             raw(childHtml),
         ];
         // Hint element for the field's constraints.
-        // Uses key as the base ID, matching the child's props.path.
-        const hint = buildHintElement(key, field.constraints);
+        // Uses fieldId (sc-prefixed) as the base ID, matching the child input's id.
+        const hint = buildHintElement(fieldId, field.constraints);
         if (hint !== undefined) fieldChildren.push(hint);
 
         children.push(h("div", { class: "sc-field" }, ...fieldChildren));
@@ -521,22 +538,46 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
         );
     }
 
-    // Editable: tabs + content
-    const tabButtons = options.map((opt, i) => {
+    // Editable: WAI-ARIA tabs pattern
+    const panelId = `sc-${props.path}-panel`;
+    const tabButtons = options.map((_opt, i) => {
         const attrs: HtmlAttributes = {
             type: "button",
+            role: "tab",
             class: i === activeIndex ? "sc-tab sc-tab--active" : "sc-tab",
+            id: `sc-${props.path}-tab-${String(i)}`,
+            "aria-selected": i === activeIndex ? "true" : undefined,
+            "aria-controls": panelId,
+            tabindex: i === activeIndex ? "0" : "-1",
         };
         return h("button", attrs, optionLabels[i]);
     });
 
     const children: HtmlNode[] = [
-        h("div", { class: "sc-tabs" }, ...tabButtons),
+        h(
+            "div",
+            {
+                role: "tablist",
+                class: "sc-tabs",
+                "aria-label": "Select variant",
+            },
+            ...tabButtons
+        ),
     ];
 
     if (activeOption !== undefined) {
         const childHtml = props.renderChild(activeOption, props.value);
-        children.push(raw(childHtml));
+        children.push(
+            h(
+                "div",
+                {
+                    role: "tabpanel",
+                    id: panelId,
+                    "aria-labelledby": `sc-${props.path}-tab-${String(activeIndex)}`,
+                },
+                raw(childHtml)
+            )
+        );
     }
 
     return serialize(
