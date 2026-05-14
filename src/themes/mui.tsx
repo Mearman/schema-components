@@ -264,11 +264,21 @@ function renderArrayContainer(props: RenderProps): ReactNode {
  */
 
 // Stub components — default to basic HTML elements
+function stripChildren(
+    props: Record<string, unknown>
+): Record<string, unknown> {
+    const rest = { ...props };
+    if ("children" in rest) {
+        delete rest.children;
+    }
+    return rest;
+}
+
 let MuiTextField: React.ComponentType<Record<string, unknown>> = (props) => (
-    <input {...props} />
+    <input {...stripChildren(props)} />
 );
 let MuiCheckbox: React.ComponentType<Record<string, unknown>> = (props) => (
-    <input type="checkbox" {...props} />
+    <input type="checkbox" {...stripChildren(props)} />
 );
 let MuiTypography: React.ComponentType<Record<string, unknown>> = (props) => (
     <span {...props} />
