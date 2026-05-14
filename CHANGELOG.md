@@ -1,3 +1,9 @@
+## [1.7.0](https://github.com/Mearman/schema-components/compare/v1.6.0...v1.7.0) (2026-05-14)
+
+### Features
+
+* add field visibility and ordering controls ([27cb3e1](https://github.com/Mearman/schema-components/commit/27cb3e19ba930200116c79293078fa6fa2743723))
+
 ## [1.6.0](https://github.com/Mearman/schema-components/compare/v1.5.1...v1.6.0) (2026-05-14)
 
 ### Features
