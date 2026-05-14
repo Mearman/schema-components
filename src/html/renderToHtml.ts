@@ -54,17 +54,17 @@ export interface RenderToHtmlOptions {
 }
 
 // ---------------------------------------------------------------------------
-// HTML escaping
+// Shared ARIA helpers — imported from html/a11y.ts
 // ---------------------------------------------------------------------------
 
-function escapeHtml(str: string): string {
-    return str
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-}
+import {
+    escapeHtml,
+    buildInputId as inputId,
+    ariaRequired,
+    ariaDescribedBy,
+    buildHintHtml,
+    requiredIndicator,
+} from "./a11y.ts";
 
 // ---------------------------------------------------------------------------
 // Default HTML renderers
@@ -75,16 +75,16 @@ function renderStringHtml(props: HtmlRenderProps): string {
         const strValue =
             typeof props.value === "string" ? props.value : undefined;
         if (strValue === undefined || strValue.length === 0) {
-            return '<span class="sc-value sc-value--empty">—</span>';
+            return '<span class="sc-value sc-value--empty" aria-readonly="true">—</span>';
         }
         const format = props.constraints.format;
         if (format === "email") {
-            return `<a class="sc-value" href="mailto:${escapeHtml(strValue)}">${escapeHtml(strValue)}</a>`;
+            return `<a class="sc-value" href="mailto:${escapeHtml(strValue)}" aria-readonly="true">${escapeHtml(strValue)}</a>`;
         }
         if (format === "uri" || format === "url") {
-            return `<a class="sc-value" href="${escapeHtml(strValue)}">${escapeHtml(strValue)}</a>`;
+            return `<a class="sc-value" href="${escapeHtml(strValue)}" aria-readonly="true">${escapeHtml(strValue)}</a>`;
         }
-        return `<span class="sc-value">${escapeHtml(strValue)}</span>`;
+        return `<span class="sc-value" aria-readonly="true">${escapeHtml(strValue)}</span>`;
     }
 
     const strValue = typeof props.value === "string" ? props.value : "";
@@ -94,7 +94,8 @@ function renderStringHtml(props: HtmlRenderProps): string {
             : props.constraints.format === "uri"
               ? "url"
               : "text";
-    const name = escapeHtml(props.path);
+    const id = escapeHtml(props.path);
+
     const placeholder =
         typeof props.meta.description === "string"
             ? ` placeholder="${escapeHtml(props.meta.description)}"`
@@ -108,20 +109,23 @@ function renderStringHtml(props: HtmlRenderProps): string {
             ? ` maxlength="${String(props.constraints.maxLength)}"`
             : "";
     const value = props.writeOnly ? "" : ` value="${escapeHtml(strValue)}"`;
+    const required = ariaRequired(props.tree);
+    const describedBy = ariaDescribedBy(id, props.constraints);
 
-    return `<input class="sc-input" type="${inputType}" name="${name}"${value}${placeholder}${minLength}${maxLength}>`;
+    return `<input class="sc-input" id="${id}" type="${inputType}" name="${id}"${value}${placeholder}${minLength}${maxLength}${required}${describedBy}>`;
 }
 
 function renderNumberHtml(props: HtmlRenderProps): string {
     if (props.readOnly) {
         if (typeof props.value !== "number") {
-            return '<span class="sc-value sc-value--empty">—</span>';
+            return '<span class="sc-value sc-value--empty" aria-readonly="true">—</span>';
         }
-        return `<span class="sc-value">${escapeHtml(props.value.toLocaleString())}</span>`;
+        return `<span class="sc-value" aria-readonly="true">${escapeHtml(props.value.toLocaleString())}</span>`;
     }
 
     const numValue = typeof props.value === "number" ? String(props.value) : "";
-    const name = escapeHtml(props.path);
+    const id = escapeHtml(props.path);
+
     const min =
         props.constraints.minimum !== undefined
             ? ` min="${String(props.constraints.minimum)}"`
@@ -131,24 +135,32 @@ function renderNumberHtml(props: HtmlRenderProps): string {
             ? ` max="${String(props.constraints.maximum)}"`
             : "";
     const value = props.writeOnly ? "" : ` value="${escapeHtml(numValue)}"`;
+    const required = ariaRequired(props.tree);
+    const describedBy = ariaDescribedBy(id, props.constraints);
 
-    return `<input class="sc-input" type="number" name="${name}"${value}${min}${max}>`;
+    return `<input class="sc-input" id="${id}" type="number" name="${id}"${value}${min}${max}${required}${describedBy}>`;
 }
 
 function renderBooleanHtml(props: HtmlRenderProps): string {
     if (props.readOnly) {
         if (typeof props.value !== "boolean") {
-            return '<span class="sc-value sc-value--empty">—</span>';
+            return '<span class="sc-value sc-value--empty" aria-readonly="true">—</span>';
         }
         return props.value
-            ? '<span class="sc-value sc-value--boolean">Yes</span>'
-            : '<span class="sc-value sc-value--boolean">No</span>';
+            ? '<span class="sc-value sc-value--boolean" aria-readonly="true">Yes</span>'
+            : '<span class="sc-value sc-value--boolean" aria-readonly="true">No</span>';
     }
 
-    const name = escapeHtml(props.path);
-    const checked = props.value === true ? " checked" : "";
+    const id = escapeHtml(props.path);
 
-    return `<input class="sc-input" type="checkbox" name="${name}"${checked}>`;
+    const checked = props.value === true ? " checked" : "";
+    const required = ariaRequired(props.tree);
+    const ariaLabel =
+        typeof props.meta.description === "string"
+            ? ` aria-label="${escapeHtml(props.meta.description)}"`
+            : "";
+
+    return `<input class="sc-input" id="${id}" type="checkbox" name="${id}"${checked}${required}${ariaLabel}>`;
 }
 
 function renderEnumHtml(props: HtmlRenderProps): string {
@@ -156,12 +168,13 @@ function renderEnumHtml(props: HtmlRenderProps): string {
 
     if (props.readOnly) {
         if (enumValue.length === 0) {
-            return '<span class="sc-value sc-value--empty">—</span>';
+            return '<span class="sc-value sc-value--empty" aria-readonly="true">—</span>';
         }
-        return `<span class="sc-value">${escapeHtml(enumValue)}</span>`;
+        return `<span class="sc-value" aria-readonly="true">${escapeHtml(enumValue)}</span>`;
     }
 
-    const name = escapeHtml(props.path);
+    const id = escapeHtml(props.path);
+
     const selectedValue = props.writeOnly ? "" : enumValue;
     const options = (props.enumValues ?? [])
         .map((v) => {
@@ -169,8 +182,9 @@ function renderEnumHtml(props: HtmlRenderProps): string {
             return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(v)}</option>`;
         })
         .join("");
+    const required = ariaRequired(props.tree);
 
-    return `<select class="sc-input" name="${name}"><option value="">Select…</option>${options}</select>`;
+    return `<select class="sc-input" id="${id}" name="${id}"${required}><option value="">Select…</option>${options}</select>`;
 }
 
 function renderObjectHtml(props: HtmlRenderProps): string {
@@ -180,6 +194,15 @@ function renderObjectHtml(props: HtmlRenderProps): string {
     const isRecord = (v: unknown): v is Record<string, unknown> =>
         typeof v === "object" && v !== null && !Array.isArray(v);
     const obj = isRecord(props.value) ? props.value : {};
+
+    const descriptionText =
+        typeof props.meta.description === "string"
+            ? props.meta.description
+            : "";
+    const hasDescription = descriptionText.length > 0;
+    const groupAria = hasDescription
+        ? ` aria-label="${escapeHtml(descriptionText)}"`
+        : "";
 
     if (props.readOnly) {
         const entries = Object.entries(fields)
@@ -194,11 +217,10 @@ function renderObjectHtml(props: HtmlRenderProps): string {
             })
             .join("");
 
-        const legend =
-            typeof props.meta.description === "string"
-                ? `<legend>${escapeHtml(props.meta.description)}</legend>`
-                : "";
-        return `<dl class="sc-object">${legend}${entries}</dl>`;
+        const legend = hasDescription
+            ? `<legend>${escapeHtml(descriptionText)}</legend>`
+            : "";
+        return `<dl class="sc-object"${groupAria}>${legend}${entries}</dl>`;
     }
 
     const entries = Object.entries(fields)
@@ -207,18 +229,19 @@ function renderObjectHtml(props: HtmlRenderProps): string {
                 typeof field.meta.description === "string"
                     ? escapeHtml(field.meta.description)
                     : escapeHtml(key);
-            const inputId = `sc-${escapeHtml(props.path ? `${props.path}-${key}` : key)}`;
+            const fieldId = inputId(props.path, key);
             const childValue = obj[key];
             const childHtml = props.renderChild(field, childValue, key);
-            return `<div class="sc-field"><label class="sc-label" for="${inputId}">${label}</label>${childHtml}</div>`;
+            const hint = buildHintHtml(fieldId, field.constraints);
+            const required = requiredIndicator(field);
+            return `<div class="sc-field"><label class="sc-label" for="${fieldId}">${label}${required}</label>${childHtml}${hint}</div>`;
         })
         .join("");
 
-    const legend =
-        typeof props.meta.description === "string"
-            ? `<legend>${escapeHtml(props.meta.description)}</legend>`
-            : "";
-    return `<fieldset class="sc-object">${legend}${entries}</fieldset>`;
+    const legend = hasDescription
+        ? `<legend>${escapeHtml(descriptionText)}</legend>`
+        : "";
+    return `<fieldset class="sc-object"${groupAria}>${legend}${entries}</fieldset>`;
 }
 
 function renderArrayHtml(props: HtmlRenderProps): string {
@@ -258,8 +281,9 @@ function renderRecordHtml(props: HtmlRenderProps): string {
         })
         .join("");
 
-    if (props.readOnly) return `<dl class="sc-record">${entries}</dl>`;
-    return `<div class="sc-record">${entries}</div>`;
+    if (props.readOnly)
+        return `<dl class="sc-record" role="group">${entries}</dl>`;
+    return `<div class="sc-record" role="group">${entries}</div>`;
 }
 
 function renderLiteralHtml(props: HtmlRenderProps): string {
