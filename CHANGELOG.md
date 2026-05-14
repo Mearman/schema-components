@@ -1,3 +1,10 @@
+## [1.1.0](https://github.com/Mearman/schema-components/compare/v1.0.0...v1.1.0) (2026-05-14)
+
+### Features
+
+* add validation, recursive, and OpenAPI operation stories ([d1b742e](https://github.com/Mearman/schema-components/commit/d1b742e58e57e7c11ce36a7a868e1efc2574a04b))
+* expand Storybook coverage with JSON Schema, streaming, and error stories ([4378701](https://github.com/Mearman/schema-components/commit/4378701b29bcd1ebec5b8caf46bdd452d4b0f766))
+
 ## 1.0.0 (2026-05-14)
 
 ### Features
