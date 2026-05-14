@@ -18,6 +18,6 @@
         "verbatimModuleSyntax": true,
         "jsx": "react-jsx"
     },
-    "include": ["src", "tests"],
+    "include": ["src", "tests", "stories", ".storybook"],
     "exclude": ["node_modules", "dist"]
 }
