@@ -9,7 +9,7 @@
  * compile-time tag/attribute checking and automatic escaping.
  *
  * Usage:
- *   import { renderToHtml } from "@scalar/schema-components/html/renderToHtml";
+ *   import { renderToHtml } from "schema-components/html/renderToHtml";
  *   const html = renderToHtml(userSchema, { value: userData });
  *
  * Custom resolver:

@@ -1,151 +1,158 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
 
 permissions:
-  contents: read
-  pull-requests: write
-  id-token: write
+    contents: write
+    id-token: write
+    issues: write
+    pull-requests: write
 
 jobs:
-  lint-commits:
-    name: Lint commits
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
+    lint-commits:
+        name: Lint commits
+        runs-on: ubuntu-latest
+        if: github.event_name == 'pull_request'
+        steps:
+            - uses: actions/checkout@v6.0.2
+              with:
+                  fetch-depth: 0
 
-      - uses: pnpm/action-setup@v6.0.8
+            - uses: pnpm/action-setup@v6.0.8
 
-      - uses: actions/setup-node@v6.4.0
-        with:
-          node-version-file: .tool-versions
-          cache: pnpm
+            - uses: actions/setup-node@v6.4.0
+              with:
+                  node-version-file: .tool-versions
+                  cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+            - run: pnpm install --frozen-lockfile
 
-      - name: Lint commit messages
-        run: |
-          pnpm exec commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+            - name: Lint commit messages
+              run: |
+                  pnpm exec commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
 
-  audit:
-    name: Audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
+    audit:
+        name: Audit
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6.0.2
 
-      - uses: pnpm/action-setup@v6.0.8
+            - uses: pnpm/action-setup@v6.0.8
 
-      - uses: actions/setup-node@v6.4.0
-        with:
-          node-version-file: .tool-versions
-          cache: pnpm
+            - uses: actions/setup-node@v6.4.0
+              with:
+                  node-version-file: .tool-versions
+                  cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+            - run: pnpm install --frozen-lockfile
 
-      - run: pnpm audit --audit-level high
+            - run: pnpm audit --audit-level high
 
-  check:
-    name: Check
-    needs: audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
+    check:
+        name: Check
+        needs: audit
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6.0.2
 
-      - uses: pnpm/action-setup@v6.0.8
+            - uses: pnpm/action-setup@v6.0.8
 
-      - uses: actions/setup-node@v6.4.0
-        with:
-          node-version-file: .tool-versions
-          cache: pnpm
+            - uses: actions/setup-node@v6.4.0
+              with:
+                  node-version-file: .tool-versions
+                  cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+            - run: pnpm install --frozen-lockfile
 
-      - uses: actions/cache@v5.0.5
-        with:
-          path: .turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-
+            - uses: actions/cache@v5.0.5
+              with:
+                  path: .turbo
+                  key: turbo-${{ runner.os }}-${{ github.sha }}
+                  restore-keys: |
+                      turbo-${{ runner.os }}-
 
-      - run: pnpm check
+            - run: pnpm check
 
-  test:
-    name: Test — Node ${{ matrix.node-version }}
-    needs: audit
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version:
-          - 22
-          - 24
-          - 26
-    steps:
-      - uses: actions/checkout@v6.0.2
+    test:
+        name: Test — Node ${{ matrix.node-version }}
+        needs: audit
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                node-version:
+                    - 22
+                    - 24
+                    - 26
+        steps:
+            - uses: actions/checkout@v6.0.2
 
-      - uses: pnpm/action-setup@v6.0.8
+            - uses: pnpm/action-setup@v6.0.8
 
-      - uses: actions/setup-node@v6.4.0
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: pnpm
+            - uses: actions/setup-node@v6.4.0
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+            - run: pnpm install --frozen-lockfile
 
-      - uses: actions/cache@v5.0.5
-        with:
-          path: .turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-
+            - uses: actions/cache@v5.0.5
+              with:
+                  path: .turbo
+                  key: turbo-${{ runner.os }}-${{ github.sha }}
+                  restore-keys: |
+                      turbo-${{ runner.os }}-
 
-      - run: pnpm test
+            - run: pnpm test
 
-  release:
-    name: Release to npmjs
-    runs-on: ubuntu-latest
-    needs: [check, test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-      id-token: write
-      issues: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
+    release:
+        name: Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        needs: [check, test]
+        runs-on: ubuntu-latest
+        outputs:
+            released: ${{ steps.detect-release.outputs.released }}
+        steps:
+            - uses: actions/checkout@v6.0.2
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
 
-      - uses: pnpm/action-setup@v6.0.8
+            - uses: pnpm/action-setup@v6.0.8
 
-      - uses: actions/setup-node@v6.4.0
-        with:
-          node-version-file: .tool-versions
-          cache: pnpm
-          # Do NOT set registry-url — it creates an .npmrc that overrides OIDC
+            - uses: actions/setup-node@v6.4.0
+              with:
+                  node-version-file: .tool-versions
+                  cache: pnpm
+                  # Do NOT set registry-url — it creates an .npmrc that overrides OIDC
 
-      - run: pnpm install --frozen-lockfile
+            - run: pnpm install --frozen-lockfile
 
-      - uses: actions/cache@v5.0.5
-        with:
-          path: .turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-
+            - uses: actions/cache@v5.0.5
+              with:
+                  path: .turbo
+                  key: turbo-${{ runner.os }}-${{ github.sha }}
+                  restore-keys: |
+                      turbo-${{ runner.os }}-
 
-      - run: pnpm build
+            - run: pnpm build
 
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm exec semantic-release
+            - name: Release
+              id: detect-release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  HUSKY: "0"
+              run: |
+                  pnpm exec semantic-release 2>&1 | tee release-output.txt
+                  EXIT_CODE=${PIPESTATUS[0]}
+                  if grep -q "Published release" release-output.txt; then
+                    echo "released=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "released=false" >> "$GITHUB_OUTPUT"
+                  fi
+                  exit $EXIT_CODE

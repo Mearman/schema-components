@@ -5,7 +5,7 @@
  * components to be installed in the consuming project.
  *
  * Usage:
- *   import { shadcnResolver } from "@scalar/schema-components/themes/shadcn";
+ *   import { shadcnResolver } from "schema-components/themes/shadcn";
  *   <SchemaProvider resolver={shadcnResolver}>...</SchemaProvider>
  *
  * Override individual types by spreading:
