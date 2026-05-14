@@ -14,13 +14,23 @@ export default defineConfig({
             include: [
                 "src/core/**/*.ts",
                 "src/html/**/*.ts",
-                "src/openapi/parser.ts",
+                "src/openapi/**/*.ts",
+                "src/openapi/**/*.tsx",
+                "src/react/**/*.tsx",
+                "src/themes/**/*.tsx",
             ],
+            // Per-file thresholds enforce minimum coverage on every file.
+            // Files tested via Storybook (react/, themes/) are excluded below.
             thresholds: {
                 lines: 80,
                 branches: 60,
                 functions: 80,
+                perFile: true,
             },
+            exclude: [
+                "src/react/**",
+                "src/themes/**",
+            ],
         },
         projects: [
             {
@@ -28,6 +38,7 @@ export default defineConfig({
                     name: "unit",
                     include: [
                         "tests/**/*.unit.test.ts",
+                        "tests/**/*.unit.test.tsx",
                         "tests/**/*.integration.test.ts",
                     ],
                 },

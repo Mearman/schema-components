@@ -5,6 +5,15 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { renderToHtml } from "../src/html/renderToHtml.ts";
+import {
+    h,
+    serialize,
+    text,
+    raw,
+    serializeChunks,
+    fragment,
+    serializeFragment,
+} from "../src/html/html.ts";
 
 // ---------------------------------------------------------------------------
 // Basic type rendering — read-only
@@ -317,5 +326,204 @@ describe("renderToHtml — writeOnly", () => {
         expect(html).toMatch(/<select/);
         // Should not have "admin" selected
         expect(html).not.toMatch(/selected/);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// h() builder, serialize, serializeChunks, fragment
+// ---------------------------------------------------------------------------
+
+describe("h() builder", () => {
+    it("builds an element with tag and attributes", () => {
+        const el = h("input", { type: "text", id: "name" });
+        expect(el.tag).toBe("input");
+        expect(el.attributes.type).toBe("text");
+        expect(el.attributes.id).toBe("name");
+        expect(el.children).toStrictEqual([]);
+    });
+
+    it("builds an element with text children", () => {
+        const el = h("span", {}, "Hello");
+        expect(el.children).toStrictEqual(["Hello"]);
+    });
+
+    it("drops undefined and null children", () => {
+        const el = h("div", {}, "keep", undefined, null, "also keep");
+        expect(el.children).toStrictEqual(["keep", "also keep"]);
+    });
+
+    it("drops false children", () => {
+        const el = h("div", {}, false, "visible");
+        expect(el.children).toStrictEqual(["visible"]);
+    });
+
+    it("accepts nested h() children", () => {
+        const el = h("div", {}, h("span", {}, "inner"));
+        expect(el.children.length).toBe(1);
+        const child = el.children[0];
+        // Narrow to HtmlElement by checking for tag property
+        if (
+            child !== undefined &&
+            typeof child !== "string" &&
+            "tag" in child
+        ) {
+            expect(child.tag).toBe("span");
+        }
+    });
+
+    it("defaults attributes to empty record", () => {
+        const el = h("div");
+        expect(el.attributes).toStrictEqual({});
+    });
+});
+
+describe("serialize", () => {
+    it("serialises a void element", () => {
+        expect(serialize(h("input", { type: "text" }))).toBe(
+            '<input type="text">'
+        );
+    });
+
+    it("serialises an element with children", () => {
+        expect(serialize(h("div", {}, "hello"))).toBe("<div>hello</div>");
+    });
+
+    it("serialises an empty element", () => {
+        expect(serialize(h("div", {}))).toBe("<div></div>");
+    });
+
+    it("omits undefined attributes", () => {
+        expect(
+            serialize(h("input", { type: "text", disabled: undefined }))
+        ).toBe('<input type="text">');
+    });
+
+    it("omits false attributes", () => {
+        expect(serialize(h("input", { disabled: false }))).toBe("<input>");
+    });
+
+    it("renders boolean true attribute as name only", () => {
+        expect(serialize(h("input", { disabled: true }))).toBe(
+            "<input disabled>"
+        );
+    });
+
+    it("escapes text content", () => {
+        expect(serialize(h("div", {}, '<script>alert("xss")</script>'))).toBe(
+            "<div>&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;</div>"
+        );
+    });
+
+    it("escapes attribute values", () => {
+        expect(serialize(h("div", { title: '"hello"' }))).toBe(
+            '<div title="&quot;hello&quot;"></div>'
+        );
+    });
+
+    it("serialises text nodes", () => {
+        expect(serialize(text("hello"))).toBe("hello");
+    });
+
+    it("serialises raw nodes verbatim", () => {
+        expect(serialize(raw("<b>bold</b>"))).toBe("<b>bold</b>");
+    });
+
+    it("returns empty string for undefined", () => {
+        expect(serialize(undefined)).toBe("");
+    });
+
+    it("returns empty string for null", () => {
+        expect(serialize(null)).toBe("");
+    });
+
+    it("returns empty string for false", () => {
+        expect(serialize(false)).toBe("");
+    });
+
+    it("serialises a fragment without wrapper", () => {
+        const frag = fragment("a", "b");
+        expect(serialize(frag)).toBe("ab");
+    });
+
+    it("serialises number attributes as strings", () => {
+        expect(serialize(h("meter", { max: 100 }))).toBe(
+            '<meter max="100"></meter>'
+        );
+    });
+});
+
+describe("serializeChunks", () => {
+    it("yields single chunk for void element", () => {
+        const chunks = [...serializeChunks(h("input", { type: "text" }))];
+        expect(chunks).toStrictEqual(['<input type="text">']);
+    });
+
+    it("yields opening and closing for empty element", () => {
+        const chunks = [...serializeChunks(h("div", {}))];
+        expect(chunks).toStrictEqual(["<div></div>"]);
+    });
+
+    it("yields open, children, close for element with children", () => {
+        const chunks = [...serializeChunks(h("div", {}, "hello"))];
+        expect(chunks).toStrictEqual(["<div>", "hello", "</div>"]);
+    });
+
+    it("yields string directly", () => {
+        const chunks = [...serializeChunks("hello")];
+        expect(chunks).toStrictEqual(["hello"]);
+    });
+
+    it("yields text node content", () => {
+        const chunks = [...serializeChunks(text("hello"))];
+        expect(chunks).toStrictEqual(["hello"]);
+    });
+
+    it("yields raw node verbatim", () => {
+        const chunks = [...serializeChunks(raw("<b>bold</b>"))];
+        expect(chunks).toStrictEqual(["<b>bold</b>"]);
+    });
+
+    it("returns nothing for undefined", () => {
+        const chunks = [...serializeChunks(undefined)];
+        expect(chunks).toStrictEqual([]);
+    });
+
+    it("returns nothing for null", () => {
+        const chunks = [...serializeChunks(null)];
+        expect(chunks).toStrictEqual([]);
+    });
+
+    it("returns nothing for false", () => {
+        const chunks = [...serializeChunks(false)];
+        expect(chunks).toStrictEqual([]);
+    });
+
+    it("recursively yields nested elements", () => {
+        const el = h("div", {}, h("span", {}, "inner"));
+        const chunks = [...serializeChunks(el)];
+        expect(chunks).toStrictEqual([
+            "<div>",
+            "<span>",
+            "inner",
+            "</span>",
+            "</div>",
+        ]);
+    });
+
+    it("escapes text chunks", () => {
+        const chunks = [...serializeChunks(h("div", {}, "<script>"))];
+        expect(chunks).toStrictEqual(["<div>", "&lt;script&gt;", "</div>"]);
+    });
+});
+
+describe("fragment", () => {
+    it("creates an element with empty tag", () => {
+        const frag = fragment("a", "b");
+        expect(frag.tag).toBe("");
+        expect(frag.children).toStrictEqual(["a", "b"]);
+    });
+
+    it("serialises to concatenated children", () => {
+        expect(serializeFragment(fragment("a", h("br", {})))).toBe("a<br>");
     });
 });

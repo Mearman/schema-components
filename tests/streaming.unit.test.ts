@@ -255,4 +255,104 @@ describe("Streaming equivalence with renderToHtml", () => {
 
         expect(streamedHtml).toBe(fullHtml);
     });
+
+    it("matches for record", () => {
+        const jsonSchema = {
+            type: "object" as const,
+            additionalProperties: { type: "string" as const },
+        };
+        const value = { a: "alpha", b: "beta" };
+        const options = { value, readOnly: true };
+
+        const fullHtml = renderToHtml(jsonSchema, options);
+        const streamedHtml = [...renderToHtmlChunks(jsonSchema, options)].join(
+            ""
+        );
+
+        expect(streamedHtml).toBe(fullHtml);
+    });
+
+    it("matches for union", () => {
+        const schema = z.union([z.string(), z.number()]);
+        const options = { value: "hello", readOnly: true };
+
+        const fullHtml = renderToHtml(schema, options);
+        const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
+
+        expect(streamedHtml).toBe(fullHtml);
+    });
+
+    it("matches for discriminated union", () => {
+        const schema = z.discriminatedUnion("type", [
+            z.object({ type: z.literal("a"), name: z.string() }),
+            z.object({ type: z.literal("b"), count: z.number() }),
+        ]);
+        const value = { type: "a", name: "Ada" };
+        const options = { value, readOnly: true };
+
+        const fullHtml = renderToHtml(schema, options);
+        const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
+
+        expect(streamedHtml).toBe(fullHtml);
+    });
+
+    it("matches for literal", () => {
+        const schema = z.literal("yes");
+        const options = { value: "yes", readOnly: true };
+
+        const fullHtml = renderToHtml(schema, options);
+        const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
+
+        expect(streamedHtml).toBe(fullHtml);
+    });
+
+    it("matches for unknown", () => {
+        const schema = z.unknown();
+        const options = { value: [1, 2, 3], readOnly: true };
+
+        const fullHtml = renderToHtml(schema, options);
+        const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
+
+        expect(streamedHtml).toBe(fullHtml);
+    });
+
+    it("matches for null/undefined literal value", () => {
+        const schema = z.literal("yes");
+        const options = { value: undefined, readOnly: true };
+
+        const fullHtml = renderToHtml(schema, options);
+        const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
+
+        expect(streamedHtml).toBe(fullHtml);
+    });
+
+    it("matches union with boolean value", () => {
+        const schema = z.union([z.boolean(), z.string()]);
+        const options = { value: true, readOnly: true };
+
+        const fullHtml = renderToHtml(schema, options);
+        const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
+
+        expect(streamedHtml).toBe(fullHtml);
+    });
+
+    it("matches union with array value", () => {
+        const schema = z.union([z.array(z.string()), z.string()]);
+        const options = { value: ["a", "b"], readOnly: true };
+
+        const fullHtml = renderToHtml(schema, options);
+        const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
+
+        expect(streamedHtml).toBe(fullHtml);
+    });
+
+    it("matches union with object value", () => {
+        const schema = z.union([z.object({ name: z.string() }), z.string()]);
+        const options = { value: { name: "Ada" }, readOnly: true };
+
+        const fullHtml = renderToHtml(schema, options);
+        const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
+
+        expect(streamedHtml).toBe(fullHtml);
+    });
 });
