@@ -1,3 +1,9 @@
+## [1.5.1](https://github.com/Mearman/schema-components/compare/v1.5.0...v1.5.1) (2026-05-14)
+
+### Bug Fixes
+
+* blank writeOnly values in boolean and number renderers ([b46ecac](https://github.com/Mearman/schema-components/commit/b46ecac8d997fd4b875d6090d5374cded1143e5d))
+
 ## [1.5.0](https://github.com/Mearman/schema-components/compare/v1.4.0...v1.5.0) (2026-05-14)
 
 ### Features
