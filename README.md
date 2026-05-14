@@ -434,7 +434,15 @@ Custom resolvers fall back to the default for any type you don't override.
 
 ## Custom widgets
 
-Register widgets by `.meta({ component })` hint:
+Widgets let you override rendering for specific fields using `.meta({ component: name })`. Three scopes are available, checked in order:
+
+1. **Instance** — `widgets` prop on `<SchemaComponent>`
+2. **Context** — `widgets` prop on `<SchemaProvider>`
+3. **Global** — `registerWidget()` for app-wide defaults
+
+If none match, the theme adapter or headless default handles the field.
+
+### Global registration
 
 ```tsx
 import { registerWidget } from "schema-components/react/SchemaComponent";
@@ -443,13 +451,65 @@ registerWidget("richtext", ({ value, onChange }) => (
   <RichTextEditor value={value} onChange={onChange} />
 ));
 
-// In schema
 const schema = z.object({
   bio: z.string().meta({ component: "richtext" }),
 });
 ```
 
-Resolution order: `.meta({ component })` → registered widget → theme adapter → headless default.
+### Context-scoped widgets
+
+Share widgets across a subtree via `<SchemaProvider>`:
+
+```tsx
+import { SchemaProvider } from "schema-components/react/SchemaComponent";
+import type { WidgetMap } from "schema-components/react/SchemaComponent";
+
+const adminWidgets: WidgetMap = new Map([
+  ["richtext", ({ value, onChange }) => <RichTextEditor value={value} onChange={onChange} />],
+  ["avatar", ({ value, onChange }) => <AvatarUploader value={value} onChange={onChange} />],
+]);
+
+<SchemaProvider resolver={shadcnResolver} widgets={adminWidgets}>
+  <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+  <SchemaComponent schema={profileSchema} value={profile} onChange={setProfile} />
+</SchemaProvider>
+```
+
+### Instance-scoped widgets
+
+Override widgets for a single form:
+
+```tsx
+const formWidgets: WidgetMap = new Map([
+  ["richtext", ({ value, onChange }) => <SimpleTextarea value={value} onChange={onChange} />],
+]);
+
+<SchemaComponent schema={formSchema} value={form} widgets={formWidgets} />
+```
+
+### Resolution order
+
+```.meta({ component }) hint → instance widgets → context widgets → global registerWidget() → theme adapter → headless default
+```
+
+Instance overrides context. Context overrides global. Unhinted fields skip the widget layer entirely.
+
+### `WidgetMap` type
+
+```tsx
+import type { WidgetMap } from "schema-components/react/SchemaComponent";
+
+// ReadonlyMap<string, (props: RenderProps) => unknown>
+const widgets: WidgetMap = new Map([
+  ["name", (props) => <MyInput {...props} />],
+]);
+```
+
+Server Components: `<SchemaView>` accepts a `widgets` prop directly (no React context available):
+
+```tsx
+<SchemaView schema={schema} value={data} widgets={serverWidgets} />
+```
 
 ## Validation
 
