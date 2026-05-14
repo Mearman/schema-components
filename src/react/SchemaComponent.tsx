@@ -36,6 +36,11 @@ import type {
 } from "../core/types.ts";
 import { headlessResolver } from "./headless.tsx";
 import { isObject, toRecord } from "../core/guards.ts";
+import {
+    SchemaNormalisationError,
+    SchemaFieldError,
+    SchemaRenderError,
+} from "../core/errors.ts";
 
 // ---------------------------------------------------------------------------
 // Context — theme adapter
@@ -104,6 +109,8 @@ export interface SchemaComponentProps<
     validate?: boolean;
     /** Called with the ZodError when validation fails. */
     onValidationError?: (error: unknown) => void;
+    /** Called when schema normalisation or rendering fails. */
+    onError?: (error: import("../core/errors.ts").SchemaError) => void;
     /** Per-field meta overrides — nested object mirroring schema shape. */
     fields?: InferFields<T, Ref>;
     /** Meta overrides applied to the root schema. */
@@ -130,6 +137,7 @@ export function SchemaComponent<
     onChange,
     validate,
     onValidationError,
+    onError,
     fields,
     meta: componentMeta,
     readOnly,
@@ -157,8 +165,17 @@ export function SchemaComponent<
         zodSchema = normalised.zodSchema;
         rootMeta = normalised.rootMeta;
         rootDocument = normalised.rootDocument;
-    } catch {
-        return <div>Unable to parse schema</div>;
+    } catch (err: unknown) {
+        const error = new SchemaNormalisationError(
+            err instanceof Error ? err.message : "Failed to normalise schema",
+            schemaInput,
+            detectNormalisationKind(err)
+        );
+        if (onError !== undefined) {
+            onError(error);
+            return null;
+        }
+        throw error;
     }
 
     const handleChange = useCallback(
@@ -287,9 +304,21 @@ export function renderField(
     // 3. Look up the render function for this schema type
     const renderFn = getRenderFunction(tree.type, resolver);
     if (renderFn !== undefined) {
-        const result: unknown = renderFn(
-            buildRenderProps(tree, value, onChange, renderChild)
-        );
+        let result: unknown;
+        try {
+            result = renderFn(
+                buildRenderProps(tree, value, onChange, renderChild)
+            );
+        } catch (err: unknown) {
+            throw new SchemaRenderError(
+                err instanceof Error
+                    ? err.message
+                    : `Render function threw for type "${tree.type}"`,
+                tree,
+                tree.type,
+                err
+            );
+        }
         if (result !== undefined && result !== null) {
             if (isValidElement(result)) return result;
             if (typeof result === "string" || typeof result === "number")
@@ -407,8 +436,13 @@ export function SchemaField<
         zodSchema = normalised.zodSchema;
         rootMeta = normalised.rootMeta;
         rootDocument = normalised.rootDocument;
-    } catch {
-        return <div>Unable to parse schema</div>;
+    } catch (err: unknown) {
+        const error = new SchemaNormalisationError(
+            err instanceof Error ? err.message : "Failed to normalise schema",
+            schemaInput,
+            detectNormalisationKind(err)
+        );
+        throw error;
     }
 
     const walkOptions: WalkOptions = {
@@ -420,7 +454,11 @@ export function SchemaField<
     const fullTree = walk(jsonSchema, walkOptions);
     const fieldTree = resolvePath(fullTree, path);
     if (fieldTree === undefined) {
-        return <div>Field not found: {path}</div>;
+        throw new SchemaFieldError(
+            `Field not found: ${path}`,
+            schemaInput,
+            path
+        );
     }
 
     const fieldValue = resolveValue(value, path);
@@ -598,4 +636,22 @@ function setNestedValue(
 
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
     return typeof value === "function";
+}
+
+// ---------------------------------------------------------------------------
+// Error classification
+// ---------------------------------------------------------------------------
+
+function detectNormalisationKind(
+    err: unknown
+): import("../core/errors.ts").SchemaNormalisationError["kind"] {
+    if (err instanceof Error) {
+        const msg = err.message;
+        if (msg.includes("Zod 3")) return "zod3-unsupported";
+        if (msg.includes("Invalid Zod 4")) return "invalid-zod";
+        if (msg.includes("OpenAPI ref not found")) return "openapi-missing-ref";
+        if (msg.includes("OpenAPI")) return "openapi-invalid";
+        if (msg.includes("JSON Schema")) return "invalid-json-schema";
+    }
+    return "unknown";
 }

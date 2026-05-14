@@ -203,6 +203,13 @@ export type {
     RenderProps,
 } from "./renderer.ts";
 
+export {
+    SchemaError,
+    SchemaNormalisationError,
+    SchemaRenderError,
+    SchemaFieldError,
+} from "./errors.ts";
+
 // ---------------------------------------------------------------------------
 // Type-level JSON Schema parser (for `as const` literals)
 // ---------------------------------------------------------------------------
