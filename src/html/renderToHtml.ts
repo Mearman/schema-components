@@ -17,101 +17,18 @@
  */
 
 import { normaliseSchema } from "../core/adapter.ts";
-import type {
-    FieldConstraints,
-    SchemaMeta,
-    WalkedField,
-} from "../core/types.ts";
+import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import { walk, type WalkOptions } from "../core/walker.ts";
-import { typeToKey, RESOLVER_KEYS } from "../core/renderer.ts";
+import { getHtmlRenderFn, mergeHtmlResolvers } from "../core/renderer.ts";
+import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
 
 // ---------------------------------------------------------------------------
 // HTML resolver interface
 // ---------------------------------------------------------------------------
 
-/** Props passed to every HTML render function. */
-export interface HtmlRenderProps {
-    /** Current field value. */
-    value: unknown;
-    /** Whether to render as read-only display. */
-    readOnly: boolean;
-    /** Whether to render as an empty input. */
-    writeOnly: boolean;
-    /** Schema metadata for this field. */
-    meta: SchemaMeta;
-    /** Constraints from schema checks. */
-    constraints: FieldConstraints;
-    /** Dot-separated path from root. */
-    path: string;
-    /** For enums: the allowed values. */
-    enumValues?: string[];
-    /** For arrays: the element schema. */
-    element?: WalkedField;
-    /** For objects: map of field name → WalkedField. */
-    fields?: Record<string, WalkedField>;
-    /** For unions: the option schemas. */
-    options?: WalkedField[];
-    /** For discriminated unions: the discriminator key. */
-    discriminator?: string;
-    /** For records: key and value schemas. */
-    keyType?: WalkedField;
-    valueType?: WalkedField;
-    /** Walked field tree for the current node. */
-    tree: WalkedField;
-    /**
-     * Render a child field to HTML. Theme adapters call this to
-     * recursively render nested structures.
-     */
-    renderChild: (tree: WalkedField, value: unknown) => string;
-}
-
-/** An HTML render function returns a string. */
-export type HtmlRenderFunction = (props: HtmlRenderProps) => string;
-
-/**
- * HTML resolver — maps schema types to HTML string renderers.
- * Mirror of ComponentResolver but returns string instead of unknown.
- */
-export interface HtmlResolver {
-    string?: HtmlRenderFunction;
-    number?: HtmlRenderFunction;
-    boolean?: HtmlRenderFunction;
-    enum?: HtmlRenderFunction;
-    object?: HtmlRenderFunction;
-    array?: HtmlRenderFunction;
-    record?: HtmlRenderFunction;
-    union?: HtmlRenderFunction;
-    literal?: HtmlRenderFunction;
-    file?: HtmlRenderFunction;
-    unknown?: HtmlRenderFunction;
-}
-
-// Lookup and merge use typeToKey and RESOLVER_KEYS from core/renderer.ts.
-// The actual lookup and merge are inline here because HtmlResolver's
-// function signatures (HtmlRenderProps → string) are structurally
-// incompatible with ComponentResolver's (RenderProps → unknown) under
-// exactOptionalPropertyTypes.
-
-function getHtmlRenderFn(
-    type: WalkedField["type"],
-    resolver: HtmlResolver
-): HtmlRenderFunction | undefined {
-    return resolver[typeToKey(type)];
-}
-
-function mergeHtmlResolvers(
-    user: HtmlResolver,
-    fallback: HtmlResolver
-): HtmlResolver {
-    const merged: HtmlResolver = {};
-    for (const key of RESOLVER_KEYS) {
-        const fn = user[key] ?? fallback[key];
-        if (fn !== undefined) {
-            merged[key] = fn;
-        }
-    }
-    return merged;
-}
+// HtmlRenderProps, HtmlRenderFunction, HtmlResolver, getHtmlRenderFn,
+// and mergeHtmlResolvers are imported from core/renderer.ts.
+// They're re-exported from this module for backward compatibility.
 
 // ---------------------------------------------------------------------------
 // Options
@@ -539,4 +456,15 @@ function renderFieldHtml(
     return `<span class="sc-value">${escapeHtml(typeof value === "string" ? value : JSON.stringify(value))}</span>`;
 }
 
-// Resolver merge uses mergeResolvers from core/renderer.ts
+// Resolver merge uses mergeHtmlResolvers from core/renderer.ts
+
+// ---------------------------------------------------------------------------
+// Re-exports — types imported from core/renderer.ts are re-exported
+// so consumers can import from either path.
+// ---------------------------------------------------------------------------
+
+export type {
+    HtmlRenderProps,
+    HtmlRenderFunction,
+    HtmlResolver,
+} from "../core/renderer.ts";
