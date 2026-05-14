@@ -18,6 +18,10 @@
             "dependsOn": ["_typecheck"],
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
         },
+        "_test:e2e": {
+            "dependsOn": ["_typecheck"],
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
+        },
         "_test:coverage": {
             "dependsOn": ["_typecheck"],
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
@@ -32,6 +36,26 @@
         },
         "_validate": {
             "dependsOn": ["_check", "_test"]
+        },
+        "build": {
+            "dependsOn": ["_build"]
+        },
+        "check": {
+            "dependsOn": ["_check"]
+        },
+        "validate": {
+            "dependsOn": ["_validate"]
+        },
+        "test": {
+            "dependsOn": ["_test"]
+        },
+        "test:coverage": {
+            "dependsOn": ["_test:coverage"]
+        },
+        "test-storybook": {},
+        "build-storybook": {
+            "dependsOn": ["^build"],
+            "outputs": ["storybook-static/**"]
         }
     }
 }

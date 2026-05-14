@@ -116,7 +116,7 @@ jobs:
 
             - name: E2E tests (Node 26 only)
               if: matrix.node-version == 26
-              run: pnpm _test:e2e
+              run: pnpm --filter schema-components _test:e2e
 
     storybook-test:
         name: Storybook tests

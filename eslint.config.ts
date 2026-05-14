@@ -139,10 +139,12 @@ const configFiles = [
     "commitlint.config.ts",
     "release.config.ts",
     "lint-staged.config.ts",
-    "tsdown.config.ts",
-    ".storybook/main.ts",
-    ".storybook/preview.ts",
-    ".storybook/vitest.setup.ts",
+    "packages/core/tsdown.config.ts",
+    "packages/docs/.storybook/main.ts",
+    "packages/docs/.storybook/preview.ts",
+    "packages/docs/.storybook/vitest.setup.ts",
+    "packages/core/vitest.config.ts",
+    "packages/docs/vitest.config.ts",
 ];
 
 const sharedPluginRules = {
@@ -166,18 +168,37 @@ const sharedRules: Record<string, unknown> = {
 };
 
 export default defineConfig(
-    { ignores: ["dist/", "node_modules/"] },
+    { ignores: ["dist/", "node_modules/", "**/node_modules/", "**/dist/", "storybook-static/"] },
 
-    // Source and test files — type-checked via tsconfig.json
+    // Source and test files — packages/core
     {
         files: [
-            "src/**/*.ts",
-            "src/**/*.tsx",
-            "tests/**/*.ts",
-            "tests/**/*.tsx",
-            "stories/**/*.ts",
-            "stories/**/*.tsx",
-            ".storybook/**/*.ts",
+            "packages/core/src/**/*.ts",
+            "packages/core/src/**/*.tsx",
+            "packages/core/tests/**/*.ts",
+            "packages/core/tests/**/*.tsx",
+        ],
+        extends: [
+            eslint.configs.recommended,
+            ...configs.strictTypeChecked,
+            ...configs.stylisticTypeChecked,
+        ],
+        languageOptions: {
+            parserOptions: {
+                projectService: true,
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+        plugins: sharedPluginRules,
+        rules: sharedRules,
+    },
+
+    // Story files — packages/docs
+    {
+        files: [
+            "packages/docs/stories/**/*.ts",
+            "packages/docs/stories/**/*.tsx",
+            "packages/docs/.storybook/**/*.ts",
         ],
         extends: [
             eslint.configs.recommended,
@@ -196,7 +217,7 @@ export default defineConfig(
 
     // Test-specific overrides
     {
-        files: ["tests/**/*.ts", "tests/**/*.tsx"],
+        files: ["packages/core/tests/**/*.ts", "packages/core/tests/**/*.tsx"],
         rules: {
             "@typescript-eslint/no-floating-promises": "off",
             "@typescript-eslint/consistent-type-assertions": "off",
@@ -223,13 +244,13 @@ export default defineConfig(
 
     {
         files: [
-            "src/**/*.ts",
-            "src/**/*.tsx",
-            "tests/**/*.ts",
-            "tests/**/*.tsx",
-            "stories/**/*.ts",
-            "stories/**/*.tsx",
-            ".storybook/**/*.ts",
+            "packages/core/src/**/*.ts",
+            "packages/core/src/**/*.tsx",
+            "packages/core/tests/**/*.ts",
+            "packages/core/tests/**/*.tsx",
+            "packages/docs/stories/**/*.ts",
+            "packages/docs/stories/**/*.tsx",
+            "packages/docs/.storybook/**/*.ts",
         ],
         linterOptions: {
             noInlineConfig: true,

@@ -4,21 +4,27 @@
 
 ```bash
 pnpm install
-pnpm check       # typecheck + lint + build
+pnpm check       # typecheck + lint + build (core package)
 pnpm test        # run all tests
 ```
 
 ## Project structure
 
 ```
-src/
-  core/           # JSON Schema walker, adapter, types, renderer
-  react/          # SchemaComponent, headless renderer
-  openapi/        # Parser, ApiOperation, ApiParameters, ApiRequestBody, ApiResponse
-  themes/         # Theme adapters (shadcn, etc.)
-tests/
-  *.unit.test.ts  # Unit tests (walker, adapter, parser)
-  type-inference.test.ts  # Compile-time type inference tests
+packages/
+  core/                 # Published as schema-components on npm
+    src/
+      core/             # JSON Schema walker, adapter, types, renderer
+      react/            # SchemaComponent, headless renderer
+      openapi/          # Parser, ApiOperation, ApiParameters, ApiRequestBody, ApiResponse
+      html/             # HTML renderer, streaming, a11y
+      themes/           # Theme adapters (shadcn, MUI)
+    tests/
+      *.unit.test.ts    # Unit tests (walker, adapter, parser)
+      type-inference.test.ts  # Compile-time type inference tests
+  docs/                 # Storybook documentation site
+    stories/            # Storybook stories
+    .storybook/         # Storybook configuration
 ```
 
 ## Commit conventions
@@ -31,8 +37,12 @@ fix: fix a bug
 docs: documentation changes
 refactor: code restructuring
 test: adding or updating tests
-chore: maintenance, tooling, CI
+build: build system or dependencies
+ci: CI configuration
+chore: maintenance, tooling
 ```
+
+Scopes: `core`, `docs`, `react`, `themes`, `openapi`, `html`, `build`, `release`, `ci`, `deps`.
 
 Commits are linted via husky + commitlint on `commit-msg`.
 
@@ -47,12 +57,13 @@ Commits are linted via husky + commitlint on `commit-msg`.
 ## Testing
 
 ```bash
-pnpm test              # all tests
-pnpm _typecheck        # TypeScript only (includes type-inference tests)
-pnpm _test              # runtime tests only
+pnpm test                     # unit tests (core package)
+pnpm --filter schema-components _test:e2e   # e2e tests
+pnpm test:coverage            # tests with coverage
+pnpm test-storybook           # Storybook component tests
 ```
 
-Type inference tests live in `tests/type-inference.test.ts`. They verify generic props dispatch at compile time — `@ts-expect-error` directives that should trigger, and valid assignments that should pass. If `_typecheck` passes, the type tests pass.
+Type inference tests live in `packages/core/tests/type-inference.test.ts`. They verify generic props dispatch at compile time — `@ts-expect-error` directives that should trigger, and valid assignments that should pass. If `_typecheck` passes, the type tests pass.
 
 ## Pull requests
 

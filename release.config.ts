@@ -45,11 +45,20 @@ const config: GlobalConfig = {
             },
         ],
         "@semantic-release/changelog",
-        "@semantic-release/npm",
+        [
+            "@semantic-release/npm",
+            {
+                pkgRoot: "packages/core",
+            },
+        ],
         [
             "@semantic-release/git",
             {
-                assets: ["package.json", "pnpm-lock.yaml", "CHANGELOG.md"],
+                assets: [
+                    "packages/core/package.json",
+                    "pnpm-lock.yaml",
+                    "CHANGELOG.md",
+                ],
                 message:
                     "chore(release): ${nextRelease.version}\n\n${nextRelease.notes}",
             },

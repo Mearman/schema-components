@@ -1,0 +1,98 @@
+{
+    "name": "schema-components",
+    "version": "1.7.1",
+    "description": "React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents",
+    "type": "module",
+    "main": "./dist/index.mjs",
+    "types": "./dist/index.d.mts",
+    "exports": {
+        "./styles.css": "./dist/html/styles.css",
+        "./core/*": {
+            "types": "./dist/core/*.d.mts",
+            "import": "./dist/core/*.mjs"
+        },
+        "./react/*": {
+            "types": "./dist/react/*.d.mts",
+            "import": "./dist/react/*.mjs"
+        },
+        "./openapi/*": {
+            "types": "./dist/openapi/*.d.mts",
+            "import": "./dist/openapi/*.mjs"
+        },
+        "./html/*": {
+            "types": "./dist/html/*.d.mts",
+            "import": "./dist/html/*.mjs"
+        },
+        "./themes/*": {
+            "types": "./dist/themes/*.d.mts",
+            "import": "./dist/themes/*.mjs"
+        }
+    },
+    "files": [
+        "dist",
+        "LICENSE",
+        "README.md",
+        "CHANGELOG.md"
+    ],
+    "scripts": {
+        "_typecheck": "tsc --noEmit",
+        "_lint": "eslint --cache 'src/**/*.{ts,tsx}'",
+        "_lint:fix": "eslint --cache --fix 'src/**/*.{ts,tsx}'",
+        "_test": "vitest run --project=unit",
+        "_test:e2e": "vitest run --project=e2e",
+        "_test:coverage": "vitest run --project=unit --coverage",
+        "_build": "tsdown && cp src/html/styles.css dist/html/styles.css",
+        "typecheck": "turbo run _typecheck",
+        "lint": "turbo run _lint",
+        "lint:fix": "turbo run _lint:fix",
+        "test": "turbo run _test",
+        "test:coverage": "turbo run _test:coverage",
+        "check": "turbo run _check",
+        "validate": "turbo run _validate",
+        "build": "turbo run _build"
+    },
+    "keywords": [
+        "react",
+        "zod",
+        "json-schema",
+        "openapi",
+        "schema",
+        "form",
+        "components",
+        "headless",
+        "ui"
+    ],
+    "author": "Joseph Mearman",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Mearman/schema-components.git"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "peerDependencies": {
+        "react": "^18.0.0 || ^19.0.0",
+        "zod": "^4.0.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "10.0.1",
+        "@types/node": "25.6.0",
+        "@types/react": "19.2.14",
+        "@types/react-dom": "19.2.3",
+        "@vitest/coverage-v8": "4.1.5",
+        "eslint": "10.3.0",
+        "eslint-config-prettier": "10.1.8",
+        "eslint-plugin-prettier": "5.5.5",
+        "prettier": "3.8.3",
+        "react": "19.2.6",
+        "react-dom": "19.2.6",
+        "tsdown": "0.22.0",
+        "tslib": "2.8.1",
+        "typescript": "6.0.3",
+        "typescript-eslint": "8.59.2",
+        "vitest": "4.1.5",
+        "zod": "4.4.3"
+    }
+}
