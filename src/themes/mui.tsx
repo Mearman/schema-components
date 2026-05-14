@@ -92,7 +92,13 @@ function renderNumberInput(props: RenderProps): ReactNode {
         <MuiTextField
             label={label}
             type="number"
-            value={typeof props.value === "number" ? props.value : ""}
+            value={
+                props.writeOnly
+                    ? ""
+                    : typeof props.value === "number"
+                      ? props.value
+                      : ""
+            }
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 props.onChange(Number(e.target.value));
             }}
@@ -128,7 +134,7 @@ function renderBooleanInput(props: RenderProps): ReactNode {
         <MuiFormControlLabel
             control={
                 <MuiCheckbox
-                    checked={props.value === true}
+                    checked={props.writeOnly ? false : props.value === true}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                         props.onChange(e.target.checked);
                     }}
