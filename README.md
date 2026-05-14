@@ -544,6 +544,19 @@ import { shadcnResolver } from "schema-components/themes/shadcn";
 
 `SchemaView` produces identical output to `<SchemaComponent readOnly>` — verified by parity tests.
 
+## File uploads
+
+String schemas with `format: "binary"` render as `<input type="file">`. Use `contentMediaType` to restrict accepted MIME types:
+
+```tsx
+const schema = z.object({
+  avatar: z.string().meta({ format: "binary" }),
+  resume: z.string().meta({ format: "binary", contentMediaType: "application/pdf" }),
+});
+```
+
+In read-only mode, file fields display a static label ("File field") since there is no value to show. The `onChange` callback receives the `File` object from the browser.
+
 ## Error handling
 
 Typed errors with `onError` callback for graceful degradation:

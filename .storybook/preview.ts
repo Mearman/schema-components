@@ -17,6 +17,7 @@ const preview: Preview = {
                     [
                         "DateTime",
                         "Errors",
+                        "FileUpload",
                         "Headless",
                         "MUI",
                         "Recursive",

@@ -370,3 +370,102 @@ describe("schema defaults — Zod", () => {
         assert.ok(html.includes("Hello"));
     });
 });
+
+// ---------------------------------------------------------------------------
+// File upload — walker
+// ---------------------------------------------------------------------------
+
+describe("file upload — walker", () => {
+    it("detects format: binary as file type", () => {
+        const tree = walk({
+            type: "string",
+            format: "binary",
+        });
+        assert.equal(tree.type, "file");
+    });
+
+    it("extracts contentMediaType as mimeTypes constraint", () => {
+        const tree = walk({
+            type: "string",
+            format: "binary",
+            contentMediaType: "image/png",
+        });
+        assert.equal(tree.type, "file");
+        assert.deepEqual(tree.constraints.mimeTypes, ["image/png"]);
+    });
+
+    it("has no mimeTypes when contentMediaType is absent", () => {
+        const tree = walk({
+            type: "string",
+            format: "binary",
+        });
+        assert.equal(tree.type, "file");
+        assert.equal(tree.constraints.mimeTypes, undefined);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// File upload — HTML rendering
+// ---------------------------------------------------------------------------
+
+describe("file upload — HTML", () => {
+    it("renders file input type", () => {
+        const html = renderToHtml({ type: "string", format: "binary" }, {});
+        assert.ok(html.includes('type="file"'));
+    });
+
+    it("sets accept attribute from mimeTypes", () => {
+        const html = renderToHtml(
+            {
+                type: "string",
+                format: "binary",
+                contentMediaType: "image/png",
+            },
+            {}
+        );
+        assert.ok(html.includes('accept="image/png"'));
+    });
+
+    it("renders read-only file field without input", () => {
+        const html = renderToHtml(
+            { type: "string", format: "binary" },
+            { readOnly: true }
+        );
+        assert.ok(!html.includes('type="file"'));
+        assert.ok(html.includes("File field"));
+        assert.ok(html.includes('aria-readonly="true"'));
+    });
+
+    it("adds aria-required for required file field", () => {
+        const html = renderToHtml(
+            {
+                type: "object",
+                properties: {
+                    avatar: {
+                        type: "string",
+                        format: "binary",
+                    },
+                },
+                required: ["avatar"],
+            },
+            { value: { avatar: undefined } }
+        );
+        assert.ok(html.includes('aria-required="true"'));
+    });
+
+    it("renders file input via streaming", () => {
+        const chunks = [
+            ...renderToHtmlChunks({ type: "string", format: "binary" }, {}),
+        ];
+        const html = chunks.join("");
+        assert.ok(html.includes('type="file"'));
+    });
+
+    it("renders file input from Zod schema", () => {
+        const schema = z.object({
+            avatar: z.string().meta({ format: "binary" }),
+        });
+        const html = renderToHtml(schema, { value: { avatar: undefined } });
+        assert.ok(html.includes('type="file"'));
+    });
+});
