@@ -1,0 +1,221 @@
+/**
+ * Base styles for the headless renderer in Storybook.
+ *
+ * The headless resolver produces semantic HTML elements (fieldset, input,
+ * label, select, span) without CSS classes. This stylesheet provides
+ * sensible defaults so stories are readable and aesthetically clean.
+ */
+
+/* Reset fieldset defaults */
+fieldset {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+    margin: 0;
+}
+
+fieldset legend {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #334155;
+    padding: 0 0.375rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Field rows */
+fieldset > div {
+    display: grid;
+    grid-template-columns: 10rem 1fr;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Labels */
+label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #475569;
+    white-space: nowrap;
+}
+
+/* Inputs */
+input[type="text"],
+input[type="email"],
+input[type="url"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="password"],
+select,
+textarea {
+    width: 100%;
+    padding: 0.375rem 0.625rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    color: #1e293b;
+    background: #fff;
+    box-sizing: border-box;
+    line-height: 1.5;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="datetime-local"]:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+/* Select */
+select {
+    appearance: auto;
+}
+
+/* Checkbox */
+input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: #3b82f6;
+}
+
+/* File input */
+input[type="file"] {
+    font-size: 0.875rem;
+    color: #475569;
+}
+
+/* Read-only values */
+span[aria-readonly="true"] {
+    font-size: 0.875rem;
+    color: #334155;
+    min-height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Required indicator */
+span[aria-hidden="true"] {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+/* Tab panels (discriminated unions) */
+[role="tablist"] {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+[role="tab"] {
+    padding: 0.25rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #475569;
+}
+
+[role="tab"][aria-selected="true"] {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+[role="tabpanel"] {
+    min-height: 2rem;
+}
+
+/* Array items */
+[role="group"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Links (email, URL in read-only) */
+a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Section headings in OpenAPI components */
+[data-operation] h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 0.75rem;
+}
+
+[data-operation] h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #475569;
+    margin: 1rem 0 0.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+[data-operation] h5 {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0.75rem 0 0.375rem;
+}
+
+[data-status] {
+    margin-bottom: 0.75rem;
+}
+
+[data-parameter] {
+    margin-bottom: 0.5rem;
+}
+
+[data-parameter] label {
+    font-weight: 600;
+    color: #334155;
+}
+
+[data-required] {
+    color: #dc2626;
+    font-size: 0.875rem;
+}
+
+[data-content-type] {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #6b7280;
+    background: #f1f5f9;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    margin-left: 0.5rem;
+}
+
+[data-deprecated] {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #92400e;
+    background: #fef3c7;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    margin-left: 0.5rem;
+}
+
+[data-description] {
+    font-size: 0.8125rem;
+    color: #64748b;
+    margin-left: 0.5rem;
+}
