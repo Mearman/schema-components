@@ -1,3 +1,16 @@
+## [1.3.3](https://github.com/Mearman/schema-components/compare/v1.3.2...v1.3.3) (2026-05-14)
+
+### Refactoring
+
+* extract pure resolution layer from openapi components ([5e0ab32](https://github.com/Mearman/schema-components/commit/5e0ab32de44b41b23e74082886a5ae881b418883))
+
+### Tests
+
+* add guards unit tests ([39f53ab](https://github.com/Mearman/schema-components/commit/39f53abf4cf30f1751a09267f34990c4a2532567))
+* add openapi resolution and component unit tests ([75a5892](https://github.com/Mearman/schema-components/commit/75a589220f05b5649a531bec946a63093e824687))
+* add renderer utility unit tests ([3ca3677](https://github.com/Mearman/schema-components/commit/3ca367709acf6324a33a79adf3799528971defc2))
+* expand html and streaming coverage, tighten vitest config ([ac480cd](https://github.com/Mearman/schema-components/commit/ac480cdeb39cf2ae0fa3107de2abae39102cfa26))
+
 ## [1.3.2](https://github.com/Mearman/schema-components/compare/v1.3.1...v1.3.2) (2026-05-14)
 
 ### Refactoring
