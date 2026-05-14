@@ -27,6 +27,12 @@ import { getHtmlRenderFn, mergeHtmlResolvers } from "../core/renderer.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
 import { defaultHtmlResolver } from "./renderToHtml.ts";
 import { isObject } from "../core/guards.ts";
+import {
+    escapeHtml,
+    buildInputId,
+    buildHintHtml,
+    requiredIndicator,
+} from "./a11y.ts";
 
 // ---------------------------------------------------------------------------
 // Shared options
@@ -35,19 +41,7 @@ import { isObject } from "../core/guards.ts";
 export type StreamRenderOptions =
     import("./renderToHtml.ts").RenderToHtmlOptions;
 
-// ---------------------------------------------------------------------------
-// HTML escaping (re-export from renderToHtml — kept private there,
-// duplicated here for the streaming renderers)
-// ---------------------------------------------------------------------------
-
-function escapeHtml(str: string): string {
-    return str
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-}
+// HTML escaping imported from html/a11y.ts
 
 // ---------------------------------------------------------------------------
 // Chunked rendering — sync generator (foundation)
@@ -255,13 +249,18 @@ function* streamObject(
 
     const obj = isObject(value) ? value : {};
     const readOnly = tree.editability === "presentation";
-    const description =
-        typeof tree.meta.description === "string"
-            ? `<legend>${escapeHtml(tree.meta.description)}</legend>`
-            : "";
+    const descriptionText =
+        typeof tree.meta.description === "string" ? tree.meta.description : "";
+    const hasDescription = descriptionText.length > 0;
+    const legend = hasDescription
+        ? `<legend>${escapeHtml(descriptionText)}</legend>`
+        : "";
+    const groupAria = hasDescription
+        ? ` aria-label="${escapeHtml(descriptionText)}"`
+        : "";
 
     if (readOnly) {
-        yield `<dl class="sc-object">${description}`;
+        yield `<dl class="sc-object"${groupAria}>${legend}`;
         for (const [key, field] of Object.entries(fields)) {
             const label =
                 typeof field.meta.description === "string"
@@ -279,13 +278,13 @@ function* streamObject(
         }
         yield `</dl>`;
     } else {
-        yield `<fieldset class="sc-object">${description}`;
+        yield `<fieldset class="sc-object"${groupAria}>${legend}`;
         for (const [key, field] of Object.entries(fields)) {
             const label =
                 typeof field.meta.description === "string"
                     ? escapeHtml(field.meta.description)
                     : escapeHtml(key);
-            const inputId = `sc-${escapeHtml(path ? `${path}-${key}` : key)}`;
+            const fieldId = buildInputId(path, key);
             const childValue = obj[key];
             const childChunks = [
                 ...streamField(
@@ -296,7 +295,9 @@ function* streamObject(
                     rawResolver
                 ),
             ].join("");
-            yield `<div class="sc-field"><label class="sc-label" for="${inputId}">${label}</label>${childChunks}</div>`;
+            const hint = buildHintHtml(fieldId, field.constraints);
+            const required = requiredIndicator(field);
+            yield `<div class="sc-field"><label class="sc-label" for="${fieldId}">${label}${required}</label>${childChunks}${hint}</div>`;
         }
         yield `</fieldset>`;
     }
@@ -366,7 +367,7 @@ function* streamRecord(
     const readOnly = tree.editability === "presentation";
 
     if (readOnly) {
-        yield `<dl class="sc-record">`;
+        yield `<dl class="sc-record" role="group">`;
         for (const [key, val] of Object.entries(obj)) {
             const childHtml = renderFieldSync(
                 valueType,
@@ -379,7 +380,7 @@ function* streamRecord(
         }
         yield `</dl>`;
     } else {
-        yield `<div class="sc-record">`;
+        yield `<div class="sc-record" role="group">`;
         for (const [key, val] of Object.entries(obj)) {
             const childHtml = renderFieldSync(
                 valueType,
