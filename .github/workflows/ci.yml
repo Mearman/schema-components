@@ -110,6 +110,10 @@ jobs:
 
             - run: pnpm test
 
+            - name: Coverage (Node 26 only)
+              if: matrix.node-version == 26
+              run: pnpm test:coverage
+
     release:
         name: Release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'

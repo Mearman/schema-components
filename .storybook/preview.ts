@@ -18,6 +18,7 @@ const preview: Preview = {
                         "DateTime",
                         "Errors",
                         "Headless",
+                        "MUI",
                         "Recursive",
                         "SchemaField",
                         "Shadcn",
