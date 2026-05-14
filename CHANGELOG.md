@@ -1,3 +1,9 @@
+## [1.5.0](https://github.com/Mearman/schema-components/compare/v1.4.0...v1.5.0) (2026-05-14)
+
+### Features
+
+* add storybook stories for widgets, SchemaView, defaults, editability, and records ([e36720e](https://github.com/Mearman/schema-components/commit/e36720e09edcba11374eca77394f000a62261309))
+
 ## [1.4.0](https://github.com/Mearman/schema-components/compare/v1.3.3...v1.4.0) (2026-05-14)
 
 ### Features
