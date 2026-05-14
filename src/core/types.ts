@@ -114,19 +114,24 @@ export function resolveEditability(
 
 /**
  * Recursive mapped type that mirrors a schema's shape for per-field
- * meta overrides. Each leaf is `Partial<SchemaMeta>`, objects recurse
- * and also accept their own `SchemaMeta`.
+ * overrides. Each leaf accepts schema meta overrides and an optional
+ * per-field validation error callback. Objects recurse and also accept
+ * their own overrides.
  */
 export type FieldOverrides<T> = {
     [K in keyof T]?: T[K] extends object
-        ? FieldOverrides<T[K]> & Partial<SchemaMeta>
-        : Partial<SchemaMeta>;
+        ? FieldOverrides<T[K]> & FieldOverride
+        : FieldOverride;
 };
 
 /**
- * Fallback type for runtime schemas (no compile-time shape).
+ * Per-field override. Extends SchemaMeta with a React-layer callback
+ * for per-field validation errors.
  */
-export type FieldOverride = Partial<SchemaMeta>;
+export type FieldOverride = Partial<SchemaMeta> & {
+    /** Called with the ZodError when this field fails validation. */
+    onValidationError?: (error: unknown) => void;
+};
 
 // ---------------------------------------------------------------------------
 // Walker types — what the walker produces for each schema node

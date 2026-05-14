@@ -37,7 +37,7 @@ import type {
     WalkedField,
 } from "../core/types.ts";
 import { headlessResolver } from "./headless.tsx";
-import { isObject, toRecord } from "../core/guards.ts";
+import { isObject, toRecord, toRecordOrUndefined } from "../core/guards.ts";
 import {
     SchemaNormalisationError,
     SchemaFieldError,
@@ -214,16 +214,17 @@ export function SchemaComponent<
     const handleChange = useCallback(
         (nextValue: unknown) => {
             if (validate) {
-                runValidation(
-                    zodSchema,
-                    jsonSchema,
-                    nextValue,
-                    onValidationError
-                );
+                const error = runValidation(zodSchema, jsonSchema, nextValue);
+                if (error !== undefined) {
+                    // Root-level error callback
+                    onValidationError?.(error);
+                    // Per-field error callbacks
+                    dispatchFieldErrors(fields, error);
+                }
             }
             onChange?.(nextValue);
         },
-        [validate, zodSchema, jsonSchema, onChange, onValidationError]
+        [validate, zodSchema, jsonSchema, onChange, onValidationError, fields]
     );
 
     // Walk the JSON Schema tree
@@ -271,9 +272,8 @@ export function SchemaComponent<
 function runValidation(
     zodSchema: unknown,
     jsonSchema: Record<string, unknown>,
-    value: unknown,
-    onError: ((error: unknown) => void) | undefined
-): void {
+    value: unknown
+): unknown {
     // Prefer original Zod schema for validation (most accurate)
     if (zodSchema !== undefined && isObject(zodSchema)) {
         const safeParseFn = zodSchema.safeParse;
@@ -284,10 +284,9 @@ function runValidation(
                 "success" in result &&
                 result.success !== true
             ) {
-                onError?.(result.error);
-                return;
+                return result.error;
             }
-            return;
+            return undefined;
         }
     }
 
@@ -302,10 +301,12 @@ function runValidation(
                 "success" in result &&
                 result.success !== true
             ) {
-                onError?.(result.error);
+                return result.error;
             }
         }
     }
+
+    return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -522,12 +523,14 @@ export function SchemaField<
                     path,
                     nextFieldValue
                 );
-                runValidation(
+                const error = runValidation(
                     zodSchema,
                     jsonSchema,
-                    newRootValue,
-                    onValidationError
+                    newRootValue
                 );
+                if (error !== undefined) {
+                    onValidationError?.(error);
+                }
             }
             const newRootValue = setNestedValue(value, path, nextFieldValue);
             onChange?.(newRootValue);
@@ -680,6 +683,56 @@ function setNestedValue(
     }
 
     return result;
+}
+
+function isFieldErrorCallback(
+    value: unknown
+): value is (error: { issues: unknown[] }) => void {
+    return typeof value === "function";
+}
+
+// ---------------------------------------------------------------------------
+// Per-field error dispatch
+// ---------------------------------------------------------------------------
+
+/**
+ * Dispatch Zod errors to per-field onValidationError callbacks.
+ * Walks the fields override tree and matches errors by path prefix.
+ */
+function dispatchFieldErrors(fields: unknown, error: unknown): void {
+    if (fields === undefined || !isObject(error)) return;
+
+    // Zod errors have issues[] with path[] arrays
+    if (!("issues" in error)) return;
+    const issues = error.issues;
+    if (!Array.isArray(issues)) return;
+
+    const overrides = toRecordOrUndefined(fields);
+    if (overrides === undefined) return;
+
+    for (const [key, override] of Object.entries(overrides)) {
+        if (override === undefined || typeof override !== "object") continue;
+        if (override === null) continue;
+
+        // Check if the override has an onValidationError callback
+        if (!("onValidationError" in override)) continue;
+        const fieldCallback = override.onValidationError;
+        if (typeof fieldCallback !== "function") continue;
+
+        // Collect errors whose path starts with this key
+        const fieldErrors = issues.filter((issue: unknown): boolean => {
+            if (!isObject(issue)) return false;
+            if (!("path" in issue)) return false;
+            const path: unknown = issue.path;
+            if (!Array.isArray(path)) return false;
+            const firstSegment: unknown = path[0];
+            return firstSegment === key;
+        });
+
+        if (fieldErrors.length > 0 && isFieldErrorCallback(fieldCallback)) {
+            fieldCallback({ issues: fieldErrors });
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
