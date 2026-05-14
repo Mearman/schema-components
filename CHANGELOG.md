@@ -1,3 +1,13 @@
+## [1.4.0](https://github.com/Mearman/schema-components/compare/v1.3.3...v1.4.0) (2026-05-14)
+
+### Features
+
+* add scoped widget resolution at instance, context, and global levels ([b330baf](https://github.com/Mearman/schema-components/commit/b330baf183d00bebf999108f16c9dabd40c243be))
+
+### Documentation
+
+* update README with scoped widget resolution documentation ([21ac50d](https://github.com/Mearman/schema-components/commit/21ac50dc9a55144fc319fcf482ffad6a16585a27))
+
 ## [1.3.3](https://github.com/Mearman/schema-components/compare/v1.3.2...v1.3.3) (2026-05-14)
 
 ### Refactoring
