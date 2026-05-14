@@ -217,7 +217,14 @@ export function SchemaComponent<
         );
     };
 
-    return renderField(tree, value, handleChange, userResolver, renderChild);
+    const effectiveValue = value ?? tree.defaultValue;
+    return renderField(
+        tree,
+        effectiveValue,
+        handleChange,
+        userResolver,
+        renderChild
+    );
 }
 
 // ---------------------------------------------------------------------------

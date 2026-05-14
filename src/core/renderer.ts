@@ -115,6 +115,7 @@ export interface ComponentResolver {
     array?: RenderFunction;
     record?: RenderFunction;
     union?: RenderFunction;
+    discriminatedUnion?: RenderFunction;
     literal?: RenderFunction;
     file?: RenderFunction;
     unknown?: RenderFunction;
@@ -140,6 +141,7 @@ export interface HtmlResolver {
     array?: HtmlRenderFunction;
     record?: HtmlRenderFunction;
     union?: HtmlRenderFunction;
+    discriminatedUnion?: HtmlRenderFunction;
     literal?: HtmlRenderFunction;
     file?: HtmlRenderFunction;
     unknown?: HtmlRenderFunction;
@@ -158,6 +160,7 @@ export const RESOLVER_KEYS = [
     "array",
     "record",
     "union",
+    "discriminatedUnion",
     "literal",
     "file",
     "unknown",
@@ -179,12 +182,11 @@ export function typeToKey(type: WalkedField["type"]): ResolverKey {
         case "array":
         case "record":
         case "union":
+        case "discriminatedUnion":
         case "literal":
         case "file":
         case "unknown":
             return type;
-        case "discriminatedUnion":
-            return "union";
         default:
             return "unknown";
     }
