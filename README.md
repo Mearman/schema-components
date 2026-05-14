@@ -339,7 +339,66 @@ const formHtml = renderToHtml(userSchema, {
 //   </fieldset>
 ```
 
-All HTML output uses `sc-` prefixed classes for styling hooks. HTML is properly escaped — no XSS risk.
+All HTML output uses `sc-` prefixed classes for styling hooks. HTML is properly escaped by the serialiser — no manual escaping needed.
+
+### Structured HTML construction
+
+The HTML renderer uses a typed `h()` builder instead of string templates. This gives compile-time safety and automatic escaping:
+
+```ts
+import { h, serialize, raw } from "@scalar/schema-components/html/html";
+
+// Build elements — attrs are type-checked, values auto-escaped
+const input = h("input", { type: "text", id: "name", value: userValue });
+serialize(input); // → <input type="text" id="name" value="Ada">
+
+// Embed pre-serialised HTML (from child renderers)
+const div = h("div", { class: "field" }, raw(childHtml));
+serialize(div);
+```
+
+The builder handles void elements (`<input>`, `<br>`, etc.), boolean attributes (`checked`, `disabled`), fragments, and nested children.
+
+### Streaming HTML
+
+Three output formats for incremental rendering:
+
+```ts
+import { renderToHtmlChunks } from "@scalar/schema-components/html/renderToHtmlStream";
+import { renderToHtmlStream } from "@scalar/schema-components/html/renderToHtmlStream";
+import { renderToHtmlReadable } from "@scalar/schema-components/html/renderToHtmlStream";
+
+// Sync iterable — chunks yielded at field/item/entry boundaries
+const chunks: string[] = [...renderToHtmlChunks(schema, { value })];
+
+// Async iterable — yields control to event loop between chunks
+for await (const chunk of renderToHtmlStream(schema, { value })) {
+  res.write(chunk);
+}
+
+// Web ReadableStream — for Response, TransformStream, etc.
+return new Response(renderToHtmlReadable(schema, { value }), {
+  headers: { "Content-Type": "text/html" },
+});
+```
+
+Concatenating all chunks produces identical output to `renderToHtml`.
+
+### Accessibility
+
+The HTML renderer produces WAI-ARIA-compliant markup:
+
+| Attribute | When |
+|---|---|
+| `id="<key>"` | All editable inputs |
+| `aria-required="true"` | Required fields (`isOptional === false`) |
+| `aria-describedby="<id>-hint"` | Fields with constraints (min/max/length/pattern) |
+| `aria-readonly="true"` | Read-only presentation spans |
+| `aria-label="<description>"` | Checkboxes (no visible text node) |
+| `role="group"` | Record containers |
+| `aria-label` on `<fieldset>` | Object with description |
+| `<small class="sc-hint">` | Constraint hint text |
+| `<span class="sc-required" aria-hidden="true">*` | Required field indicator |
 
 ### Custom HTML resolver
 
@@ -394,14 +453,40 @@ Resolution order: `.meta({ component })` → registered widget → theme adapter
 
 Validation uses the original Zod schema (if input was Zod) or `z.fromJSONSchema()` (if input was JSON Schema / OpenAPI).
 
+## Error handling
+
+Typed errors with `onError` callback for graceful degradation:
+
+```tsx
+import { SchemaErrorBoundary } from "@scalar/schema-components/react/SchemaErrorBoundary";
+import { SchemaComponent } from "@scalar/schema-components/react/SchemaComponent";
+
+// Error boundary catches render errors from theme adapters
+<SchemaErrorBoundary fallback={(error, reset) => <p>Error: {error.message}</p>}>
+  <SchemaComponent schema={schema} value={data} />
+</SchemaErrorBoundary>
+
+// Per-component error callback
+<SchemaComponent
+  schema={schema}
+  value={data}
+  onError={(error) => {
+    console.error(error);
+    return null; // graceful degradation
+  }}
+/>
+```
+
+Without `onError`, errors re-throw. Error hierarchy: `SchemaError` → `SchemaNormalisationError` | `SchemaRenderError` | `SchemaFieldError`.
+
 ## Architecture
 
 ```
 @scalar/schema-components
-├── core            # JSON Schema walker, ComponentResolver, RenderProps, type-level parsers
-├── react           # SchemaComponent, SchemaProvider, SchemaField, headless renderer
+├── core            # JSON Schema walker, ComponentResolver, RenderProps, typed errors, type guards
+├── react           # SchemaComponent, SchemaProvider, SchemaField, headless renderer, error boundary
 ├── openapi         # Document parser, ApiOperation, ApiParameters, ApiRequestBody, ApiResponse
-├── html            # renderToHtml — schema → HTML string (no React dependency)
+├── html            # h() builder, renderToHtml, streaming renderers, ARIA helpers
 └── themes          # shadcn, MUI, custom adapters (separate packages)
 ```
 
@@ -411,12 +496,19 @@ Every module is imported directly — no barrel files.
 
 | File | Role |
 |---|---|
-| `core/types.ts` | SchemaMeta, Editability, WalkedField, FieldOverrides, FromJSONSchema, PathOfType, OpenAPI type-level parsers |
+| `core/types.ts` | SchemaMeta, Editability, WalkedField, FieldConstraints, FieldOverrides, FromJSONSchema, PathOfType |
 | `core/walker.ts` | JSON Schema walker (Draft 2020-12), `$ref` resolution, `allOf` merging, nullable/discriminated union detection |
-| `core/adapter.ts` | Normalises all inputs to JSON Schema (Zod via `z.toJSONSchema()`, JSON Schema passthrough, OpenAPI extraction) |
-| `core/renderer.ts` | `ComponentResolver` interface, `RenderProps` with `renderChild` |
+| `core/adapter.ts` | Normalises all inputs to JSON Schema. WeakMap schema cache. |
+| `core/renderer.ts` | `BaseFieldProps`, `RenderProps`, `HtmlRenderProps`, `ComponentResolver`, `HtmlResolver`, `mergeResolvers` |
+| `core/guards.ts` | Shared type guards: `isObject`, `getProperty`, `hasProperty`, `toRecord` |
+| `core/errors.ts` | `SchemaError`, `SchemaNormalisationError`, `SchemaRenderError`, `SchemaFieldError` |
 | `react/SchemaComponent.tsx` | Generic `<SchemaComponent<T, Ref>>`, `SchemaProvider`, `registerWidget`, `SchemaField<P>` |
-| `react/headless.tsx` | Headless default resolver producing plain HTML |
+| `react/headless.tsx` | Headless default resolver, `createHeadlessResolver(renderChild)` factory |
+| `react/SchemaErrorBoundary.tsx` | React error boundary catching render errors |
+| `html/html.ts` | Typed `h()` builder — `serialize()`, `serializeChunks()`, `raw()`, `text()`, `fragment()` |
+| `html/a11y.ts` | ARIA helpers — `ariaRequiredAttrs()`, `ariaDescribedByAttrs()`, `buildHintElement()`, `requiredIndicator()` |
+| `html/renderToHtml.ts` | `renderToHtml()`, `defaultHtmlResolver` — schema → HTML string via `h()` builder |
+| `html/renderToHtmlStream.ts` | `renderToHtmlChunks()` (sync), `renderToHtmlStream()` (async), `renderToHtmlReadable()` (web ReadableStream) |
 | `openapi/parser.ts` | OpenAPI document parsing, operation extraction, `$ref` resolution |
 | `openapi/components.tsx` | `ApiOperation`, `ApiParameters`, `ApiRequestBody`, `ApiResponse` with generic type inference |
-| `html/renderToHtml.ts` | `renderToHtml()`, `HtmlResolver`, `HtmlRenderProps` — schema → HTML string with custom resolvers |
+| `themes/shadcn.tsx` | shadcn/ui theme adapter |
