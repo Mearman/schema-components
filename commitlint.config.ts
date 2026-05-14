@@ -6,7 +6,7 @@ import type { UserConfig } from "@commitlint/types";
  * Enforces conventional commits with optional scope validation.
  * Format: type(scope): description
  *
- * Allowed scopes match the package structure.
+ * Allowed scopes match the monorepo package structure.
  * Commits must use British English spelling and grammar.
  */
 const config: UserConfig = {
@@ -16,11 +16,14 @@ const config: UserConfig = {
             2,
             "always",
             [
-                // Package modules
+                // Packages
                 "core",
+                "docs",
+                // Core modules
                 "react",
                 "themes",
                 "openapi",
+                "html",
                 // Build/tooling
                 "build",
                 "release",

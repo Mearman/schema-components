@@ -35,7 +35,7 @@ jobs:
 
             - uses: actions/upload-pages-artifact@v5.0.0
               with:
-                  path: storybook-static
+                  path: packages/docs/storybook-static
 
     deploy:
         needs: build
