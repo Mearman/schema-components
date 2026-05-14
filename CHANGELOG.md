@@ -1,3 +1,9 @@
+## [1.3.1](https://github.com/Mearman/schema-components/compare/v1.3.0...v1.3.1) (2026-05-14)
+
+### CI
+
+* add storybook component test job ([4441151](https://github.com/Mearman/schema-components/commit/4441151b9d2ac7255f8116235a9793440841d462))
+
 ## [1.3.0](https://github.com/Mearman/schema-components/compare/v1.2.0...v1.3.0) (2026-05-14)
 
 ### Features
