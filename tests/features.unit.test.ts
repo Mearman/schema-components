@@ -38,12 +38,15 @@ describe("discriminated union — walker", () => {
 
         assert.equal(tree.type, "discriminatedUnion");
         assert.equal(tree.discriminator, "type");
-        assert.equal(tree.options?.length, 2);
+        assert.ok(tree.options !== undefined);
+        assert.equal(tree.options.length, 2);
 
         // First option should have a literal field for the discriminator
         const emailOption = tree.options[0];
+        assert.ok(emailOption !== undefined);
         assert.equal(emailOption.type, "object");
-        const typeField = emailOption.fields.type;
+        const typeField = emailOption.fields?.type;
+        assert.ok(typeField !== undefined);
         assert.equal(typeField.type, "literal");
         assert.deepEqual(typeField.literalValues, ["email"]);
     });
@@ -270,6 +273,9 @@ describe("schema defaults — walker", () => {
                 count: { type: "number", default: 0 },
             },
         });
+        assert.ok(tree.fields !== undefined);
+        assert.ok(tree.fields.name !== undefined);
+        assert.ok(tree.fields.count !== undefined);
         assert.equal(tree.fields.name.defaultValue, "Unnamed");
         assert.equal(tree.fields.count.defaultValue, 0);
     });
@@ -348,6 +354,9 @@ describe("schema defaults — Zod", () => {
             rootDocument: normalised.rootDocument,
         });
 
+        assert.ok(tree.fields !== undefined);
+        assert.ok(tree.fields.name !== undefined);
+        assert.ok(tree.fields.active !== undefined);
         assert.equal(tree.fields.name.defaultValue, "Anonymous");
         assert.equal(tree.fields.active.defaultValue, true);
     });

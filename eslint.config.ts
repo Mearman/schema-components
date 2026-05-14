@@ -140,6 +140,8 @@ const configFiles = [
     "release.config.ts",
     "lint-staged.config.ts",
     "tsdown.config.ts",
+    ".storybook/main.ts",
+    ".storybook/preview.ts",
 ];
 
 const sharedPluginRules = {
@@ -172,6 +174,9 @@ export default defineConfig(
             "src/**/*.tsx",
             "tests/**/*.ts",
             "tests/**/*.tsx",
+            "stories/**/*.ts",
+            "stories/**/*.tsx",
+            ".storybook/**/*.ts",
         ],
         extends: [
             eslint.configs.recommended,
@@ -221,6 +226,9 @@ export default defineConfig(
             "src/**/*.tsx",
             "tests/**/*.ts",
             "tests/**/*.tsx",
+            "stories/**/*.ts",
+            "stories/**/*.tsx",
+            ".storybook/**/*.ts",
         ],
         linterOptions: {
             noInlineConfig: true,
