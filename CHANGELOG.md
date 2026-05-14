@@ -1,3 +1,17 @@
+## [1.3.0](https://github.com/Mearman/schema-components/compare/v1.2.0...v1.3.0) (2026-05-14)
+
+### Features
+
+* add storybook testing with vitest addon, a11y, and browser mode ([e32944e](https://github.com/Mearman/schema-components/commit/e32944edf2f54b04d50bcf93ffc678e77d5615e4))
+
+### Bug Fixes
+
+* strip children from mui stub void elements ([49de9c6](https://github.com/Mearman/schema-components/commit/49de9c6f48cdc30c37fbdcfad561b95e74e7db7b))
+
+### Chores
+
+* exclude errors stories from component tests ([7b04129](https://github.com/Mearman/schema-components/commit/7b04129f9e3a58edecfd65560dba5b6ba7ffbd76))
+
 ## [1.2.0](https://github.com/Mearman/schema-components/compare/v1.1.0...v1.2.0) (2026-05-14)
 
 ### Features
