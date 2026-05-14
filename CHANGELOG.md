@@ -1,3 +1,35 @@
+## [1.2.0](https://github.com/Mearman/schema-components/compare/v1.1.0...v1.2.0) (2026-05-14)
+
+### Features
+
+* add date/time and discriminated union stories ([595c559](https://github.com/Mearman/schema-components/commit/595c559c98beab7fdf28790513597bfce8c773cd))
+* comprehensive accessibility improvements ([ed11b2e](https://github.com/Mearman/schema-components/commit/ed11b2e7c408960a94c27d65f0869836720e179c))
+* discriminated union UI, date/time inputs, schema defaults ([5cde96e](https://github.com/Mearman/schema-components/commit/5cde96e77e6af642b4973cc84b0aff129813318f))
+* file upload renderer ([3742384](https://github.com/Mearman/schema-components/commit/37423849d045e9e044667d1206336207b7c60f05))
+* mui theme adapter and coverage enforcement ([adeb0b6](https://github.com/Mearman/schema-components/commit/adeb0b6bab3ee2c34fe78d26db10f5d082396cc6))
+* ssr tests and server component (SchemaView) ([7268f09](https://github.com/Mearman/schema-components/commit/7268f0918981030b55005678168cb3726c75dd74))
+
+### Bug Fixes
+
+* exclude ssr e2e test from tsconfig ([f9248cd](https://github.com/Mearman/schema-components/commit/f9248cd32c809992873153e268c77b26d4b3f1a1))
+
+### Refactoring
+
+* rename ssr test from integration to e2e ([b373e3a](https://github.com/Mearman/schema-components/commit/b373e3aa8842906ce4a53259b640eaad9f410fb6))
+
+### Documentation
+
+* add discriminated unions, date/time, defaults to README ([91bc96c](https://github.com/Mearman/schema-components/commit/91bc96c7700c81c8c903f2ba9e1a6ced4e4b5c83))
+
+### CI
+
+* add ssr e2e step and separate test script ([e023d8b](https://github.com/Mearman/schema-components/commit/e023d8bddb2f34d88059a74cab05ef391f4957b8))
+
+### Chores
+
+* downgrade storybook 10.4.0 to 10.3.6 and vite 8.0.12 to 8.0.11 ([e3f8341](https://github.com/Mearman/schema-components/commit/e3f83419cea890517d69fda8ea0a3ef3ba8fb619))
+* update dependencies (tsdown 0.22.0) ([1fc7dc0](https://github.com/Mearman/schema-components/commit/1fc7dc05f91fdabd98317684eb8bce49136c3c32))
+
 ## [1.1.0](https://github.com/Mearman/schema-components/compare/v1.0.0...v1.1.0) (2026-05-14)
 
 ### Features
