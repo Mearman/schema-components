@@ -72,6 +72,18 @@ export interface RenderToHtmlOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Date/time input type mapping
+// ---------------------------------------------------------------------------
+
+function dateInputType(format: string | undefined): string | undefined {
+    if (format === "date") return "date";
+    if (format === "time") return "time";
+    if (format === "date-time" || format === "datetime")
+        return "datetime-local";
+    return undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Default HTML renderers — all use h() builder
 // ---------------------------------------------------------------------------
 
@@ -115,12 +127,11 @@ function renderStringReadOnly(props: HtmlRenderProps): HtmlNode {
 
 function renderStringEditable(props: HtmlRenderProps): HtmlNode {
     const strValue = typeof props.value === "string" ? props.value : "";
+    const format = props.constraints.format;
+    const dateType = dateInputType(format);
     const inputType =
-        props.constraints.format === "email"
-            ? "email"
-            : props.constraints.format === "uri"
-              ? "url"
-              : "text";
+        dateType ??
+        (format === "email" ? "email" : format === "uri" ? "url" : "text");
     const id = props.path;
 
     const attrs: HtmlAttributes = {
@@ -464,6 +475,75 @@ function renderUnionHtml(props: HtmlRenderProps): string {
     );
 }
 
+function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
+    const options = props.options;
+    const discriminator = props.discriminator;
+    if (options === undefined || options.length === 0) {
+        if (props.value === undefined || props.value === null) {
+            return serialize(
+                h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+            );
+        }
+        return serialize(
+            h("span", { class: "sc-value" }, JSON.stringify(props.value))
+        );
+    }
+
+    const isRecord = (v: unknown): v is Record<string, unknown> =>
+        typeof v === "object" && v !== null && !Array.isArray(v);
+    const obj = isRecord(props.value) ? props.value : {};
+    const discKey = discriminator ?? "";
+    const currentDiscriminatorValue =
+        typeof obj[discKey] === "string" ? obj[discKey] : undefined;
+
+    const optionLabels = options.map((opt) => {
+        const discriminatorField = opt.fields?.[discKey];
+        if (discriminatorField !== undefined) {
+            const constVal = discriminatorField.literalValues?.[0];
+            if (typeof constVal === "string") return constVal;
+        }
+        return typeof opt.meta.title === "string" ? opt.meta.title : opt.type;
+    });
+
+    let activeIndex = 0;
+    if (currentDiscriminatorValue !== undefined) {
+        const found = optionLabels.indexOf(currentDiscriminatorValue);
+        if (found !== -1) activeIndex = found;
+    }
+    const activeOption = options[activeIndex];
+
+    if (props.readOnly) {
+        if (activeOption !== undefined) {
+            return props.renderChild(activeOption, props.value);
+        }
+        return serialize(
+            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+        );
+    }
+
+    // Editable: tabs + content
+    const tabButtons = options.map((opt, i) => {
+        const attrs: HtmlAttributes = {
+            type: "button",
+            class: i === activeIndex ? "sc-tab sc-tab--active" : "sc-tab",
+        };
+        return h("button", attrs, optionLabels[i]);
+    });
+
+    const children: HtmlNode[] = [
+        h("div", { class: "sc-tabs" }, ...tabButtons),
+    ];
+
+    if (activeOption !== undefined) {
+        const childHtml = props.renderChild(activeOption, props.value);
+        children.push(raw(childHtml));
+    }
+
+    return serialize(
+        h("div", { class: "sc-discriminated-union" }, ...children)
+    );
+}
+
 function renderUnknownHtml(props: HtmlRenderProps): string {
     if (props.readOnly) {
         if (props.value === undefined || props.value === null) {
@@ -534,6 +614,7 @@ export const defaultHtmlResolver: HtmlResolver = {
     record: renderRecordHtml,
     literal: renderLiteralHtml,
     union: renderUnionHtml,
+    discriminatedUnion: renderDiscriminatedUnionHtml,
     unknown: renderUnknownHtml,
 };
 
@@ -586,7 +667,8 @@ export function renderToHtml(
         );
     };
 
-    return renderFieldHtml(tree, options.value, resolver, "", renderChild);
+    const effectiveValue = options.value ?? tree.defaultValue;
+    return renderFieldHtml(tree, effectiveValue, resolver, "", renderChild);
 }
 
 // ---------------------------------------------------------------------------
@@ -600,12 +682,13 @@ function renderFieldHtml(
     path: string,
     renderChild: (tree: WalkedField, value: unknown) => string
 ): string {
+    const effectiveValue = value ?? tree.defaultValue;
     const mergedResolver = mergeHtmlResolvers(resolver, defaultHtmlResolver);
     const renderFn = getHtmlRenderFn(tree.type, mergedResolver);
 
     if (renderFn !== undefined) {
         const props: HtmlRenderProps = {
-            value,
+            value: effectiveValue,
             readOnly: tree.editability === "presentation",
             writeOnly: tree.editability === "input",
             meta: tree.meta,
@@ -627,7 +710,7 @@ function renderFieldHtml(
     }
 
     // Fallback for unhandled types
-    if (value === undefined || value === null) {
+    if (effectiveValue === undefined || effectiveValue === null) {
         return serialize(
             h("span", { class: "sc-value sc-value--empty" }, "\u2014")
         );
@@ -636,7 +719,9 @@ function renderFieldHtml(
         h(
             "span",
             { class: "sc-value" },
-            typeof value === "string" ? value : JSON.stringify(value)
+            typeof effectiveValue === "string"
+                ? effectiveValue
+                : JSON.stringify(effectiveValue)
         )
     );
 }

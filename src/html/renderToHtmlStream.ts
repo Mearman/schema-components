@@ -96,7 +96,8 @@ export function* renderToHtmlChunks(
     const resolver = options.resolver ?? defaultHtmlResolver;
     const mergedResolver = mergeHtmlResolvers(resolver, defaultHtmlResolver);
 
-    yield* streamField(tree, options.value, mergedResolver, "", resolver);
+    const effectiveValue = options.value ?? tree.defaultValue;
+    yield* streamField(tree, effectiveValue, mergedResolver, "", resolver);
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +214,7 @@ function* streamField(
     path: string,
     rawResolver: HtmlResolver
 ): Iterable<string, void, undefined> {
+    const effectiveValue = value ?? tree.defaultValue;
     const type = tree.type;
 
     // Leaf types — render entirely as one chunk using the resolver
@@ -225,13 +227,31 @@ function* streamField(
         type === "file" ||
         type === "unknown"
     ) {
-        yield renderLeaf(tree, value, mergedResolver, path);
+        yield renderLeaf(tree, effectiveValue, mergedResolver, path);
         return;
     }
 
     // Union — render matched option
-    if (type === "union" || type === "discriminatedUnion") {
-        yield* streamUnion(tree, value, mergedResolver, path, rawResolver);
+    if (type === "union") {
+        yield* streamUnion(
+            tree,
+            effectiveValue,
+            mergedResolver,
+            path,
+            rawResolver
+        );
+        return;
+    }
+
+    // Discriminated union — tabs + active option
+    if (type === "discriminatedUnion") {
+        yield* streamDiscriminatedUnion(
+            tree,
+            value,
+            mergedResolver,
+            path,
+            rawResolver
+        );
         return;
     }
 
@@ -525,9 +545,101 @@ function* streamUnion(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Leaf rendering — delegates to resolver, returns single string
-// ---------------------------------------------------------------------------
+function* streamDiscriminatedUnion(
+    tree: WalkedField,
+    value: unknown,
+    mergedResolver: HtmlResolver,
+    path: string,
+    rawResolver: HtmlResolver
+): Iterable<string, void, undefined> {
+    const options = tree.options;
+    const discriminator = tree.discriminator;
+    if (options === undefined || options.length === 0) {
+        if (value === undefined || value === null) {
+            yield serialize(
+                h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+            );
+        } else {
+            yield serialize(
+                h("span", { class: "sc-value" }, JSON.stringify(value))
+            );
+        }
+        return;
+    }
+
+    const isRecord = (v: unknown): v is Record<string, unknown> =>
+        typeof v === "object" && v !== null && !Array.isArray(v);
+    const obj = isRecord(value) ? value : {};
+    const discKey = discriminator ?? "";
+    const currentDiscriminatorValue =
+        typeof obj[discKey] === "string" ? obj[discKey] : undefined;
+
+    const optionLabels = options.map((opt) => {
+        const discriminatorField = opt.fields?.[discKey];
+        if (discriminatorField !== undefined) {
+            const constVal = discriminatorField.literalValues?.[0];
+            if (typeof constVal === "string") return constVal;
+        }
+        return typeof opt.meta.title === "string" ? opt.meta.title : opt.type;
+    });
+
+    let activeIndex = 0;
+    if (currentDiscriminatorValue !== undefined) {
+        const found = optionLabels.indexOf(currentDiscriminatorValue);
+        if (found !== -1) activeIndex = found;
+    }
+    const activeOption = options[activeIndex];
+
+    const isPresentation = tree.editability === "presentation";
+
+    if (isPresentation) {
+        if (activeOption !== undefined) {
+            const targetPath =
+                typeof activeOption.meta.description === "string"
+                    ? activeOption.meta.description
+                    : "";
+            yield* streamField(
+                activeOption,
+                value,
+                mergedResolver,
+                targetPath,
+                rawResolver
+            );
+        }
+        return;
+    }
+
+    // Editable: tabs wrapper
+    const wrapper = h("div", { class: "sc-discriminated-union" });
+    yield yieldOpen(wrapper);
+
+    // Tab bar
+    const tabButtons = options.map((_opt, i) => {
+        const attrs: HtmlAttributes = {
+            type: "button",
+            class: i === activeIndex ? "sc-tab sc-tab--active" : "sc-tab",
+        };
+        return h("button", attrs, optionLabels[i]);
+    });
+    yield serialize(h("div", { class: "sc-tabs" }, ...tabButtons));
+
+    // Active option content
+    if (activeOption !== undefined) {
+        const targetPath =
+            typeof activeOption.meta.description === "string"
+                ? activeOption.meta.description
+                : "";
+        yield* streamField(
+            activeOption,
+            value,
+            mergedResolver,
+            targetPath,
+            rawResolver
+        );
+    }
+
+    yield yieldClose(wrapper);
+}
 
 function renderLeaf(
     tree: WalkedField,
