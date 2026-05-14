@@ -1,32 +1,34 @@
 /**
- * Component resolver interface — shared between React and HTML renderers.
+ * Component resolver interfaces — shared between React and HTML renderers.
  *
- * The resolver maps schema types to render functions. Theme adapters
- * implement this interface. The return type of render functions is
- * `unknown` so that different view layers can produce their own output.
+ * `BaseFieldProps` defines the 13 properties every render function receives,
+ * regardless of output format. `RenderProps` and `HtmlRenderProps` extend it
+ * with their respective `renderChild` signatures and (for React) `onChange`.
  *
- * `RenderProps` carries the data and callbacks every render function needs.
- * `renderChild` on RenderProps enables recursive rendering without the
- * theme adapter needing to know about the resolver.
+ * This eliminates the duplication where `RenderProps` and `HtmlRenderProps`
+ * previously declared the same 13 fields independently.
  */
 
 import type { FieldConstraints, SchemaMeta, WalkedField } from "./types.ts";
 
 // ---------------------------------------------------------------------------
-// Render props — what every render function receives
+// Base field props — shared by all renderers
 // ---------------------------------------------------------------------------
 
-export interface RenderProps {
-    /** Current field value. Undefined for Input editability. */
+/**
+ * Properties available on every schema field, regardless of rendering target.
+ * Both React and HTML renderers receive these.
+ */
+export interface BaseFieldProps {
+    /** Current field value. */
     value: unknown;
-    /** Callback to update the field value. */
-    onChange: (value: unknown) => void;
-    /** Resolved editability for this field. */
+    /** Whether to render as read-only display. */
     readOnly: boolean;
+    /** Whether to render as an empty input. */
     writeOnly: boolean;
     /** Schema metadata for this field. */
     meta: SchemaMeta;
-    /** Constraints from Zod checks. */
+    /** Constraints from schema checks. */
     constraints: FieldConstraints;
     /** Dot-separated path from root (e.g. "address.city"). */
     path: string;
@@ -45,6 +47,20 @@ export interface RenderProps {
     valueType?: WalkedField;
     /** Walked field tree for recursive rendering. */
     tree: WalkedField;
+}
+
+// ---------------------------------------------------------------------------
+// React render props
+// ---------------------------------------------------------------------------
+
+/**
+ * Props for React render functions. Extends BaseFieldProps with:
+ * - `onChange` — callback to propagate value changes back to state
+ * - `renderChild` — recursively renders a child field, threading onChange
+ */
+export interface RenderProps extends BaseFieldProps {
+    /** Callback to update the field value. */
+    onChange: (value: unknown) => void;
     /**
      * Render a child field. Theme adapters call this to recursively render
      * nested structures (object fields, array elements, union options).
@@ -58,7 +74,25 @@ export interface RenderProps {
 }
 
 // ---------------------------------------------------------------------------
-// ComponentResolver — the theme adapter interface
+// HTML render props
+// ---------------------------------------------------------------------------
+
+/**
+ * Props for HTML render functions. Extends BaseFieldProps with:
+ * - `renderChild` — recursively renders a child field to HTML string
+ *
+ * No `onChange` — HTML rendering is pure output with no event handling.
+ */
+export interface HtmlRenderProps extends BaseFieldProps {
+    /**
+     * Render a child field to an HTML string. Theme adapters call this
+     * to recursively render nested structures.
+     */
+    renderChild: (tree: WalkedField, value: unknown) => string;
+}
+
+// ---------------------------------------------------------------------------
+// ComponentResolver — the React theme adapter interface
 // ---------------------------------------------------------------------------
 
 export type RenderFunction = (props: RenderProps) => unknown;
@@ -75,6 +109,31 @@ export interface ComponentResolver {
     literal?: RenderFunction;
     file?: RenderFunction;
     unknown?: RenderFunction;
+}
+
+// ---------------------------------------------------------------------------
+// HtmlResolver — the HTML theme adapter interface
+// ---------------------------------------------------------------------------
+
+/** An HTML render function returns a string. */
+export type HtmlRenderFunction = (props: HtmlRenderProps) => string;
+
+/**
+ * HTML resolver — maps schema types to HTML string renderers.
+ * Structurally mirrors ComponentResolver but produces strings.
+ */
+export interface HtmlResolver {
+    string?: HtmlRenderFunction;
+    number?: HtmlRenderFunction;
+    boolean?: HtmlRenderFunction;
+    enum?: HtmlRenderFunction;
+    object?: HtmlRenderFunction;
+    array?: HtmlRenderFunction;
+    record?: HtmlRenderFunction;
+    union?: HtmlRenderFunction;
+    literal?: HtmlRenderFunction;
+    file?: HtmlRenderFunction;
+    unknown?: HtmlRenderFunction;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,8 +159,6 @@ type ResolverKey = (typeof RESOLVER_KEYS)[number];
 /**
  * Map a schema type to the resolver key that handles it.
  * `discriminatedUnion` → `union`. Unknown types → `unknown`.
- * Exported so HTML and React resolvers can share the mapping
- * without duplicating the switch.
  */
 export function typeToKey(type: WalkedField["type"]): ResolverKey {
     switch (type) {
@@ -134,6 +191,16 @@ export function getRenderFunction(
     return resolver[typeToKey(type)];
 }
 
+/**
+ * Look up the render function for a schema type in an HtmlResolver.
+ */
+export function getHtmlRenderFn(
+    type: WalkedField["type"],
+    resolver: HtmlResolver
+): HtmlRenderFunction | undefined {
+    return resolver[typeToKey(type)];
+}
+
 // ---------------------------------------------------------------------------
 // Resolver merge — user values take priority, fallback fills gaps
 // ---------------------------------------------------------------------------
@@ -155,6 +222,19 @@ export function mergeResolvers(
     return merged;
 }
 
-// HTML resolver merge is in the html module — the HtmlResolver type
-// has (props: HtmlRenderProps) => string which is incompatible with
-// a generic (props: unknown) => unknown due to exactOptionalPropertyTypes.
+/**
+ * Merge two HtmlResolvers — user values take priority, fallback fills gaps.
+ */
+export function mergeHtmlResolvers(
+    user: HtmlResolver,
+    fallback: HtmlResolver
+): HtmlResolver {
+    const merged: HtmlResolver = {};
+    for (const key of RESOLVER_KEYS) {
+        const fn = user[key] ?? fallback[key];
+        if (fn !== undefined) {
+            merged[key] = fn;
+        }
+    }
+    return merged;
+}

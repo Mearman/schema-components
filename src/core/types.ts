@@ -194,7 +194,11 @@ export interface FieldConstraints {
 }
 
 export type {
+    BaseFieldProps,
     ComponentResolver,
+    HtmlRenderFunction,
+    HtmlRenderProps,
+    HtmlResolver,
     RenderFunction,
     RenderProps,
 } from "./renderer.ts";
