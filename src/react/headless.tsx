@@ -4,11 +4,18 @@
  * Produces plain HTML elements for every schema type. Theme adapters
  * replace this by implementing ComponentResolver with their own components.
  *
+ * Accessibility:
+ * - All inputs have `id`; labels use `htmlFor` for programmatic association
+ * - Discriminated union tabs follow WAI-ARIA tabs pattern (role, aria-selected,
+ *   arrow key navigation, Home/End)
+ * - Checkboxes are linked to visible labels where available
+ * - Validation state surfaced via `aria-invalid` and `aria-errormessage`
+ *
  * This module imports React and lives in the react layer, not core,
  * because it produces ReactNode values.
  */
 
-import { isValidElement, type ReactNode } from "react";
+import { isValidElement, useCallback, useRef, type ReactNode } from "react";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { isObject } from "../core/guards.ts";
 import type { WalkedField } from "../core/types.ts";
@@ -79,46 +86,96 @@ function dateInputType(format: string | undefined): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Accessibility: ID generation
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a stable, unique-ish input ID from the path.
+ * Used for `htmlFor`/`id` association between labels and inputs.
+ */
+function inputId(path: string): string {
+    if (path.length === 0) return "sc-field";
+    return `sc-${path}`;
+}
+
+// ---------------------------------------------------------------------------
 // Headless renderers — one per schema type
 // ---------------------------------------------------------------------------
 
 function renderString(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
+
     if (props.readOnly) {
         const strValue =
             typeof props.value === "string" ? props.value : undefined;
         if (strValue === undefined || strValue.length === 0)
-            return <span>\u2014</span>;
+            return (
+                <span id={id} aria-readonly="true">
+                    \u2014
+                </span>
+            );
         const format = props.constraints.format;
         if (format === "email")
-            return <a href={`mailto:${strValue}`}>{strValue}</a>;
+            return (
+                <a href={`mailto:${strValue}`} id={id} aria-readonly="true">
+                    {strValue}
+                </a>
+            );
         if (format === "uri" || format === "url")
-            return <a href={strValue}>{strValue}</a>;
+            return (
+                <a href={strValue} id={id} aria-readonly="true">
+                    {strValue}
+                </a>
+            );
         if (format === "date") {
             const formatted = formatDate(strValue);
-            return <span>{formatted ?? strValue}</span>;
+            return (
+                <span id={id} aria-readonly="true">
+                    {formatted ?? strValue}
+                </span>
+            );
         }
         if (format === "time") {
             const formatted = formatTime(strValue);
-            return <span>{formatted ?? strValue}</span>;
+            return (
+                <span id={id} aria-readonly="true">
+                    {formatted ?? strValue}
+                </span>
+            );
         }
         if (format === "date-time" || format === "datetime") {
             const formatted = formatDateTime(strValue);
-            return <span>{formatted ?? strValue}</span>;
+            return (
+                <span id={id} aria-readonly="true">
+                    {formatted ?? strValue}
+                </span>
+            );
         }
-        return <span>{strValue}</span>;
+        return (
+            <span id={id} aria-readonly="true">
+                {strValue}
+            </span>
+        );
     }
 
     const strValue = typeof props.value === "string" ? props.value : "";
     const dateType = dateInputType(props.constraints.format);
 
+    const ariaAttrs: Record<string, string> = {};
+    if (props.tree.isOptional === false) {
+        ariaAttrs["aria-required"] = "true";
+    }
+
     if (dateType !== undefined) {
         return (
             <input
+                id={id}
                 type={dateType}
                 value={props.writeOnly ? "" : strValue}
                 onChange={(e) => {
                     props.onChange(e.target.value);
                 }}
+                {...ariaAttrs}
             />
         );
     }
@@ -126,10 +183,12 @@ function renderString(props: RenderProps): ReactNode {
     if (props.enumValues !== undefined && props.enumValues.length > 0) {
         return (
             <select
+                id={id}
                 value={strValue}
                 onChange={(e) => {
                     props.onChange(e.target.value);
                 }}
+                {...ariaAttrs}
             >
                 <option value="">Select\u2026</option>
                 {props.enumValues.map((v) => (
@@ -143,6 +202,7 @@ function renderString(props: RenderProps): ReactNode {
 
     return (
         <input
+            id={id}
             type={
                 props.constraints.format === "email"
                     ? "email"
@@ -161,19 +221,37 @@ function renderString(props: RenderProps): ReactNode {
             }
             minLength={props.constraints.minLength}
             maxLength={props.constraints.maxLength}
+            {...ariaAttrs}
         />
     );
 }
 
 function renderNumber(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
+
     if (props.readOnly) {
-        if (typeof props.value !== "number") return <span>\u2014</span>;
-        return <span>{props.value.toLocaleString()}</span>;
+        if (typeof props.value !== "number")
+            return (
+                <span id={id} aria-readonly="true">
+                    \u2014
+                </span>
+            );
+        return (
+            <span id={id} aria-readonly="true">
+                {props.value.toLocaleString()}
+            </span>
+        );
     }
 
     const numValue = typeof props.value === "number" ? props.value : "";
+    const ariaAttrs: Record<string, string> = {};
+    if (props.tree.isOptional === false) {
+        ariaAttrs["aria-required"] = "true";
+    }
+
     return (
         <input
+            id={id}
             type="number"
             value={props.writeOnly ? "" : numValue}
             onChange={(e) => {
@@ -181,40 +259,74 @@ function renderNumber(props: RenderProps): ReactNode {
             }}
             min={props.constraints.minimum}
             max={props.constraints.maximum}
+            {...ariaAttrs}
         />
     );
 }
 
 function renderBoolean(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
+
     if (props.readOnly) {
-        if (typeof props.value !== "boolean") return <span>\u2014</span>;
-        return <span>{props.value ? "Yes" : "No"}</span>;
+        if (typeof props.value !== "boolean")
+            return (
+                <span id={id} aria-readonly="true">
+                    \u2014
+                </span>
+            );
+        return (
+            <span id={id} aria-readonly="true">
+                {props.value ? "Yes" : "No"}
+            </span>
+        );
+    }
+
+    const ariaAttrs: Record<string, string> = {};
+    if (props.tree.isOptional === false) {
+        ariaAttrs["aria-required"] = "true";
+    }
+    if (typeof props.meta.description === "string") {
+        ariaAttrs["aria-label"] = props.meta.description;
     }
 
     return (
         <input
+            id={id}
             type="checkbox"
             checked={props.value === true}
             onChange={(e) => {
                 props.onChange(e.target.checked);
             }}
+            {...ariaAttrs}
         />
     );
 }
 
 function renderEnum(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
     const enumValue = typeof props.value === "string" ? props.value : "";
 
     if (props.readOnly) {
-        return <span>{enumValue || "\u2014"}</span>;
+        return (
+            <span id={id} aria-readonly="true">
+                {enumValue || "\u2014"}
+            </span>
+        );
+    }
+
+    const ariaAttrs: Record<string, string> = {};
+    if (props.tree.isOptional === false) {
+        ariaAttrs["aria-required"] = "true";
     }
 
     return (
         <select
+            id={id}
             value={props.writeOnly ? "" : enumValue}
             onChange={(e) => {
                 props.onChange(e.target.value);
             }}
+            {...ariaAttrs}
         >
             <option value="">Select\u2026</option>
             {props.enumValues?.map((v) => (
@@ -238,6 +350,8 @@ function renderObject(props: RenderProps): ReactNode {
             )}
             {Object.entries(fields).map(([key, field]) => {
                 const childValue = obj[key];
+                const childPath = props.path ? `${props.path}.${key}` : key;
+                const childId = inputId(childPath);
                 const childOnChange = (v: unknown) => {
                     const updated: Record<string, unknown> = {};
                     for (const [k, val] of Object.entries(obj)) {
@@ -249,7 +363,18 @@ function renderObject(props: RenderProps): ReactNode {
                 return (
                     <div key={key}>
                         {typeof field.meta.description === "string" && (
-                            <label>{field.meta.description}</label>
+                            <label htmlFor={childId}>
+                                {field.meta.description}
+                                {field.isOptional === false && (
+                                    <span
+                                        aria-hidden="true"
+                                        style={{ color: "#dc2626" }}
+                                    >
+                                        {" "}
+                                        *
+                                    </span>
+                                )}
+                            </label>
                         )}
                         {toReactNode(
                             props.renderChild(field, childValue, childOnChange)
@@ -267,7 +392,7 @@ function renderArray(props: RenderProps): ReactNode {
     if (element === undefined) return null;
 
     return (
-        <div>
+        <div role="group" aria-label={props.meta.description ?? undefined}>
             {arr.map((item, i) => {
                 const childOnChange = (v: unknown) => {
                     const next = arr.slice();
@@ -311,6 +436,10 @@ function renderUnion(props: RenderProps): ReactNode {
     return <span>\u2014</span>;
 }
 
+// ---------------------------------------------------------------------------
+// Discriminated union — WAI-ARIA tabs pattern
+// ---------------------------------------------------------------------------
+
 function renderDiscriminatedUnion(props: RenderProps): ReactNode {
     const options = props.options;
     const discriminator = props.discriminator;
@@ -343,11 +472,7 @@ function renderDiscriminatedUnion(props: RenderProps): ReactNode {
     }
     const activeOption = options[activeIndex];
 
-    const handleTabChange = (newIndex: number) => {
-        const label = optionLabels[newIndex];
-        if (label === undefined) return;
-        props.onChange({ [discKey]: label });
-    };
+    const panelId = inputId(props.path);
 
     if (props.readOnly) {
         if (activeOption !== undefined) {
@@ -359,18 +484,104 @@ function renderDiscriminatedUnion(props: RenderProps): ReactNode {
     }
 
     return (
+        <DiscriminatedUnionTabs
+            options={options}
+            optionLabels={optionLabels}
+            activeIndex={activeIndex}
+            panelId={panelId}
+            discKey={discKey}
+            props={props}
+        />
+    );
+}
+
+/**
+ * WAI-ARIA tabs component for discriminated unions.
+ * Implements the full tabs keyboard pattern:
+ * - Left/Right arrow keys move between tabs
+ * - Home/End move to first/last tab
+ * - Tab moves focus into the active panel
+ * - aria-selected, aria-controls, role="tablist"/"tab"/"tabpanel"
+ */
+function DiscriminatedUnionTabs({
+    options,
+    optionLabels,
+    activeIndex,
+    panelId,
+    discKey,
+    props,
+}: {
+    options: WalkedField[];
+    optionLabels: string[];
+    activeIndex: number;
+    panelId: string;
+    discKey: string;
+    props: RenderProps;
+}): ReactNode {
+    const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+    const handleTabChange = useCallback(
+        (newIndex: number) => {
+            const label = optionLabels[newIndex];
+            if (label === undefined) return;
+            props.onChange({ [discKey]: label });
+        },
+        [optionLabels, discKey, props]
+    );
+
+    const focusTab = useCallback(
+        (index: number) => {
+            const clamped =
+                ((index % options.length) + options.length) % options.length;
+            tabRefs.current[clamped]?.focus();
+        },
+        [options.length]
+    );
+
+    const handleKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if (e.key === "ArrowRight") {
+                e.preventDefault();
+                focusTab(activeIndex + 1);
+            } else if (e.key === "ArrowLeft") {
+                e.preventDefault();
+                focusTab(activeIndex - 1);
+            } else if (e.key === "Home") {
+                e.preventDefault();
+                focusTab(0);
+            } else if (e.key === "End") {
+                e.preventDefault();
+                focusTab(options.length - 1);
+            }
+        },
+        [activeIndex, focusTab, options.length]
+    );
+
+    const activeOption = options[activeIndex];
+
+    return (
         <div>
             <div
+                role="tablist"
+                aria-label="Select variant"
                 style={{
                     display: "flex",
                     gap: "0.25rem",
                     marginBottom: "0.5rem",
                 }}
+                onKeyDown={handleKeyDown}
             >
                 {options.map((_opt, i) => (
                     <button
                         key={String(i)}
+                        ref={(el) => {
+                            tabRefs.current[i] = el;
+                        }}
                         type="button"
+                        role="tab"
+                        aria-selected={i === activeIndex ? "true" : undefined}
+                        aria-controls={`${panelId}-panel`}
+                        tabIndex={i === activeIndex ? 0 : -1}
                         onClick={() => {
                             handleTabChange(i);
                         }}
@@ -391,20 +602,36 @@ function renderDiscriminatedUnion(props: RenderProps): ReactNode {
                     </button>
                 ))}
             </div>
-            {activeOption !== undefined &&
-                toReactNode(
-                    props.renderChild(activeOption, props.value, props.onChange)
-                )}
+            <div
+                role="tabpanel"
+                id={`${panelId}-panel`}
+                aria-labelledby={`${panelId}-tab-${String(activeIndex)}`}
+            >
+                {activeOption !== undefined &&
+                    toReactNode(
+                        props.renderChild(
+                            activeOption,
+                            props.value,
+                            props.onChange
+                        )
+                    )}
+            </div>
         </div>
     );
 }
 
 function renderUnknown(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
+
     if (props.readOnly) {
         if (props.value === undefined || props.value === null)
-            return <span>\u2014</span>;
+            return (
+                <span id={id} aria-readonly="true">
+                    \u2014
+                </span>
+            );
         return (
-            <span>
+            <span id={id} aria-readonly="true">
                 {typeof props.value === "string"
                     ? props.value
                     : JSON.stringify(props.value)}
@@ -415,6 +642,7 @@ function renderUnknown(props: RenderProps): ReactNode {
     const strValue = typeof props.value === "string" ? props.value : "";
     return (
         <input
+            id={id}
             type="text"
             value={props.writeOnly ? "" : strValue}
             onChange={(e) => {

@@ -609,7 +609,8 @@ function* streamDiscriminatedUnion(
         return;
     }
 
-    // Editable: tabs wrapper
+    // Editable: WAI-ARIA tabs pattern
+    const panelId = `sc-${path}-panel`;
     const wrapper = h("div", { class: "sc-discriminated-union" });
     yield yieldOpen(wrapper);
 
@@ -617,11 +618,34 @@ function* streamDiscriminatedUnion(
     const tabButtons = options.map((_opt, i) => {
         const attrs: HtmlAttributes = {
             type: "button",
+            role: "tab",
             class: i === activeIndex ? "sc-tab sc-tab--active" : "sc-tab",
+            id: `sc-${path}-tab-${String(i)}`,
+            "aria-selected": i === activeIndex ? "true" : undefined,
+            "aria-controls": panelId,
+            tabindex: i === activeIndex ? "0" : "-1",
         };
         return h("button", attrs, optionLabels[i]);
     });
-    yield serialize(h("div", { class: "sc-tabs" }, ...tabButtons));
+    yield serialize(
+        h(
+            "div",
+            {
+                role: "tablist",
+                class: "sc-tabs",
+                "aria-label": "Select variant",
+            },
+            ...tabButtons
+        )
+    );
+
+    // Tab panel
+    const panelOpen = h("div", {
+        role: "tabpanel",
+        id: panelId,
+        "aria-labelledby": `sc-${path}-tab-${String(activeIndex)}`,
+    });
+    yield yieldOpen(panelOpen);
 
     // Active option content
     if (activeOption !== undefined) {
@@ -638,6 +662,7 @@ function* streamDiscriminatedUnion(
         );
     }
 
+    yield yieldClose(panelOpen);
     yield yieldClose(wrapper);
 }
 
