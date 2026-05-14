@@ -13,18 +13,7 @@
  */
 
 import type { ReactNode } from "react";
-import {
-    parseOpenApiDocument,
-    listOperations,
-    getParameters,
-    getRequestBody,
-    getResponses,
-    type OpenApiDocument,
-    type OperationInfo,
-    type ParameterInfo,
-    type ResponseInfo,
-} from "../openapi/parser.ts";
-import { walk, type WalkOptions } from "../core/walker.ts";
+import type { OperationInfo, ParameterInfo, ResponseInfo } from "./parser.ts";
 import { normaliseSchema } from "../core/adapter.ts";
 import { renderField } from "../react/SchemaComponent.tsx";
 import type {
@@ -35,34 +24,23 @@ import type {
     SchemaMeta,
     WalkedField,
 } from "../core/types.ts";
-import { isObject, toRecordOrUndefined } from "../core/guards.ts";
+import { toRecordOrUndefined } from "../core/guards.ts";
 import { SchemaNormalisationError } from "../core/errors.ts";
-
-// ---------------------------------------------------------------------------
-// Document caching
-// ---------------------------------------------------------------------------
-
-const docCache = new WeakMap<object, OpenApiDocument>();
-
-function getParsed(doc: Record<string, unknown>): OpenApiDocument {
-    const cached = docCache.get(doc);
-    if (cached !== undefined) return cached;
-    const parsed = parseOpenApiDocument(doc);
-    docCache.set(doc, parsed);
-    return parsed;
-}
-
-function noop() {
-    /* intentional no-op */
-}
-
-function toDoc(value: unknown): Record<string, unknown> {
-    return isObject(value) ? value : {};
-}
+import {
+    toDoc,
+    resolveOperation,
+    resolveParameters,
+    resolveRequestBody,
+    resolveResponse,
+} from "./resolve.ts";
 
 // ---------------------------------------------------------------------------
 // Internal: render a JSON Schema directly (walker + renderField)
 // ---------------------------------------------------------------------------
+
+function noop() {
+    /* intentional no-op */
+}
 
 function renderSchema(
     schema: unknown,
@@ -97,7 +75,7 @@ function renderSchema(
         }
     }
 
-    const walkOpts: WalkOptions = {
+    const walkOpts: import("../core/walker.ts").WalkOptions = {
         componentMeta,
         rootMeta,
         fieldOverrides: toRecordOrUndefined(options.fields),
@@ -163,54 +141,39 @@ export function ApiOperation<
     meta,
     requestBodyFields,
 }: ApiOperationProps<Doc, Path, Method>): ReactNode {
-    const parsed = getParsed(toDoc(doc));
     const rootDoc = toDoc(doc);
-
-    const operations = listOperations(parsed);
-    const operation = operations.find(
-        (op) => op.path === path && op.method === method
-    );
-
-    if (operation === undefined) {
-        throw new SchemaNormalisationError(
-            `Operation not found: ${method.toUpperCase()} ${path}`,
-            doc,
-            "openapi-invalid"
-        );
-    }
-
-    const params = getParameters(parsed, path, method);
-    const requestBody = getRequestBody(parsed, path, method);
-    const responses = getResponses(parsed, path, method);
+    const resolved = resolveOperation(rootDoc, path, method);
 
     return (
         <section data-operation={`${method.toUpperCase()} ${path}`}>
-            <OperationHeader operation={operation} />
-            {params.length > 0 && (
+            <OperationHeader operation={resolved.operation} />
+            {resolved.parameters.length > 0 && (
                 <section data-parameters>
                     <h4>Parameters</h4>
                     <ParameterList
-                        parameters={params}
+                        parameters={resolved.parameters}
                         rootDoc={rootDoc}
                         meta={meta}
                     />
                 </section>
             )}
-            {requestBody?.schema !== undefined && (
+            {resolved.requestBody?.schema !== undefined && (
                 <section data-request-body>
                     <h4>
                         Request Body
-                        {requestBody.required && <span data-required>*</span>}
+                        {resolved.requestBody.required && (
+                            <span data-required>*</span>
+                        )}
                     </h4>
-                    {requestBody.description && (
-                        <p>{requestBody.description}</p>
+                    {resolved.requestBody.description && (
+                        <p>{resolved.requestBody.description}</p>
                     )}
-                    {requestBody.contentTypes.length > 0 && (
+                    {resolved.requestBody.contentTypes.length > 0 && (
                         <span data-content-type>
-                            {requestBody.contentTypes[0]}
+                            {resolved.requestBody.contentTypes[0]}
                         </span>
                     )}
-                    {renderSchema(requestBody.schema, rootDoc, {
+                    {renderSchema(resolved.requestBody.schema, rootDoc, {
                         value: requestBodyValue,
                         onChange: onRequestBodyChange,
                         fields: requestBodyFields,
@@ -218,10 +181,10 @@ export function ApiOperation<
                     })}
                 </section>
             )}
-            {responses.length > 0 && (
+            {resolved.responses.length > 0 && (
                 <section data-responses>
                     <h4>Responses</h4>
-                    {responses.map((response) => (
+                    {resolved.responses.map((response) => (
                         <ResponseCard
                             key={response.statusCode}
                             response={response}
@@ -265,9 +228,8 @@ export function ApiParameters<
     meta,
     overrides,
 }: ApiParametersProps<Doc, Path, Method>): ReactNode {
-    const parsed = getParsed(toDoc(doc));
     const rootDoc = toDoc(doc);
-    const params = getParameters(parsed, path, method);
+    const params = resolveParameters(rootDoc, path, method);
 
     if (params.length === 0) return null;
 
@@ -317,9 +279,8 @@ export function ApiRequestBody<
     meta,
     fields,
 }: ApiRequestBodyProps<Doc, Path, Method>): ReactNode {
-    const parsed = getParsed(toDoc(doc));
     const rootDoc = toDoc(doc);
-    const requestBody = getRequestBody(parsed, path, method);
+    const requestBody = resolveRequestBody(rootDoc, path, method);
 
     if (requestBody?.schema === undefined) {
         return null;
@@ -380,18 +341,8 @@ export function ApiResponse<
     meta,
     fields,
 }: ApiResponseProps<Doc, Path, Method, Status>): ReactNode {
-    const parsed = getParsed(toDoc(doc));
     const rootDoc = toDoc(doc);
-    const responses = getResponses(parsed, path, method);
-    const response = responses.find((r) => r.statusCode === status);
-
-    if (response === undefined) {
-        throw new SchemaNormalisationError(
-            `Response not found: ${status}`,
-            doc,
-            "openapi-invalid"
-        );
-    }
+    const response = resolveResponse(rootDoc, path, method, status);
 
     if (response.schema === undefined) {
         return (
@@ -533,4 +484,5 @@ function buildParamMeta(
     return Object.keys(result).length > 0 ? result : undefined;
 }
 
-// All helpers imported from core/guards.ts
+// Need walk imported for renderSchema
+import { walk } from "../core/walker.ts";
