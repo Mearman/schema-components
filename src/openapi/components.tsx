@@ -36,6 +36,7 @@ import type {
     WalkedField,
 } from "../core/types.ts";
 import { isObject, toRecordOrUndefined } from "../core/guards.ts";
+import { SchemaNormalisationError } from "../core/errors.ts";
 
 // ---------------------------------------------------------------------------
 // Document caching
@@ -80,8 +81,12 @@ function renderSchema(
         const normalised = normaliseSchema(schema);
         jsonSchema = normalised.jsonSchema;
         rootMeta = normalised.rootMeta;
-    } catch {
-        return <div>Unable to parse schema</div>;
+    } catch (err: unknown) {
+        throw new SchemaNormalisationError(
+            err instanceof Error ? err.message : "Failed to normalise schema",
+            schema,
+            "unknown"
+        );
     }
 
     const componentMeta: SchemaMeta = {};
@@ -167,10 +172,10 @@ export function ApiOperation<
     );
 
     if (operation === undefined) {
-        return (
-            <div>
-                Operation not found: {method.toUpperCase()} {path}
-            </div>
+        throw new SchemaNormalisationError(
+            `Operation not found: ${method.toUpperCase()} ${path}`,
+            doc,
+            "openapi-invalid"
         );
     }
 
@@ -381,7 +386,11 @@ export function ApiResponse<
     const response = responses.find((r) => r.statusCode === status);
 
     if (response === undefined) {
-        return <div>Response not found: {status}</div>;
+        throw new SchemaNormalisationError(
+            `Response not found: ${status}`,
+            doc,
+            "openapi-invalid"
+        );
     }
 
     if (response.schema === undefined) {
