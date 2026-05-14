@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * <SchemaComponent> — renders UI from Zod, JSON Schema, or OpenAPI schemas.
  *

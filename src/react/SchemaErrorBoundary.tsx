@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * React error boundary for schema-components.
  *
