@@ -465,6 +465,59 @@ Resolution order: `.meta({ component })` → registered widget → theme adapter
 
 Validation uses the original Zod schema (if input was Zod) or `z.fromJSONSchema()` (if input was JSON Schema / OpenAPI).
 
+## Discriminated unions
+
+Discriminated unions (`z.discriminatedUnion` or JSON Schema `oneOf` with `const` properties) render as tabbed panels. Each tab is labelled by the discriminator's `const` value. Clicking a tab resets the value with the new discriminator.
+
+```tsx
+const payment = z.discriminatedUnion("method", [
+  z.object({
+    method: z.literal("card"),
+    cardNumber: z.string(),
+    expiry: z.string(),
+  }),
+  z.object({
+    method: z.literal("bank"),
+    accountNumber: z.string(),
+    sortCode: z.string(),
+  }),
+]);
+
+<SchemaComponent schema={payment} value={{ method: "card", cardNumber: "4111...", expiry: "12/28" }} />
+```
+
+In read-only mode, only the active variant is rendered (no tabs).
+
+## Date and time inputs
+
+String schemas with `format: "date"`, `format: "time"`, or `format: "date-time"` render as the corresponding HTML5 input types:
+
+```tsx
+const eventSchema = z.object({
+  date: z.string().meta({ format: "date" }),
+  startTime: z.string().meta({ format: "time" }),
+  createdAt: z.string().meta({ format: "date-time" }),
+});
+```
+
+This produces `<input type="date">`, `<input type="time">`, and `<input type="datetime-local">` respectively. In read-only mode, dates are formatted using `toLocaleDateString()` / `toLocaleString()`.
+
+## Schema defaults
+
+Default values from `z.string().default("hello")` or JSON Schema `"default": "hello"` are used when the `value` prop is `undefined`:
+
+```tsx
+const schema = z.object({
+  name: z.string().default("World"),
+  count: z.number().default(0),
+});
+
+// Renders with "World" and 0 pre-filled
+<SchemaComponent schema={schema} />
+```
+
+Defaults propagate through nested objects — each field uses its own default independently.
+
 ## Error handling
 
 Typed errors with `onError` callback for graceful degradation:
