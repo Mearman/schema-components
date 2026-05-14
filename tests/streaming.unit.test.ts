@@ -214,7 +214,7 @@ describe("renderToHtmlReadable", () => {
 // ---------------------------------------------------------------------------
 
 describe("Streaming equivalence with renderToHtml", () => {
-    it("matches for editable object (path propagation fix pending)", () => {
+    it("matches for editable object", () => {
         const schema = z.object({
             name: z.string(),
             email: z.email(),
@@ -222,14 +222,10 @@ describe("Streaming equivalence with renderToHtml", () => {
         const value = { name: "Ada", email: "ada@example.com" };
         const options = { value };
 
+        const fullHtml = renderToHtml(schema, options);
         const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
 
-        // Streaming version correctly propagates field paths to the name attribute.
-        // The original renderToHtml has a bug where child paths are set to
-        // the description string instead of the field key. The streaming
-        // output is the correct one — this test documents the difference.
-        assert.ok(streamedHtml.includes('name="name"'));
-        assert.ok(streamedHtml.includes('name="email"'));
+        assert.equal(streamedHtml, fullHtml);
     });
 
     it("matches for read-only object", () => {

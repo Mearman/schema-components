@@ -189,7 +189,7 @@ function renderObjectHtml(props: HtmlRenderProps): string {
                         ? escapeHtml(field.meta.description)
                         : escapeHtml(key);
                 const childValue = obj[key];
-                const childHtml = props.renderChild(field, childValue);
+                const childHtml = props.renderChild(field, childValue, key);
                 return `<dt class="sc-label">${label}</dt><dd class="sc-value">${childHtml}</dd>`;
             })
             .join("");
@@ -209,7 +209,7 @@ function renderObjectHtml(props: HtmlRenderProps): string {
                     : escapeHtml(key);
             const inputId = `sc-${escapeHtml(props.path ? `${props.path}-${key}` : key)}`;
             const childValue = obj[key];
-            const childHtml = props.renderChild(field, childValue);
+            const childHtml = props.renderChild(field, childValue, key);
             return `<div class="sc-field"><label class="sc-label" for="${inputId}">${label}</label>${childHtml}</div>`;
         })
         .join("");
@@ -249,7 +249,7 @@ function renderRecordHtml(props: HtmlRenderProps): string {
 
     const entries = Object.entries(obj)
         .map(([key, val]) => {
-            const childHtml = props.renderChild(valueType, val);
+            const childHtml = props.renderChild(valueType, val, key);
             const label = escapeHtml(key);
             if (props.readOnly) {
                 return `<dt class="sc-label">${label}</dt><dd class="sc-value">${childHtml}</dd>`;
@@ -398,13 +398,15 @@ export function renderToHtml(
 
     const renderChild = (
         childTree: WalkedField,
-        childValue: unknown
+        childValue: unknown,
+        pathSuffix?: string
     ): string => {
+        const childPath = pathSuffix ?? childTree.meta.description ?? "";
         return renderFieldHtml(
             childTree,
             childValue,
             resolver,
-            childTree.meta.description ?? "",
+            childPath,
             renderChild
         );
     };
