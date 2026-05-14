@@ -1,20 +1,16 @@
 /**
  * SSR (server-side rendering) smoke test.
  *
- * Runs via `node --test` against the built dist output.
- * Must be run after `pnpm build`.
- *
  * Proves the React rendering path works in a Node.js environment
  * without a browser — no window/document references, no useLayoutEffect,
  * no stateful hooks during read-only rendering.
  */
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { z } from "zod";
-import { SchemaComponent } from "../dist/react/SchemaComponent.mjs";
-import { SchemaView } from "../dist/react/SchemaView.mjs";
+import { SchemaComponent } from "../src/react/SchemaComponent.tsx";
+import { SchemaView } from "../src/react/SchemaView.tsx";
 
 describe("SSR — renderToString", () => {
     it("renders a read-only object to string", () => {
@@ -29,8 +25,8 @@ describe("SSR — renderToString", () => {
                 readOnly: true,
             })
         );
-        assert.ok(typeof html === "string");
-        assert.ok(html.includes("Ada"));
+        expect(typeof html === "string").toBeTruthy();
+        expect(html.includes("Ada")).toBeTruthy();
     });
 
     it("renders string values in read-only mode", () => {
@@ -41,7 +37,7 @@ describe("SSR — renderToString", () => {
                 readOnly: true,
             })
         );
-        assert.ok(html.includes("hello"));
+        expect(html.includes("hello")).toBeTruthy();
     });
 
     it("renders boolean values in read-only mode", () => {
@@ -52,7 +48,7 @@ describe("SSR — renderToString", () => {
                 readOnly: true,
             })
         );
-        assert.ok(html.includes("Yes"));
+        expect(html.includes("Yes")).toBeTruthy();
     });
 
     it("renders nested objects in read-only mode", () => {
@@ -69,8 +65,8 @@ describe("SSR — renderToString", () => {
                 readOnly: true,
             })
         );
-        assert.ok(html.includes("London"));
-        assert.ok(html.includes("SW1A 1AA"));
+        expect(html.includes("London")).toBeTruthy();
+        expect(html.includes("SW1A 1AA")).toBeTruthy();
     });
 
     it("renders arrays in read-only mode", () => {
@@ -84,8 +80,8 @@ describe("SSR — renderToString", () => {
                 readOnly: true,
             })
         );
-        assert.ok(html.includes("alpha"));
-        assert.ok(html.includes("beta"));
+        expect(html.includes("alpha")).toBeTruthy();
+        expect(html.includes("beta")).toBeTruthy();
     });
 
     it("renders discriminated unions in read-only mode", () => {
@@ -106,7 +102,7 @@ describe("SSR — renderToString", () => {
                 readOnly: true,
             })
         );
-        assert.ok(html.includes("4111111111111111"));
+        expect(html.includes("4111111111111111")).toBeTruthy();
     });
 });
 
@@ -126,8 +122,8 @@ describe("SchemaView — server component", () => {
                 value: { name: "Ada", age: 36 },
             })
         );
-        assert.ok(html.includes("Ada"));
-        assert.ok(html.includes("36"));
+        expect(html.includes("Ada")).toBeTruthy();
+        expect(html.includes("36")).toBeTruthy();
     });
 
     it("renders JSON Schema input", () => {
@@ -137,7 +133,7 @@ describe("SchemaView — server component", () => {
                 value: "2024-06-15",
             })
         );
-        assert.ok(html.includes("2024"));
+        expect(html.includes("2024")).toBeTruthy();
     });
 
     it("renders nested objects", () => {
@@ -152,7 +148,7 @@ describe("SchemaView — server component", () => {
                 value: { address: { city: "London" } },
             })
         );
-        assert.ok(html.includes("London"));
+        expect(html.includes("London")).toBeTruthy();
     });
 
     it("renders discriminated unions without tabs", () => {
@@ -166,9 +162,9 @@ describe("SchemaView — server component", () => {
                 value: { method: "card", cardNumber: "4242424242424242" },
             })
         );
-        assert.ok(html.includes("4242424242424242"));
+        expect(html.includes("4242424242424242")).toBeTruthy();
         // Read-only: no tab buttons
-        assert.ok(!html.includes("tablist"));
+        expect(!html.includes("tablist")).toBeTruthy();
     });
 
     it("produces same output as SchemaComponent readOnly", () => {
@@ -186,6 +182,6 @@ describe("SchemaView — server component", () => {
             createElement(SchemaView, { schema, value })
         );
 
-        assert.equal(htmlComponent, htmlView);
+        expect(htmlComponent).toBe(htmlView);
     });
 });

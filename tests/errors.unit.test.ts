@@ -1,9 +1,7 @@
 /**
  * Error handling tests.
  */
-
-import { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import {
     SchemaError,
@@ -20,11 +18,11 @@ import { renderToHtml } from "../src/html/renderToHtml.ts";
 describe("SchemaError", () => {
     it("is the base class", () => {
         const err = new SchemaError("test", { type: "string" });
-        assert.ok(err instanceof Error);
-        assert.ok(err instanceof SchemaError);
-        assert.equal(err.name, "SchemaError");
-        assert.equal(err.message, "test");
-        assert.deepEqual(err.schema, { type: "string" });
+        expect(err).toBeInstanceOf(Error);
+        expect(err).toBeInstanceOf(SchemaError);
+        expect(err.name).toBe("SchemaError");
+        expect(err.message).toBe("test");
+        expect(err.schema).toStrictEqual({ type: "string" });
     });
 });
 
@@ -35,16 +33,16 @@ describe("SchemaNormalisationError", () => {
             {},
             "invalid-zod"
         );
-        assert.ok(err instanceof SchemaError);
-        assert.ok(err instanceof SchemaNormalisationError);
-        assert.equal(err.name, "SchemaNormalisationError");
-        assert.equal(err.kind, "invalid-zod");
+        expect(err).toBeInstanceOf(SchemaError);
+        expect(err).toBeInstanceOf(SchemaNormalisationError);
+        expect(err.name).toBe("SchemaNormalisationError");
+        expect(err.kind).toBe("invalid-zod");
     });
 
     it("preserves schema reference", () => {
         const schema = { type: "object" };
         const err = new SchemaNormalisationError("msg", schema, "unknown");
-        assert.strictEqual(err.schema, schema);
+        expect(err.schema).toBe(schema);
     });
 });
 
@@ -52,21 +50,21 @@ describe("SchemaRenderError", () => {
     it("extends SchemaError", () => {
         const cause = new Error("boom");
         const err = new SchemaRenderError("render failed", {}, "string", cause);
-        assert.ok(err instanceof SchemaError);
-        assert.ok(err instanceof SchemaRenderError);
-        assert.equal(err.name, "SchemaRenderError");
-        assert.equal(err.schemaType, "string");
-        assert.strictEqual(err.cause, cause);
+        expect(err).toBeInstanceOf(SchemaError);
+        expect(err).toBeInstanceOf(SchemaRenderError);
+        expect(err.name).toBe("SchemaRenderError");
+        expect(err.schemaType).toBe("string");
+        expect(err.cause).toBe(cause);
     });
 });
 
 describe("SchemaFieldError", () => {
     it("extends SchemaError", () => {
         const err = new SchemaFieldError("not found", {}, "address.city");
-        assert.ok(err instanceof SchemaError);
-        assert.ok(err instanceof SchemaFieldError);
-        assert.equal(err.name, "SchemaFieldError");
-        assert.equal(err.path, "address.city");
+        expect(err).toBeInstanceOf(SchemaError);
+        expect(err).toBeInstanceOf(SchemaFieldError);
+        expect(err.name).toBe("SchemaFieldError");
+        expect(err.path).toBe("address.city");
     });
 });
 
@@ -77,13 +75,7 @@ describe("SchemaFieldError", () => {
 describe("Normalisation errors", () => {
     it("throws for Zod 3 schema", () => {
         const zod3Schema = { _def: { type: "string" } };
-        assert.throws(
-            () => renderToHtml(zod3Schema),
-            (err: unknown) => {
-                assert.ok(err instanceof Error);
-                return err.message.includes("Zod 3");
-            }
-        );
+        expect(() => renderToHtml(zod3Schema)).toThrow(/Zod 3/);
     });
 
     it("throws for missing OpenAPI ref", () => {
@@ -92,13 +84,9 @@ describe("Normalisation errors", () => {
             info: { title: "Test", version: "1.0" },
             paths: {},
         };
-        assert.throws(
-            () => renderToHtml(doc, { ref: "#/components/schemas/Missing" }),
-            (err: unknown) => {
-                assert.ok(err instanceof Error);
-                return err.message.includes("OpenAPI ref not found");
-            }
-        );
+        expect(() =>
+            renderToHtml(doc, { ref: "#/components/schemas/Missing" })
+        ).toThrow(/OpenAPI ref not found/);
     });
 
     it("throws for invalid OpenAPI path ref", () => {
@@ -107,12 +95,8 @@ describe("Normalisation errors", () => {
             info: { title: "Test", version: "1.0" },
             paths: {},
         };
-        assert.throws(
-            () => renderToHtml(doc, { ref: "/nonexistent/get" }),
-            (err: unknown) => {
-                assert.ok(err instanceof Error);
-                return err.message.includes("Path not found");
-            }
+        expect(() => renderToHtml(doc, { ref: "/nonexistent/get" })).toThrow(
+            /Path not found/
         );
     });
 
@@ -122,13 +106,7 @@ describe("Normalisation errors", () => {
             info: { title: "Test", version: "1.0" },
             paths: {},
         };
-        assert.throws(
-            () => renderToHtml(doc),
-            (err: unknown) => {
-                assert.ok(err instanceof Error);
-                return err.message.includes("OpenAPI");
-            }
-        );
+        expect(() => renderToHtml(doc)).toThrow(/OpenAPI/);
     });
 });
 
@@ -139,20 +117,15 @@ describe("Normalisation errors", () => {
 describe("Render errors", () => {
     it("propagates errors from custom render function", () => {
         const schema = z.object({ name: z.string() });
-        assert.throws(
-            () =>
-                renderToHtml(schema, {
-                    value: { name: "Ada" },
-                    resolver: {
-                        string: () => {
-                            throw new Error("Custom resolver broke");
-                        },
+        expect(() =>
+            renderToHtml(schema, {
+                value: { name: "Ada" },
+                resolver: {
+                    string: () => {
+                        throw new Error("Custom resolver broke");
                     },
-                }),
-            (err: unknown) => {
-                assert.ok(err instanceof Error);
-                return err.message.includes("Custom resolver broke");
-            }
-        );
+                },
+            })
+        ).toThrow(/Custom resolver broke/);
     });
 });

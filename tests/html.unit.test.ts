@@ -2,8 +2,7 @@
  * HTML renderer tests.
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { renderToHtml } from "../src/html/renderToHtml.ts";
 
@@ -18,8 +17,8 @@ describe("renderToHtml — string", () => {
             value: { name: "Ada" },
             readOnly: true,
         });
-        assert.match(html, /Ada/);
-        assert.match(html, /sc-value/);
+        expect(html).toMatch(/Ada/);
+        expect(html).toMatch(/sc-value/);
     });
 
     it("renders an empty string as dash", () => {
@@ -28,8 +27,8 @@ describe("renderToHtml — string", () => {
             value: { name: "" },
             readOnly: true,
         });
-        assert.match(html, /sc-value--empty/);
-        assert.match(html, /—/);
+        expect(html).toMatch(/sc-value--empty/);
+        expect(html).toMatch(/—/);
     });
 
     it("renders email as mailto link in read-only", () => {
@@ -40,7 +39,7 @@ describe("renderToHtml — string", () => {
             value: { email: "ada@example.com" },
             readOnly: true,
         });
-        assert.match(html, /href="mailto:ada@example.com"/);
+        expect(html).toMatch(/href="mailto:ada@example.com"/);
     });
 
     it("renders URL as anchor in read-only", () => {
@@ -51,7 +50,7 @@ describe("renderToHtml — string", () => {
             value: { url: "https://example.com" },
             readOnly: true,
         });
-        assert.match(html, /href="https:\/\/example.com"/);
+        expect(html).toMatch(/href="https:\/\/example.com"/);
     });
 });
 
@@ -59,7 +58,7 @@ describe("renderToHtml — number", () => {
     it("renders a number value", () => {
         const schema = z.object({ age: z.number() });
         const html = renderToHtml(schema, { value: { age: 42 } });
-        assert.match(html, /42/);
+        expect(html).toMatch(/42/);
     });
 
     it("renders null number as dash", () => {
@@ -68,7 +67,7 @@ describe("renderToHtml — number", () => {
             value: { age: undefined },
             readOnly: true,
         });
-        assert.match(html, /sc-value--empty/);
+        expect(html).toMatch(/sc-value--empty/);
     });
 });
 
@@ -79,7 +78,7 @@ describe("renderToHtml — boolean", () => {
             value: { active: true },
             readOnly: true,
         });
-        assert.match(html, /Yes/);
+        expect(html).toMatch(/Yes/);
     });
 
     it("renders false as No", () => {
@@ -88,7 +87,7 @@ describe("renderToHtml — boolean", () => {
             value: { active: false },
             readOnly: true,
         });
-        assert.match(html, /No/);
+        expect(html).toMatch(/No/);
     });
 });
 
@@ -101,7 +100,7 @@ describe("renderToHtml — enum", () => {
             value: { role: "admin" },
             readOnly: true,
         });
-        assert.match(html, /admin/);
+        expect(html).toMatch(/admin/);
     });
 });
 
@@ -113,28 +112,28 @@ describe("renderToHtml — editable inputs", () => {
     it("renders string as text input", () => {
         const schema = z.object({ name: z.string() });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /type="text"/);
-        assert.match(html, /value="Ada"/);
+        expect(html).toMatch(/type="text"/);
+        expect(html).toMatch(/value="Ada"/);
     });
 
     it("renders number as number input", () => {
         const schema = z.object({ age: z.number() });
         const html = renderToHtml(schema, { value: { age: 42 } });
-        assert.match(html, /type="number"/);
+        expect(html).toMatch(/type="number"/);
     });
 
     it("renders boolean as checkbox", () => {
         const schema = z.object({ active: z.boolean() });
         const html = renderToHtml(schema, { value: { active: true } });
-        assert.match(html, /type="checkbox"/);
-        assert.match(html, /checked/);
+        expect(html).toMatch(/type="checkbox"/);
+        expect(html).toMatch(/checked/);
     });
 
     it("renders enum as select", () => {
         const schema = z.object({ role: z.enum(["admin", "editor"]) });
         const html = renderToHtml(schema, { value: { role: "admin" } });
-        assert.match(html, /<select/);
-        assert.match(html, /<option.*admin/);
+        expect(html).toMatch(/<select/);
+        expect(html).toMatch(/<option.*admin/);
     });
 });
 
@@ -152,11 +151,11 @@ describe("renderToHtml — object", () => {
             value: { name: "Ada", email: "ada@example.com" },
             readOnly: true,
         });
-        assert.match(html, /<dl/);
-        assert.match(html, /<dt/);
-        assert.match(html, /<dd/);
-        assert.match(html, /Name/);
-        assert.match(html, /Ada/);
+        expect(html).toMatch(/<dl/);
+        expect(html).toMatch(/<dt/);
+        expect(html).toMatch(/<dd/);
+        expect(html).toMatch(/Name/);
+        expect(html).toMatch(/Ada/);
     });
 
     it("renders editable object as fieldset", () => {
@@ -164,9 +163,9 @@ describe("renderToHtml — object", () => {
             name: z.string().meta({ description: "Name" }),
         });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /<fieldset/);
-        assert.match(html, /<label/);
-        assert.match(html, /type="text"/);
+        expect(html).toMatch(/<fieldset/);
+        expect(html).toMatch(/<label/);
+        expect(html).toMatch(/type="text"/);
     });
 
     it("renders nested objects", () => {
@@ -179,8 +178,8 @@ describe("renderToHtml — object", () => {
             value: { address: { city: "London" } },
             readOnly: true,
         });
-        assert.match(html, /City/);
-        assert.match(html, /London/);
+        expect(html).toMatch(/City/);
+        expect(html).toMatch(/London/);
     });
 });
 
@@ -193,8 +192,8 @@ describe("renderToHtml — array", () => {
             value: { tags: ["a", "b", "c"] },
             readOnly: true,
         });
-        assert.match(html, /<ul/);
-        assert.match(html, /<li/);
+        expect(html).toMatch(/<ul/);
+        expect(html).toMatch(/<li/);
     });
 
     it("renders empty array", () => {
@@ -205,7 +204,7 @@ describe("renderToHtml — array", () => {
             value: { tags: [] },
             readOnly: true,
         });
-        assert.match(html, /<ul/);
+        expect(html).toMatch(/<ul/);
     });
 });
 
@@ -220,8 +219,8 @@ describe("renderToHtml — escaping", () => {
             value: { bio: "<script>alert('xss')</script>" },
             readOnly: true,
         });
-        assert.match(html, /&lt;script&gt;/);
-        assert.doesNotMatch(html, /<script>/);
+        expect(html).toMatch(/&lt;script&gt;/);
+        expect(html).not.toMatch(/<script>/);
     });
 
     it("escapes HTML in input values", () => {
@@ -229,8 +228,8 @@ describe("renderToHtml — escaping", () => {
         const html = renderToHtml(schema, {
             value: { bio: 'a"b' },
         });
-        assert.match(html, /&quot;/);
-        assert.doesNotMatch(html, /a"b/);
+        expect(html).toMatch(/&quot;/);
+        expect(html).not.toMatch(/a"b/);
     });
 });
 
@@ -252,8 +251,8 @@ describe("renderToHtml — JSON Schema", () => {
             value: { name: "Ada", age: 36 },
             readOnly: true,
         });
-        assert.match(html, /Ada/);
-        assert.match(html, /36/);
+        expect(html).toMatch(/Ada/);
+        expect(html).toMatch(/36/);
     });
 });
 
@@ -272,7 +271,7 @@ describe("renderToHtml — custom resolver", () => {
                     `<mark>${typeof props.value === "string" ? props.value : ""}</mark>`,
             },
         });
-        assert.match(html, /<mark>Ada<\/mark>/);
+        expect(html).toMatch(/<mark>Ada<\/mark>/);
     });
 
     it("falls back to default for unspecified types", () => {
@@ -288,9 +287,9 @@ describe("renderToHtml — custom resolver", () => {
                     `<b>${typeof props.value === "string" ? props.value : ""}</b>`,
             },
         });
-        assert.match(html, /<b>Ada<\/b>/);
+        expect(html).toMatch(/<b>Ada<\/b>/);
         // Number should still use default renderer
-        assert.match(html, /36/);
+        expect(html).toMatch(/36/);
     });
 });
 
@@ -305,8 +304,8 @@ describe("renderToHtml — writeOnly", () => {
             value: { name: "Ada" },
             writeOnly: true,
         });
-        assert.match(html, /type="text"/);
-        assert.doesNotMatch(html, /value="Ada"/);
+        expect(html).toMatch(/type="text"/);
+        expect(html).not.toMatch(/value="Ada"/);
     });
 
     it("renders empty select when writeOnly enum", () => {
@@ -315,8 +314,8 @@ describe("renderToHtml — writeOnly", () => {
             value: { role: "admin" },
             writeOnly: true,
         });
-        assert.match(html, /<select/);
+        expect(html).toMatch(/<select/);
         // Should not have "admin" selected
-        assert.doesNotMatch(html, /selected/);
+        expect(html).not.toMatch(/selected/);
     });
 });

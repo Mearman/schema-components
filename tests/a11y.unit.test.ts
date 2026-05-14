@@ -2,8 +2,7 @@
  * Accessibility attribute tests.
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { renderToHtml } from "../src/html/renderToHtml.ts";
 
@@ -15,31 +14,31 @@ describe("aria-required", () => {
     it("adds aria-required to required string inputs", () => {
         const schema = z.object({ name: z.string() });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /aria-required="true"/);
+        expect(html).toMatch(/aria-required="true"/);
     });
 
     it("adds aria-required to required number inputs", () => {
         const schema = z.object({ age: z.number() });
         const html = renderToHtml(schema, { value: { age: 36 } });
-        assert.match(html, /aria-required="true"/);
+        expect(html).toMatch(/aria-required="true"/);
     });
 
     it("adds aria-required to required selects", () => {
         const schema = z.object({ role: z.enum(["admin", "editor"]) });
         const html = renderToHtml(schema, { value: { role: "admin" } });
-        assert.ok(html.includes('aria-required="true"'));
+        expect(html.includes('aria-required="true"')).toBeTruthy();
     });
 
     it("adds aria-required to required checkboxes", () => {
         const schema = z.object({ active: z.boolean() });
         const html = renderToHtml(schema, { value: { active: true } });
-        assert.match(html, /aria-required="true"/);
+        expect(html).toMatch(/aria-required="true"/);
     });
 
     it("omits aria-required for optional fields", () => {
         const schema = z.object({ name: z.string().optional() });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.doesNotMatch(html, /aria-required/);
+        expect(html).not.toMatch(/aria-required/);
     });
 });
 
@@ -51,14 +50,14 @@ describe("Required indicator", () => {
     it("shows asterisk for required fields", () => {
         const schema = z.object({ name: z.string() });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /sc-required/);
-        assert.match(html, /aria-hidden="true"/);
+        expect(html).toMatch(/sc-required/);
+        expect(html).toMatch(/aria-hidden="true"/);
     });
 
     it("omits asterisk for optional fields", () => {
         const schema = z.object({ name: z.string().optional() });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.doesNotMatch(html, /sc-required/);
+        expect(html).not.toMatch(/sc-required/);
     });
 });
 
@@ -70,37 +69,37 @@ describe("Constraint hints", () => {
     it("shows minLength constraint hint", () => {
         const schema = z.object({ name: z.string().min(3) });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /aria-describedby="sc-name-hint"/);
-        assert.match(html, /id="sc-name-hint"/);
-        assert.match(html, /Minimum 3 characters/);
+        expect(html).toMatch(/aria-describedby="sc-name-hint"/);
+        expect(html).toMatch(/id="sc-name-hint"/);
+        expect(html).toMatch(/Minimum 3 characters/);
     });
 
     it("shows maxLength constraint hint", () => {
         const schema = z.object({ name: z.string().max(50) });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /Maximum 50 characters/);
+        expect(html).toMatch(/Maximum 50 characters/);
     });
 
     it("shows min/max constraint hint for numbers", () => {
         const schema = z.object({ age: z.number().min(0).max(150) });
         const html = renderToHtml(schema, { value: { age: 36 } });
-        assert.match(html, /aria-describedby="sc-age-hint"/);
-        assert.match(html, /Minimum 0/);
-        assert.match(html, /Maximum 150/);
+        expect(html).toMatch(/aria-describedby="sc-age-hint"/);
+        expect(html).toMatch(/Minimum 0/);
+        expect(html).toMatch(/Maximum 150/);
     });
 
     it("shows minItems constraint hint for arrays", () => {
         const schema = z.object({ tags: z.array(z.string()).min(1) });
         const html = renderToHtml(schema, { value: { tags: ["a"] } });
-        assert.match(html, /Minimum 1 items/);
+        expect(html).toMatch(/Minimum 1 items/);
     });
 
     it("omits hint when no constraints", () => {
         const schema = z.object({ name: z.string() });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
         // No min/max/etc → no hint element
-        assert.doesNotMatch(html, /sc-hint/);
-        assert.doesNotMatch(html, /aria-describedby/);
+        expect(html).not.toMatch(/sc-hint/);
+        expect(html).not.toMatch(/aria-describedby/);
     });
 });
 
@@ -112,25 +111,25 @@ describe("Input IDs", () => {
     it("adds id to string inputs", () => {
         const schema = z.object({ name: z.string() });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /id="sc-name"/);
+        expect(html).toMatch(/id="sc-name"/);
     });
 
     it("adds id to number inputs", () => {
         const schema = z.object({ age: z.number() });
         const html = renderToHtml(schema, { value: { age: 36 } });
-        assert.match(html, /id="sc-age"/);
+        expect(html).toMatch(/id="sc-age"/);
     });
 
     it("adds id to selects", () => {
         const schema = z.object({ role: z.enum(["admin"]) });
         const html = renderToHtml(schema, { value: { role: "admin" } });
-        assert.match(html, /id="sc-role"/);
+        expect(html).toMatch(/id="sc-role"/);
     });
 
     it("adds id to checkboxes", () => {
         const schema = z.object({ active: z.boolean() });
         const html = renderToHtml(schema, { value: { active: true } });
-        assert.match(html, /id="sc-active"/);
+        expect(html).toMatch(/id="sc-active"/);
     });
 });
 
@@ -144,13 +143,13 @@ describe("Checkbox aria-label", () => {
             active: z.boolean().meta({ description: "Active" }),
         });
         const html = renderToHtml(schema, { value: { active: true } });
-        assert.match(html, /aria-label="Active"/);
+        expect(html).toMatch(/aria-label="Active"/);
     });
 
     it("omits aria-label when no description", () => {
         const schema = z.object({ active: z.boolean() });
         const html = renderToHtml(schema, { value: { active: true } });
-        assert.doesNotMatch(html, /aria-label/);
+        expect(html).not.toMatch(/aria-label/);
     });
 });
 
@@ -165,7 +164,7 @@ describe("aria-readonly", () => {
             value: { name: "Ada" },
             readOnly: true,
         });
-        assert.match(html, /aria-readonly="true"/);
+        expect(html).toMatch(/aria-readonly="true"/);
     });
 
     it("adds aria-readonly to read-only number values", () => {
@@ -174,7 +173,7 @@ describe("aria-readonly", () => {
             value: { age: 36 },
             readOnly: true,
         });
-        assert.match(html, /aria-readonly="true"/);
+        expect(html).toMatch(/aria-readonly="true"/);
     });
 
     it("adds aria-readonly to read-only boolean values", () => {
@@ -183,7 +182,7 @@ describe("aria-readonly", () => {
             value: { active: true },
             readOnly: true,
         });
-        assert.match(html, /aria-readonly="true"/);
+        expect(html).toMatch(/aria-readonly="true"/);
     });
 
     it("adds aria-readonly to read-only enum values", () => {
@@ -192,7 +191,7 @@ describe("aria-readonly", () => {
             value: { role: "admin" },
             readOnly: true,
         });
-        assert.match(html, /aria-readonly="true"/);
+        expect(html).toMatch(/aria-readonly="true"/);
     });
 });
 
@@ -206,6 +205,6 @@ describe("Record role", () => {
             meta: z.record(z.string(), z.string()),
         });
         const html = renderToHtml(schema, { value: { meta: { foo: "bar" } } });
-        assert.match(html, /role="group"/);
+        expect(html).toMatch(/role="group"/);
     });
 });
