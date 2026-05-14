@@ -525,6 +525,25 @@ Server Components: `<SchemaView>` accepts a `widgets` prop directly (no React co
 
 Validation uses the original Zod schema (if input was Zod) or `z.fromJSONSchema()` (if input was JSON Schema / OpenAPI).
 
+### Per-field validation errors
+
+Add `onValidationError` to individual field overrides to receive errors for specific fields:
+
+```tsx
+<SchemaComponent
+  schema={userSchema}
+  value={user}
+  onChange={setUser}
+  validate
+  fields={{
+    email: { onValidationError: (err) => setEmailError(err) },
+    name: { onValidationError: (err) => setNameError(err) },
+  }}
+/>
+```
+
+Errors are dispatched based on Zod error paths. The root-level `onValidationError` still receives all errors.
+
 ## Discriminated unions
 
 Discriminated unions (`z.discriminatedUnion` or JSON Schema `oneOf` with `const` properties) render as tabbed panels. Each tab is labelled by the discriminator's `const` value. Clicking a tab resets the value with the new discriminator.
@@ -577,6 +596,48 @@ const schema = z.object({
 ```
 
 Defaults propagate through nested objects — each field uses its own default independently.
+
+## Field visibility
+
+Hide fields conditionally using the `visible` override:
+
+```tsx
+<SchemaComponent
+  schema={paymentSchema}
+  value={payment}
+  fields={{
+    cardNumber: { visible: payment.method === "card" },
+    sortCode: { visible: payment.method === "bank" },
+  }}
+/>
+```
+
+When `visible: false`, the field is completely removed — no label, no empty placeholder, no hidden input. The parent component controls visibility based on the current value.
+
+## Field ordering
+
+Control the order fields appear in rendered objects using `order`:
+
+```tsx
+<SchemaComponent
+  schema={userSchema}
+  value={user}
+  fields={{
+    email: { order: 1 },
+    name: { order: 2 },
+    role: { order: 3 },
+  }}
+/>
+```
+
+Lower `order` values render first. Fields without `order` keep their insertion order and appear after ordered fields. Can also be set in schema metadata:
+
+```tsx
+const schema = z.object({
+  summary: z.string().meta({ order: 1 }),
+  title: z.string().meta({ order: 2 }),
+});
+```
 
 ## Server Components
 
