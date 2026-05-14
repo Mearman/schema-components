@@ -30,6 +30,8 @@ export interface SchemaMeta {
     deprecated?: boolean;
     /** Component hint — resolved before theme adapter. */
     component?: string;
+    /** Sort order for object fields. Lower values render first. */
+    order?: number;
     /** Arbitrary UI hints passed through to theme adapters. */
     [key: string]: unknown;
 }
@@ -125,12 +127,14 @@ export type FieldOverrides<T> = {
 };
 
 /**
- * Per-field override. Extends SchemaMeta with a React-layer callback
- * for per-field validation errors.
+ * Per-field override. Extends SchemaMeta with rendering controls
+ * and a per-field validation error callback.
  */
 export type FieldOverride = Partial<SchemaMeta> & {
     /** Called with the ZodError when this field fails validation. */
     onValidationError?: (error: unknown) => void;
+    /** Hide this field when false. Defaults to true (visible). */
+    visible?: boolean;
 };
 
 // ---------------------------------------------------------------------------

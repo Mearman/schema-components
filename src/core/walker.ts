@@ -338,6 +338,8 @@ const OVERRIDE_META_KEYS = new Set([
     "title",
     "deprecated",
     "component",
+    "visible",
+    "order",
 ]);
 
 function extractSchemaMetaFields(
