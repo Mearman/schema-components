@@ -1,3 +1,9 @@
+## [1.7.1](https://github.com/Mearman/schema-components/compare/v1.7.0...v1.7.1) (2026-05-14)
+
+### Documentation
+
+* update README and add Storybook stories for visibility, ordering, and per-field validation ([4be4b6f](https://github.com/Mearman/schema-components/commit/4be4b6feaaa4819937280c010eacb3f36a521a54))
+
 ## [1.7.0](https://github.com/Mearman/schema-components/compare/v1.6.0...v1.7.0) (2026-05-14)
 
 ### Features
