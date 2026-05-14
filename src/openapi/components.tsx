@@ -33,6 +33,7 @@ import {
     resolveRequestBody,
     resolveResponse,
 } from "./resolve.ts";
+import type { WidgetMap } from "../react/SchemaComponent.tsx";
 
 // ---------------------------------------------------------------------------
 // Internal: render a JSON Schema directly (walker + renderField)
@@ -51,6 +52,7 @@ function renderSchema(
         fields?: unknown;
         meta?: SchemaMeta | undefined;
         readOnly?: boolean | undefined;
+        widgets?: WidgetMap | undefined;
     }
 ): ReactNode {
     let jsonSchema: Record<string, unknown>;
@@ -94,7 +96,8 @@ function renderSchema(
             childValue,
             childOnChange,
             undefined,
-            renderChild
+            renderChild,
+            options.widgets
         );
 
     return renderField(
@@ -102,7 +105,8 @@ function renderSchema(
         options.value,
         options.onChange ?? noop,
         undefined,
-        renderChild
+        renderChild,
+        options.widgets
     );
 }
 
@@ -125,6 +129,8 @@ export interface ApiOperationProps<
     requestBodyFields?: Doc extends Record<string, unknown>
         ? InferRequestBodyFields<Doc, Path, Method>
         : Record<string, FieldOverride>;
+    /** Instance-scoped widgets. */
+    widgets?: WidgetMap;
 }
 
 export function ApiOperation<
@@ -140,6 +146,7 @@ export function ApiOperation<
     responseValue,
     meta,
     requestBodyFields,
+    widgets,
 }: ApiOperationProps<Doc, Path, Method>): ReactNode {
     const rootDoc = toDoc(doc);
     const resolved = resolveOperation(rootDoc, path, method);
@@ -154,6 +161,7 @@ export function ApiOperation<
                         parameters={resolved.parameters}
                         rootDoc={rootDoc}
                         meta={meta}
+                        widgets={widgets}
                     />
                 </section>
             )}
@@ -178,6 +186,7 @@ export function ApiOperation<
                         onChange: onRequestBodyChange,
                         fields: requestBodyFields,
                         meta,
+                        widgets,
                     })}
                 </section>
             )}
@@ -191,6 +200,7 @@ export function ApiOperation<
                             rootDoc={rootDoc}
                             value={responseValue}
                             meta={meta}
+                            widgets={widgets}
                         />
                     ))}
                 </section>
@@ -215,6 +225,8 @@ export interface ApiParametersProps<
     overrides?: Doc extends Record<string, unknown>
         ? InferParameterOverrides<Doc, Path, Method>
         : Record<string, FieldOverride>;
+    /** Instance-scoped widgets. */
+    widgets?: WidgetMap;
 }
 
 export function ApiParameters<
@@ -227,6 +239,7 @@ export function ApiParameters<
     method,
     meta,
     overrides,
+    widgets,
 }: ApiParametersProps<Doc, Path, Method>): ReactNode {
     const rootDoc = toDoc(doc);
     const params = resolveParameters(rootDoc, path, method);
@@ -241,6 +254,7 @@ export function ApiParameters<
                 rootDoc={rootDoc}
                 overrides={overrides}
                 meta={meta}
+                widgets={widgets}
             />
         </section>
     );
@@ -264,6 +278,8 @@ export interface ApiRequestBodyProps<
     fields?: Doc extends Record<string, unknown>
         ? InferRequestBodyFields<Doc, Path, Method>
         : Record<string, FieldOverride>;
+    /** Instance-scoped widgets. */
+    widgets?: WidgetMap;
 }
 
 export function ApiRequestBody<
@@ -278,6 +294,7 @@ export function ApiRequestBody<
     onChange,
     meta,
     fields,
+    widgets,
 }: ApiRequestBodyProps<Doc, Path, Method>): ReactNode {
     const rootDoc = toDoc(doc);
     const requestBody = resolveRequestBody(rootDoc, path, method);
@@ -301,6 +318,7 @@ export function ApiRequestBody<
                 onChange,
                 fields,
                 meta,
+                widgets,
             })}
         </section>
     );
@@ -325,6 +343,8 @@ export interface ApiResponseProps<
     fields?: Doc extends Record<string, unknown>
         ? InferResponseFields<Doc, Path, Method, Status>
         : Record<string, FieldOverride>;
+    /** Instance-scoped widgets. */
+    widgets?: WidgetMap;
 }
 
 export function ApiResponse<
@@ -340,6 +360,7 @@ export function ApiResponse<
     value,
     meta,
     fields,
+    widgets,
 }: ApiResponseProps<Doc, Path, Method, Status>): ReactNode {
     const rootDoc = toDoc(doc);
     const response = resolveResponse(rootDoc, path, method, status);
@@ -363,6 +384,7 @@ export function ApiResponse<
             value={value}
             fields={fields}
             meta={meta}
+            widgets={widgets}
         />
     );
 }
@@ -392,11 +414,13 @@ function ParameterList({
     rootDoc,
     overrides,
     meta,
+    widgets,
 }: {
     parameters: ParameterInfo[];
     rootDoc: Record<string, unknown>;
     overrides?: unknown;
     meta?: SchemaMeta | undefined;
+    widgets?: WidgetMap | undefined;
 }): ReactNode {
     return (
         <>
@@ -411,6 +435,7 @@ function ParameterList({
                     )}
                     {renderSchema(param.schema ?? { type: "string" }, rootDoc, {
                         meta: buildParamMeta(param, overrides, meta),
+                        widgets,
                     })}
                 </div>
             ))}
@@ -424,12 +449,14 @@ function ResponseCard({
     value,
     fields,
     meta,
+    widgets,
 }: {
     response: ResponseInfo;
     rootDoc: Record<string, unknown>;
     value?: unknown;
     fields?: unknown;
     meta?: SchemaMeta | undefined;
+    widgets?: WidgetMap | undefined;
 }): ReactNode {
     if (response.schema === undefined) {
         return (
@@ -451,6 +478,7 @@ function ResponseCard({
                 value,
                 fields,
                 meta: { readOnly: true, ...meta },
+                widgets,
             })}
         </div>
     );
