@@ -87,8 +87,17 @@ export interface HtmlRenderProps extends BaseFieldProps {
     /**
      * Render a child field to an HTML string. Theme adapters call this
      * to recursively render nested structures.
+     *
+     * @param tree - The walked field tree for the child
+     * @param value - The child's current value
+     * @param pathSuffix - Path segment from the parent (e.g. "city",
+     *   "[0]"). When omitted, the child's description is used as fallback.
      */
-    renderChild: (tree: WalkedField, value: unknown) => string;
+    renderChild: (
+        tree: WalkedField,
+        value: unknown,
+        pathSuffix?: string
+    ) => string;
 }
 
 // ---------------------------------------------------------------------------
