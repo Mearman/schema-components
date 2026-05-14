@@ -1,5 +1,5 @@
 {
-    "name": "@scalar/schema-components",
+    "name": "schema-components",
     "version": "0.0.0-development",
     "description": "React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents",
     "type": "module",

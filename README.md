@@ -7,7 +7,7 @@ Define your data model once. Get presentational views, input fields, and editabl
 ## Install
 
 ```bash
-npm install @scalar/schema-components
+npm install schema-components
 ```
 
 Peer dependencies: `zod@^4.0.0`, `react@^18.0.0 || ^19.0.0`.
@@ -16,7 +16,7 @@ Peer dependencies: `zod@^4.0.0`, `react@^18.0.0 || ^19.0.0`.
 
 ```tsx
 import { z } from "zod";
-import { SchemaComponent } from "@scalar/schema-components/react/SchemaComponent";
+import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
 const userSchema = z.object({
   name: z.string().min(1).meta({ description: "Full name" }),
@@ -162,7 +162,7 @@ const spec = {
 ## Individual fields
 
 ```tsx
-import { SchemaField } from "@scalar/schema-components/react/SchemaComponent";
+import { SchemaField } from "schema-components/react/SchemaComponent";
 
 // Type-safe path — only valid dot-paths accepted
 <SchemaField
@@ -203,8 +203,8 @@ When the schema is a Zod schema or typed `as const`, only valid dot-paths like `
 Render API operations with type-safe field overrides:
 
 ```tsx
-import { ApiOperation } from "@scalar/schema-components/openapi/components";
-import type { ApiRequestBodyProps } from "@scalar/schema-components/openapi/components";
+import { ApiOperation } from "schema-components/openapi/components";
+import type { ApiRequestBodyProps } from "schema-components/openapi/components";
 
 const petStore = {
   openapi: "3.1.0",
@@ -264,8 +264,8 @@ const petStore = {
 Headless by default (plain HTML). Wrap with a theme adapter for styled components:
 
 ```tsx
-import { SchemaProvider } from "@scalar/schema-components/react/SchemaComponent";
-import { shadcnResolver } from "@scalar/schema-components/themes/shadcn";
+import { SchemaProvider } from "schema-components/react/SchemaComponent";
+import { shadcnResolver } from "schema-components/themes/shadcn";
 
 <SchemaProvider resolver={shadcnResolver}>
   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
@@ -275,7 +275,7 @@ import { shadcnResolver } from "@scalar/schema-components/themes/shadcn";
 Write a custom adapter:
 
 ```tsx
-import type { RenderProps, ComponentResolver } from "@scalar/schema-components/core/renderer";
+import type { RenderProps, ComponentResolver } from "schema-components/core/renderer";
 
 const myResolver: ComponentResolver = {
   string: (props: RenderProps) => {
@@ -307,7 +307,7 @@ Every render function receives `props.renderChild` for recursive rendering — n
 Render schemas to HTML strings — no React needed. Useful for server-side rendering, email templates, static sites, and non-React environments.
 
 ```tsx
-import { renderToHtml } from "@scalar/schema-components/html/renderToHtml";
+import { renderToHtml } from "schema-components/html/renderToHtml";
 
 const userSchema = z.object({
   name: z.string().meta({ description: "Name" }),
@@ -344,13 +344,13 @@ All HTML output uses `sc-` prefixed classes for styling hooks. HTML is properly 
 A default stylesheet is included:
 
 ```html
-<link rel="stylesheet" href="node_modules/@scalar/schema-components/dist/html/styles.css">
+<link rel="stylesheet" href="node_modules/schema-components/dist/html/styles.css">
 ```
 
 Or import in JS:
 
 ```ts
-import "@scalar/schema-components/styles.css";
+import "schema-components/styles.css";
 ```
 
 ### Structured HTML construction
@@ -358,7 +358,7 @@ import "@scalar/schema-components/styles.css";
 The HTML renderer uses a typed `h()` builder instead of string templates. This gives compile-time safety and automatic escaping:
 
 ```ts
-import { h, serialize, raw } from "@scalar/schema-components/html/html";
+import { h, serialize, raw } from "schema-components/html/html";
 
 // Build elements — attrs are type-checked, values auto-escaped
 const input = h("input", { type: "text", id: "name", value: userValue });
@@ -376,9 +376,9 @@ The builder handles void elements (`<input>`, `<br>`, etc.), boolean attributes 
 Three output formats for incremental rendering:
 
 ```ts
-import { renderToHtmlChunks } from "@scalar/schema-components/html/renderToHtmlStream";
-import { renderToHtmlStream } from "@scalar/schema-components/html/renderToHtmlStream";
-import { renderToHtmlReadable } from "@scalar/schema-components/html/renderToHtmlStream";
+import { renderToHtmlChunks } from "schema-components/html/renderToHtmlStream";
+import { renderToHtmlStream } from "schema-components/html/renderToHtmlStream";
+import { renderToHtmlReadable } from "schema-components/html/renderToHtmlStream";
 
 // Sync iterable — chunks yielded at field/item/entry boundaries
 const chunks: string[] = [...renderToHtmlChunks(schema, { value })];
@@ -415,8 +415,8 @@ The HTML renderer produces WAI-ARIA-compliant markup:
 ### Custom HTML resolver
 
 ```ts
-import { renderToHtml } from "@scalar/schema-components/html/renderToHtml";
-import type { HtmlResolver, HtmlRenderProps } from "@scalar/schema-components/html/renderToHtml";
+import { renderToHtml } from "schema-components/html/renderToHtml";
+import type { HtmlResolver, HtmlRenderProps } from "schema-components/html/renderToHtml";
 
 const tailwindResolver: HtmlResolver = {
   string: (props: HtmlRenderProps) => {
@@ -437,7 +437,7 @@ Custom resolvers fall back to the default for any type you don't override.
 Register widgets by `.meta({ component })` hint:
 
 ```tsx
-import { registerWidget } from "@scalar/schema-components/react/SchemaComponent";
+import { registerWidget } from "schema-components/react/SchemaComponent";
 
 registerWidget("richtext", ({ value, onChange }) => (
   <RichTextEditor value={value} onChange={onChange} />
@@ -470,8 +470,8 @@ Validation uses the original Zod schema (if input was Zod) or `z.fromJSONSchema(
 Typed errors with `onError` callback for graceful degradation:
 
 ```tsx
-import { SchemaErrorBoundary } from "@scalar/schema-components/react/SchemaErrorBoundary";
-import { SchemaComponent } from "@scalar/schema-components/react/SchemaComponent";
+import { SchemaErrorBoundary } from "schema-components/react/SchemaErrorBoundary";
+import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
 // Error boundary catches render errors from theme adapters
 <SchemaErrorBoundary fallback={(error, reset) => <p>Error: {error.message}</p>}>
@@ -494,7 +494,7 @@ Without `onError`, errors re-throw. Error hierarchy: `SchemaError` → `SchemaNo
 ## Architecture
 
 ```
-@scalar/schema-components
+schema-components
 ├── core            # JSON Schema walker, ComponentResolver, RenderProps, typed errors, type guards
 ├── react           # SchemaComponent, SchemaProvider, SchemaField, headless renderer, error boundary
 ├── openapi         # Document parser, ApiOperation, ApiParameters, ApiRequestBody, ApiResponse
