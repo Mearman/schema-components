@@ -12,6 +12,7 @@
 
 import { z } from "zod";
 import type { JsonObject, SchemaMeta } from "./types.ts";
+import { hasProperty, isObject, getProperty } from "./guards.ts";
 
 // ---------------------------------------------------------------------------
 // Schema cache — avoids redundant z.toJSONSchema() calls
@@ -28,22 +29,7 @@ export type { JsonObject, SchemaMeta };
 export type SchemaInput = Record<string, unknown>;
 export type SchemaKind = "zod4" | "zod3" | "jsonSchema" | "openapi";
 
-// ---------------------------------------------------------------------------
-// Type guards
-// ---------------------------------------------------------------------------
-
-function isObject(value: unknown): value is JsonObject {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasProperty(value: unknown, key: string): boolean {
-    return isObject(value) && key in value;
-}
-
-function getProperty(value: unknown, key: string): unknown {
-    if (!isObject(value)) return undefined;
-    return value[key];
-}
+// Type guards and safe access imported from core/guards.ts
 
 // ---------------------------------------------------------------------------
 // Schema detection

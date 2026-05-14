@@ -35,6 +35,7 @@ import type {
     SchemaMeta,
     WalkedField,
 } from "../core/types.ts";
+import { isObject, toRecordOrUndefined } from "../core/guards.ts";
 
 // ---------------------------------------------------------------------------
 // Document caching
@@ -54,13 +55,8 @@ function noop() {
     /* intentional no-op */
 }
 
-function isDoc(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function toDoc(value: unknown): Record<string, unknown> {
-    if (isDoc(value)) return value;
-    return {};
+    return isObject(value) ? value : {};
 }
 
 // ---------------------------------------------------------------------------
@@ -504,17 +500,6 @@ function ResponseCard({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function toRecordOrUndefined(
-    value: unknown
-): Record<string, unknown> | undefined {
-    if (typeof value !== "object" || value === null) return undefined;
-    const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) {
-        result[k] = v;
-    }
-    return result;
-}
-
 function buildParamMeta(
     param: ParameterInfo,
     overrides: unknown,
@@ -523,7 +508,9 @@ function buildParamMeta(
     const result: SchemaMeta = {};
     if (param.description !== undefined) result.description = param.description;
     if (param.deprecated) result.deprecated = true;
-    const override = getFieldOverride(overrides, param.name);
+    const override = toRecordOrUndefined(
+        toRecordOrUndefined(overrides)?.[param.name]
+    );
     if (override !== undefined) {
         for (const [k, v] of Object.entries(override)) {
             result[k] = v;
@@ -537,16 +524,4 @@ function buildParamMeta(
     return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function getFieldOverride(
-    overrides: unknown,
-    name: string
-): Record<string, unknown> | undefined {
-    if (typeof overrides !== "object" || overrides === null) return undefined;
-    const value = toDoc(overrides)[name];
-    if (typeof value !== "object" || value === null) return undefined;
-    const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) {
-        result[k] = v;
-    }
-    return result;
-}
+// All helpers imported from core/guards.ts

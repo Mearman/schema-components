@@ -23,6 +23,7 @@ import type {
     WalkedField,
 } from "../core/types.ts";
 import { walk, type WalkOptions } from "../core/walker.ts";
+import { typeToKey, RESOLVER_KEYS } from "../core/renderer.ts";
 
 // ---------------------------------------------------------------------------
 // HTML resolver interface
@@ -85,39 +86,31 @@ export interface HtmlResolver {
     unknown?: HtmlRenderFunction;
 }
 
-// ---------------------------------------------------------------------------
-// HTML resolver lookup
-// ---------------------------------------------------------------------------
+// Lookup and merge use typeToKey and RESOLVER_KEYS from core/renderer.ts.
+// The actual lookup and merge are inline here because HtmlResolver's
+// function signatures (HtmlRenderProps → string) are structurally
+// incompatible with ComponentResolver's (RenderProps → unknown) under
+// exactOptionalPropertyTypes.
 
-function getHtmlRenderFunction(
+function getHtmlRenderFn(
     type: WalkedField["type"],
     resolver: HtmlResolver
 ): HtmlRenderFunction | undefined {
-    switch (type) {
-        case "string":
-            return resolver.string;
-        case "number":
-            return resolver.number;
-        case "boolean":
-            return resolver.boolean;
-        case "enum":
-            return resolver.enum;
-        case "object":
-            return resolver.object;
-        case "array":
-            return resolver.array;
-        case "record":
-            return resolver.record;
-        case "union":
-        case "discriminatedUnion":
-            return resolver.union;
-        case "literal":
-            return resolver.literal;
-        case "file":
-            return resolver.file;
-        default:
-            return resolver.unknown;
+    return resolver[typeToKey(type)];
+}
+
+function mergeHtmlResolvers(
+    user: HtmlResolver,
+    fallback: HtmlResolver
+): HtmlResolver {
+    const merged: HtmlResolver = {};
+    for (const key of RESOLVER_KEYS) {
+        const fn = user[key] ?? fallback[key];
+        if (fn !== undefined) {
+            merged[key] = fn;
+        }
     }
+    return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -514,7 +507,7 @@ function renderFieldHtml(
     renderChild: (tree: WalkedField, value: unknown) => string
 ): string {
     const mergedResolver = mergeHtmlResolvers(resolver, defaultHtmlResolver);
-    const renderFn = getHtmlRenderFunction(tree.type, mergedResolver);
+    const renderFn = getHtmlRenderFn(tree.type, mergedResolver);
 
     if (renderFn !== undefined) {
         const props: HtmlRenderProps = {
@@ -546,36 +539,4 @@ function renderFieldHtml(
     return `<span class="sc-value">${escapeHtml(typeof value === "string" ? value : JSON.stringify(value))}</span>`;
 }
 
-// ---------------------------------------------------------------------------
-// Resolver merge — user overrides fill gaps in the default
-// ---------------------------------------------------------------------------
-
-function mergeHtmlResolvers(
-    user: HtmlResolver,
-    fallback: HtmlResolver
-): HtmlResolver {
-    const merged: HtmlResolver = {};
-    const userStr = user.string ?? fallback.string;
-    if (userStr !== undefined) merged.string = userStr;
-    const userNum = user.number ?? fallback.number;
-    if (userNum !== undefined) merged.number = userNum;
-    const userBool = user.boolean ?? fallback.boolean;
-    if (userBool !== undefined) merged.boolean = userBool;
-    const userEnum = user.enum ?? fallback.enum;
-    if (userEnum !== undefined) merged.enum = userEnum;
-    const userObj = user.object ?? fallback.object;
-    if (userObj !== undefined) merged.object = userObj;
-    const userArr = user.array ?? fallback.array;
-    if (userArr !== undefined) merged.array = userArr;
-    const userRec = user.record ?? fallback.record;
-    if (userRec !== undefined) merged.record = userRec;
-    const userUnion = user.union ?? fallback.union;
-    if (userUnion !== undefined) merged.union = userUnion;
-    const userLit = user.literal ?? fallback.literal;
-    if (userLit !== undefined) merged.literal = userLit;
-    const userFile = user.file ?? fallback.file;
-    if (userFile !== undefined) merged.file = userFile;
-    const userUnk = user.unknown ?? fallback.unknown;
-    if (userUnk !== undefined) merged.unknown = userUnk;
-    return merged;
-}
+// Resolver merge uses mergeResolvers from core/renderer.ts

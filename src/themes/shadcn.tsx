@@ -15,6 +15,7 @@
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { headlessResolver } from "../react/headless.tsx";
 import { toReactNode } from "../react/headless.tsx";
+import { toRecord } from "../core/guards.ts";
 import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
@@ -156,7 +157,7 @@ function renderObjectContainer(props: RenderProps): ReactNode {
                 </h3>
             )}
             {Object.entries(fields).map(([key, field]) => {
-                const childValue = toDocValue(obj, key);
+                const childValue = toRecord(obj)[key];
                 const childOnChange = (v: unknown) => {
                     const updated: Record<string, unknown> = {};
                     for (const [k, val] of Object.entries(obj)) {
@@ -234,18 +235,6 @@ function renderEnumInput(props: RenderProps): ReactNode {
             ))}
         </select>
     );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function toDocValue(obj: object, key: string): unknown {
-    const record: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj)) {
-        record[k] = v;
-    }
-    return record[key];
 }
 
 // ---------------------------------------------------------------------------

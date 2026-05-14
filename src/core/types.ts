@@ -164,8 +164,8 @@ export interface WalkedField {
     /** For enums: the allowed values. */
     enumValues?: string[];
     /** For unions/discriminated unions: the options. */
-    options?: WalkedField[] | undefined;
-    discriminator?: string | undefined;
+    options?: WalkedField[];
+    discriminator?: string;
     /** For records: key and value schemas. */
     keyType?: WalkedField;
     valueType?: WalkedField;
@@ -188,7 +188,7 @@ export interface FieldConstraints {
     maximum?: number;
     pattern?: string;
     format?: string;
-    mimeTypes?: string[] | undefined;
+    mimeTypes?: string[];
     minItems?: number;
     maxItems?: number;
 }
