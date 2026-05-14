@@ -341,6 +341,18 @@ const formHtml = renderToHtml(userSchema, {
 
 All HTML output uses `sc-` prefixed classes for styling hooks. HTML is properly escaped by the serialiser — no manual escaping needed.
 
+A default stylesheet is included:
+
+```html
+<link rel="stylesheet" href="node_modules/@scalar/schema-components/dist/html/styles.css">
+```
+
+Or import in JS:
+
+```ts
+import "@scalar/schema-components/styles.css";
+```
+
 ### Structured HTML construction
 
 The HTML renderer uses a typed `h()` builder instead of string templates. This gives compile-time safety and automatic escaping:

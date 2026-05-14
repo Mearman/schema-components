@@ -6,6 +6,7 @@
     "main": "./dist/index.mjs",
     "types": "./dist/index.d.mts",
     "exports": {
+        "./styles.css": "./dist/html/styles.css",
         "./core/*": {
             "types": "./dist/core/*.d.mts",
             "import": "./dist/core/*.mjs"
@@ -40,7 +41,7 @@
         "_lint:fix": "eslint --cache --fix 'src/**/*.{ts,tsx}'",
         "_test": "node --test 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'",
         "_test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 --test-coverage-include='src/**/*.ts' --test-coverage-include='src/**/*.tsx' 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'",
-        "_build": "tsdown",
+        "_build": "tsdown && cp src/html/styles.css dist/html/styles.css",
         "typecheck": "turbo run _typecheck",
         "lint": "turbo run _lint",
         "lint:fix": "turbo run _lint:fix",
