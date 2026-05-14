@@ -1,3 +1,9 @@
+## [1.8.0](https://github.com/Mearman/schema-components/compare/v1.7.1...v1.8.0) (2026-05-14)
+
+### Features
+
+* **build:** add headless renderer preview styles for storybook ([460536e](https://github.com/Mearman/schema-components/commit/460536e390e682121c3124e4ee338c953942634e))
+
 ## [1.7.1](https://github.com/Mearman/schema-components/compare/v1.7.0...v1.7.1) (2026-05-14)
 
 ### Documentation
