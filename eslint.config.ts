@@ -142,6 +142,7 @@ const configFiles = [
     "tsdown.config.ts",
     ".storybook/main.ts",
     ".storybook/preview.ts",
+    ".storybook/vitest.setup.ts",
 ];
 
 const sharedPluginRules = {
