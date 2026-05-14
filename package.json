@@ -18,6 +18,10 @@
             "types": "./dist/openapi/*.d.mts",
             "import": "./dist/openapi/*.mjs"
         },
+        "./html/*": {
+            "types": "./dist/html/*.d.mts",
+            "import": "./dist/html/*.mjs"
+        },
         "./themes/*": {
             "types": "./dist/themes/*.d.mts",
             "import": "./dist/themes/*.mjs"

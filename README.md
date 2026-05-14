@@ -302,6 +302,65 @@ const myResolver: ComponentResolver = {
 
 Every render function receives `props.renderChild` for recursive rendering — no need to know about the resolver or rendering context.
 
+## Raw HTML
+
+Render schemas to HTML strings — no React needed. Useful for server-side rendering, email templates, static sites, and non-React environments.
+
+```tsx
+import { renderToHtml } from "@scalar/schema-components/html/renderToHtml";
+
+const userSchema = z.object({
+  name: z.string().meta({ description: "Name" }),
+  email: z.email().meta({ description: "Email" }),
+  role: z.enum(["admin", "editor", "viewer"]).meta({ description: "Role" }),
+});
+
+// Read-only display
+const html = renderToHtml(userSchema, {
+  value: { name: "Ada Lovelace", email: "ada@example.com", role: "admin" },
+  readOnly: true,
+});
+// → <dl class="sc-object">
+//     <dt class="sc-label">Name</dt><dd class="sc-value"><span class="sc-value">Ada Lovelace</span></dd>
+//     <dt class="sc-label">Email</dt><dd class="sc-value"><a class="sc-value" href="mailto:ada@example.com">ada@example.com</a></dd>
+//     <dt class="sc-label">Role</dt><dd class="sc-value"><span class="sc-value">admin</span></dd>
+//   </dl>
+
+// Editable form
+const formHtml = renderToHtml(userSchema, {
+  value: { name: "Ada Lovelace", email: "ada@example.com", role: "admin" },
+});
+// → <fieldset class="sc-object">
+//     <div class="sc-field">
+//       <label class="sc-label" for="sc-name">Name</label>
+//       <input class="sc-input" type="text" name="" value="Ada Lovelace">
+//     </div>
+//     ...
+//   </fieldset>
+```
+
+All HTML output uses `sc-` prefixed classes for styling hooks. HTML is properly escaped — no XSS risk.
+
+### Custom HTML resolver
+
+```ts
+import { renderToHtml } from "@scalar/schema-components/html/renderToHtml";
+import type { HtmlResolver, HtmlRenderProps } from "@scalar/schema-components/html/renderToHtml";
+
+const tailwindResolver: HtmlResolver = {
+  string: (props: HtmlRenderProps) => {
+    if (props.readOnly) {
+      return `<span class="text-sm text-gray-700">${typeof props.value === "string" ? props.value : ""}</span>`;
+    }
+    return `<input class="border rounded px-2 py-1" type="text" value="${typeof props.value === "string" ? props.value : "">">`;
+  },
+};
+
+const html = renderToHtml(schema, { value, readOnly: true, resolver: tailwindResolver });
+```
+
+Custom resolvers fall back to the default for any type you don't override.
+
 ## Custom widgets
 
 Register widgets by `.meta({ component })` hint:
@@ -342,6 +401,7 @@ Validation uses the original Zod schema (if input was Zod) or `z.fromJSONSchema(
 ├── core            # JSON Schema walker, ComponentResolver, RenderProps, type-level parsers
 ├── react           # SchemaComponent, SchemaProvider, SchemaField, headless renderer
 ├── openapi         # Document parser, ApiOperation, ApiParameters, ApiRequestBody, ApiResponse
+├── html            # renderToHtml — schema → HTML string (no React dependency)
 └── themes          # shadcn, MUI, custom adapters (separate packages)
 ```
 
@@ -359,3 +419,4 @@ Every module is imported directly — no barrel files.
 | `react/headless.tsx` | Headless default resolver producing plain HTML |
 | `openapi/parser.ts` | OpenAPI document parsing, operation extraction, `$ref` resolution |
 | `openapi/components.tsx` | `ApiOperation`, `ApiParameters`, `ApiRequestBody`, `ApiResponse` with generic type inference |
+| `html/renderToHtml.ts` | `renderToHtml()`, `HtmlResolver`, `HtmlRenderProps` — schema → HTML string with custom resolvers |
