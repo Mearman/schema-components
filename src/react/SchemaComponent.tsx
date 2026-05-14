@@ -326,6 +326,9 @@ export function renderField(
     instanceWidgets?: WidgetMap,
     contextWidgets?: WidgetMap
 ): ReactNode {
+    // 0. Visibility check — hidden fields render nothing
+    if (tree.meta.visible === false) return null;
+
     // 1. Check widget registry for .meta({ component }) hint
     //    Resolution order: instance → context → global
     const componentHint = tree.meta.component;

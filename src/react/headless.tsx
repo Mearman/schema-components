@@ -343,45 +343,59 @@ function renderObject(props: RenderProps): ReactNode {
     const fields = props.fields;
     if (fields === undefined) return null;
 
+    const sortedEntries = Object.entries(fields).sort((a, b) => {
+        const orderA =
+            typeof a[1].meta.order === "number" ? a[1].meta.order : Infinity;
+        const orderB =
+            typeof b[1].meta.order === "number" ? b[1].meta.order : Infinity;
+        return orderA - orderB;
+    });
+
     return (
         <fieldset>
             {typeof props.meta.description === "string" && (
                 <legend>{props.meta.description}</legend>
             )}
-            {Object.entries(fields).map(([key, field]) => {
-                const childValue = obj[key];
-                const childPath = props.path ? `${props.path}.${key}` : key;
-                const childId = inputId(childPath);
-                const childOnChange = (v: unknown) => {
-                    const updated: Record<string, unknown> = {};
-                    for (const [k, val] of Object.entries(obj)) {
-                        updated[k] = val;
-                    }
-                    updated[key] = v;
-                    props.onChange(updated);
-                };
-                return (
-                    <div key={key}>
-                        {typeof field.meta.description === "string" && (
-                            <label htmlFor={childId}>
-                                {field.meta.description}
-                                {field.isOptional === false && (
-                                    <span
-                                        aria-hidden="true"
-                                        style={{ color: "#dc2626" }}
-                                    >
-                                        {" "}
-                                        *
-                                    </span>
-                                )}
-                            </label>
-                        )}
-                        {toReactNode(
-                            props.renderChild(field, childValue, childOnChange)
-                        )}
-                    </div>
-                );
-            })}
+            {sortedEntries
+                .filter(([, field]) => field.meta.visible !== false)
+                .map(([key, field]) => {
+                    const childValue = obj[key];
+                    const childPath = props.path ? `${props.path}.${key}` : key;
+                    const childId = inputId(childPath);
+                    const childOnChange = (v: unknown) => {
+                        const updated: Record<string, unknown> = {};
+                        for (const [k, val] of Object.entries(obj)) {
+                            updated[k] = val;
+                        }
+                        updated[key] = v;
+                        props.onChange(updated);
+                    };
+                    return (
+                        <div key={key}>
+                            {typeof field.meta.description === "string" && (
+                                <label htmlFor={childId}>
+                                    {field.meta.description}
+                                    {field.isOptional === false && (
+                                        <span
+                                            aria-hidden="true"
+                                            style={{ color: "#dc2626" }}
+                                        >
+                                            {" "}
+                                            *
+                                        </span>
+                                    )}
+                                </label>
+                            )}
+                            {toReactNode(
+                                props.renderChild(
+                                    field,
+                                    childValue,
+                                    childOnChange
+                                )
+                            )}
+                        </div>
+                    );
+                })}
         </fieldset>
     );
 }

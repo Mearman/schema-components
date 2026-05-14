@@ -330,11 +330,25 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
             ? h("legend", {}, descriptionText)
             : undefined;
 
+    const sortedEntries = Object.entries(fields)
+        .sort((a, b) => {
+            const orderA =
+                typeof a[1].meta.order === "number"
+                    ? a[1].meta.order
+                    : Infinity;
+            const orderB =
+                typeof b[1].meta.order === "number"
+                    ? b[1].meta.order
+                    : Infinity;
+            return orderA - orderB;
+        })
+        .filter(([, field]) => field.meta.visible !== false);
+
     if (props.readOnly) {
         const children: HtmlNode[] = [];
         if (legend !== undefined) children.push(legend);
 
-        for (const [key, field] of Object.entries(fields)) {
+        for (const [key, field] of sortedEntries) {
             const label =
                 typeof field.meta.description === "string"
                     ? field.meta.description
@@ -357,7 +371,7 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
     const children: HtmlNode[] = [];
     if (legend !== undefined) children.push(legend);
 
-    for (const [key, field] of Object.entries(fields)) {
+    for (const [key, field] of sortedEntries) {
         const label =
             typeof field.meta.description === "string"
                 ? field.meta.description
@@ -755,6 +769,9 @@ function renderFieldHtml(
     path: string,
     renderChild: (tree: WalkedField, value: unknown) => string
 ): string {
+    // Visibility check — hidden fields render nothing
+    if (tree.meta.visible === false) return "";
+
     const effectiveValue = value ?? tree.defaultValue;
     const mergedResolver = mergeHtmlResolvers(resolver, defaultHtmlResolver);
     const renderFn = getHtmlRenderFn(tree.type, mergedResolver);
