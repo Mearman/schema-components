@@ -26,6 +26,7 @@
 import { isValidElement, type ReactNode } from "react";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { mergeResolvers, getRenderFunction } from "../core/renderer.ts";
+import type { WidgetMap } from "./SchemaComponent.tsx";
 import { headlessResolver } from "./headless.tsx";
 import { normaliseSchema } from "../core/adapter.ts";
 import { walk, type WalkOptions } from "../core/walker.ts";
@@ -55,6 +56,8 @@ export interface SchemaViewProps {
      * Falls back to the headless resolver if omitted.
      */
     resolver?: ComponentResolver;
+    /** Instance-scoped widgets. */
+    widgets?: WidgetMap;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +82,7 @@ export function SchemaView({
     meta: componentMeta,
     description,
     resolver,
+    widgets,
 }: SchemaViewProps): ReactNode {
     const mergedMeta: SchemaMeta = { ...componentMeta, readOnly: true };
     if (description !== undefined) mergedMeta.description = description;
@@ -121,13 +125,20 @@ export function SchemaView({
         childTree: WalkedField,
         childValue: unknown
     ): ReactNode =>
-        renderFieldServer(childTree, childValue, userResolver, renderChild);
+        renderFieldServer(
+            childTree,
+            childValue,
+            userResolver,
+            renderChild,
+            widgets
+        );
 
     return renderFieldServer(
         tree,
         value ?? tree.defaultValue,
         userResolver,
-        renderChild
+        renderChild,
+        widgets
     );
 }
 
@@ -140,8 +151,35 @@ function renderFieldServer(
     tree: WalkedField,
     value: unknown,
     resolver: ComponentResolver,
-    renderChild: (tree: WalkedField, value: unknown) => ReactNode
+    renderChild: (tree: WalkedField, value: unknown) => ReactNode,
+    widgets?: WidgetMap
 ): ReactNode {
+    // Check widgets before resolver — instance widgets take priority
+    const componentHint = tree.meta.component;
+    if (typeof componentHint === "string") {
+        const widget = widgets?.get(componentHint);
+        if (widget !== undefined) {
+            const props: RenderProps = {
+                value,
+                onChange: noop,
+                readOnly: true,
+                writeOnly: false,
+                meta: tree.meta,
+                constraints: tree.constraints,
+                path: "",
+                tree,
+                renderChild: (childTree: WalkedField, childValue: unknown) =>
+                    renderChild(childTree, childValue),
+            };
+            const result: unknown = widget(props);
+            if (result !== undefined && result !== null) {
+                if (isValidElement(result)) return result;
+                if (typeof result === "string" || typeof result === "number")
+                    return result;
+            }
+        }
+    }
+
     const renderFn = getRenderFunction(tree.type, resolver);
 
     if (renderFn !== undefined) {

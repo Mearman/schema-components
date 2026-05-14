@@ -45,23 +45,42 @@ import {
 } from "../core/errors.ts";
 
 // ---------------------------------------------------------------------------
-// Context — theme adapter
+// Context — theme adapter and scoped widgets
 // ---------------------------------------------------------------------------
 
 const UserResolverContext = createContext<ComponentResolver | undefined>(
     undefined
 );
 
+/**
+ * Widget map — maps component hints (from `.meta({ component })`) to render
+ * functions. Scoped at three levels:
+ *
+ * 1. **Per-instance** — `widgets` prop on `<SchemaComponent>`
+ * 2. **Context-scoped** — `widgets` prop on `<SchemaProvider>`
+ * 3. **Global** — `registerWidget()` (app-wide defaults)
+ *
+ * Resolution order: instance → context → global → resolver → headless.
+ */
+export type WidgetMap = ReadonlyMap<string, (props: RenderProps) => unknown>;
+
+const WidgetsContext = createContext<WidgetMap | undefined>(undefined);
+
 export function SchemaProvider({
     resolver,
+    widgets,
     children,
 }: {
     resolver: ComponentResolver;
+    /** Scoped widgets available to all SchemaComponents in this subtree. */
+    widgets?: WidgetMap;
     children: ReactNode;
 }) {
     return (
         <UserResolverContext.Provider value={resolver}>
-            {children}
+            <WidgetsContext.Provider value={widgets}>
+                {children}
+            </WidgetsContext.Provider>
         </UserResolverContext.Provider>
     );
 }
@@ -70,13 +89,21 @@ export function SchemaProvider({
 // Widget registry — custom renderers registered by .meta({ component }) hint
 // ---------------------------------------------------------------------------
 
-const widgetRegistry = new Map<string, (props: RenderProps) => unknown>();
+/** Global widget registry — app-wide defaults. */
+const globalWidgets = new Map<string, (props: RenderProps) => unknown>();
 
+/**
+ * Register a widget globally. The widget is resolved when a schema field
+ * has `.meta({ component: name })`.
+ *
+ * For scoped registration, use the `widgets` prop on `<SchemaComponent>`
+ * or `<SchemaProvider>` instead.
+ */
 export function registerWidget(
     name: string,
     render: (props: RenderProps) => unknown
 ): void {
-    widgetRegistry.set(name, render);
+    globalWidgets.set(name, render);
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +150,8 @@ export interface SchemaComponentProps<
     writeOnly?: boolean;
     /** Convenience: sets description on the root. */
     description?: string;
+    /** Instance-scoped widgets — override context and global widgets. */
+    widgets?: WidgetMap;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,8 +174,10 @@ export function SchemaComponent<
     readOnly,
     writeOnly,
     description,
+    widgets: instanceWidgets,
 }: SchemaComponentProps<T, Ref>): ReactNode {
     const userResolver = useContext(UserResolverContext);
+    const contextWidgets = useContext(WidgetsContext);
 
     const mergedMeta: SchemaMeta = useMemo(() => {
         const merged: SchemaMeta = { ...componentMeta };
@@ -215,7 +246,9 @@ export function SchemaComponent<
             childValue,
             childOnChange,
             userResolver,
-            renderChild
+            renderChild,
+            instanceWidgets,
+            contextWidgets
         );
     };
 
@@ -225,7 +258,9 @@ export function SchemaComponent<
         effectiveValue,
         handleChange,
         userResolver,
-        renderChild
+        renderChild,
+        instanceWidgets,
+        contextWidgets
     );
 }
 
@@ -286,12 +321,18 @@ export function renderField(
         tree: WalkedField,
         value: unknown,
         onChange: (v: unknown) => void
-    ) => ReactNode
+    ) => ReactNode,
+    instanceWidgets?: WidgetMap,
+    contextWidgets?: WidgetMap
 ): ReactNode {
     // 1. Check widget registry for .meta({ component }) hint
+    //    Resolution order: instance → context → global
     const componentHint = tree.meta.component;
     if (typeof componentHint === "string") {
-        const widget = widgetRegistry.get(componentHint);
+        const widget =
+            instanceWidgets?.get(componentHint) ??
+            contextWidgets?.get(componentHint) ??
+            globalWidgets.get(componentHint);
         if (widget !== undefined) {
             const props = buildRenderProps(tree, value, onChange, renderChild);
             const result: unknown = widget(props);
@@ -434,6 +475,7 @@ export function SchemaField<
     onValidationError,
 }: SchemaFieldProps<T, Ref, P>): ReactNode {
     const userResolver = useContext(UserResolverContext);
+    const contextWidgets = useContext(WidgetsContext);
 
     let jsonSchema: Record<string, unknown>;
     let zodSchema: unknown;
@@ -511,7 +553,9 @@ export function SchemaField<
             childValue,
             childOnChange,
             userResolver,
-            renderChild
+            renderChild,
+            undefined,
+            contextWidgets
         );
     };
 
@@ -520,7 +564,9 @@ export function SchemaField<
         fieldValue,
         handleChange,
         userResolver,
-        renderChild
+        renderChild,
+        undefined,
+        contextWidgets
     );
 }
 
