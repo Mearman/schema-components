@@ -114,6 +114,12 @@ jobs:
               if: matrix.node-version == 26
               run: pnpm test:coverage
 
+            - name: SSR tests (Node 26 only)
+              if: matrix.node-version == 26
+              run: |
+                  pnpm build
+                  pnpm _test:ssr
+
     release:
         name: Release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
