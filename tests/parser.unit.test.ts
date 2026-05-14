@@ -5,8 +5,8 @@
  * request body extraction, response extraction, and $ref resolution.
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
+import { assertDefined } from "./helpers.ts";
 import {
     parseOpenApiDocument,
     getSchema,
@@ -145,19 +145,19 @@ const petStore = {
 describe("parseOpenApiDocument", () => {
     it("extracts component schemas", () => {
         const parsed = parseOpenApiDocument(petStore);
-        assert.ok(parsed.schemas.has("#/components/schemas/Pet"));
+        expect(parsed.schemas.has("#/components/schemas/Pet")).toBeTruthy();
         const pet = parsed.schemas.get("#/components/schemas/Pet");
-        assert.equal(pet?.type, "object");
+        expect(pet?.type).toBe("object");
     });
 
     it("preserves the original document", () => {
         const parsed = parseOpenApiDocument(petStore);
-        assert.equal(parsed.doc, petStore);
+        expect(parsed.doc).toBe(petStore);
     });
 
     it("handles empty components", () => {
         const parsed = parseOpenApiDocument({ openapi: "3.1.0" });
-        assert.equal(parsed.schemas.size, 0);
+        expect(parsed.schemas.size).toBe(0);
     });
 });
 
@@ -169,21 +169,21 @@ describe("getSchema", () => {
     it("resolves a cached component schema", () => {
         const parsed = parseOpenApiDocument(petStore);
         const schema = getSchema(parsed, "#/components/schemas/Pet");
-        assert.equal(schema?.type, "object");
+        expect(schema?.type).toBe("object");
     });
 
     it("returns undefined for unknown ref", () => {
         const parsed = parseOpenApiDocument(petStore);
         const schema = getSchema(parsed, "#/components/schemas/Unknown");
-        assert.equal(schema, undefined);
+        expect(schema).toBe(undefined);
     });
 
     it("caches on first resolve", () => {
         const parsed = parseOpenApiDocument(petStore);
         const schema = getSchema(parsed, "#/paths/~1pets/get");
-        assert.ok(schema);
+        expect(schema).toBeTruthy();
         const cached = getSchema(parsed, "#/paths/~1pets/get");
-        assert.equal(schema, cached);
+        expect(schema).toBe(cached);
     });
 });
 
@@ -195,25 +195,25 @@ describe("listOperations", () => {
     it("lists all operations", () => {
         const parsed = parseOpenApiDocument(petStore);
         const ops = listOperations(parsed);
-        assert.equal(ops.length, 3);
+        expect(ops.length).toBe(3);
     });
 
     it("extracts operation metadata", () => {
         const parsed = parseOpenApiDocument(petStore);
         const ops = listOperations(parsed);
-        const listPets = ops.find(
-            (op) => op.path === "/pets" && op.method === "get"
+        const listPets = assertDefined(
+            ops.find((op) => op.path === "/pets" && op.method === "get"),
+            "listPets"
         );
-        assert.ok(listPets);
-        assert.equal(listPets.operationId, "listPets");
-        assert.equal(listPets.summary, "List all pets");
-        assert.equal(listPets.deprecated, false);
+        expect(listPets.operationId).toBe("listPets");
+        expect(listPets.summary).toBe("List all pets");
+        expect(listPets.deprecated).toBe(false);
     });
 
     it("handles documents with no paths", () => {
         const parsed = parseOpenApiDocument({ openapi: "3.1.0" });
         const ops = listOperations(parsed);
-        assert.equal(ops.length, 0);
+        expect(ops.length).toBe(0);
     });
 
     it("handles paths with no operations", () => {
@@ -222,7 +222,7 @@ describe("listOperations", () => {
             paths: { "/health": {} },
         });
         const ops = listOperations(parsed);
-        assert.equal(ops.length, 0);
+        expect(ops.length).toBe(0);
     });
 });
 
@@ -234,26 +234,31 @@ describe("getParameters", () => {
     it("extracts query parameters", () => {
         const parsed = parseOpenApiDocument(petStore);
         const params = getParameters(parsed, "/pets", "get");
-        assert.equal(params.length, 2);
+        expect(params.length).toBe(2);
 
-        const limit = params.find((p) => p.name === "limit");
-        assert.ok(limit);
-        assert.equal(limit.location, "query");
-        assert.equal(limit.required, false);
-        assert.ok(limit.schema);
-        assert.equal(limit.schema.type, "integer");
+        const limit = assertDefined(
+            params.find((p) => p.name === "limit"),
+            "limit"
+        );
+        expect(limit.location).toBe("query");
+        expect(limit.required).toBe(false);
+        expect(assertDefined(limit, "limit").schema).toBeTruthy();
+        expect(
+            assertDefined(assertDefined(limit, "limit").schema, "limit schema")
+                .type
+        ).toBe("integer");
     });
 
     it("extracts path parameters", () => {
         const parsed = parseOpenApiDocument(petStore);
         const params = getParameters(parsed, "/pets/{petId}", "get");
-        assert.equal(params.length, 1);
+        expect(params.length).toBe(1);
 
-        const petId = params[0];
-        assert.ok(petId);
-        assert.equal(petId.name, "petId");
-        assert.equal(petId.location, "path");
-        assert.equal(petId.required, true);
+        const petId = assertDefined(params[0], "petId");
+        expect(petId).toBeTruthy();
+        expect(petId.name).toBe("petId");
+        expect(petId.location).toBe("path");
+        expect(petId.required).toBe(true);
     });
 
     it("merges path-level and operation-level parameters", () => {
@@ -284,10 +289,10 @@ describe("getParameters", () => {
         };
         const parsed = parseOpenApiDocument(doc);
         const params = getParameters(parsed, "/items/{itemId}", "get");
-        assert.equal(params.length, 2);
+        expect(params.length).toBe(2);
         const names = params.map((p) => p.name);
-        assert.ok(names.includes("itemId"));
-        assert.ok(names.includes("fields"));
+        expect(names.includes("itemId")).toBeTruthy();
+        expect(names.includes("fields")).toBeTruthy();
     });
 
     it("operation-level overrides path-level for same name+in", () => {
@@ -319,17 +324,17 @@ describe("getParameters", () => {
         };
         const parsed = parseOpenApiDocument(doc);
         const params = getParameters(parsed, "/items", "get");
-        assert.equal(params.length, 1);
+        expect(params.length).toBe(1);
 
-        const sort = params[0];
-        assert.ok(sort);
-        assert.equal(sort.description, "Operation-level sort");
+        const sort = assertDefined(params[0], "sort");
+        expect(sort).toBeTruthy();
+        expect(sort.description).toBe("Operation-level sort");
     });
 
     it("returns empty for unknown operation", () => {
         const parsed = parseOpenApiDocument(petStore);
         const params = getParameters(parsed, "/pets", "delete");
-        assert.equal(params.length, 0);
+        expect(params.length).toBe(0);
     });
 });
 
@@ -340,25 +345,34 @@ describe("getParameters", () => {
 describe("getRequestBody", () => {
     it("extracts request body schema", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const body = getRequestBody(parsed, "/pets", "post");
-        assert.ok(body);
-        assert.equal(body.required, true);
-        assert.equal(body.description, "Pet to create");
-        assert.ok(body.schema);
-        assert.equal(body.schema.type, "object");
+        const body = assertDefined(
+            getRequestBody(parsed, "/pets", "post"),
+            "body"
+        );
+        expect(body).toBeTruthy();
+        expect(body.required).toBe(true);
+        expect(body.description).toBe("Pet to create");
+        expect(assertDefined(body, "body").schema).toBeTruthy();
+        expect(
+            assertDefined(assertDefined(body, "body").schema, "body schema")
+                .type
+        ).toBe("object");
     });
 
     it("lists content types", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const body = getRequestBody(parsed, "/pets", "post");
-        assert.ok(body);
-        assert.deepEqual(body.contentTypes, ["application/json"]);
+        const body = assertDefined(
+            getRequestBody(parsed, "/pets", "post"),
+            "body"
+        );
+        expect(body).toBeTruthy();
+        expect(body.contentTypes).toStrictEqual(["application/json"]);
     });
 
     it("returns undefined for operation without request body", () => {
         const parsed = parseOpenApiDocument(petStore);
         const body = getRequestBody(parsed, "/pets", "get");
-        assert.equal(body, undefined);
+        expect(body).toBe(undefined);
     });
 
     it("handles request body without content", () => {
@@ -374,11 +388,14 @@ describe("getRequestBody", () => {
             },
         };
         const parsed = parseOpenApiDocument(doc);
-        const body = getRequestBody(parsed, "/test", "post");
-        assert.ok(body);
-        assert.equal(body.required, false);
-        assert.equal(body.contentTypes.length, 0);
-        assert.equal(body.schema, undefined);
+        const body = assertDefined(
+            getRequestBody(parsed, "/test", "post"),
+            "body"
+        );
+        expect(body).toBeTruthy();
+        expect(body.required).toBe(false);
+        expect(body.contentTypes.length).toBe(0);
+        expect(body.schema).toBe(undefined);
     });
 });
 
@@ -390,34 +407,38 @@ describe("getResponses", () => {
     it("extracts response schemas", () => {
         const parsed = parseOpenApiDocument(petStore);
         const responses = getResponses(parsed, "/pets", "get");
-        assert.equal(responses.length, 1);
+        expect(responses.length).toBe(1);
 
-        const ok = responses[0];
-        assert.ok(ok);
-        assert.equal(ok.statusCode, "200");
-        assert.equal(ok.description, "A list of pets");
-        assert.ok(ok.schema);
-        assert.equal(ok.schema.type, "array");
+        const ok = assertDefined(responses[0], "ok");
+        expect(ok).toBeTruthy();
+        expect(ok.statusCode).toBe("200");
+        expect(ok.description).toBe("A list of pets");
+        expect(assertDefined(ok, "ok").schema).toBeTruthy();
+        expect(
+            assertDefined(assertDefined(ok, "ok").schema, "ok schema").type
+        ).toBe("array");
     });
 
     it("lists content types for each response", () => {
         const parsed = parseOpenApiDocument(petStore);
         const responses = getResponses(parsed, "/pets", "get");
 
-        const ok = responses[0];
-        assert.ok(ok);
-        assert.deepEqual(ok.contentTypes, ["application/json"]);
+        const ok = assertDefined(responses[0], "ok");
+        expect(ok).toBeTruthy();
+        expect(ok.contentTypes).toStrictEqual(["application/json"]);
     });
 
     it("handles responses without content (no schema)", () => {
         const parsed = parseOpenApiDocument(petStore);
         const responses = getResponses(parsed, "/pets/{petId}", "get");
 
-        const notFound = responses.find((r) => r.statusCode === "404");
-        assert.ok(notFound);
-        assert.equal(notFound.description, "Not found");
-        assert.equal(notFound.schema, undefined);
-        assert.equal(notFound.contentTypes.length, 0);
+        const notFound = assertDefined(
+            responses.find((r) => r.statusCode === "404"),
+            "notFound"
+        );
+        expect(notFound.description).toBe("Not found");
+        expect(notFound.schema).toBe(undefined);
+        expect(notFound.contentTypes.length).toBe(0);
     });
 
     it("returns empty for operation without responses", () => {
@@ -433,7 +454,7 @@ describe("getResponses", () => {
         };
         const parsed = parseOpenApiDocument(doc);
         const responses = getResponses(parsed, "/test", "get");
-        assert.equal(responses.length, 0);
+        expect(responses.length).toBe(0);
     });
 });
 
@@ -476,10 +497,12 @@ describe("$ref resolution", () => {
         const parsed = parseOpenApiDocument(doc);
         const responses = getResponses(parsed, "/users", "get");
 
-        const ok = responses[0];
-        assert.ok(ok);
+        const ok = assertDefined(responses[0], "ok");
+        expect(ok).toBeTruthy();
         // The $ref is preserved — the walker resolves via rootDocument
-        assert.ok(ok.schema);
-        assert.equal(ok.schema.$ref, "#/components/schemas/User");
+        expect(assertDefined(ok, "ok").schema).toBeTruthy();
+        expect(
+            assertDefined(assertDefined(ok, "ok").schema, "ok schema").$ref
+        ).toBe("#/components/schemas/User");
     });
 });

@@ -16,11 +16,11 @@
         },
         "_test": {
             "dependsOn": ["_typecheck"],
-            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"]
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
         },
         "_test:coverage": {
             "dependsOn": ["_typecheck"],
-            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"]
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
         },
         "_build": {
             "dependsOn": ["_typecheck", "_lint"],

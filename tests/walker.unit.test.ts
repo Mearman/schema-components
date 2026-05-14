@@ -6,24 +6,10 @@
  * field overrides, nested overrides, and readOnly/writeOnly propagation.
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { resolveEditability } from "../src/core/types.ts";
 import { walk } from "../src/core/walker.ts";
-import type { WalkedField } from "../src/core/types.ts";
-
-// Helper: non-null field access for tests.
-function getField(tree: WalkedField, ...keys: string[]): WalkedField {
-    let current: WalkedField = tree;
-    for (const key of keys) {
-        const fields = current.fields;
-        assert.ok(fields, `Expected fields at ${keys.join(".")}`);
-        const child = fields[key];
-        assert.ok(child, `Expected field "${key}" at ${keys.join(".")}`);
-        current = child;
-    }
-    return current;
-}
+import { assertDefined, getField } from "./helpers.ts";
 
 // ---------------------------------------------------------------------------
 // resolveEditability
@@ -31,118 +17,105 @@ function getField(tree: WalkedField, ...keys: string[]): WalkedField {
 
 describe("resolveEditability", () => {
     it("returns editable when no meta is set", () => {
-        assert.equal(
-            resolveEditability(undefined, undefined, undefined),
+        expect(resolveEditability(undefined, undefined, undefined)).toBe(
             "editable"
         );
     });
 
     it("returns presentation for property-level readOnly: true", () => {
-        assert.equal(
-            resolveEditability({ readOnly: true }, undefined, undefined),
-            "presentation"
-        );
+        expect(
+            resolveEditability({ readOnly: true }, undefined, undefined)
+        ).toBe("presentation");
     });
 
     it("returns input for property-level writeOnly: true", () => {
-        assert.equal(
-            resolveEditability({ writeOnly: true }, undefined, undefined),
-            "input"
-        );
+        expect(
+            resolveEditability({ writeOnly: true }, undefined, undefined)
+        ).toBe("input");
     });
 
     it("readOnly takes priority over writeOnly at the same level", () => {
-        assert.equal(
+        expect(
             resolveEditability(
                 { readOnly: true, writeOnly: true },
                 undefined,
                 undefined
-            ),
-            "presentation"
-        );
+            )
+        ).toBe("presentation");
     });
 
     it("property-level overrides component-level", () => {
-        assert.equal(
+        expect(
             resolveEditability(
                 { readOnly: true },
                 { readOnly: false },
                 undefined
-            ),
-            "presentation"
-        );
+            )
+        ).toBe("presentation");
     });
 
     it("component-level is used when property has no override", () => {
-        assert.equal(
-            resolveEditability(undefined, { readOnly: true }, undefined),
-            "presentation"
-        );
+        expect(
+            resolveEditability(undefined, { readOnly: true }, undefined)
+        ).toBe("presentation");
     });
 
     it("root-level is used when property and component have no override", () => {
-        assert.equal(
-            resolveEditability(undefined, undefined, { readOnly: true }),
-            "presentation"
-        );
+        expect(
+            resolveEditability(undefined, undefined, { readOnly: true })
+        ).toBe("presentation");
     });
 
     it("property-level overrides root-level", () => {
-        assert.equal(
+        expect(
             resolveEditability({ writeOnly: true }, undefined, {
                 readOnly: true,
-            }),
-            "input"
-        );
+            })
+        ).toBe("input");
     });
 
     it("readOnly: false at property level overrides component readOnly: true", () => {
-        assert.equal(
+        expect(
             resolveEditability(
                 { readOnly: false },
                 { readOnly: true },
                 undefined
-            ),
-            "editable"
-        );
+            )
+        ).toBe("editable");
     });
 
     it("writeOnly: false at property level overrides component writeOnly: true", () => {
-        assert.equal(
+        expect(
             resolveEditability(
                 { writeOnly: false },
                 { writeOnly: true },
                 undefined
-            ),
-            "editable"
-        );
+            )
+        ).toBe("editable");
     });
 
     it("readOnly: false at property level overrides root readOnly: true", () => {
-        assert.equal(
+        expect(
             resolveEditability({ readOnly: false }, undefined, {
                 readOnly: true,
-            }),
-            "editable"
-        );
+            })
+        ).toBe("editable");
     });
 
     it("readOnly: false without any higher-level override is just editable", () => {
-        assert.equal(
-            resolveEditability({ readOnly: false }, undefined, undefined),
-            "editable"
-        );
+        expect(
+            resolveEditability({ readOnly: false }, undefined, undefined)
+        ).toBe("editable");
     });
 
     it("writeOnly: true takes priority when readOnly: false is also set", () => {
-        assert.equal(
+        expect(
             resolveEditability(
                 { readOnly: false, writeOnly: true },
                 undefined,
                 undefined
-            ),
-            "input"
-        );
+            )
+        ).toBe("input");
     });
 });
 
@@ -153,35 +126,35 @@ describe("resolveEditability", () => {
 describe("walk — basic types", () => {
     it("walks a string field", () => {
         const tree = walk({ type: "string" }, {});
-        assert.equal(tree.type, "string");
-        assert.equal(tree.editability, "editable");
+        expect(tree.type).toBe("string");
+        expect(tree.editability).toBe("editable");
     });
 
     it("walks a number field", () => {
         const tree = walk({ type: "number" }, {});
-        assert.equal(tree.type, "number");
+        expect(tree.type).toBe("number");
     });
 
     it("walks a boolean field", () => {
         const tree = walk({ type: "boolean" }, {});
-        assert.equal(tree.type, "boolean");
+        expect(tree.type).toBe("boolean");
     });
 
     it("walks an enum", () => {
         const tree = walk({ enum: ["admin", "editor", "viewer"] }, {});
-        assert.equal(tree.type, "enum");
-        assert.deepEqual(tree.enumValues, ["admin", "editor", "viewer"]);
+        expect(tree.type).toBe("enum");
+        expect(tree.enumValues).toStrictEqual(["admin", "editor", "viewer"]);
     });
 
     it("walks a literal (const)", () => {
         const tree = walk({ const: "active" }, {});
-        assert.equal(tree.type, "literal");
-        assert.deepEqual(tree.literalValues, ["active"]);
+        expect(tree.type).toBe("literal");
+        expect(tree.literalValues).toStrictEqual(["active"]);
     });
 
     it("returns unknown for non-object input", () => {
         const tree = walk("not a schema", {});
-        assert.equal(tree.type, "unknown");
+        expect(tree.type).toBe("unknown");
     });
 });
 
@@ -201,30 +174,34 @@ describe("walk — objects", () => {
 
     it("walks an object with fields", () => {
         const tree = walk(schema, {});
-        assert.equal(tree.type, "object");
-        assert.ok(tree.fields);
-        assert.ok("name" in tree.fields);
-        assert.ok("age" in tree.fields);
+        expect(tree.type).toBe("object");
+        expect(tree.fields).toBeTruthy();
+        expect(
+            "name" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
+        expect(
+            "age" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
     });
 
     it("infers string type for name field", () => {
         const tree = walk(schema, {});
-        assert.equal(getField(tree, "name").type, "string");
+        expect(getField(tree, "name").type).toBe("string");
     });
 
     it("infers number type for age field", () => {
         const tree = walk(schema, {});
-        assert.equal(getField(tree, "age").type, "number");
+        expect(getField(tree, "age").type).toBe("number");
     });
 
     it("marks required fields as not optional", () => {
         const tree = walk(schema, {});
-        assert.equal(getField(tree, "name").isOptional, false);
+        expect(getField(tree, "name").isOptional).toBe(false);
     });
 
     it("marks non-required fields as optional", () => {
         const tree = walk(schema, {});
-        assert.equal(getField(tree, "age").isOptional, true);
+        expect(getField(tree, "age").isOptional).toBe(true);
     });
 });
 
@@ -253,8 +230,8 @@ describe("walk — nested objects", () => {
     it("walks nested objects", () => {
         const tree = walk(schema, {});
         const address = getField(tree, "address");
-        assert.equal(address.type, "object");
-        assert.equal(getField(tree, "address", "street").type, "string");
+        expect(address.type).toBe("object");
+        expect(getField(tree, "address", "street").type).toBe("string");
     });
 });
 
@@ -275,17 +252,17 @@ describe("walk — editability", () => {
 
     it("defaults to editable", () => {
         const tree = walk(schema, {});
-        assert.equal(getField(tree, "name").editability, "editable");
+        expect(getField(tree, "name").editability).toBe("editable");
     });
 
     it("readOnly on property makes field presentation", () => {
         const tree = walk(schema, {});
-        assert.equal(getField(tree, "id").editability, "presentation");
+        expect(getField(tree, "id").editability).toBe("presentation");
     });
 
     it("writeOnly on property makes field input", () => {
         const tree = walk(schema, {});
-        assert.equal(getField(tree, "password").editability, "input");
+        expect(getField(tree, "password").editability).toBe("input");
     });
 
     it("component readOnly makes all fields presentation", () => {
@@ -298,8 +275,8 @@ describe("walk — editability", () => {
             required: ["id"],
         };
         const tree = walk(schema2, { componentMeta: { readOnly: true } });
-        assert.equal(getField(tree, "id").editability, "presentation");
-        assert.equal(getField(tree, "name").editability, "presentation");
+        expect(getField(tree, "id").editability).toBe("presentation");
+        expect(getField(tree, "name").editability).toBe("presentation");
     });
 
     it("root readOnly makes all fields presentation", () => {
@@ -312,7 +289,7 @@ describe("walk — editability", () => {
             required: ["id"],
         };
         const tree = walk(schema2, { rootMeta: { readOnly: true } });
-        assert.equal(getField(tree, "id").editability, "presentation");
+        expect(getField(tree, "id").editability).toBe("presentation");
     });
 });
 
@@ -342,20 +319,18 @@ describe("walk — field overrides", () => {
         const tree = walk(schema, {
             fieldOverrides: { name: { readOnly: true } },
         });
-        assert.equal(getField(tree, "name").editability, "presentation");
-        assert.equal(getField(tree, "age").editability, "editable");
+        expect(getField(tree, "name").editability).toBe("presentation");
+        expect(getField(tree, "age").editability).toBe("editable");
     });
 
     it("applies nested field override", () => {
         const tree = walk(schema, {
             fieldOverrides: { address: { city: { readOnly: true } } },
         });
-        assert.equal(
-            getField(tree, "address", "city").editability,
+        expect(getField(tree, "address", "city").editability).toBe(
             "presentation"
         );
-        assert.equal(
-            getField(tree, "address", "street").editability,
+        expect(getField(tree, "address", "street").editability).toBe(
             "editable"
         );
     });
@@ -366,8 +341,8 @@ describe("walk — field overrides", () => {
                 address: { description: "Home", readOnly: true },
             },
         });
-        assert.equal(getField(tree, "address").editability, "presentation");
-        assert.equal(getField(tree, "address").meta.description, "Home");
+        expect(getField(tree, "address").editability).toBe("presentation");
+        expect(getField(tree, "address").meta.description).toBe("Home");
     });
 
     it("readOnly: false overrides component readOnly for the subtree", () => {
@@ -375,13 +350,12 @@ describe("walk — field overrides", () => {
             componentMeta: { readOnly: true },
             fieldOverrides: { address: { readOnly: false } },
         });
-        assert.equal(getField(tree, "address").editability, "editable");
-        assert.equal(
-            getField(tree, "address", "street").editability,
+        expect(getField(tree, "address").editability).toBe("editable");
+        expect(getField(tree, "address", "street").editability).toBe(
             "editable"
         );
-        assert.equal(getField(tree, "address", "city").editability, "editable");
-        assert.equal(getField(tree, "name").editability, "presentation");
+        expect(getField(tree, "address", "city").editability).toBe("editable");
+        expect(getField(tree, "name").editability).toBe("presentation");
     });
 
     it("readOnly: true on nested child overrides parent readOnly: false", () => {
@@ -391,13 +365,11 @@ describe("walk — field overrides", () => {
                 address: { readOnly: false, city: { readOnly: true } },
             },
         });
-        assert.equal(getField(tree, "address").editability, "editable");
-        assert.equal(
-            getField(tree, "address", "street").editability,
+        expect(getField(tree, "address").editability).toBe("editable");
+        expect(getField(tree, "address", "street").editability).toBe(
             "editable"
         );
-        assert.equal(
-            getField(tree, "address", "city").editability,
+        expect(getField(tree, "address", "city").editability).toBe(
             "presentation"
         );
     });
@@ -410,24 +382,24 @@ describe("walk — field overrides", () => {
 describe("walk — constraints", () => {
     it("extracts string constraints (minLength, maxLength)", () => {
         const tree = walk({ type: "string", minLength: 1, maxLength: 100 }, {});
-        assert.equal(tree.constraints.minLength, 1);
-        assert.equal(tree.constraints.maxLength, 100);
+        expect(tree.constraints.minLength).toBe(1);
+        expect(tree.constraints.maxLength).toBe(100);
     });
 
     it("extracts number constraints (minimum, maximum)", () => {
         const tree = walk({ type: "number", minimum: 0, maximum: 150 }, {});
-        assert.equal(tree.constraints.minimum, 0);
-        assert.equal(tree.constraints.maximum, 150);
+        expect(tree.constraints.minimum).toBe(0);
+        expect(tree.constraints.maximum).toBe(150);
     });
 
     it("extracts email format", () => {
         const tree = walk({ type: "string", format: "email" }, {});
-        assert.equal(tree.constraints.format, "email");
+        expect(tree.constraints.format).toBe("email");
     });
 
     it("extracts url format", () => {
         const tree = walk({ type: "string", format: "uri" }, {});
-        assert.equal(tree.constraints.format, "uri");
+        expect(tree.constraints.format).toBe("uri");
     });
 });
 
@@ -441,8 +413,8 @@ describe("walk — nullable", () => {
             { anyOf: [{ type: "string" }, { type: "null" }] },
             {}
         );
-        assert.equal(tree.type, "string");
-        assert.equal(tree.isNullable, true);
+        expect(tree.type).toBe("string");
+        expect(tree.isNullable).toBe(true);
     });
 });
 
@@ -453,9 +425,11 @@ describe("walk — nullable", () => {
 describe("walk — arrays", () => {
     it("walks an array with items schema", () => {
         const tree = walk({ type: "array", items: { type: "string" } }, {});
-        assert.equal(tree.type, "array");
-        assert.ok(tree.element);
-        assert.equal(tree.element.type, "string");
+        expect(tree.type).toBe("array");
+        expect(tree.element).toBeTruthy();
+        expect(assertDefined(tree.element, "expected element").type).toBe(
+            "string"
+        );
     });
 
     it("walks an array of objects", () => {
@@ -470,11 +444,12 @@ describe("walk — arrays", () => {
             },
             {}
         );
-        assert.equal(tree.type, "array");
-        assert.ok(tree.element);
-        assert.equal(tree.element.type, "object");
-        assert.ok(tree.element.fields);
-        assert.ok("name" in tree.element.fields);
+        expect(tree.type).toBe("array");
+        expect(tree.element).toBeTruthy();
+        const element = assertDefined(tree.element, "expected element");
+        expect(element.type).toBe("object");
+        expect(element.fields).toBeTruthy();
+        expect("name" in assertDefined(element.fields, "fields")).toBeTruthy();
     });
 });
 
@@ -488,8 +463,8 @@ describe("walk — unions", () => {
             { oneOf: [{ type: "string" }, { type: "number" }] },
             {}
         );
-        assert.equal(tree.type, "union");
-        assert.equal(tree.options?.length, 2);
+        expect(tree.type).toBe("union");
+        expect(tree.options?.length).toBe(2);
     });
 
     it("walks a discriminated union (oneOf with const)", () => {
@@ -516,8 +491,8 @@ describe("walk — unions", () => {
             },
             {}
         );
-        assert.equal(tree.type, "discriminatedUnion");
-        assert.equal(tree.discriminator, "type");
+        expect(tree.type).toBe("discriminatedUnion");
+        expect(tree.discriminator).toBe("type");
     });
 });
 
@@ -544,10 +519,14 @@ describe("walk — allOf", () => {
             },
             {}
         );
-        assert.equal(tree.type, "object");
-        assert.ok(tree.fields);
-        assert.ok("name" in tree.fields);
-        assert.ok("age" in tree.fields);
+        expect(tree.type).toBe("object");
+        expect(tree.fields).toBeTruthy();
+        expect(
+            "name" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
+        expect(
+            "age" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
     });
 });
 
@@ -558,7 +537,7 @@ describe("walk — allOf", () => {
 describe("walk — meta", () => {
     it("extracts description from JSON Schema", () => {
         const tree = walk({ type: "string", description: "Full name" }, {});
-        assert.equal(tree.meta.description, "Full name");
+        expect(tree.meta.description).toBe("Full name");
     });
 
     it("extracts custom meta (component hint)", () => {
@@ -566,18 +545,18 @@ describe("walk — meta", () => {
             { type: "string", description: "Email", component: "text" },
             {}
         );
-        assert.equal(tree.meta.description, "Email");
-        assert.equal(tree.meta.component, "text");
+        expect(tree.meta.description).toBe("Email");
+        expect(tree.meta.component).toBe("text");
     });
 
     it("extracts readOnly from JSON Schema", () => {
         const tree = walk({ type: "string", readOnly: true }, {});
-        assert.equal(tree.meta.readOnly, true);
+        expect(tree.meta.readOnly).toBe(true);
     });
 
     it("extracts writeOnly from JSON Schema", () => {
         const tree = walk({ type: "string", writeOnly: true }, {});
-        assert.equal(tree.meta.writeOnly, true);
+        expect(tree.meta.writeOnly).toBe(true);
     });
 });
 
@@ -604,10 +583,10 @@ describe("walk — $ref resolution", () => {
             },
         };
         const tree = walk(rootDocument, { rootDocument });
-        assert.equal(tree.type, "object");
+        expect(tree.type).toBe("object");
         const user = getField(tree, "user");
-        assert.equal(user.type, "object");
-        assert.equal(getField(user, "name").type, "string");
+        expect(user.type).toBe("object");
+        expect(getField(user, "name").type).toBe("string");
     });
 });
 
@@ -624,8 +603,10 @@ describe("walk — record", () => {
             },
             {}
         );
-        assert.equal(tree.type, "record");
-        assert.ok(tree.valueType);
-        assert.equal(tree.valueType.type, "number");
+        expect(tree.type).toBe("record");
+        expect(tree.valueType).toBeTruthy();
+        expect(assertDefined(tree.valueType, "expected valueType").type).toBe(
+            "number"
+        );
     });
 });

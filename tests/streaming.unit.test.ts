@@ -2,8 +2,7 @@
  * Streaming HTML renderer tests.
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import {
     renderToHtmlChunks,
@@ -28,10 +27,10 @@ describe("renderToHtmlChunks", () => {
             }),
         ];
         // Should have: opening tag, field chunks, closing tag
-        assert.ok(
-            chunks.length >= 3,
+        expect(
+            chunks.length,
             `Expected >= 3 chunks, got ${String(chunks.length)}`
-        );
+        ).toBeGreaterThanOrEqual(3);
     });
 
     it("concatenated chunks equal renderToHtml output", () => {
@@ -46,7 +45,7 @@ describe("renderToHtmlChunks", () => {
         const fullHtml = renderToHtml(schema, options);
         const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
 
-        assert.equal(streamedHtml, fullHtml);
+        expect(streamedHtml).toBe(fullHtml);
     });
 
     it("yields chunks for nested objects", () => {
@@ -62,10 +61,10 @@ describe("renderToHtmlChunks", () => {
                 readOnly: true,
             }),
         ];
-        assert.ok(chunks.length >= 2);
+        expect(chunks.length >= 2).toBeTruthy();
         const full = chunks.join("");
-        assert.match(full, /London/);
-        assert.match(full, /SW1A/);
+        expect(full).toMatch(/London/);
+        expect(full).toMatch(/SW1A/);
     });
 
     it("yields one chunk for a leaf type", () => {
@@ -74,7 +73,7 @@ describe("renderToHtmlChunks", () => {
             ...renderToHtmlChunks(schema, { value: { name: "Ada" } }),
         ];
         // Opening + field (leaf rendered inline) + closing
-        assert.ok(chunks.length >= 1);
+        expect(chunks.length >= 1).toBeTruthy();
     });
 
     it("yields chunks for arrays", () => {
@@ -87,10 +86,10 @@ describe("renderToHtmlChunks", () => {
                 readOnly: true,
             }),
         ];
-        assert.ok(chunks.length >= 3);
+        expect(chunks.length >= 3).toBeTruthy();
         const full = chunks.join("");
-        assert.match(full, /<ul/);
-        assert.match(full, /<li/);
+        expect(full).toMatch(/<ul/);
+        expect(full).toMatch(/<li/);
     });
 
     it("handles empty objects", () => {
@@ -99,7 +98,7 @@ describe("renderToHtmlChunks", () => {
             ...renderToHtmlChunks(schema, { value: {}, readOnly: true }),
         ];
         const full = chunks.join("");
-        assert.match(full, /sc-object/);
+        expect(full).toMatch(/sc-object/);
     });
 
     it("handles JSON Schema input", () => {
@@ -118,7 +117,7 @@ describe("renderToHtmlChunks", () => {
             }),
         ];
         const full = chunks.join("");
-        assert.match(full, /Ada/);
+        expect(full).toMatch(/Ada/);
     });
 });
 
@@ -142,7 +141,7 @@ describe("renderToHtmlStream", () => {
             asyncChunks.push(chunk);
         }
 
-        assert.deepEqual(asyncChunks, syncChunks);
+        expect(asyncChunks).toStrictEqual(syncChunks);
     });
 
     it("produces valid HTML when concatenated", async () => {
@@ -158,8 +157,8 @@ describe("renderToHtmlStream", () => {
             chunks.push(chunk);
         }
         const html = chunks.join("");
-        assert.match(html, /Ada/);
-        assert.match(html, /Yes/);
+        expect(html).toMatch(/Ada/);
+        expect(html).toMatch(/Yes/);
     });
 });
 
@@ -189,7 +188,7 @@ describe("renderToHtmlReadable", () => {
             result = await reader.read();
         }
 
-        assert.equal(actualChunks.join(""), expected);
+        expect(actualChunks.join("")).toBe(expected);
     });
 
     it("can be cancelled", async () => {
@@ -205,7 +204,7 @@ describe("renderToHtmlReadable", () => {
         await reader.cancel();
 
         // Should not throw
-        assert.ok(true);
+        expect(true).toBeTruthy();
     });
 });
 
@@ -225,7 +224,7 @@ describe("Streaming equivalence with renderToHtml", () => {
         const fullHtml = renderToHtml(schema, options);
         const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
 
-        assert.equal(streamedHtml, fullHtml);
+        expect(streamedHtml).toBe(fullHtml);
     });
 
     it("matches for read-only object", () => {
@@ -241,7 +240,7 @@ describe("Streaming equivalence with renderToHtml", () => {
         const fullHtml = renderToHtml(schema, options);
         const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
 
-        assert.equal(streamedHtml, fullHtml);
+        expect(streamedHtml).toBe(fullHtml);
     });
 
     it("matches for array", () => {
@@ -254,6 +253,6 @@ describe("Streaming equivalence with renderToHtml", () => {
         const fullHtml = renderToHtml(schema, options);
         const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
 
-        assert.equal(streamedHtml, fullHtml);
+        expect(streamedHtml).toBe(fullHtml);
     });
 });

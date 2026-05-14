@@ -5,8 +5,7 @@
  * JSON Schema passthrough, and OpenAPI ref resolution.
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { detectSchemaKind, normaliseSchema } from "../src/core/adapter.ts";
 
@@ -16,26 +15,25 @@ import { detectSchemaKind, normaliseSchema } from "../src/core/adapter.ts";
 
 describe("detectSchemaKind", () => {
     it("detects Zod 4 schemas", () => {
-        assert.equal(detectSchemaKind(z.string()), "zod4");
+        expect(detectSchemaKind(z.string())).toBe("zod4");
     });
 
     it("detects Zod 4 object schemas", () => {
-        assert.equal(detectSchemaKind(z.object({ name: z.string() })), "zod4");
+        expect(detectSchemaKind(z.object({ name: z.string() }))).toBe("zod4");
     });
 
     it("detects OpenAPI documents", () => {
-        assert.equal(detectSchemaKind({ openapi: "3.1.0" }), "openapi");
+        expect(detectSchemaKind({ openapi: "3.1.0" })).toBe("openapi");
     });
 
     it("detects plain JSON Schema objects", () => {
-        assert.equal(
-            detectSchemaKind({ type: "object", properties: {} }),
+        expect(detectSchemaKind({ type: "object", properties: {} })).toBe(
             "jsonSchema"
         );
     });
 
     it("returns jsonSchema for unknown objects", () => {
-        assert.equal(detectSchemaKind({ foo: "bar" }), "jsonSchema");
+        expect(detectSchemaKind({ foo: "bar" })).toBe("jsonSchema");
     });
 });
 
@@ -47,28 +45,30 @@ describe("normaliseSchema — Zod 4", () => {
     it("converts Zod schema to JSON Schema", () => {
         const schema = z.object({ name: z.string() });
         const result = normaliseSchema(schema);
-        assert.equal(result.jsonSchema.type, "object");
+        expect(result.jsonSchema.type).toBe("object");
         const props = result.jsonSchema.properties;
-        assert.ok(typeof props === "object" && props !== null);
-        assert.ok("name" in props);
+        expect(typeof props === "object" && props !== null).toBeTruthy();
+        if (typeof props === "object" && props !== null) {
+            expect("name" in props).toBeTruthy();
+        }
     });
 
     it("preserves original Zod schema for validation", () => {
         const schema = z.object({ name: z.string() });
         const result = normaliseSchema(schema);
-        assert.equal(result.zodSchema, schema);
+        expect(result.zodSchema).toBe(schema);
     });
 
     it("extracts root meta from a Zod schema's JSON Schema output", () => {
         const schema = z.object({ name: z.string() }).meta({ readOnly: true });
         const result = normaliseSchema(schema);
-        assert.equal(result.rootMeta?.readOnly, true);
+        expect(result.rootMeta?.readOnly).toBe(true);
     });
 
     it("returns undefined rootMeta when no meta is set", () => {
         const schema = z.object({ name: z.string() });
         const result = normaliseSchema(schema);
-        assert.equal(result.rootMeta, undefined);
+        expect(result.rootMeta).toBe(undefined);
     });
 });
 
@@ -87,8 +87,8 @@ describe("normaliseSchema — JSON Schema", () => {
             required: ["name"],
         };
         const result = normaliseSchema(jsonSchema);
-        assert.equal(result.jsonSchema, jsonSchema);
-        assert.equal(result.zodSchema, undefined);
+        expect(result.jsonSchema).toBe(jsonSchema);
+        expect(result.zodSchema).toBe(undefined);
     });
 
     it("extracts rootMeta from JSON Schema", () => {
@@ -100,7 +100,7 @@ describe("normaliseSchema — JSON Schema", () => {
             },
         };
         const result = normaliseSchema(jsonSchema);
-        assert.equal(result.rootMeta?.readOnly, true);
+        expect(result.rootMeta?.readOnly).toBe(true);
     });
 });
 
@@ -129,24 +129,24 @@ describe("normaliseSchema — OpenAPI", () => {
 
     it("resolves #/components/schemas/User", () => {
         const result = normaliseSchema(openApiDoc, "#/components/schemas/User");
-        assert.equal(result.jsonSchema.type, "object");
-        assert.ok(result.jsonSchema.properties);
+        expect(result.jsonSchema.type).toBe("object");
+        expect(result.jsonSchema.properties).toBeTruthy();
     });
 
     it("uses the full OpenAPI doc as rootDocument for $ref resolution", () => {
         const result = normaliseSchema(openApiDoc, "#/components/schemas/User");
-        assert.equal(result.rootDocument, openApiDoc);
+        expect(result.rootDocument).toBe(openApiDoc);
     });
 
     it("throws for missing ref", () => {
-        assert.throws(() => {
+        expect(() => {
             normaliseSchema(openApiDoc, "#/components/schemas/NonExistent");
-        });
+        }).toThrow();
     });
 
     it("uses first schema when no ref is given", () => {
         const result = normaliseSchema(openApiDoc);
-        assert.equal(result.jsonSchema.type, "object");
+        expect(result.jsonSchema.type).toBe("object");
     });
 
     it("throws for empty components/schemas", () => {
@@ -154,9 +154,9 @@ describe("normaliseSchema — OpenAPI", () => {
             openapi: "3.1.0",
             components: { schemas: {} },
         };
-        assert.throws(() => {
+        expect(() => {
             normaliseSchema(doc);
-        });
+        }).toThrow();
     });
 
     it("resolves path/method ref for request body", () => {
@@ -183,7 +183,7 @@ describe("normaliseSchema — OpenAPI", () => {
             },
         };
         const result = normaliseSchema(doc, "/users/post");
-        assert.equal(result.jsonSchema.type, "object");
-        assert.ok(result.jsonSchema.properties);
+        expect(result.jsonSchema.type).toBe("object");
+        expect(result.jsonSchema.properties).toBeTruthy();
     });
 });

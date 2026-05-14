@@ -1,8 +1,8 @@
 /**
  * Tests for discriminated union rendering, date/time inputs, and schema defaults.
  */
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
+import { assertDefined } from "./helpers.ts";
 import { z } from "zod";
 import { walk } from "../src/core/walker.ts";
 import { renderToHtml } from "../src/html/renderToHtml.ts";
@@ -36,19 +36,23 @@ describe("discriminated union — walker", () => {
             ],
         });
 
-        assert.equal(tree.type, "discriminatedUnion");
-        assert.equal(tree.discriminator, "type");
-        assert.ok(tree.options !== undefined);
-        assert.equal(tree.options.length, 2);
+        expect(tree.type).toBe("discriminatedUnion");
+        expect(tree.discriminator).toBe("type");
+        expect(tree.options !== undefined).toBeTruthy();
+        expect(assertDefined(tree.options, "expected options").length).toBe(2);
 
         // First option should have a literal field for the discriminator
-        const emailOption = tree.options[0];
-        assert.ok(emailOption !== undefined);
-        assert.equal(emailOption.type, "object");
-        const typeField = emailOption.fields?.type;
-        assert.ok(typeField !== undefined);
-        assert.equal(typeField.type, "literal");
-        assert.deepEqual(typeField.literalValues, ["email"]);
+        const emailOption = assertDefined(
+            assertDefined(tree.options, "expected options")[0],
+            "email option"
+        );
+        expect(emailOption.type).toBe("object");
+        const typeField = assertDefined(
+            assertDefined(emailOption.fields, "email fields").type,
+            "type field"
+        );
+        expect(typeField.type).toBe("literal");
+        expect(typeField.literalValues).toStrictEqual(["email"]);
     });
 
     it("produces correct option labels from const values", () => {
@@ -74,13 +78,13 @@ describe("discriminated union — walker", () => {
             ],
         });
 
-        assert.equal(tree.type, "discriminatedUnion");
-        assert.equal(tree.discriminator, "kind");
+        expect(tree.type).toBe("discriminatedUnion");
+        expect(tree.discriminator).toBe("kind");
 
         const circleOption = tree.options?.[0];
         const rectOption = tree.options?.[1];
-        assert.equal(circleOption?.fields?.kind?.literalValues?.[0], "circle");
-        assert.equal(rectOption?.fields?.kind?.literalValues?.[0], "rectangle");
+        expect(circleOption?.fields?.kind?.literalValues?.[0]).toBe("circle");
+        expect(rectOption?.fields?.kind?.literalValues?.[0]).toBe("rectangle");
     });
 });
 
@@ -114,19 +118,19 @@ describe("discriminated union — HTML", () => {
         const html = renderToHtml(schema, {
             value: { type: "email", address: "user@example.com" },
         });
-        assert.ok(html.includes("sc-discriminated-union"));
-        assert.ok(html.includes("sc-tabs"));
-        assert.ok(html.includes("sc-tab"));
-        assert.ok(html.includes("email"));
-        assert.ok(html.includes("phone"));
+        expect(html.includes("sc-discriminated-union")).toBeTruthy();
+        expect(html.includes("sc-tabs")).toBeTruthy();
+        expect(html.includes("sc-tab")).toBeTruthy();
+        expect(html.includes("email")).toBeTruthy();
+        expect(html.includes("phone")).toBeTruthy();
     });
 
     it("renders active tab based on discriminator value", () => {
         const html = renderToHtml(schema, {
             value: { type: "phone", number: "+1234567890" },
         });
-        assert.ok(html.includes("sc-tab--active"));
-        assert.ok(html.includes("+1234567890"));
+        expect(html.includes("sc-tab--active")).toBeTruthy();
+        expect(html.includes("+1234567890")).toBeTruthy();
     });
 
     it("renders read-only discriminated union without tabs", () => {
@@ -134,8 +138,8 @@ describe("discriminated union — HTML", () => {
             value: { type: "email", address: "user@example.com" },
             readOnly: true,
         });
-        assert.ok(!html.includes("sc-tabs"));
-        assert.ok(html.includes("user@example.com"));
+        expect(!html.includes("sc-tabs")).toBeTruthy();
+        expect(html.includes("user@example.com")).toBeTruthy();
     });
 
     it("renders discriminated union via streaming with tabs", () => {
@@ -145,8 +149,8 @@ describe("discriminated union — HTML", () => {
             }),
         ];
         const html = chunks.join("");
-        assert.ok(html.includes("sc-discriminated-union"));
-        assert.ok(html.includes("sc-tabs"));
+        expect(html.includes("sc-discriminated-union")).toBeTruthy();
+        expect(html.includes("sc-tabs")).toBeTruthy();
     });
 });
 
@@ -160,8 +164,8 @@ describe("date/time — walker", () => {
             type: "string",
             format: "date",
         });
-        assert.equal(tree.type, "string");
-        assert.equal(tree.constraints.format, "date");
+        expect(tree.type).toBe("string");
+        expect(tree.constraints.format).toBe("date");
     });
 
     it("extracts time format constraint", () => {
@@ -169,8 +173,8 @@ describe("date/time — walker", () => {
             type: "string",
             format: "time",
         });
-        assert.equal(tree.type, "string");
-        assert.equal(tree.constraints.format, "time");
+        expect(tree.type).toBe("string");
+        expect(tree.constraints.format).toBe("time");
     });
 
     it("extracts date-time format constraint", () => {
@@ -178,8 +182,8 @@ describe("date/time — walker", () => {
             type: "string",
             format: "date-time",
         });
-        assert.equal(tree.type, "string");
-        assert.equal(tree.constraints.format, "date-time");
+        expect(tree.type).toBe("string");
+        expect(tree.constraints.format).toBe("date-time");
     });
 });
 
@@ -193,8 +197,8 @@ describe("date/time — HTML", () => {
             { type: "string", format: "date" },
             { value: "2024-01-15" }
         );
-        assert.ok(html.includes('type="date"'));
-        assert.ok(html.includes("2024-01-15"));
+        expect(html.includes('type="date"')).toBeTruthy();
+        expect(html.includes("2024-01-15")).toBeTruthy();
     });
 
     it("renders time input type", () => {
@@ -202,8 +206,8 @@ describe("date/time — HTML", () => {
             { type: "string", format: "time" },
             { value: "14:30" }
         );
-        assert.ok(html.includes('type="time"'));
-        assert.ok(html.includes("14:30"));
+        expect(html.includes('type="time"')).toBeTruthy();
+        expect(html.includes("14:30")).toBeTruthy();
     });
 
     it("renders datetime-local input type", () => {
@@ -211,8 +215,8 @@ describe("date/time — HTML", () => {
             { type: "string", format: "date-time" },
             { value: "2024-01-15T14:30:00Z" }
         );
-        assert.ok(html.includes('type="datetime-local"'));
-        assert.ok(html.includes("2024-01-15T14:30:00Z"));
+        expect(html.includes('type="datetime-local"')).toBeTruthy();
+        expect(html.includes("2024-01-15T14:30:00Z")).toBeTruthy();
     });
 
     it("renders date value read-only without input element", () => {
@@ -220,8 +224,8 @@ describe("date/time — HTML", () => {
             { type: "string", format: "date" },
             { value: "2024-01-15", readOnly: true }
         );
-        assert.ok(!html.includes("input"));
-        assert.ok(html.includes("sc-value"));
+        expect(!html.includes("input")).toBeTruthy();
+        expect(html.includes("sc-value")).toBeTruthy();
     });
 
     it("renders datetime-local via streaming", () => {
@@ -232,7 +236,7 @@ describe("date/time — HTML", () => {
             ),
         ];
         const html = chunks.join("");
-        assert.ok(html.includes('type="datetime-local"'));
+        expect(html.includes('type="datetime-local"')).toBeTruthy();
     });
 });
 
@@ -246,7 +250,7 @@ describe("schema defaults — walker", () => {
             type: "string",
             default: "hello",
         });
-        assert.equal(tree.defaultValue, "hello");
+        expect(tree.defaultValue).toBe("hello");
     });
 
     it("extracts numeric default", () => {
@@ -254,7 +258,7 @@ describe("schema defaults — walker", () => {
             type: "number",
             default: 42,
         });
-        assert.equal(tree.defaultValue, 42);
+        expect(tree.defaultValue).toBe(42);
     });
 
     it("extracts boolean default", () => {
@@ -262,7 +266,7 @@ describe("schema defaults — walker", () => {
             type: "boolean",
             default: true,
         });
-        assert.equal(tree.defaultValue, true);
+        expect(tree.defaultValue).toBe(true);
     });
 
     it("extracts default from object property", () => {
@@ -273,16 +277,16 @@ describe("schema defaults — walker", () => {
                 count: { type: "number", default: 0 },
             },
         });
-        assert.ok(tree.fields !== undefined);
-        assert.ok(tree.fields.name !== undefined);
-        assert.ok(tree.fields.count !== undefined);
-        assert.equal(tree.fields.name.defaultValue, "Unnamed");
-        assert.equal(tree.fields.count.defaultValue, 0);
+        const fields = assertDefined(tree.fields, "expected fields");
+        expect("name" in fields).toBeTruthy();
+        expect("count" in fields).toBeTruthy();
+        expect(assertDefined(fields.name, "name").defaultValue).toBe("Unnamed");
+        expect(assertDefined(fields.count, "count").defaultValue).toBe(0);
     });
 
     it("has no default when not specified", () => {
         const tree = walk({ type: "string" });
-        assert.equal(tree.defaultValue, undefined);
+        expect(tree.defaultValue).toBe(undefined);
     });
 });
 
@@ -296,7 +300,7 @@ describe("schema defaults — HTML", () => {
             type: "string",
             default: "fallback",
         });
-        assert.ok(html.includes("fallback"));
+        expect(html.includes("fallback")).toBeTruthy();
     });
 
     it("uses default value for number when value is undefined", () => {
@@ -304,7 +308,7 @@ describe("schema defaults — HTML", () => {
             type: "number",
             default: 99,
         });
-        assert.ok(html.includes("99"));
+        expect(html.includes("99")).toBeTruthy();
     });
 
     it("prefers explicit value over default", () => {
@@ -312,8 +316,8 @@ describe("schema defaults — HTML", () => {
             { type: "string", default: "fallback" },
             { value: "explicit" }
         );
-        assert.ok(html.includes("explicit"));
-        assert.ok(!html.includes("fallback"));
+        expect(html.includes("explicit")).toBeTruthy();
+        expect(!html.includes("fallback")).toBeTruthy();
     });
 
     it("uses default value via streaming when value is undefined", () => {
@@ -324,7 +328,7 @@ describe("schema defaults — HTML", () => {
             }),
         ];
         const html = chunks.join("");
-        assert.ok(html.includes("stream-default"));
+        expect(html.includes("stream-default")).toBeTruthy();
     });
 
     it("uses object property defaults when value is undefined", () => {
@@ -334,7 +338,7 @@ describe("schema defaults — HTML", () => {
                 name: { type: "string", default: "World" },
             },
         });
-        assert.ok(html.includes("World"));
+        expect(html.includes("World")).toBeTruthy();
     });
 });
 
@@ -354,11 +358,13 @@ describe("schema defaults — Zod", () => {
             rootDocument: normalised.rootDocument,
         });
 
-        assert.ok(tree.fields !== undefined);
-        assert.ok(tree.fields.name !== undefined);
-        assert.ok(tree.fields.active !== undefined);
-        assert.equal(tree.fields.name.defaultValue, "Anonymous");
-        assert.equal(tree.fields.active.defaultValue, true);
+        const fields = assertDefined(tree.fields, "expected fields");
+        expect("name" in fields).toBeTruthy();
+        expect("active" in fields).toBeTruthy();
+        expect(assertDefined(fields.name, "name").defaultValue).toBe(
+            "Anonymous"
+        );
+        expect(assertDefined(fields.active, "active").defaultValue).toBe(true);
     });
 
     it("uses default value from Zod schema in HTML output", () => {
@@ -367,7 +373,7 @@ describe("schema defaults — Zod", () => {
         });
 
         const html = renderToHtml(schema);
-        assert.ok(html.includes("Hello"));
+        expect(html.includes("Hello")).toBeTruthy();
     });
 });
 
@@ -381,7 +387,7 @@ describe("file upload — walker", () => {
             type: "string",
             format: "binary",
         });
-        assert.equal(tree.type, "file");
+        expect(tree.type).toBe("file");
     });
 
     it("extracts contentMediaType as mimeTypes constraint", () => {
@@ -390,8 +396,8 @@ describe("file upload — walker", () => {
             format: "binary",
             contentMediaType: "image/png",
         });
-        assert.equal(tree.type, "file");
-        assert.deepEqual(tree.constraints.mimeTypes, ["image/png"]);
+        expect(tree.type).toBe("file");
+        expect(tree.constraints.mimeTypes).toStrictEqual(["image/png"]);
     });
 
     it("has no mimeTypes when contentMediaType is absent", () => {
@@ -399,8 +405,8 @@ describe("file upload — walker", () => {
             type: "string",
             format: "binary",
         });
-        assert.equal(tree.type, "file");
-        assert.equal(tree.constraints.mimeTypes, undefined);
+        expect(tree.type).toBe("file");
+        expect(tree.constraints.mimeTypes).toBe(undefined);
     });
 });
 
@@ -411,7 +417,7 @@ describe("file upload — walker", () => {
 describe("file upload — HTML", () => {
     it("renders file input type", () => {
         const html = renderToHtml({ type: "string", format: "binary" }, {});
-        assert.ok(html.includes('type="file"'));
+        expect(html.includes('type="file"')).toBeTruthy();
     });
 
     it("sets accept attribute from mimeTypes", () => {
@@ -423,7 +429,7 @@ describe("file upload — HTML", () => {
             },
             {}
         );
-        assert.ok(html.includes('accept="image/png"'));
+        expect(html.includes('accept="image/png"')).toBeTruthy();
     });
 
     it("renders read-only file field without input", () => {
@@ -431,9 +437,9 @@ describe("file upload — HTML", () => {
             { type: "string", format: "binary" },
             { readOnly: true }
         );
-        assert.ok(!html.includes('type="file"'));
-        assert.ok(html.includes("File field"));
-        assert.ok(html.includes('aria-readonly="true"'));
+        expect(!html.includes('type="file"')).toBeTruthy();
+        expect(html.includes("File field")).toBeTruthy();
+        expect(html.includes('aria-readonly="true"')).toBeTruthy();
     });
 
     it("adds aria-required for required file field", () => {
@@ -450,7 +456,7 @@ describe("file upload — HTML", () => {
             },
             { value: { avatar: undefined } }
         );
-        assert.ok(html.includes('aria-required="true"'));
+        expect(html.includes('aria-required="true"')).toBeTruthy();
     });
 
     it("renders file input via streaming", () => {
@@ -458,7 +464,7 @@ describe("file upload — HTML", () => {
             ...renderToHtmlChunks({ type: "string", format: "binary" }, {}),
         ];
         const html = chunks.join("");
-        assert.ok(html.includes('type="file"'));
+        expect(html.includes('type="file"')).toBeTruthy();
     });
 
     it("renders file input from Zod schema", () => {
@@ -466,6 +472,6 @@ describe("file upload — HTML", () => {
             avatar: z.string().meta({ format: "binary" }),
         });
         const html = renderToHtml(schema, { value: { avatar: undefined } });
-        assert.ok(html.includes('type="file"'));
+        expect(html.includes('type="file"')).toBeTruthy();
     });
 });

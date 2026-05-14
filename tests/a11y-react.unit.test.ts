@@ -10,8 +10,7 @@
  * - Read-only aria-readonly
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { renderToHtml } from "../src/html/renderToHtml.ts";
 import { renderToHtmlChunks } from "../src/html/renderToHtmlStream.ts";
@@ -30,10 +29,10 @@ describe("label-input association (HTML)", () => {
             value: { name: "Ada", email: "ada@example.com" },
         });
         // Labels should have for= matching input ids
-        assert.match(html, /for="sc-name"/);
-        assert.match(html, /id="sc-name"/);
-        assert.match(html, /for="sc-email"/);
-        assert.match(html, /id="sc-email"/);
+        expect(html).toMatch(/for="sc-name"/);
+        expect(html).toMatch(/id="sc-name"/);
+        expect(html).toMatch(/for="sc-email"/);
+        expect(html).toMatch(/id="sc-email"/);
     });
 
     it("uses nested path for nested object fields", () => {
@@ -45,8 +44,8 @@ describe("label-input association (HTML)", () => {
         const html = renderToHtml(schema, {
             value: { address: { city: "London" } },
         });
-        assert.match(html, /for="sc-address-city"/);
-        assert.match(html, /id="sc-address-city"/);
+        expect(html).toMatch(/for="sc-address-city"/);
+        expect(html).toMatch(/id="sc-address-city"/);
     });
 });
 
@@ -80,7 +79,7 @@ describe("discriminated union — ARIA tabs (HTML)", () => {
         const html = renderToHtml(schema, {
             value: { type: "email", address: "user@example.com" },
         });
-        assert.match(html, /role="tablist"/);
+        expect(html).toMatch(/role="tablist"/);
     });
 
     it("adds role=tab to each tab button", () => {
@@ -89,50 +88,50 @@ describe("discriminated union — ARIA tabs (HTML)", () => {
         });
         // Count role="tab" occurrences — should be 2
         const matches = html.match(/role="tab"/g);
-        assert.equal(matches?.length, 2);
+        expect(matches?.length).toBe(2);
     });
 
     it("sets aria-selected=true on active tab", () => {
         const html = renderToHtml(schema, {
             value: { type: "email", address: "user@example.com" },
         });
-        assert.match(html, /aria-selected="true"/);
+        expect(html).toMatch(/aria-selected="true"/);
     });
 
     it("sets tabindex=0 on active tab, -1 on inactive", () => {
         const html = renderToHtml(schema, {
             value: { type: "email", address: "user@example.com" },
         });
-        assert.match(html, /tabindex="0"/);
-        assert.match(html, /tabindex="-1"/);
+        expect(html).toMatch(/tabindex="0"/);
+        expect(html).toMatch(/tabindex="-1"/);
     });
 
     it("adds aria-controls on tabs pointing to panel", () => {
         const html = renderToHtml(schema, {
             value: { type: "email", address: "user@example.com" },
         });
-        assert.match(html, /aria-controls="sc--panel"/);
+        expect(html).toMatch(/aria-controls="sc--panel"/);
     });
 
     it("adds role=tabpanel to content area", () => {
         const html = renderToHtml(schema, {
             value: { type: "email", address: "user@example.com" },
         });
-        assert.match(html, /role="tabpanel"/);
+        expect(html).toMatch(/role="tabpanel"/);
     });
 
     it("adds aria-labelledby on panel pointing to active tab", () => {
         const html = renderToHtml(schema, {
             value: { type: "email", address: "user@example.com" },
         });
-        assert.match(html, /aria-labelledby="sc--tab-0"/);
+        expect(html).toMatch(/aria-labelledby="sc--tab-0"/);
     });
 
     it("adds aria-label on tablist", () => {
         const html = renderToHtml(schema, {
             value: { type: "email", address: "user@example.com" },
         });
-        assert.match(html, /aria-label="Select variant"/);
+        expect(html).toMatch(/aria-label="Select variant"/);
     });
 
     it("produces WAI-ARIA tabs via streaming", () => {
@@ -142,10 +141,10 @@ describe("discriminated union — ARIA tabs (HTML)", () => {
             }),
         ];
         const html = chunks.join("");
-        assert.match(html, /role="tablist"/);
-        assert.match(html, /role="tab"/);
-        assert.match(html, /role="tabpanel"/);
-        assert.match(html, /aria-selected="true"/);
+        expect(html).toMatch(/role="tablist"/);
+        expect(html).toMatch(/role="tab"/);
+        expect(html).toMatch(/role="tabpanel"/);
+        expect(html).toMatch(/aria-selected="true"/);
     });
 
     it("does not produce tabs in read-only mode", () => {
@@ -153,8 +152,8 @@ describe("discriminated union — ARIA tabs (HTML)", () => {
             value: { type: "email", address: "user@example.com" },
             readOnly: true,
         });
-        assert.doesNotMatch(html, /role="tablist"/);
-        assert.doesNotMatch(html, /role="tab"/);
+        expect(html).not.toMatch(/role="tablist"/);
+        expect(html).not.toMatch(/role="tab"/);
     });
 });
 
@@ -173,7 +172,7 @@ describe("role attributes (HTML)", () => {
             value: { tags: ["a", "b"] },
         });
         // Arrays use <ul> for read-only, div for editable
-        assert.ok(html.includes("sc-array"));
+        expect(html.includes("sc-array")).toBeTruthy();
     });
 
     it("adds role=group to records", () => {
@@ -184,7 +183,7 @@ describe("role attributes (HTML)", () => {
             },
             { value: { foo: "bar", baz: "qux" } }
         );
-        assert.match(html, /role="group"/);
+        expect(html).toMatch(/role="group"/);
     });
 });
 
@@ -196,8 +195,8 @@ describe("required indicators (HTML)", () => {
     it("includes aria-hidden=true on asterisk", () => {
         const schema = z.object({ name: z.string() });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /aria-hidden="true"/);
-        assert.match(html, /sc-required/);
+        expect(html).toMatch(/aria-hidden="true"/);
+        expect(html).toMatch(/sc-required/);
     });
 
     it("shows asterisk in label for required field", () => {
@@ -206,8 +205,8 @@ describe("required indicators (HTML)", () => {
         });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
         // The label should contain the asterisk
-        assert.ok(html.includes("sc-required"));
-        assert.ok(html.includes("aria-hidden"));
+        expect(html.includes("sc-required")).toBeTruthy();
+        expect(html.includes("aria-hidden")).toBeTruthy();
     });
 });
 
@@ -221,13 +220,13 @@ describe("checkbox accessibility (HTML)", () => {
             active: z.boolean().meta({ description: "Active status" }),
         });
         const html = renderToHtml(schema, { value: { active: true } });
-        assert.match(html, /aria-label="Active status"/);
+        expect(html).toMatch(/aria-label="Active status"/);
     });
 
     it("adds aria-required when required", () => {
         const schema = z.object({ active: z.boolean() });
         const html = renderToHtml(schema, { value: { active: true } });
-        assert.match(html, /aria-required="true"/);
+        expect(html).toMatch(/aria-required="true"/);
     });
 });
 
@@ -241,7 +240,7 @@ describe("read-only aria-readonly (HTML)", () => {
             value: { name: "Ada" },
             readOnly: true,
         });
-        assert.match(html, /aria-readonly="true"/);
+        expect(html).toMatch(/aria-readonly="true"/);
     });
 });
 
@@ -255,7 +254,7 @@ describe("constraint hints with aria-describedby (HTML)", () => {
             name: z.string().min(3).max(50).meta({ description: "Name" }),
         });
         const html = renderToHtml(schema, { value: { name: "Ada" } });
-        assert.match(html, /aria-describedby="sc-name-hint"/);
-        assert.match(html, /id="sc-name-hint"/);
+        expect(html).toMatch(/aria-describedby="sc-name-hint"/);
+        expect(html).toMatch(/id="sc-name-hint"/);
     });
 });

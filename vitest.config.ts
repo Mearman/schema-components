@@ -9,7 +9,35 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
     test: {
+        coverage: {
+            provider: "v8",
+            include: [
+                "src/core/**/*.ts",
+                "src/html/**/*.ts",
+                "src/openapi/parser.ts",
+            ],
+            thresholds: {
+                lines: 80,
+                branches: 60,
+                functions: 80,
+            },
+        },
         projects: [
+            {
+                test: {
+                    name: "unit",
+                    include: [
+                        "tests/**/*.unit.test.ts",
+                        "tests/**/*.integration.test.ts",
+                    ],
+                },
+            },
+            {
+                test: {
+                    name: "e2e",
+                    include: ["tests/**/*.e2e.test.ts"],
+                },
+            },
             {
                 extends: true,
                 plugins: [storybookTest({

@@ -8,12 +8,12 @@
  * The React rendering layer is tested separately (requires TSX runner).
  */
 
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { normaliseSchema } from "../src/core/adapter.ts";
 import { walk } from "../src/core/walker.ts";
 import type { SchemaMeta, WalkedField } from "../src/core/types.ts";
+import { assertDefined, getField } from "./helpers.ts";
 
 // ---------------------------------------------------------------------------
 // Helper: normalise + walk a schema
@@ -36,18 +36,6 @@ function walkSchema(
     });
 }
 
-function getField(tree: WalkedField, ...keys: string[]): WalkedField {
-    let current: WalkedField = tree;
-    for (const key of keys) {
-        const fields = current.fields;
-        assert.ok(fields, `Expected fields at ${keys.join(".")}`);
-        const child = fields[key];
-        assert.ok(child, `Expected field "${key}" at ${keys.join(".")}`);
-        current = child;
-    }
-    return current;
-}
-
 // ---------------------------------------------------------------------------
 // Zod schema → JSON Schema → walker pipeline
 // ---------------------------------------------------------------------------
@@ -60,41 +48,45 @@ describe("integration — Zod schema", () => {
                 age: z.number(),
             })
         );
-        assert.equal(tree.type, "object");
-        assert.ok(tree.fields);
-        assert.ok("name" in tree.fields);
-        assert.ok("age" in tree.fields);
+        expect(tree.type).toBe("object");
+        expect(tree.fields).toBeTruthy();
+        expect(
+            "name" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
+        expect(
+            "age" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
     });
 
     it("preserves constraints from Zod through JSON Schema", () => {
         const tree = walkSchema(z.string().min(5).max(100));
-        assert.equal(tree.type, "string");
-        assert.equal(tree.constraints.minLength, 5);
-        assert.equal(tree.constraints.maxLength, 100);
+        expect(tree.type).toBe("string");
+        expect(tree.constraints.minLength).toBe(5);
+        expect(tree.constraints.maxLength).toBe(100);
     });
 
     it("preserves format from Zod through JSON Schema", () => {
         const tree = walkSchema(z.email());
-        assert.equal(tree.constraints.format, "email");
+        expect(tree.constraints.format).toBe("email");
     });
 
     it("preserves readOnly from Zod .meta() through JSON Schema", () => {
         const tree = walkSchema(
             z.object({ id: z.string().meta({ readOnly: true }) })
         );
-        assert.equal(getField(tree, "id").editability, "presentation");
+        expect(getField(tree, "id").editability).toBe("presentation");
     });
 
     it("preserves writeOnly from Zod .meta() through JSON Schema", () => {
         const tree = walkSchema(
             z.object({ password: z.string().meta({ writeOnly: true }) })
         );
-        assert.equal(getField(tree, "password").editability, "input");
+        expect(getField(tree, "password").editability).toBe("input");
     });
 
     it("preserves custom meta through JSON Schema", () => {
         const tree = walkSchema(z.string().meta({ component: "richtext" }));
-        assert.equal(tree.meta.component, "richtext");
+        expect(tree.meta.component).toBe("richtext");
     });
 });
 
@@ -112,9 +104,9 @@ describe("integration — JSON Schema", () => {
             },
             required: ["name"],
         });
-        assert.equal(tree.type, "object");
-        assert.equal(getField(tree, "name").isOptional, false);
-        assert.equal(getField(tree, "age").isOptional, true);
+        expect(tree.type).toBe("object");
+        expect(getField(tree, "name").isOptional).toBe(false);
+        expect(getField(tree, "age").isOptional).toBe(true);
     });
 
     it("preserves writeOnly from JSON Schema (the key win)", () => {
@@ -124,16 +116,16 @@ describe("integration — JSON Schema", () => {
                 password: { type: "string", writeOnly: true },
             },
         });
-        assert.equal(getField(tree, "password").meta.writeOnly, true);
-        assert.equal(getField(tree, "password").editability, "input");
+        expect(getField(tree, "password").meta.writeOnly).toBe(true);
+        expect(getField(tree, "password").editability).toBe("input");
     });
 
     it("walks nullable from anyOf", () => {
         const tree = walkSchema({
             anyOf: [{ type: "string" }, { type: "null" }],
         });
-        assert.equal(tree.type, "string");
-        assert.equal(tree.isNullable, true);
+        expect(tree.type).toBe("string");
+        expect(tree.isNullable).toBe(true);
     });
 
     it("walks allOf merged objects", () => {
@@ -150,10 +142,14 @@ describe("integration — JSON Schema", () => {
                 },
             ],
         });
-        assert.equal(tree.type, "object");
-        assert.ok(tree.fields);
-        assert.ok("name" in tree.fields);
-        assert.ok("age" in tree.fields);
+        expect(tree.type).toBe("object");
+        expect(tree.fields).toBeTruthy();
+        expect(
+            "name" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
+        expect(
+            "age" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
     });
 });
 
@@ -186,10 +182,14 @@ describe("integration — OpenAPI", () => {
         const tree = walk(normalised.jsonSchema, {
             rootDocument: normalised.rootDocument,
         });
-        assert.equal(tree.type, "object");
-        assert.ok(tree.fields);
-        assert.ok("id" in tree.fields);
-        assert.ok("name" in tree.fields);
+        expect(tree.type).toBe("object");
+        expect(tree.fields).toBeTruthy();
+        expect(
+            "id" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
+        expect(
+            "name" in assertDefined(tree.fields, "expected fields")
+        ).toBeTruthy();
     });
 
     it("preserves readOnly from OpenAPI schema through extraction", () => {
@@ -200,8 +200,8 @@ describe("integration — OpenAPI", () => {
         const tree = walk(normalised.jsonSchema, {
             rootDocument: normalised.rootDocument,
         });
-        assert.equal(getField(tree, "id").editability, "presentation");
-        assert.equal(getField(tree, "id").meta.readOnly, true);
+        expect(getField(tree, "id").editability).toBe("presentation");
+        expect(getField(tree, "id").meta.readOnly).toBe(true);
     });
 });
 
@@ -215,8 +215,8 @@ describe("integration — component meta", () => {
             z.object({ name: z.string(), age: z.number() }),
             { componentMeta: { readOnly: true } }
         );
-        assert.equal(getField(tree, "name").editability, "presentation");
-        assert.equal(getField(tree, "age").editability, "presentation");
+        expect(getField(tree, "name").editability).toBe("presentation");
+        expect(getField(tree, "age").editability).toBe("presentation");
     });
 
     it("component meta + field overrides interact correctly", () => {
@@ -235,14 +235,12 @@ describe("integration — component meta", () => {
                 },
             }
         );
-        assert.equal(getField(tree, "name").editability, "presentation");
-        assert.equal(getField(tree, "address").editability, "editable");
-        assert.equal(
-            getField(tree, "address", "city").editability,
+        expect(getField(tree, "name").editability).toBe("presentation");
+        expect(getField(tree, "address").editability).toBe("editable");
+        expect(getField(tree, "address", "city").editability).toBe(
             "presentation"
         );
-        assert.equal(
-            getField(tree, "address", "postcode").editability,
+        expect(getField(tree, "address", "postcode").editability).toBe(
             "editable"
         );
     });

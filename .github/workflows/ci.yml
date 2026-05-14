@@ -114,11 +114,9 @@ jobs:
               if: matrix.node-version == 26
               run: pnpm test:coverage
 
-            - name: SSR tests (Node 26 only)
+            - name: E2E tests (Node 26 only)
               if: matrix.node-version == 26
-              run: |
-                  pnpm build
-                  pnpm _test:ssr
+              run: pnpm _test:e2e
 
     storybook-test:
         name: Storybook tests
