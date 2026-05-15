@@ -1,3 +1,9 @@
+## [1.10.0](https://github.com/Mearman/schema-components/compare/v1.9.1...v1.10.0) (2026-05-15)
+
+### Features
+
+* **core:** add Radix Themes adapter and Storybook demos ([749510f](https://github.com/Mearman/schema-components/commit/749510f28f0bc97b02dea775a975573777fd12c3))
+
 ## [1.9.1](https://github.com/Mearman/schema-components/compare/v1.9.0...v1.9.1) (2026-05-15)
 
 ### Bug Fixes
