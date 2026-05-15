@@ -57,12 +57,12 @@ Renders every field as an editable input. Add `readOnly` to the component for a 
 
 ## How it works
 
-```
-Zod schema ─── z.toJSONSchema() ──→ JSON Schema ──────────┐
-                                                           ▼
-JSON Schema ─────────────────────────────────────────► JSON Schema ──► walker ──► React
-                                                           ▲
-OpenAPI doc ── extract schemas ───────────────────────────┘
+```mermaid
+flowchart LR
+  Zod["Zod schema"] -- "z.toJSONSchema()" --> JS["JSON Schema"]
+  JSON["JSON Schema"] --> JS
+  OAS["OpenAPI doc"] -- "extract schemas" --> JS
+  JS -- "walker" --> React["React"]
 ```
 
 One walker, one input format. The walker reads standard JSON Schema keywords (Draft 2020-12) — decoupled from Zod's internal API. `z.toJSONSchema()` is lossless: it preserves `readOnly`, `writeOnly`, custom `.meta()` properties, constraints, formats, and defaults.
@@ -150,15 +150,6 @@ export default async function Page() {
 ```
 
 ## Architecture
-
-```
-schema-components
-├── core            # JSON Schema walker, ComponentResolver, RenderProps, typed errors, type guards
-├── react           # SchemaComponent ("use client"), SchemaView (server component), headless renderer, error boundary
-├── openapi         # Document parser, ApiOperation, ApiParameters, ApiRequestBody, ApiResponse
-├── html            # h() builder, renderToHtml, streaming renderers, ARIA helpers
-└── themes          # shadcn, MUI, custom adapters (separate packages)
-```
 
 Every module is imported directly — no barrel files. Organised exports:
 
