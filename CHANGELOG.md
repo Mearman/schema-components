@@ -1,3 +1,10 @@
+## [1.10.4](https://github.com/Mearman/schema-components/compare/v1.10.3...v1.10.4) (2026-05-15)
+
+### Documentation
+
+* add README landing page with syntax-highlighted code blocks ([a28addd](https://github.com/Mearman/schema-components/commit/a28addd9639412b9aa9c1d1a9efd86bfbaab4430))
+* make README the Storybook landing page ([644bebc](https://github.com/Mearman/schema-components/commit/644bebced1dbc89fcc56cdaca7b211ce8f46f605))
+
 ## [1.10.3](https://github.com/Mearman/schema-components/compare/v1.10.2...v1.10.3) (2026-05-15)
 
 ### Documentation
