@@ -1,3 +1,9 @@
+## [1.10.10](https://github.com/Mearman/schema-components/compare/v1.10.9...v1.10.10) (2026-05-15)
+
+### Bug Fixes
+
+* enable autodocs for all stories and fix blank docs page ([9a99323](https://github.com/Mearman/schema-components/commit/9a9932355ded92d038530833efad7286f9eabf55))
+
 ## [1.10.9](https://github.com/Mearman/schema-components/compare/v1.10.8...v1.10.9) (2026-05-15)
 
 ### Documentation
