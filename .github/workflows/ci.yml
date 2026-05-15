@@ -148,6 +148,8 @@ jobs:
             - run: pnpm build
 
             - run: pnpm test-storybook
+              env:
+                  PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
 
     release:
         name: Release
