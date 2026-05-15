@@ -1,3 +1,9 @@
+## [1.10.8](https://github.com/Mearman/schema-components/compare/v1.10.7...v1.10.8) (2026-05-15)
+
+### Documentation
+
+* use logo-only GitHub and Storybook badges ([4808816](https://github.com/Mearman/schema-components/commit/48088169da213eb96091a1e79fd5ffd22d5bccb8))
+
 ## [1.10.7](https://github.com/Mearman/schema-components/compare/v1.10.6...v1.10.7) (2026-05-15)
 
 ### Documentation
