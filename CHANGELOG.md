@@ -1,39 +1,49 @@
+## [1.12.7](https://github.com/Mearman/schema-components/compare/v1.12.6...v1.12.7) (2026-05-15)
+
+### Bug Fixes
+
+* **core:** suppress empty Children in editable mode too ([5a5a3c3](https://github.com/Mearman/schema-components/commit/5a5a3c3a4c99ff586d2c6d2790a87793d3551351))
+
+### Documentation
+
+* split root and core READMEs ([2ebd3c7](https://github.com/Mearman/schema-components/commit/2ebd3c745bfd0d7d0bab49e3ff4a17a8d9a14a7e))
+
 ## [1.12.6](https://github.com/Mearman/schema-components/compare/v1.12.5...v1.12.6) (2026-05-15)
 
 ### Bug Fixes
 
-* **core:** propagate resolver null returns through renderField ([81159a1](https://github.com/Mearman/schema-components/commit/81159a178778d8b8d959087e4732a9ded43a3517))
+* **core:** propagate resolver null returns through renderField ([e670437](https://github.com/Mearman/schema-components/commit/e6704379b6505211541cdaf51e434366b38aa281))
 
 ## [1.12.5](https://github.com/Mearman/schema-components/compare/v1.12.4...v1.12.5) (2026-05-15)
 
 ### Bug Fixes
 
-* **core:** suppress empty Children sections on leaf nodes ([48550c7](https://github.com/Mearman/schema-components/commit/48550c76480c5785ea72ab729dfd7baa1d965a5a))
+* **core:** suppress empty Children sections on leaf nodes ([5f0bb25](https://github.com/Mearman/schema-components/commit/5f0bb25ffe10ec9a2c97db8ebefd534fc9536a20))
 
 ## [1.12.4](https://github.com/Mearman/schema-components/compare/v1.12.3...v1.12.4) (2026-05-15)
 
 ### Bug Fixes
 
-* **core:** use ref cache for proper recursive schema cycles ([a9528b1](https://github.com/Mearman/schema-components/commit/a9528b1ecaf5c34f622de37c47e1bfdf86afa593))
+* **core:** use ref cache for proper recursive schema cycles ([7d49f6e](https://github.com/Mearman/schema-components/commit/7d49f6e1a7c37fdc6ea1436b2ed3998b431d304e))
 
 ## [1.12.3](https://github.com/Mearman/schema-components/compare/v1.12.2...v1.12.3) (2026-05-15)
 
 ### Bug Fixes
 
-* deduplicate README landing page to docs-only ([eec6a34](https://github.com/Mearman/schema-components/commit/eec6a34cd63e2aa7c576277f34d3603e59159256))
+* deduplicate README landing page to docs-only ([71d63c7](https://github.com/Mearman/schema-components/commit/71d63c73e154e46245a54edd1c605ba0995fc1b1))
 
 ## [1.12.2](https://github.com/Mearman/schema-components/compare/v1.12.1...v1.12.2) (2026-05-15)
 
 ### Bug Fixes
 
-* **core:** resolve recursive $ref '#' to root document ([7342326](https://github.com/Mearman/schema-components/commit/7342326486f5a21eb4ba66f00a07dbcf4a33a28c))
-* override Storybook autodocs backgrounds for dark theme ([a3f4dee](https://github.com/Mearman/schema-components/commit/a3f4deed0b9697c88f7151dbf8101fc9b600df0b))
+* **core:** resolve recursive $ref '#' to root document ([9ea6448](https://github.com/Mearman/schema-components/commit/9ea644815e3a10acc40569acf47de71d9eae712f))
+* override Storybook autodocs backgrounds for dark theme ([f39aafd](https://github.com/Mearman/schema-components/commit/f39aafd802d6b3cdac7b3bfb5ea93bfb27903fd0))
 
 ## [1.12.1](https://github.com/Mearman/schema-components/compare/v1.12.0...v1.12.1) (2026-05-15)
 
 ### Bug Fixes
 
-* add initialGlobals to seed theme state on docs page load ([ba24932](https://github.com/Mearman/schema-components/commit/ba24932b6356a117f663d1240a68a3fda6b02e76))
+* add initialGlobals to seed theme state on docs page load ([d2c4911](https://github.com/Mearman/schema-components/commit/d2c49110fee949203ec6f923e123e15cbffe84f5))
 
 ## [1.12.0](https://github.com/Mearman/schema-components/compare/v1.11.0...v1.12.0) (2026-05-15)
 
