@@ -1,3 +1,9 @@
+## [1.9.1](https://github.com/Mearman/schema-components/compare/v1.9.0...v1.9.1) (2026-05-15)
+
+### Bug Fixes
+
+* **core:** replace component boundary suppressions with ElementType slots ([856d100](https://github.com/Mearman/schema-components/commit/856d100072b9506f2466fc7f295ddc1f54ecc3ed))
+
 ## [1.9.0](https://github.com/Mearman/schema-components/compare/v1.8.1...v1.9.0) (2026-05-15)
 
 ### Features

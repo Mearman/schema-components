@@ -1,6 +1,6 @@
 {
     "name": "schema-components",
-    "version": "1.9.0",
+    "version": "1.9.1",
     "description": "React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents",
     "type": "module",
     "main": "./dist/index.mjs",
