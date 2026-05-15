@@ -1,22 +1,18 @@
 /**
- * Stories for the MUI theme adapter with real Material UI components.
+ * Stories for the Mantine theme adapter with real Mantine components.
  */
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { z } from "zod";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
+import { MantineProvider, createTheme } from "@mantine/core";
+import "@mantine/core/styles.css";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 import { SchemaProvider } from "schema-components/react/SchemaComponent";
-import { muiResolver } from "schema-components/themes/mui";
+import { mantineResolver } from "schema-components/themes/mantine";
 
-import "../src/mui-setup.ts";
+import "../src/mantine-setup.ts";
 
-const theme = createTheme({
-    palette: {
-        mode: "light",
-    },
-});
+const mantineTheme = createTheme({});
 
 const profileSchema = z.object({
     name: z.string().min(1).meta({ description: "Full name" }),
@@ -38,11 +34,11 @@ const nestedSchema = z.object({
 });
 
 const initialProfile = {
-    name: "Grace Hopper",
-    email: "grace@navy.mil",
+    name: "Alan Turing",
+    email: "alan@example.com",
     role: "admin" as const,
     active: true,
-    bio: "Computer scientist and United States Navy rear admiral.",
+    bio: "Mathematician, computer scientist, and cryptanalyst.",
 };
 
 const nestedData = {
@@ -54,7 +50,7 @@ const nestedData = {
     },
 };
 
-function MuiPreview({
+function MantinePreview({
     schema,
     data,
     readOnly,
@@ -66,9 +62,8 @@ function MuiPreview({
     const [value, setValue] = useState<unknown>(data);
 
     return (
-        <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <SchemaProvider resolver={muiResolver}>
+        <MantineProvider theme={mantineTheme} defaultColorScheme="light">
+            <SchemaProvider resolver={mantineResolver}>
                 <div style={{ maxWidth: "36rem" }}>
                     <SchemaComponent
                         schema={schema}
@@ -80,17 +75,17 @@ function MuiPreview({
                     />
                 </div>
             </SchemaProvider>
-        </ThemeProvider>
+        </MantineProvider>
     );
 }
 
-const meta: Meta<typeof MuiPreview> = {
-    title: "React/MUI",
-    component: MuiPreview,
+const meta: Meta<typeof MantinePreview> = {
+    title: "React/Mantine",
+    component: MantinePreview,
 };
 
 export default meta;
-type Story = StoryObj<typeof MuiPreview>;
+type Story = StoryObj<typeof MantinePreview>;
 
 export const EditableProfile: Story = {
     args: {

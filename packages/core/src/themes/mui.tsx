@@ -310,20 +310,32 @@ let MuiFormControlLabel: React.ComponentType<Record<string, unknown>> = (
 /**
  * Register real MUI components. Call once at app startup.
  */
+
+// Narrow unknown → ComponentType at the library boundary.
+function toComponent(
+    value: unknown
+): React.ComponentType<Record<string, unknown>> {
+    if (typeof value === "function") {
+        // @ts-expect-error -- Library boundary: Function is not assignable to ComponentType<Record<string, unknown>>
+        return value;
+    }
+    throw new Error(`Expected a React component, got ${typeof value}`);
+}
+
 export function registerMuiComponents(components: {
-    TextField: React.ComponentType<Record<string, unknown>>;
-    Checkbox: React.ComponentType<Record<string, unknown>>;
-    Typography: React.ComponentType<Record<string, unknown>>;
-    Box: React.ComponentType<Record<string, unknown>>;
-    MenuItem: React.ComponentType<Record<string, unknown>>;
-    FormControlLabel: React.ComponentType<Record<string, unknown>>;
+    TextField: unknown;
+    Checkbox: unknown;
+    Typography: unknown;
+    Box: unknown;
+    MenuItem: unknown;
+    FormControlLabel: unknown;
 }): void {
-    MuiTextField = components.TextField;
-    MuiCheckbox = components.Checkbox;
-    MuiTypography = components.Typography;
-    MuiBox = components.Box;
-    MuiMenuItem = components.MenuItem;
-    MuiFormControlLabel = components.FormControlLabel;
+    MuiTextField = toComponent(components.TextField);
+    MuiCheckbox = toComponent(components.Checkbox);
+    MuiTypography = toComponent(components.Typography);
+    MuiBox = toComponent(components.Box);
+    MuiMenuItem = toComponent(components.MenuItem);
+    MuiFormControlLabel = toComponent(components.FormControlLabel);
 }
 
 // ---------------------------------------------------------------------------
