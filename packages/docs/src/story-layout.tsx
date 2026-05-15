@@ -23,7 +23,7 @@ export function StoryPage({
                 {description !== undefined && (
                     <p
                         style={{
-                            color: "#64748b",
+                            color: "var(--sc-text-muted)",
                             fontSize: "0.9375rem",
                             lineHeight: 1.6,
                             margin: 0,
@@ -54,7 +54,7 @@ export function StorySection({
                 {description !== undefined && (
                     <p
                         style={{
-                            color: "#64748b",
+                            color: "var(--sc-text-muted)",
                             fontSize: "0.875rem",
                             lineHeight: 1.5,
                             margin: 0,
@@ -79,10 +79,10 @@ export function DemoCard({
     return (
         <div
             style={{
-                background: "#fff",
-                border: "1px solid #e2e8f0",
+                background: "var(--sc-card-bg)",
+                border: "1px solid var(--sc-card-border)",
                 borderRadius: "0.75rem",
-                boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+                boxShadow: "var(--sc-card-shadow)",
                 display: "grid",
                 gap: "0.75rem",
                 padding: "1rem",
@@ -114,9 +114,9 @@ export function JsonPanel({ value }: { value: unknown }) {
     return (
         <pre
             style={{
-                background: "#0f172a",
+                background: "var(--sc-bg-secondary)",
                 borderRadius: "0.75rem",
-                color: "#e2e8f0",
+                color: "var(--sc-text)",
                 fontSize: "0.8125rem",
                 lineHeight: 1.6,
                 margin: 0,
