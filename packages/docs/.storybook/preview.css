@@ -5,12 +5,16 @@
  * label, select, span) without CSS classes. This stylesheet provides
  * sensible defaults so stories are readable and aesthetically clean.
  *
- * All colours are defined as CSS custom properties, with dark mode
- * overrides via `@media (prefers-color-scheme: dark)`. Highlight.js
- * syntax highlighting tokens are also defined as vars — no CDN theme
- * stylesheet is needed (and the Welcome story's CDN <link> is removed).
+ * All colours are defined as CSS custom properties. The @storybook/addon-themes
+ * decorator adds .light-theme or .dark-theme to <html> inside the iframe
+ * based on the toolbar toggle. :root.dark-theme redefines the variables
+ * and every colour on the page updates automatically.
  *
- * Kitchen-sink-specific sizing: the label column uses a flexible width
+ * Highlight.js syntax highlighting tokens are also defined as --hljs-* CSS
+ * variables — no CDN theme stylesheet is needed (the Welcome story's CDN
+ * <link> has been removed in favour of this).
+ *
+ * Kitchen-sink-specific sizing: the label column uses minmax(10rem, max-content)
  * so longer labels like "Preferred contact time" are not clipped.
  */
 
@@ -18,7 +22,8 @@
    CSS Custom Properties — Light mode (default)
    ========================================================================= */
 
-:root {
+:root,
+:root.light-theme {
     --sc-text: #1e293b;
     --sc-text-secondary: #475569;
     --sc-text-muted: #64748b;
@@ -94,82 +99,81 @@
 }
 
 /* =========================================================================
-   Dark mode overrides
+   Dark mode — activated by @storybook/addon-themes toolbar toggle.
+   The addon adds .dark-theme to <html> inside the iframe.
    ========================================================================= */
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --sc-text: #e2e8f0;
-        --sc-text-secondary: #cbd5e1;
-        --sc-text-muted: #94a3b8;
-        --sc-text-description: #94a3b8;
-        --sc-bg: #1e293b;
-        --sc-bg-secondary: #0f172a;
-        --sc-border: #334155;
-        --sc-border-input: #475569;
-        --sc-focus: #60a5fa;
-        --sc-focus-ring: rgba(96, 165, 250, 0.2);
-        --sc-danger: #fca5a5;
-        --sc-tab-active-bg: #1e3a5f;
-        --sc-tab-active-border: #60a5fa;
-        --sc-tab-active-text: #93c5fd;
-        --sc-tab-bg: transparent;
-        --sc-tab-border: #475569;
-        --sc-tab-text: #94a3b8;
-        --sc-link: #93c5fd;
-        --sc-card-bg: #1e293b;
-        --sc-card-border: #334155;
-        --sc-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-        --sc-code-bg: #0f172a;
-        --sc-code-text: #e2e8f0;
-        --sc-meta-tag-bg: #334155;
-        --sc-meta-tag-text: #94a3b8;
-        --sc-deprecated-bg: #422006;
-        --sc-deprecated-text: #fbbf24;
-        --sc-openapi-heading: #e2e8f0;
-        --sc-openapi-subheading: #cbd5e1;
-        --sc-openapi-muted: #94a3b8;
-        --sc-openapi-required: #fca5a5;
-        --sc-section-text: #94a3b8;
+:root.dark-theme {
+    --sc-text: #e2e8f0;
+    --sc-text-secondary: #cbd5e1;
+    --sc-text-muted: #94a3b8;
+    --sc-text-description: #94a3b8;
+    --sc-bg: #1e293b;
+    --sc-bg-secondary: #0f172a;
+    --sc-border: #334155;
+    --sc-border-input: #475569;
+    --sc-focus: #60a5fa;
+    --sc-focus-ring: rgba(96, 165, 250, 0.2);
+    --sc-danger: #fca5a5;
+    --sc-tab-active-bg: #1e3a5f;
+    --sc-tab-active-border: #60a5fa;
+    --sc-tab-active-text: #93c5fd;
+    --sc-tab-bg: transparent;
+    --sc-tab-border: #475569;
+    --sc-tab-text: #94a3b8;
+    --sc-link: #93c5fd;
+    --sc-card-bg: #1e293b;
+    --sc-card-border: #334155;
+    --sc-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --sc-code-bg: #0f172a;
+    --sc-code-text: #e2e8f0;
+    --sc-meta-tag-bg: #334155;
+    --sc-meta-tag-text: #94a3b8;
+    --sc-deprecated-bg: #422006;
+    --sc-deprecated-text: #fbbf24;
+    --sc-openapi-heading: #e2e8f0;
+    --sc-openapi-subheading: #cbd5e1;
+    --sc-openapi-muted: #94a3b8;
+    --sc-openapi-required: #fca5a5;
+    --sc-section-text: #94a3b8;
 
-        /* Highlight.js token colours — GitHub Dark theme */
-        --hljs-base: #c9d1d9;
-        --hljs-bg: #0d1117;
-        --hljs-keyword: #ff7b72;
-        --hljs-string: #a5d6ff;
-        --hljs-number: #79c0ff;
-        --hljs-comment: #8b949e;
-        --hljs-builtin: #ffa657;
-        --hljs-literal: #79c0ff;
-        --hljs-title: #d2a8ff;
-        --hljs-attr: #79c0ff;
-        --hljs-attribute: #79c0ff;
-        --hljs-selector-tag: #7ee787;
-        --hljs-selector-class: #79c0ff;
-        --hljs-selector-id: #79c0ff;
-        --hljs-type: #ff7b72;
-        --hljs-section: #1f6feb;
-        --hljs-name: #7ee787;
-        --hljs-symbol: #ffa657;
-        --hljs-variable: #79c0ff;
-        --hljs-params: #79c0ff;
-        --hljs-regexp: #a5d6ff;
-        --hljs-meta: #79c0ff;
-        --hljs-tag: #7ee787;
-        --hljs-addition: #aff5b4;
-        --hljs-addition-bg: #033a16;
-        --hljs-deletion: #ffdcd7;
-        --hljs-deletion-bg: #67060c;
-        --hljs-emphasis: #c9d1d9;
-        --hljs-strong: #c9d1d9;
-        --hljs-bullet: #f2cc60;
-        --hljs-quote: #7ee787;
-        --hljs-link: #a5d6ff;
-        --hljs-code: #8b949e;
-        --hljs-formula: #8b949e;
-        --hljs-subst: #c9d1d9;
-        --hljs-doctag: #ff7b72;
-    }
+    /* Highlight.js token colours — GitHub Dark theme */
+    --hljs-base: #c9d1d9;
+    --hljs-bg: #0d1117;
+    --hljs-keyword: #ff7b72;
+    --hljs-string: #a5d6ff;
+    --hljs-number: #79c0ff;
+    --hljs-comment: #8b949e;
+    --hljs-builtin: #ffa657;
+    --hljs-literal: #79c0ff;
+    --hljs-title: #d2a8ff;
+    --hljs-attr: #79c0ff;
+    --hljs-attribute: #79c0ff;
+    --hljs-selector-tag: #7ee787;
+    --hljs-selector-class: #79c0ff;
+    --hljs-selector-id: #79c0ff;
+    --hljs-type: #ff7b72;
+    --hljs-section: #1f6feb;
+    --hljs-name: #7ee787;
+    --hljs-symbol: #ffa657;
+    --hljs-variable: #79c0ff;
+    --hljs-params: #79c0ff;
+    --hljs-regexp: #a5d6ff;
+    --hljs-meta: #79c0ff;
+    --hljs-tag: #7ee787;
+    --hljs-addition: #aff5b4;
+    --hljs-addition-bg: #033a16;
+    --hljs-deletion: #ffdcd7;
+    --hljs-deletion-bg: #67060c;
+    --hljs-emphasis: #c9d1d9;
+    --hljs-strong: #c9d1d9;
+    --hljs-bullet: #f2cc60;
+    --hljs-quote: #7ee787;
+    --hljs-link: #a5d6ff;
+    --hljs-code: #8b949e;
+    --hljs-formula: #8b949e;
+    --hljs-subst: #c9d1d9;
+    --hljs-doctag: #ff7b72;
 }
 
 /* =========================================================================
@@ -281,7 +285,14 @@
    Base element resets & defaults
    ========================================================================= */
 
-body {
+/*
+ * html body selector has higher specificity (0-0-2) than Mantine's
+ * body { background-color: var(--mantine-color-body) } (0-0-1), so it
+ * wins without needing !important. The CSS variables --sc-text and
+ * --sc-bg are defined on :root (.light-theme by default, .dark-theme
+ * when the addon toggles), so they automatically respond to the toolbar.
+ */
+html body {
     color: var(--sc-text);
     background: var(--sc-bg);
 }
