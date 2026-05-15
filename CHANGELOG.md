@@ -1,3 +1,9 @@
+## [1.12.0](https://github.com/Mearman/schema-components/compare/v1.11.0...v1.12.0) (2026-05-15)
+
+### Features
+
+* theme-aware docs background via @storybook/addon-themes ([4d2a5d8](https://github.com/Mearman/schema-components/commit/4d2a5d86c9f8e760abf3eab9b23ce65e0b8723eb))
+
 ## [1.11.0](https://github.com/Mearman/schema-components/compare/v1.10.10...v1.11.0) (2026-05-15)
 
 ### Features
