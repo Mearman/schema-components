@@ -1,3 +1,23 @@
+## [1.8.1](https://github.com/Mearman/schema-components/compare/v1.8.0...v1.8.1) (2026-05-15)
+
+### Bug Fixes
+
+* **ci:** build core before storybook tests and fix static dir path ([1afd005](https://github.com/Mearman/schema-components/commit/1afd0051f4e7f598d4ed2073c4024c1a1afad6cf))
+* **ci:** debug playwright browser path in Docker container ([b55b828](https://github.com/Mearman/schema-components/commit/b55b828018d18c1ed895bad7f1157473e54c9b42))
+* **ci:** remove debug steps from storybook tests ([b3ef3e2](https://github.com/Mearman/schema-components/commit/b3ef3e2da0ef284c4dd5f002c0e4f75c1c445e14))
+* **ci:** set PLAYWRIGHT_BROWSERS_PATH at step level for storybook tests ([c8d4bb6](https://github.com/Mearman/schema-components/commit/c8d4bb6841e7fc425cabd4d82c175446beb130e7))
+* **ci:** set PLAYWRIGHT_BROWSERS_PATH for Docker container ([8ae43ef](https://github.com/Mearman/schema-components/commit/8ae43ef4d9933ee98052618bcc50f661f9327080))
+* **ci:** use native playwright install instead of Docker container ([0de3948](https://github.com/Mearman/schema-components/commit/0de39487a3b4c177f4052bf647d6bfd20364e3c3))
+
+### Refactoring
+
+* convert to pnpm monorepo with packages/core and packages/docs ([3fd58c3](https://github.com/Mearman/schema-components/commit/3fd58c39da525995d0dea0786e1f3ec3cc20982d))
+
+### Chores
+
+* remove stale root tsdown and vitest configs ([86adf7b](https://github.com/Mearman/schema-components/commit/86adf7b15587d031054159395538e66272797b52))
+* sync core package version to 1.8.0 ([315d302](https://github.com/Mearman/schema-components/commit/315d302905fab0dfe589f8d965759e1a39ab87b1))
+
 ## [1.8.0](https://github.com/Mearman/schema-components/compare/v1.7.1...v1.8.0) (2026-05-14)
 
 ### Features
