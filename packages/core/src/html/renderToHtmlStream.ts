@@ -288,8 +288,8 @@ function* streamObject(
     path: string,
     rawResolver: HtmlResolver
 ): Iterable<string, void, undefined> {
+    if (tree.type !== "object") return;
     const fields = tree.fields;
-    if (fields === undefined) return;
 
     const obj = isObject(value) ? value : {};
     const readOnly = tree.editability === "presentation";
@@ -398,6 +398,7 @@ function* streamArray(
     rawResolver: HtmlResolver
 ): Iterable<string, void, undefined> {
     const arr = Array.isArray(value) ? value : [];
+    if (tree.type !== "array") return;
     const element = tree.element;
     if (element === undefined) return;
 
@@ -451,8 +452,8 @@ function* streamRecord(
     rawResolver: HtmlResolver
 ): Iterable<string, void, undefined> {
     const obj = isObject(value) ? value : {};
+    if (tree.type !== "record") return;
     const valueType = tree.valueType;
-    if (valueType === undefined) return;
 
     const readOnly = tree.editability === "presentation";
     const attrs: HtmlAttributes = { class: "sc-record", role: "group" };
@@ -510,7 +511,7 @@ function* streamUnion(
     path: string,
     rawResolver: HtmlResolver
 ): Iterable<string, void, undefined> {
-    const options = tree.options;
+    const options = tree.type === "union" ? tree.options : undefined;
     if (options === undefined || options.length === 0) {
         if (value === undefined || value === null) {
             yield serialize(
@@ -552,8 +553,10 @@ function* streamDiscriminatedUnion(
     path: string,
     rawResolver: HtmlResolver
 ): Iterable<string, void, undefined> {
-    const options = tree.options;
-    const discriminator = tree.discriminator;
+    const options =
+        tree.type === "discriminatedUnion" ? tree.options : undefined;
+    const discriminator =
+        tree.type === "discriminatedUnion" ? tree.discriminator : undefined;
     if (options === undefined || options.length === 0) {
         if (value === undefined || value === null) {
             yield serialize(
@@ -574,11 +577,13 @@ function* streamDiscriminatedUnion(
     const currentDiscriminatorValue =
         typeof obj[discKey] === "string" ? obj[discKey] : undefined;
 
-    const optionLabels = options.map((opt) => {
-        const discriminatorField = opt.fields?.[discKey];
-        if (discriminatorField !== undefined) {
-            const constVal = discriminatorField.literalValues?.[0];
-            if (typeof constVal === "string") return constVal;
+    const optionLabels = options.map((opt: WalkedField) => {
+        if (opt.type === "object") {
+            const discriminatorField = opt.fields[discKey];
+            if (discriminatorField?.type === "literal") {
+                const constVal = discriminatorField.literalValues[0];
+                if (typeof constVal === "string") return constVal;
+            }
         }
         return typeof opt.meta.title === "string" ? opt.meta.title : opt.type;
     });
@@ -615,7 +620,7 @@ function* streamDiscriminatedUnion(
     yield yieldOpen(wrapper);
 
     // Tab bar
-    const tabButtons = options.map((_opt, i) => {
+    const tabButtons = options.map((_opt: WalkedField, i: number) => {
         const attrs: HtmlAttributes = {
             type: "button",
             role: "tab",
@@ -685,14 +690,16 @@ function renderLeaf(
             tree,
             renderChild: () => "",
         };
-        if (tree.enumValues !== undefined) props.enumValues = tree.enumValues;
-        if (tree.element !== undefined) props.element = tree.element;
-        if (tree.fields !== undefined) props.fields = tree.fields;
-        if (tree.options !== undefined) props.options = tree.options;
-        if (tree.discriminator !== undefined)
+        if (tree.type === "enum") props.enumValues = tree.enumValues;
+        if (tree.type === "literal") props.literalValues = tree.literalValues;
+        if (tree.type === "array" && tree.element !== undefined)
+            props.element = tree.element;
+        if (tree.type === "object") props.fields = tree.fields;
+        if (tree.type === "union") props.options = tree.options;
+        if (tree.type === "discriminatedUnion")
             props.discriminator = tree.discriminator;
-        if (tree.keyType !== undefined) props.keyType = tree.keyType;
-        if (tree.valueType !== undefined) props.valueType = tree.valueType;
+        if (tree.type === "record") props.keyType = tree.keyType;
+        if (tree.type === "record") props.valueType = tree.valueType;
 
         return renderFn(props);
     }

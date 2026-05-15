@@ -1,3 +1,4 @@
+import { fieldsOf, elementOf, stringConstraintsOf } from "./helpers.js";
 /**
  * Integration tests for the adapter → walker pipeline.
  *
@@ -49,25 +50,25 @@ describe("integration — Zod schema", () => {
             })
         );
         expect(tree.type).toBe("object");
-        expect(tree.fields).toBeTruthy();
+        expect(fieldsOf(tree)).toBeTruthy();
         expect(
-            "name" in assertDefined(tree.fields, "expected fields")
+            "name" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
         expect(
-            "age" in assertDefined(tree.fields, "expected fields")
+            "age" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
     });
 
     it("preserves constraints from Zod through JSON Schema", () => {
         const tree = walkSchema(z.string().min(5).max(100));
         expect(tree.type).toBe("string");
-        expect(tree.constraints.minLength).toBe(5);
-        expect(tree.constraints.maxLength).toBe(100);
+        expect(stringConstraintsOf(tree)?.minLength).toBe(5);
+        expect(stringConstraintsOf(tree)?.maxLength).toBe(100);
     });
 
     it("preserves format from Zod through JSON Schema", () => {
         const tree = walkSchema(z.email());
-        expect(tree.constraints.format).toBe("email");
+        expect(stringConstraintsOf(tree)?.format).toBe("email");
     });
 
     it("preserves readOnly from Zod .meta() through JSON Schema", () => {
@@ -143,12 +144,12 @@ describe("integration — JSON Schema", () => {
             ],
         });
         expect(tree.type).toBe("object");
-        expect(tree.fields).toBeTruthy();
+        expect(fieldsOf(tree)).toBeTruthy();
         expect(
-            "name" in assertDefined(tree.fields, "expected fields")
+            "name" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
         expect(
-            "age" in assertDefined(tree.fields, "expected fields")
+            "age" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
     });
 });
@@ -183,12 +184,12 @@ describe("integration — OpenAPI", () => {
             rootDocument: normalised.rootDocument,
         });
         expect(tree.type).toBe("object");
-        expect(tree.fields).toBeTruthy();
+        expect(fieldsOf(tree)).toBeTruthy();
         expect(
-            "id" in assertDefined(tree.fields, "expected fields")
+            "id" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
         expect(
-            "name" in assertDefined(tree.fields, "expected fields")
+            "name" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
     });
 
@@ -227,12 +228,14 @@ describe("integration — recursive schemas", () => {
         expect(getField(tree, "children").type).toBe("array");
 
         const element = assertDefined(
-            getField(tree, "children").element,
+            elementOf(getField(tree, "children")),
             "expected element"
         );
         expect(element.type).toBe("object");
-        expect(element.fields).toBeTruthy();
-        expect("label" in assertDefined(element.fields, "fields")).toBe(true);
+        expect(fieldsOf(element)).toBeTruthy();
+        expect("label" in assertDefined(fieldsOf(element), "fields")).toBe(
+            true
+        );
     });
 
     it("propagates readOnly through recursive elements", () => {
@@ -249,13 +252,13 @@ describe("integration — recursive schemas", () => {
         expect(getField(tree, "children").editability).toBe("presentation");
 
         const element = assertDefined(
-            getField(tree, "children").element,
+            elementOf(getField(tree, "children")),
             "expected element"
         );
         expect(element.editability).toBe("presentation");
-        expect(assertDefined(element.fields, "fields").label?.editability).toBe(
-            "presentation"
-        );
+        expect(
+            assertDefined(fieldsOf(element), "fields").label?.editability
+        ).toBe("presentation");
     });
 
     it("creates a graph cycle for recursive element", () => {
@@ -266,13 +269,13 @@ describe("integration — recursive schemas", () => {
 
         const tree = walkSchema(treeSchema);
         const element = assertDefined(
-            getField(tree, "children").element,
+            elementOf(getField(tree, "children")),
             "expected element"
         );
-        // The element's own children.element should be the same object
+        // The element's own elementOf(children) should be the same object
         // reference (graph cycle) — not a different object or unknown
         const nestedElement = assertDefined(
-            getField(element, "children").element,
+            elementOf(getField(element, "children")),
             "expected nested element"
         );
         expect(nestedElement).toBe(element);

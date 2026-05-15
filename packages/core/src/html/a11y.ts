@@ -8,7 +8,8 @@
  * renderer (renderToHtmlStream) to produce consistent accessibility markup.
  */
 
-import type { FieldConstraints, WalkedField } from "../core/types.ts";
+import type { WalkedField } from "../core/types.ts";
+import type { AllConstraints } from "../core/renderer.ts";
 import { h, type HtmlAttributes, type HtmlNode } from "./html.ts";
 
 // ---------------------------------------------------------------------------
@@ -39,7 +40,7 @@ export function buildHintId(inputId: string): string {
  * Build a human-readable constraint description string.
  * Returns undefined if no constraints are present.
  */
-export function constraintHint(c: FieldConstraints): string | undefined {
+export function constraintHint(c: AllConstraints): string | undefined {
     const parts: string[] = [];
     if (c.minLength !== undefined)
         parts.push(`Minimum ${String(c.minLength)} characters`);
@@ -80,7 +81,7 @@ export function ariaRequiredAttrs(
  */
 export function ariaDescribedByAttrs(
     inputId: string,
-    constraints: FieldConstraints
+    constraints: AllConstraints
 ): Pick<HtmlAttributes, "aria-describedby"> | undefined {
     if (constraintHint(constraints) === undefined) return undefined;
     return { "aria-describedby": buildHintId(inputId) };
@@ -115,7 +116,7 @@ export function ariaLabelAttrs(
  */
 export function buildHintElement(
     inputId: string,
-    constraints: FieldConstraints
+    constraints: AllConstraints
 ): HtmlNode {
     const hint = constraintHint(constraints);
     if (hint === undefined) return undefined;

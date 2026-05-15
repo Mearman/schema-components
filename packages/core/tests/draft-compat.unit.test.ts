@@ -1,3 +1,12 @@
+import {
+    fieldsOf,
+    literalValuesOf,
+    numberConstraintsOf,
+    elementOf,
+    enumValuesOf,
+    stringConstraintsOf,
+    arrayConstraintsOf,
+} from "./helpers.js";
 /**
  * Tests for multi-version JSON Schema and OpenAPI compatibility.
  *
@@ -58,12 +67,12 @@ describe("Draft 04", () => {
         expect(tree.type).toBe("object");
 
         const age = assertDefined(
-            assertDefined(tree.fields, "fields").age,
+            assertDefined(fieldsOf(tree), "fields").age,
             "age"
         );
         // exclusiveMinimum: true + minimum: 0 → exclusiveMinimum: 0
-        expect(age.constraints.exclusiveMinimum).toBe(0);
-        expect(age.constraints.minimum).toBe(undefined);
+        expect(numberConstraintsOf(age)?.exclusiveMinimum).toBe(0);
+        expect(numberConstraintsOf(age)?.minimum).toBe(undefined);
     });
 
     it("normalises exclusiveMaximum boolean → number", () => {
@@ -71,12 +80,12 @@ describe("Draft 04", () => {
         const tree = walk(normalised, {});
 
         const score = assertDefined(
-            assertDefined(tree.fields, "fields").score,
+            assertDefined(fieldsOf(tree), "fields").score,
             "score"
         );
         // exclusiveMaximum: true + maximum: 100 → exclusiveMaximum: 100
-        expect(score.constraints.exclusiveMaximum).toBe(100);
-        expect(score.constraints.maximum).toBe(undefined);
+        expect(numberConstraintsOf(score)?.exclusiveMaximum).toBe(100);
+        expect(numberConstraintsOf(score)?.maximum).toBe(undefined);
     });
 
     it("preserves inclusive minimum/maximum when exclusive is absent", () => {
@@ -84,13 +93,13 @@ describe("Draft 04", () => {
         const tree = walk(normalised, {});
 
         const rating = assertDefined(
-            assertDefined(tree.fields, "fields").rating,
+            assertDefined(fieldsOf(tree), "fields").rating,
             "rating"
         );
-        expect(rating.constraints.minimum).toBe(1);
-        expect(rating.constraints.maximum).toBe(5);
-        expect(rating.constraints.exclusiveMinimum).toBe(undefined);
-        expect(rating.constraints.exclusiveMaximum).toBe(undefined);
+        expect(numberConstraintsOf(rating)?.minimum).toBe(1);
+        expect(numberConstraintsOf(rating)?.maximum).toBe(5);
+        expect(numberConstraintsOf(rating)?.exclusiveMinimum).toBe(undefined);
+        expect(numberConstraintsOf(rating)?.exclusiveMaximum).toBe(undefined);
     });
 
     it("normalises via adapter end-to-end", () => {
@@ -100,10 +109,10 @@ describe("Draft 04", () => {
         });
         expect(tree.type).toBe("object");
         const age = assertDefined(
-            assertDefined(tree.fields, "fields").age,
+            assertDefined(fieldsOf(tree), "fields").age,
             "age"
         );
-        expect(age.constraints.exclusiveMinimum).toBe(0);
+        expect(numberConstraintsOf(age)?.exclusiveMinimum).toBe(0);
     });
 
     it("handles exclusiveMinimum: false by removing it", () => {
@@ -114,8 +123,8 @@ describe("Draft 04", () => {
         } as Record<string, unknown>;
         const normalised = normaliseJsonSchema(schema, "draft-04");
         const tree = walk(normalised, {});
-        expect(tree.constraints.minimum).toBe(5);
-        expect(tree.constraints.exclusiveMinimum).toBe(undefined);
+        expect(numberConstraintsOf(tree)?.minimum).toBe(5);
+        expect(numberConstraintsOf(tree)?.exclusiveMinimum).toBe(undefined);
     });
 
     it("handles exclusiveMaximum: false by removing it", () => {
@@ -126,8 +135,8 @@ describe("Draft 04", () => {
         } as Record<string, unknown>;
         const normalised = normaliseJsonSchema(schema, "draft-04");
         const tree = walk(normalised, {});
-        expect(tree.constraints.maximum).toBe(10);
-        expect(tree.constraints.exclusiveMaximum).toBe(undefined);
+        expect(numberConstraintsOf(tree)?.maximum).toBe(10);
+        expect(numberConstraintsOf(tree)?.exclusiveMaximum).toBe(undefined);
     });
 
     it("normalises exclusiveMinimum in nested properties", () => {
@@ -148,14 +157,14 @@ describe("Draft 04", () => {
         } as Record<string, unknown>;
         const normalised = normaliseJsonSchema(schema, "draft-04");
         const tree = walk(normalised, {});
-        const value = assertDefined(
-            assertDefined(assertDefined(tree.fields, "fields").inner, "inner")
-                .fields,
-            "inner.fields"
-        ).value;
-        expect(assertDefined(value, "value").constraints.exclusiveMinimum).toBe(
-            1
+        const inner = assertDefined(
+            assertDefined(fieldsOf(tree), "fields").inner,
+            "inner"
         );
+        const value = assertDefined(fieldsOf(inner), "fieldsOf(inner)").value;
+        expect(
+            numberConstraintsOf(assertDefined(value, "value"))?.exclusiveMinimum
+        ).toBe(1);
     });
 
     it("normalises exclusiveMinimum in allOf", () => {
@@ -184,10 +193,10 @@ describe("Draft 04", () => {
         const tree = walk(normalised, {});
         expect(tree.type).toBe("object");
         const count = assertDefined(
-            assertDefined(tree.fields, "fields").count,
+            assertDefined(fieldsOf(tree), "fields").count,
             "count"
         );
-        expect(count.constraints.exclusiveMinimum).toBe(0);
+        expect(numberConstraintsOf(count)?.exclusiveMinimum).toBe(0);
     });
 
     it("resolves $ref to definitions/", () => {
@@ -212,13 +221,13 @@ describe("Draft 04", () => {
             rootDocument: result.rootDocument,
         });
         const user = assertDefined(
-            assertDefined(tree.fields, "fields").user,
+            assertDefined(fieldsOf(tree), "fields").user,
             "user"
         );
         expect(user.type).toBe("object");
         expect(
             assertDefined(
-                assertDefined(user.fields, "user.fields").name,
+                assertDefined(fieldsOf(user), "fieldsOf(user)").name,
                 "name"
             ).type
         ).toBe("string");
@@ -255,17 +264,17 @@ describe("Draft 06", () => {
         expect(tree.type).toBe("object");
 
         const email = assertDefined(
-            assertDefined(tree.fields, "fields").email,
+            assertDefined(fieldsOf(tree), "fields").email,
             "email"
         );
         expect(email.type).toBe("string");
-        expect(email.constraints.format).toBe("email");
+        expect(stringConstraintsOf(email)?.format).toBe("email");
 
         const count = assertDefined(
-            assertDefined(tree.fields, "fields").count,
+            assertDefined(fieldsOf(tree), "fields").count,
             "count"
         );
-        expect(count.constraints.exclusiveMinimum).toBe(0);
+        expect(numberConstraintsOf(count)?.exclusiveMinimum).toBe(0);
     });
 
     it("supports const keyword (added in Draft 06)", () => {
@@ -275,7 +284,7 @@ describe("Draft 06", () => {
         };
         const tree = walk(schema, {});
         expect(tree.type).toBe("literal");
-        expect(tree.literalValues).toStrictEqual(["active"]);
+        expect(literalValuesOf(tree)).toStrictEqual(["active"]);
     });
 });
 
@@ -310,18 +319,18 @@ describe("Draft 07", () => {
         expect(tree.type).toBe("object");
 
         const status = assertDefined(
-            assertDefined(tree.fields, "fields").status,
+            assertDefined(fieldsOf(tree), "fields").status,
             "status"
         );
         expect(status.type).toBe("enum");
-        expect(status.enumValues).toStrictEqual(["active", "inactive"]);
+        expect(enumValuesOf(status)).toStrictEqual(["active", "inactive"]);
 
         const score = assertDefined(
-            assertDefined(tree.fields, "fields").score,
+            assertDefined(fieldsOf(tree), "fields").score,
             "score"
         );
-        expect(score.constraints.exclusiveMinimum).toBe(0);
-        expect(score.constraints.exclusiveMaximum).toBe(100);
+        expect(numberConstraintsOf(score)?.exclusiveMinimum).toBe(0);
+        expect(numberConstraintsOf(score)?.exclusiveMaximum).toBe(100);
     });
 
     it("resolves $ref to definitions/ in Draft 07", () => {
@@ -347,13 +356,15 @@ describe("Draft 07", () => {
             rootDocument: result.rootDocument,
         });
         const address = assertDefined(
-            assertDefined(tree.fields, "fields").address,
+            assertDefined(fieldsOf(tree), "fields").address,
             "address"
         );
         expect(address.type).toBe("object");
         expect(
-            assertDefined(assertDefined(address.fields, "fields").city, "city")
-                .type
+            assertDefined(
+                assertDefined(fieldsOf(address), "fields").city,
+                "city"
+            ).type
         ).toBe("string");
     });
 });
@@ -394,16 +405,18 @@ describe("Draft 2019-09", () => {
 
         expect(tree.type).toBe("object");
         const children = assertDefined(
-            assertDefined(tree.fields, "fields").children,
+            assertDefined(fieldsOf(tree), "fields").children,
             "children"
         );
         expect(children.type).toBe("array");
-        const element = assertDefined(children.element, "element");
+        const element = assertDefined(elementOf(children), "element");
         expect(element.type).toBe("object");
         // Should be able to walk one level deep into the recursive element
         expect(
-            assertDefined(assertDefined(element.fields, "fields").name, "name")
-                .type
+            assertDefined(
+                assertDefined(fieldsOf(element), "fields").name,
+                "name"
+            ).type
         ).toBe("string");
     });
 
@@ -460,27 +473,27 @@ describe("Draft 2020-12", () => {
         expect(tree.type).toBe("object");
 
         const name = assertDefined(
-            assertDefined(tree.fields, "fields").name,
+            assertDefined(fieldsOf(tree), "fields").name,
             "name"
         );
-        expect(name.constraints.minLength).toBe(1);
-        expect(name.constraints.maxLength).toBe(100);
+        expect(stringConstraintsOf(name)?.minLength).toBe(1);
+        expect(stringConstraintsOf(name)?.maxLength).toBe(100);
 
         const tags = assertDefined(
-            assertDefined(tree.fields, "fields").tags,
+            assertDefined(fieldsOf(tree), "fields").tags,
             "tags"
         );
         expect(tags.type).toBe("array");
-        expect(tags.constraints.minItems).toBe(1);
+        expect(arrayConstraintsOf(tags)?.minItems).toBe(1);
 
         const metadata = assertDefined(
-            assertDefined(tree.fields, "fields").metadata,
+            assertDefined(fieldsOf(tree), "fields").metadata,
             "metadata"
         );
         expect(metadata.type).toBe("record");
 
         const role = assertDefined(
-            assertDefined(tree.fields, "fields").role,
+            assertDefined(fieldsOf(tree), "fields").role,
             "role"
         );
         expect(role.type).toBe("enum");
@@ -573,7 +586,7 @@ describe("OpenAPI 3.0.x", () => {
         expect(tree.type).toBe("object");
 
         const email = assertDefined(
-            assertDefined(tree.fields, "fields").email,
+            assertDefined(fieldsOf(tree), "fields").email,
             "email"
         );
         // After normalisation, nullable → anyOf [T, null] → walker detects nullable
@@ -591,7 +604,7 @@ describe("OpenAPI 3.0.x", () => {
         });
 
         const role = assertDefined(
-            assertDefined(tree.fields, "fields").role,
+            assertDefined(fieldsOf(tree), "fields").role,
             "role"
         );
         expect(role.isNullable).toBe(true);
@@ -861,13 +874,13 @@ describe("Swagger 2.0", () => {
         });
 
         expect(tree.type).toBe("object");
-        const fields = assertDefined(tree.fields, "fields");
+        const fields = assertDefined(fieldsOf(tree), "fields");
         expect(assertDefined(fields.id, "id").type).toBe("string");
         expect(assertDefined(fields.name, "name").type).toBe("string");
 
         const status = assertDefined(fields.status, "status");
         expect(status.type).toBe("enum");
-        expect(status.enumValues).toStrictEqual(["available", "sold"]);
+        expect(enumValuesOf(status)).toStrictEqual(["available", "sold"]);
     });
 });
 

@@ -77,7 +77,7 @@ describe("normaliseSchema — Zod 4", () => {
 // ---------------------------------------------------------------------------
 
 describe("normaliseSchema — JSON Schema", () => {
-    it("passes JSON Schema through unchanged", () => {
+    it("passes JSON Schema content through", () => {
         const jsonSchema = {
             type: "object" as const,
             properties: {
@@ -87,7 +87,12 @@ describe("normaliseSchema — JSON Schema", () => {
             required: ["name"],
         };
         const result = normaliseSchema(jsonSchema);
-        expect(result.jsonSchema).toBe(jsonSchema);
+        expect(result.jsonSchema.type).toBe("object");
+        expect(result.jsonSchema.properties).toStrictEqual({
+            name: { type: "string" },
+            age: { type: "number" },
+        });
+        expect(result.jsonSchema.required).toStrictEqual(["name"]);
         expect(result.zodSchema).toBe(undefined);
     });
 

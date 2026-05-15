@@ -409,14 +409,24 @@ function buildRenderProps(
         tree,
         renderChild,
     };
-    if (tree.enumValues !== undefined) props.enumValues = tree.enumValues;
-    if (tree.element !== undefined) props.element = tree.element;
-    if (tree.fields !== undefined) props.fields = tree.fields;
-    if (tree.options !== undefined) props.options = tree.options;
-    if (tree.discriminator !== undefined)
+    if (tree.type === "enum") props.enumValues = tree.enumValues;
+    if (tree.type === "array" && tree.element !== undefined)
+        props.element = tree.element;
+    if (tree.type === "object") props.fields = tree.fields;
+    if (tree.type === "union" || tree.type === "discriminatedUnion")
+        props.options = tree.options;
+    if (tree.type === "discriminatedUnion")
         props.discriminator = tree.discriminator;
-    if (tree.keyType !== undefined) props.keyType = tree.keyType;
-    if (tree.valueType !== undefined) props.valueType = tree.valueType;
+    if (tree.type === "record") props.keyType = tree.keyType;
+    if (tree.type === "record") props.valueType = tree.valueType;
+    if (tree.type === "tuple") props.prefixItems = tree.prefixItems;
+    if (tree.type === "conditional") props.ifClause = tree.ifClause;
+    if (tree.type === "conditional" && tree.thenClause !== undefined)
+        props.thenClause = tree.thenClause;
+    if (tree.type === "conditional" && tree.elseClause !== undefined)
+        props.elseClause = tree.elseClause;
+    if (tree.type === "negation") props.negated = tree.negated;
+    if (tree.type === "literal") props.literalValues = tree.literalValues;
     return props;
 }
 
@@ -593,18 +603,18 @@ function resolvePath(tree: WalkedField, path: string): WalkedField | undefined {
         const bracketMatch = /^(.+)\[(\d+)\]$/.exec(part);
         if (bracketMatch?.[1] !== undefined && bracketMatch[2] !== undefined) {
             const arrayField = bracketMatch[1];
-            if (current.fields !== undefined) {
+            if (current.type === "object") {
                 current = current.fields[arrayField];
             }
-            if (current?.element !== undefined) {
+            if (current?.type === "array") {
                 current = current.element;
             }
             continue;
         }
 
-        if (current.fields !== undefined) {
+        if (current.type === "object") {
             current = current.fields[part];
-        } else if (current.element !== undefined) {
+        } else if (current.type === "array") {
             current = current.element;
         } else {
             return undefined;

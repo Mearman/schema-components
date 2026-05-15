@@ -9,7 +9,29 @@
  * previously declared the same 13 fields independently.
  */
 
-import type { FieldConstraints, SchemaMeta, WalkedField } from "./types.ts";
+import type {
+    StringConstraints,
+    NumberConstraints,
+    ArrayConstraints,
+    ObjectConstraints,
+    FileConstraints,
+    SchemaMeta,
+    WalkedField,
+} from "./types.ts";
+
+/**
+ * Flat intersection of all constraint types.
+ * Used in renderer props where the render function receives the union
+ * but knows (by resolver key) which subset applies.
+ *
+ * The walker's discriminated WalkedField enforces type-correct constraints
+ * at construction time; the renderer consumes them as this flat type.
+ */
+export type AllConstraints = StringConstraints &
+    NumberConstraints &
+    ArrayConstraints &
+    ObjectConstraints &
+    FileConstraints;
 
 // ---------------------------------------------------------------------------
 // Base field props — shared by all renderers
@@ -29,13 +51,21 @@ export interface BaseFieldProps {
     /** Schema metadata for this field. */
     meta: SchemaMeta;
     /** Constraints from schema checks. */
-    constraints: FieldConstraints;
+    constraints: AllConstraints;
     /** Dot-separated path from root (e.g. "address.city"). */
     path: string;
     /** For enums: the allowed values. */
-    enumValues?: string[];
+    enumValues?: (string | number | boolean | null)[];
     /** For arrays: the element schema. */
     element?: WalkedField;
+    /** For tuples: positional element schemas from prefixItems. */
+    prefixItems?: WalkedField[];
+    /** For conditionals: the if/then/else sub-schemas. */
+    ifClause?: WalkedField;
+    thenClause?: WalkedField;
+    elseClause?: WalkedField;
+    /** For negations: the negated sub-schema. */
+    negated?: WalkedField;
     /** For objects: map of field name → WalkedField. */
     fields?: Record<string, WalkedField>;
     /** For unions: the option schemas. */
@@ -45,6 +75,8 @@ export interface BaseFieldProps {
     /** For records: key and value schemas. */
     keyType?: WalkedField;
     valueType?: WalkedField;
+    /** For literals: the literal value(s). */
+    literalValues?: (string | number | boolean | null)[];
     /** Walked field tree for recursive rendering. */
     tree: WalkedField;
 }
@@ -113,9 +145,12 @@ export interface ComponentResolver {
     enum?: RenderFunction;
     object?: RenderFunction;
     array?: RenderFunction;
+    tuple?: RenderFunction;
     record?: RenderFunction;
     union?: RenderFunction;
     discriminatedUnion?: RenderFunction;
+    conditional?: RenderFunction;
+    negation?: RenderFunction;
     literal?: RenderFunction;
     file?: RenderFunction;
     unknown?: RenderFunction;
@@ -139,9 +174,12 @@ export interface HtmlResolver {
     enum?: HtmlRenderFunction;
     object?: HtmlRenderFunction;
     array?: HtmlRenderFunction;
+    tuple?: HtmlRenderFunction;
     record?: HtmlRenderFunction;
     union?: HtmlRenderFunction;
     discriminatedUnion?: HtmlRenderFunction;
+    conditional?: HtmlRenderFunction;
+    negation?: HtmlRenderFunction;
     literal?: HtmlRenderFunction;
     file?: HtmlRenderFunction;
     unknown?: HtmlRenderFunction;
@@ -158,9 +196,12 @@ export const RESOLVER_KEYS = [
     "enum",
     "object",
     "array",
+    "tuple",
     "record",
     "union",
     "discriminatedUnion",
+    "conditional",
+    "negation",
     "literal",
     "file",
     "unknown",
@@ -180,9 +221,12 @@ export function typeToKey(type: WalkedField["type"]): ResolverKey {
         case "enum":
         case "object":
         case "array":
+        case "tuple":
         case "record":
         case "union":
         case "discriminatedUnion":
+        case "conditional":
+        case "negation":
         case "literal":
         case "file":
         case "unknown":

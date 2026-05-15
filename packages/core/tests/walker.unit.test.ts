@@ -1,3 +1,14 @@
+import {
+    fieldsOf,
+    optionsOf,
+    literalValuesOf,
+    numberConstraintsOf,
+    elementOf,
+    enumValuesOf,
+    stringConstraintsOf,
+    discriminatorOf,
+    valueTypeOf,
+} from "./helpers.js";
 /**
  * Unit tests for resolveEditability and the JSON Schema walker.
  *
@@ -143,13 +154,13 @@ describe("walk — basic types", () => {
     it("walks an enum", () => {
         const tree = walk({ enum: ["admin", "editor", "viewer"] }, {});
         expect(tree.type).toBe("enum");
-        expect(tree.enumValues).toStrictEqual(["admin", "editor", "viewer"]);
+        expect(enumValuesOf(tree)).toStrictEqual(["admin", "editor", "viewer"]);
     });
 
     it("walks a literal (const)", () => {
         const tree = walk({ const: "active" }, {});
         expect(tree.type).toBe("literal");
-        expect(tree.literalValues).toStrictEqual(["active"]);
+        expect(literalValuesOf(tree)).toStrictEqual(["active"]);
     });
 
     it("returns unknown for non-object input", () => {
@@ -175,12 +186,12 @@ describe("walk — objects", () => {
     it("walks an object with fields", () => {
         const tree = walk(schema, {});
         expect(tree.type).toBe("object");
-        expect(tree.fields).toBeTruthy();
+        expect(fieldsOf(tree)).toBeTruthy();
         expect(
-            "name" in assertDefined(tree.fields, "expected fields")
+            "name" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
         expect(
-            "age" in assertDefined(tree.fields, "expected fields")
+            "age" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
     });
 
@@ -382,24 +393,24 @@ describe("walk — field overrides", () => {
 describe("walk — constraints", () => {
     it("extracts string constraints (minLength, maxLength)", () => {
         const tree = walk({ type: "string", minLength: 1, maxLength: 100 }, {});
-        expect(tree.constraints.minLength).toBe(1);
-        expect(tree.constraints.maxLength).toBe(100);
+        expect(stringConstraintsOf(tree)?.minLength).toBe(1);
+        expect(stringConstraintsOf(tree)?.maxLength).toBe(100);
     });
 
     it("extracts number constraints (minimum, maximum)", () => {
         const tree = walk({ type: "number", minimum: 0, maximum: 150 }, {});
-        expect(tree.constraints.minimum).toBe(0);
-        expect(tree.constraints.maximum).toBe(150);
+        expect(numberConstraintsOf(tree)?.minimum).toBe(0);
+        expect(numberConstraintsOf(tree)?.maximum).toBe(150);
     });
 
     it("extracts email format", () => {
         const tree = walk({ type: "string", format: "email" }, {});
-        expect(tree.constraints.format).toBe("email");
+        expect(stringConstraintsOf(tree)?.format).toBe("email");
     });
 
     it("extracts url format", () => {
         const tree = walk({ type: "string", format: "uri" }, {});
-        expect(tree.constraints.format).toBe("uri");
+        expect(stringConstraintsOf(tree)?.format).toBe("uri");
     });
 });
 
@@ -426,8 +437,8 @@ describe("walk — arrays", () => {
     it("walks an array with items schema", () => {
         const tree = walk({ type: "array", items: { type: "string" } }, {});
         expect(tree.type).toBe("array");
-        expect(tree.element).toBeTruthy();
-        expect(assertDefined(tree.element, "expected element").type).toBe(
+        expect(elementOf(tree)).toBeTruthy();
+        expect(assertDefined(elementOf(tree), "expected element").type).toBe(
             "string"
         );
     });
@@ -445,11 +456,13 @@ describe("walk — arrays", () => {
             {}
         );
         expect(tree.type).toBe("array");
-        expect(tree.element).toBeTruthy();
-        const element = assertDefined(tree.element, "expected element");
+        expect(elementOf(tree)).toBeTruthy();
+        const element = assertDefined(elementOf(tree), "expected element");
         expect(element.type).toBe("object");
-        expect(element.fields).toBeTruthy();
-        expect("name" in assertDefined(element.fields, "fields")).toBeTruthy();
+        expect(fieldsOf(element)).toBeTruthy();
+        expect(
+            "name" in assertDefined(fieldsOf(element), "fields")
+        ).toBeTruthy();
     });
 });
 
@@ -464,7 +477,7 @@ describe("walk — unions", () => {
             {}
         );
         expect(tree.type).toBe("union");
-        expect(tree.options?.length).toBe(2);
+        expect(optionsOf(tree)?.length).toBe(2);
     });
 
     it("walks a discriminated union (oneOf with const)", () => {
@@ -492,7 +505,7 @@ describe("walk — unions", () => {
             {}
         );
         expect(tree.type).toBe("discriminatedUnion");
-        expect(tree.discriminator).toBe("type");
+        expect(discriminatorOf(tree)).toBe("type");
     });
 });
 
@@ -520,12 +533,12 @@ describe("walk — allOf", () => {
             {}
         );
         expect(tree.type).toBe("object");
-        expect(tree.fields).toBeTruthy();
+        expect(fieldsOf(tree)).toBeTruthy();
         expect(
-            "name" in assertDefined(tree.fields, "expected fields")
+            "name" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
         expect(
-            "age" in assertDefined(tree.fields, "expected fields")
+            "age" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
     });
 });
@@ -611,19 +624,21 @@ describe("walk — recursive ($ref to root)", () => {
     it("resolves $ref '#' to the root document", () => {
         const tree = walk(treeSchema, { rootDocument: treeSchema });
         const children = getField(tree, "children");
-        const element = assertDefined(children.element, "expected element");
+        const element = assertDefined(elementOf(children), "expected element");
         expect(element.type).toBe("object");
     });
 
     it("walks recursive element fields correctly", () => {
         const tree = walk(treeSchema, { rootDocument: treeSchema });
         const element = assertDefined(
-            getField(tree, "children").element,
+            elementOf(getField(tree, "children")),
             "expected element"
         );
-        expect(element.fields).toBeTruthy();
-        expect("label" in assertDefined(element.fields, "fields")).toBe(true);
-        expect("children" in assertDefined(element.fields, "fields")).toBe(
+        expect(fieldsOf(element)).toBeTruthy();
+        expect("label" in assertDefined(fieldsOf(element), "fields")).toBe(
+            true
+        );
+        expect("children" in assertDefined(fieldsOf(element), "fields")).toBe(
             true
         );
     });
@@ -634,7 +649,7 @@ describe("walk — recursive ($ref to root)", () => {
             componentMeta: { readOnly: true },
         });
         const element = assertDefined(
-            getField(tree, "children").element,
+            elementOf(getField(tree, "children")),
             "expected element"
         );
         expect(element.editability).toBe("presentation");
@@ -644,7 +659,7 @@ describe("walk — recursive ($ref to root)", () => {
     it("terminates: recursive element creates a proper graph cycle", () => {
         const tree = walk(treeSchema, { rootDocument: treeSchema });
         const element = assertDefined(
-            getField(tree, "children").element,
+            elementOf(getField(tree, "children")),
             "expected element"
         );
         // One level of recursion should resolve correctly
@@ -654,15 +669,15 @@ describe("walk — recursive ($ref to root)", () => {
         expect(nestedChildren.type).toBe("array");
         // The nested element should be the SAME object reference (graph cycle)
         const nestedElement = assertDefined(
-            nestedChildren.element,
+            elementOf(nestedChildren),
             "expected nested element"
         );
         expect(nestedElement).toBe(element); // same reference = cycle
         expect(nestedElement.type).toBe("object");
         // Fields should be present at every depth
-        expect("label" in assertDefined(nestedElement.fields, "fields")).toBe(
-            true
-        );
+        expect(
+            "label" in assertDefined(fieldsOf(nestedElement), "fields")
+        ).toBe(true);
     });
 });
 
@@ -676,9 +691,9 @@ describe("walk — record", () => {
             {}
         );
         expect(tree.type).toBe("record");
-        expect(tree.valueType).toBeTruthy();
-        expect(assertDefined(tree.valueType, "expected valueType").type).toBe(
-            "number"
-        );
+        expect(valueTypeOf(tree)).toBeTruthy();
+        expect(
+            assertDefined(valueTypeOf(tree), "expected valueType").type
+        ).toBe("number");
     });
 });
