@@ -641,7 +641,7 @@ describe("walk — recursive ($ref to root)", () => {
         expect(getField(element, "label").editability).toBe("presentation");
     });
 
-    it("terminates: deeply nested recursive element becomes unknown", () => {
+    it("terminates: recursive element creates a proper graph cycle", () => {
         const tree = walk(treeSchema, { rootDocument: treeSchema });
         const element = assertDefined(
             getField(tree, "children").element,
@@ -652,12 +652,17 @@ describe("walk — recursive ($ref to root)", () => {
         // The children element inside the recursive element should also resolve
         const nestedChildren = getField(element, "children");
         expect(nestedChildren.type).toBe("array");
-        // But deep nesting should eventually hit MAX_REF_DEPTH or cycle detection
-        const deepElement = nestedChildren.element;
-        // Either it's still an object (if cycle detection allows) or unknown
-        expect(
-            deepElement?.type === "object" || deepElement?.type === "unknown"
-        ).toBe(true);
+        // The nested element should be the SAME object reference (graph cycle)
+        const nestedElement = assertDefined(
+            nestedChildren.element,
+            "expected nested element"
+        );
+        expect(nestedElement).toBe(element); // same reference = cycle
+        expect(nestedElement.type).toBe("object");
+        // Fields should be present at every depth
+        expect("label" in assertDefined(nestedElement.fields, "fields")).toBe(
+            true
+        );
     });
 });
 
