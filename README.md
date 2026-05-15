@@ -1,10 +1,10 @@
 # schema-components
 
-[![GitHub](https://img.shields.io/badge/GitHub-schema--components-181717?logo=github&logoColor=white)](https://github.com/Mearman/schema-components)
+[![GitHub](https://img.shields.io/badge/--181717?logo=github&logoColor=white)](https://github.com/Mearman/schema-components)
 [![npm version](https://img.shields.io/npm/v/schema-components.svg)](https://www.npmjs.com/package/schema-components)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Mearman/schema-components/ci.yml?branch=main)](https://github.com/Mearman/schema-components/actions)
-[![Storybook Docs](https://img.shields.io/badge/Storybook-Docs-FF4785?logo=storybook&logoColor=white)](https://mearman.github.io/schema-components/)
+[![Storybook](https://img.shields.io/badge/--FF4785?logo=storybook&logoColor=white)](https://mearman.github.io/schema-components/)
 
 React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents.
 
