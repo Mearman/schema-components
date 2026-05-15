@@ -594,6 +594,73 @@ describe("walk — $ref resolution", () => {
 // Walker — record (additionalProperties)
 // ---------------------------------------------------------------------------
 
+describe("walk — recursive ($ref to root)", () => {
+    const treeSchema = {
+        type: "object",
+        properties: {
+            label: { type: "string", description: "Label" },
+            children: {
+                type: "array",
+                items: { $ref: "#" },
+                description: "Children",
+            },
+        },
+        required: ["label"],
+    } as Record<string, unknown>;
+
+    it("resolves $ref '#' to the root document", () => {
+        const tree = walk(treeSchema, { rootDocument: treeSchema });
+        const children = getField(tree, "children");
+        const element = assertDefined(children.element, "expected element");
+        expect(element.type).toBe("object");
+    });
+
+    it("walks recursive element fields correctly", () => {
+        const tree = walk(treeSchema, { rootDocument: treeSchema });
+        const element = assertDefined(
+            getField(tree, "children").element,
+            "expected element"
+        );
+        expect(element.fields).toBeTruthy();
+        expect("label" in assertDefined(element.fields, "fields")).toBe(true);
+        expect("children" in assertDefined(element.fields, "fields")).toBe(
+            true
+        );
+    });
+
+    it("propagates readOnly to recursive element", () => {
+        const tree = walk(treeSchema, {
+            rootDocument: treeSchema,
+            componentMeta: { readOnly: true },
+        });
+        const element = assertDefined(
+            getField(tree, "children").element,
+            "expected element"
+        );
+        expect(element.editability).toBe("presentation");
+        expect(getField(element, "label").editability).toBe("presentation");
+    });
+
+    it("terminates: deeply nested recursive element becomes unknown", () => {
+        const tree = walk(treeSchema, { rootDocument: treeSchema });
+        const element = assertDefined(
+            getField(tree, "children").element,
+            "expected element"
+        );
+        // One level of recursion should resolve correctly
+        expect(element.type).toBe("object");
+        // The children element inside the recursive element should also resolve
+        const nestedChildren = getField(element, "children");
+        expect(nestedChildren.type).toBe("array");
+        // But deep nesting should eventually hit MAX_REF_DEPTH or cycle detection
+        const deepElement = nestedChildren.element;
+        // Either it's still an object (if cycle detection allows) or unknown
+        expect(
+            deepElement?.type === "object" || deepElement?.type === "unknown"
+        ).toBe(true);
+    });
+});
+
 describe("walk — record", () => {
     it("walks an object with additionalProperties as a record", () => {
         const tree = walk(

@@ -206,6 +206,60 @@ describe("integration — OpenAPI", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Recursive schemas (z.lazy)
+// ---------------------------------------------------------------------------
+
+describe("integration — recursive schemas", () => {
+    it("walks a recursive Zod schema via z.lazy", () => {
+        // z.lazy captures the variable binding — const works because the callback
+        // is only invoked after the assignment completes.
+        const treeSchema: z.ZodType = z.object({
+            label: z.string().meta({ description: "Label" }),
+            children: z
+                .array(z.lazy(() => treeSchema))
+                .optional()
+                .meta({ description: "Children" }),
+        });
+
+        const tree = walkSchema(treeSchema);
+        expect(tree.type).toBe("object");
+        expect(getField(tree, "label").type).toBe("string");
+        expect(getField(tree, "children").type).toBe("array");
+
+        const element = assertDefined(
+            getField(tree, "children").element,
+            "expected element"
+        );
+        expect(element.type).toBe("object");
+        expect(element.fields).toBeTruthy();
+        expect("label" in assertDefined(element.fields, "fields")).toBe(true);
+    });
+
+    it("propagates readOnly through recursive elements", () => {
+        const treeSchema: z.ZodType = z.object({
+            label: z.string(),
+            children: z.array(z.lazy(() => treeSchema)).optional(),
+        });
+
+        const tree = walkSchema(treeSchema, {
+            componentMeta: { readOnly: true },
+        });
+        expect(tree.editability).toBe("presentation");
+        expect(getField(tree, "label").editability).toBe("presentation");
+        expect(getField(tree, "children").editability).toBe("presentation");
+
+        const element = assertDefined(
+            getField(tree, "children").element,
+            "expected element"
+        );
+        expect(element.editability).toBe("presentation");
+        expect(assertDefined(element.fields, "fields").label?.editability).toBe(
+            "presentation"
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Component meta propagation
 // ---------------------------------------------------------------------------
 
