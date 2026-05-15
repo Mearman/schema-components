@@ -1,3 +1,10 @@
+## [1.12.2](https://github.com/Mearman/schema-components/compare/v1.12.1...v1.12.2) (2026-05-15)
+
+### Bug Fixes
+
+* **core:** resolve recursive $ref '#' to root document ([7342326](https://github.com/Mearman/schema-components/commit/7342326486f5a21eb4ba66f00a07dbcf4a33a28c))
+* override Storybook autodocs backgrounds for dark theme ([a3f4dee](https://github.com/Mearman/schema-components/commit/a3f4deed0b9697c88f7151dbf8101fc9b600df0b))
+
 ## [1.12.1](https://github.com/Mearman/schema-components/compare/v1.12.0...v1.12.1) (2026-05-15)
 
 ### Bug Fixes
