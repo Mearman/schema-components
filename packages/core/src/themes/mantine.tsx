@@ -37,56 +37,38 @@ function getLabel(props: RenderProps): string | undefined {
 // Mantine component slots — consumers provide the real components
 // ---------------------------------------------------------------------------
 
-let MantineTextInput: React.ComponentType<Record<string, unknown>> = (
-    props
-) => <input {...props} />;
-let MantineNumberInput: React.ComponentType<Record<string, unknown>> = (
-    props
+let MantineTextInput: React.ElementType = (props: Record<string, unknown>) => (
+    <input {...props} />
+);
+let MantineNumberInput: React.ElementType = (
+    props: Record<string, unknown>
 ) => <input type="number" {...props} />;
-let MantineSwitch: React.ComponentType<Record<string, unknown>> = (props) => (
+let MantineSwitch: React.ElementType = (props: Record<string, unknown>) => (
     <input type="checkbox" {...props} />
 );
-let MantineSelect: React.ComponentType<Record<string, unknown>> = (props) => (
+let MantineSelect: React.ElementType = (props: Record<string, unknown>) => (
     <select {...props} />
 );
-let MantineFieldset: React.ComponentType<Record<string, unknown>> = (props) => (
+let MantineFieldset: React.ElementType = (props: Record<string, unknown>) => (
     <fieldset {...props} />
 );
-
-// Narrow unknown → ComponentType at the library boundary.
-// Third-party component props are incompatible with Record<string, unknown>;
-// the adapter only passes props it knows about.
-function toComponent(
-    value: unknown
-): React.ComponentType<Record<string, unknown>> {
-    // React components may be functions or forwardRef objects with a render property.
-    if (typeof value === "function") {
-        // @ts-expect-error -- Library boundary: Function is not assignable to ComponentType<Record<string, unknown>>
-        return value;
-    }
-    if (typeof value === "object" && value !== null && "render" in value) {
-        // @ts-expect-error -- Library boundary: forwardRef object is not assignable to ComponentType
-        return value;
-    }
-    throw new Error(`Expected a React component, got ${typeof value}`);
-}
 
 /**
  * Register real Mantine components for the resolver to use.
  * Call once at app startup before rendering.
  */
 export function registerMantineComponents(components: {
-    TextInput: unknown;
-    NumberInput: unknown;
-    Switch: unknown;
-    Select: unknown;
-    Fieldset: unknown;
+    TextInput: React.ElementType;
+    NumberInput: React.ElementType;
+    Switch: React.ElementType;
+    Select: React.ElementType;
+    Fieldset: React.ElementType;
 }): void {
-    MantineTextInput = toComponent(components.TextInput);
-    MantineNumberInput = toComponent(components.NumberInput);
-    MantineSwitch = toComponent(components.Switch);
-    MantineSelect = toComponent(components.Select);
-    MantineFieldset = toComponent(components.Fieldset);
+    MantineTextInput = components.TextInput;
+    MantineNumberInput = components.NumberInput;
+    MantineSwitch = components.Switch;
+    MantineSelect = components.Select;
+    MantineFieldset = components.Fieldset;
 }
 
 // ---------------------------------------------------------------------------

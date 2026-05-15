@@ -280,23 +280,23 @@ function stripChildren(
     return rest;
 }
 
-let MuiTextField: React.ComponentType<Record<string, unknown>> = (props) => (
+let MuiTextField: React.ElementType = (props: Record<string, unknown>) => (
     <input {...stripChildren(props)} />
 );
-let MuiCheckbox: React.ComponentType<Record<string, unknown>> = (props) => (
+let MuiCheckbox: React.ElementType = (props: Record<string, unknown>) => (
     <input type="checkbox" {...stripChildren(props)} />
 );
-let MuiTypography: React.ComponentType<Record<string, unknown>> = (props) => (
+let MuiTypography: React.ElementType = (props: Record<string, unknown>) => (
     <span {...props} />
 );
-let MuiBox: React.ComponentType<Record<string, unknown>> = (props) => (
+let MuiBox: React.ElementType = (props: Record<string, unknown>) => (
     <div {...props} />
 );
-let MuiMenuItem: React.ComponentType<Record<string, unknown>> = (props) => (
+let MuiMenuItem: React.ElementType = (props: Record<string, unknown>) => (
     <option {...props} />
 );
-let MuiFormControlLabel: React.ComponentType<Record<string, unknown>> = (
-    props
+let MuiFormControlLabel: React.ElementType = (
+    props: Record<string, unknown>
 ) => {
     const { control, label, ...rest } = props;
     return (
@@ -310,37 +310,20 @@ let MuiFormControlLabel: React.ComponentType<Record<string, unknown>> = (
 /**
  * Register real MUI components. Call once at app startup.
  */
-
-// Narrow unknown → ComponentType at the library boundary.
-function toComponent(
-    value: unknown
-): React.ComponentType<Record<string, unknown>> {
-    // React components may be functions or forwardRef objects with a render property.
-    if (typeof value === "function") {
-        // @ts-expect-error -- Library boundary: Function is not assignable to ComponentType<Record<string, unknown>>
-        return value;
-    }
-    if (typeof value === "object" && value !== null && "render" in value) {
-        // @ts-expect-error -- Library boundary: forwardRef object is not assignable to ComponentType
-        return value;
-    }
-    throw new Error(`Expected a React component, got ${typeof value}`);
-}
-
 export function registerMuiComponents(components: {
-    TextField: unknown;
-    Checkbox: unknown;
-    Typography: unknown;
-    Box: unknown;
-    MenuItem: unknown;
-    FormControlLabel: unknown;
+    TextField: React.ElementType;
+    Checkbox: React.ElementType;
+    Typography: React.ElementType;
+    Box: React.ElementType;
+    MenuItem: React.ElementType;
+    FormControlLabel: React.ElementType;
 }): void {
-    MuiTextField = toComponent(components.TextField);
-    MuiCheckbox = toComponent(components.Checkbox);
-    MuiTypography = toComponent(components.Typography);
-    MuiBox = toComponent(components.Box);
-    MuiMenuItem = toComponent(components.MenuItem);
-    MuiFormControlLabel = toComponent(components.FormControlLabel);
+    MuiTextField = components.TextField;
+    MuiCheckbox = components.Checkbox;
+    MuiTypography = components.Typography;
+    MuiBox = components.Box;
+    MuiMenuItem = components.MenuItem;
+    MuiFormControlLabel = components.FormControlLabel;
 }
 
 // ---------------------------------------------------------------------------
