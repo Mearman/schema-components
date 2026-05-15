@@ -1,3 +1,9 @@
+## [1.12.8](https://github.com/Mearman/schema-components/compare/v1.12.7...v1.12.8) (2026-05-15)
+
+### Bug Fixes
+
+* **docs:** resolve nested fieldset overflow and alignment issues ([4e25c73](https://github.com/Mearman/schema-components/commit/4e25c73d688ffd5785830a1786b9978b151fbb0e))
+
 ## [1.12.7](https://github.com/Mearman/schema-components/compare/v1.12.6...v1.12.7) (2026-05-15)
 
 ### Bug Fixes
