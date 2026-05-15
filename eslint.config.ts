@@ -147,11 +147,51 @@ const configFiles = [
     "packages/docs/vitest.config.ts",
 ];
 
+// ---------------------------------------------------------------------------
+// No re-exports rule — bans export ... from in non-index files
+// ---------------------------------------------------------------------------
+
+const noReExports: Rule.RuleModule = {
+    meta: {
+        type: "problem",
+        messages: {
+            noReExport:
+                "Re-exports (export ... from) are only allowed in index files. Import directly from the source module instead.",
+        },
+        docs: {
+            description:
+                "Bans re-exports in non-index files — every module should be imported directly from its source.",
+        },
+    },
+    create(context) {
+        const filename = context.filename;
+        const isIndex = /(^|\/)index\.[cm]?[jt]sx?$/.test(
+            filename.split("/").pop() ?? ""
+        );
+
+        if (isIndex) {
+            return {};
+        }
+
+        return {
+            ExportNamedDeclaration(node) {
+                if (node.source) {
+                    context.report({ node, messageId: "noReExport" });
+                }
+            },
+            ExportAllDeclaration(node) {
+                context.report({ node, messageId: "noReExport" });
+            },
+        };
+    },
+};
+
 const sharedPluginRules = {
     custom: {
         rules: {
             "no-pointless-reassignments": noPointlessReassignments,
             "no-barrel-files": noBarrelFiles,
+            "no-re-exports": noReExports,
         },
     },
     prettier: eslintPluginPrettier,
@@ -160,6 +200,7 @@ const sharedPluginRules = {
 const sharedRules: Record<string, unknown> = {
     "custom/no-pointless-reassignments": "error",
     "custom/no-barrel-files": "error",
+    "custom/no-re-exports": "error",
     "prettier/prettier": "error",
     "@typescript-eslint/consistent-type-assertions": [
         "error",
