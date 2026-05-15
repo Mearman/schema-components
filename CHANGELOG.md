@@ -1,3 +1,9 @@
+## [1.12.6](https://github.com/Mearman/schema-components/compare/v1.12.5...v1.12.6) (2026-05-15)
+
+### Bug Fixes
+
+* **core:** propagate resolver null returns through renderField ([81159a1](https://github.com/Mearman/schema-components/commit/81159a178778d8b8d959087e4732a9ded43a3517))
+
 ## [1.12.5](https://github.com/Mearman/schema-components/compare/v1.12.4...v1.12.5) (2026-05-15)
 
 ### Bug Fixes
