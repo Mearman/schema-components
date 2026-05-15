@@ -1,3 +1,9 @@
+## [1.12.5](https://github.com/Mearman/schema-components/compare/v1.12.4...v1.12.5) (2026-05-15)
+
+### Bug Fixes
+
+* **core:** suppress empty Children sections on leaf nodes ([48550c7](https://github.com/Mearman/schema-components/commit/48550c76480c5785ea72ab729dfd7baa1d965a5a))
+
 ## [1.12.4](https://github.com/Mearman/schema-components/compare/v1.12.3...v1.12.4) (2026-05-15)
 
 ### Bug Fixes
