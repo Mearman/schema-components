@@ -1,3 +1,13 @@
+## [1.9.0](https://github.com/Mearman/schema-components/compare/v1.8.1...v1.9.0) (2026-05-15)
+
+### Features
+
+* **core:** add Mantine theme adapter and wire up real component libraries ([296608a](https://github.com/Mearman/schema-components/commit/296608a38c8102de7c88354988299a1808bc7d7a))
+
+### Bug Fixes
+
+* **core:** handle forwardRef objects in toComponent for real component libraries ([0275fc8](https://github.com/Mearman/schema-components/commit/0275fc8891006d1b0fe0ae8602a1c88ba363e45e))
+
 ## [1.8.1](https://github.com/Mearman/schema-components/compare/v1.8.0...v1.8.1) (2026-05-15)
 
 ### Bug Fixes
