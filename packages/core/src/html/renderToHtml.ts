@@ -290,11 +290,13 @@ function renderEnumEditable(props: HtmlRenderProps): HtmlNode {
     const optionNodes = [
         h("option", { value: "" }, "Select\u2026"),
         ...(props.enumValues ?? []).map((v) => {
-            const attrs: HtmlAttributes = { value: v };
-            if (v === selectedValue) {
+            const display =
+                v === null ? "null" : typeof v === "string" ? v : String(v);
+            const attrs: HtmlAttributes = { value: display };
+            if (display === selectedValue) {
                 attrs.selected = true;
             }
-            return h("option", attrs, v);
+            return h("option", attrs, display);
         }),
     ];
 
@@ -467,7 +469,7 @@ function renderRecordNode(props: HtmlRenderProps): HtmlNode {
 }
 
 function renderLiteralHtml(props: HtmlRenderProps): string {
-    const values = props.tree.literalValues;
+    const values = props.literalValues;
     if (values === undefined || values.length === 0) {
         return serialize(
             h("span", { class: "sc-value sc-value--empty" }, "\u2014")
@@ -528,10 +530,12 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
         typeof obj[discKey] === "string" ? obj[discKey] : undefined;
 
     const optionLabels = options.map((opt) => {
-        const discriminatorField = opt.fields?.[discKey];
-        if (discriminatorField !== undefined) {
-            const constVal = discriminatorField.literalValues?.[0];
-            if (typeof constVal === "string") return constVal;
+        if (opt.type === "object") {
+            const discriminatorField = opt.fields[discKey];
+            if (discriminatorField?.type === "literal") {
+                const constVal = discriminatorField.literalValues[0];
+                if (typeof constVal === "string") return constVal;
+            }
         }
         return typeof opt.meta.title === "string" ? opt.meta.title : opt.type;
     });
@@ -687,6 +691,73 @@ function matchUnionOption(
 }
 
 // ---------------------------------------------------------------------------
+// Tuple rendering
+// ---------------------------------------------------------------------------
+
+function renderTupleHtml(props: HtmlRenderProps): string {
+    const arr = Array.isArray(props.value) ? props.value : [];
+    const prefixItems = props.prefixItems;
+    if (prefixItems === undefined) return renderUnknownHtml(props);
+
+    const children: HtmlNode[] = [];
+    for (let i = 0; i < prefixItems.length; i++) {
+        const itemValue: unknown = arr[i];
+        const element = prefixItems[i];
+        if (element === undefined) continue;
+        const childHtml = props.renderChild(
+            element,
+            itemValue,
+            `[${String(i)}]`
+        );
+        children.push(
+            h(
+                "div",
+                { class: "sc-tuple-item" },
+                h("span", { class: "sc-tuple-index" }, String(i)),
+                raw(childHtml)
+            )
+        );
+    }
+
+    return serialize(h("div", { class: "sc-tuple" }, ...children));
+}
+
+// ---------------------------------------------------------------------------
+// Conditional rendering
+// ---------------------------------------------------------------------------
+
+function renderConditionalHtml(props: HtmlRenderProps): string {
+    // Conditionals are rendered as the base type with an annotation
+    const children: HtmlNode[] = [];
+
+    if (props.ifClause !== undefined) {
+        children.push(h("div", { class: "sc-conditional-if" }, raw("if: ...")));
+    }
+    if (props.thenClause !== undefined) {
+        children.push(
+            h("div", { class: "sc-conditional-then" }, raw("then: ..."))
+        );
+    }
+    if (props.elseClause !== undefined) {
+        children.push(
+            h("div", { class: "sc-conditional-else" }, raw("else: ..."))
+        );
+    }
+
+    return serialize(h("div", { class: "sc-conditional" }, ...children));
+}
+
+// ---------------------------------------------------------------------------
+// Negation rendering
+// ---------------------------------------------------------------------------
+
+function renderNegationHtml(props: HtmlRenderProps): string {
+    // Props unused — negation renders a static annotation
+    void props;
+    return serialize(h("div", { class: "sc-negation" }, raw("not: ...")));
+}
+
+// ---------------------------------------------------------------------------
 // Default resolver
 // ---------------------------------------------------------------------------
 
@@ -697,10 +768,13 @@ export const defaultHtmlResolver: HtmlResolver = {
     enum: renderEnumHtml,
     object: renderObjectHtml,
     array: renderArrayHtml,
+    tuple: renderTupleHtml,
     record: renderRecordHtml,
     literal: renderLiteralHtml,
     union: renderUnionHtml,
     discriminatedUnion: renderDiscriminatedUnionHtml,
+    conditional: renderConditionalHtml,
+    negation: renderNegationHtml,
     file: renderFileHtml,
     unknown: renderUnknownHtml,
 };
@@ -787,14 +861,24 @@ function renderFieldHtml(
             tree,
             renderChild,
         };
-        if (tree.enumValues !== undefined) props.enumValues = tree.enumValues;
-        if (tree.element !== undefined) props.element = tree.element;
-        if (tree.fields !== undefined) props.fields = tree.fields;
-        if (tree.options !== undefined) props.options = tree.options;
-        if (tree.discriminator !== undefined)
+        if (tree.type === "enum") props.enumValues = tree.enumValues;
+        if (tree.type === "array" && tree.element !== undefined)
+            props.element = tree.element;
+        if (tree.type === "object") props.fields = tree.fields;
+        if (tree.type === "union" || tree.type === "discriminatedUnion")
+            props.options = tree.options;
+        if (tree.type === "discriminatedUnion")
             props.discriminator = tree.discriminator;
-        if (tree.keyType !== undefined) props.keyType = tree.keyType;
-        if (tree.valueType !== undefined) props.valueType = tree.valueType;
+        if (tree.type === "record") props.keyType = tree.keyType;
+        if (tree.type === "record") props.valueType = tree.valueType;
+        if (tree.type === "tuple") props.prefixItems = tree.prefixItems;
+        if (tree.type === "conditional") props.ifClause = tree.ifClause;
+        if (tree.type === "conditional" && tree.thenClause !== undefined)
+            props.thenClause = tree.thenClause;
+        if (tree.type === "conditional" && tree.elseClause !== undefined)
+            props.elseClause = tree.elseClause;
+        if (tree.type === "negation") props.negated = tree.negated;
+        if (tree.type === "literal") props.literalValues = tree.literalValues;
 
         return renderFn(props);
     }

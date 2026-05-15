@@ -1,3 +1,11 @@
+import {
+    fieldsOf,
+    optionsOf,
+    literalValuesOf,
+    stringConstraintsOf,
+    fileConstraintsOf,
+    discriminatorOf,
+} from "./helpers.js";
 /**
  * Tests for discriminated union rendering, date/time inputs, and schema defaults.
  */
@@ -37,22 +45,24 @@ describe("discriminated union — walker", () => {
         });
 
         expect(tree.type).toBe("discriminatedUnion");
-        expect(tree.discriminator).toBe("type");
-        expect(tree.options !== undefined).toBeTruthy();
-        expect(assertDefined(tree.options, "expected options").length).toBe(2);
+        expect(discriminatorOf(tree)).toBe("type");
+        expect(optionsOf(tree) !== undefined).toBeTruthy();
+        expect(assertDefined(optionsOf(tree), "expected options").length).toBe(
+            2
+        );
 
         // First option should have a literal field for the discriminator
         const emailOption = assertDefined(
-            assertDefined(tree.options, "expected options")[0],
+            assertDefined(optionsOf(tree), "expected options")[0],
             "email option"
         );
         expect(emailOption.type).toBe("object");
         const typeField = assertDefined(
-            assertDefined(emailOption.fields, "email fields").type,
+            assertDefined(fieldsOf(emailOption), "email fields").type,
             "type field"
         );
         expect(typeField.type).toBe("literal");
-        expect(typeField.literalValues).toStrictEqual(["email"]);
+        expect(literalValuesOf(typeField)).toStrictEqual(["email"]);
     });
 
     it("produces correct option labels from const values", () => {
@@ -79,12 +89,28 @@ describe("discriminated union — walker", () => {
         });
 
         expect(tree.type).toBe("discriminatedUnion");
-        expect(tree.discriminator).toBe("kind");
+        expect(discriminatorOf(tree)).toBe("kind");
 
-        const circleOption = tree.options?.[0];
-        const rectOption = tree.options?.[1];
-        expect(circleOption?.fields?.kind?.literalValues?.[0]).toBe("circle");
-        expect(rectOption?.fields?.kind?.literalValues?.[0]).toBe("rectangle");
+        const circleOption = optionsOf(tree)?.[0];
+        const rectOption = optionsOf(tree)?.[1];
+        if (circleOption !== undefined) {
+            const circleFields = fieldsOf(circleOption);
+            const kindField = circleFields?.kind;
+            const kindLiteral =
+                kindField?.type === "literal"
+                    ? kindField.literalValues[0]
+                    : undefined;
+            expect(kindLiteral).toBe("circle");
+        }
+        if (rectOption !== undefined) {
+            const rectFields = fieldsOf(rectOption);
+            const kindField = rectFields?.kind;
+            const kindLiteral =
+                kindField?.type === "literal"
+                    ? kindField.literalValues[0]
+                    : undefined;
+            expect(kindLiteral).toBe("rectangle");
+        }
     });
 });
 
@@ -165,7 +191,7 @@ describe("date/time — walker", () => {
             format: "date",
         });
         expect(tree.type).toBe("string");
-        expect(tree.constraints.format).toBe("date");
+        expect(stringConstraintsOf(tree)?.format).toBe("date");
     });
 
     it("extracts time format constraint", () => {
@@ -174,7 +200,7 @@ describe("date/time — walker", () => {
             format: "time",
         });
         expect(tree.type).toBe("string");
-        expect(tree.constraints.format).toBe("time");
+        expect(stringConstraintsOf(tree)?.format).toBe("time");
     });
 
     it("extracts date-time format constraint", () => {
@@ -183,7 +209,7 @@ describe("date/time — walker", () => {
             format: "date-time",
         });
         expect(tree.type).toBe("string");
-        expect(tree.constraints.format).toBe("date-time");
+        expect(stringConstraintsOf(tree)?.format).toBe("date-time");
     });
 });
 
@@ -277,7 +303,7 @@ describe("schema defaults — walker", () => {
                 count: { type: "number", default: 0 },
             },
         });
-        const fields = assertDefined(tree.fields, "expected fields");
+        const fields = assertDefined(fieldsOf(tree), "expected fields");
         expect("name" in fields).toBeTruthy();
         expect("count" in fields).toBeTruthy();
         expect(assertDefined(fields.name, "name").defaultValue).toBe("Unnamed");
@@ -358,7 +384,7 @@ describe("schema defaults — Zod", () => {
             rootDocument: normalised.rootDocument,
         });
 
-        const fields = assertDefined(tree.fields, "expected fields");
+        const fields = assertDefined(fieldsOf(tree), "expected fields");
         expect("name" in fields).toBeTruthy();
         expect("active" in fields).toBeTruthy();
         expect(assertDefined(fields.name, "name").defaultValue).toBe(
@@ -397,7 +423,7 @@ describe("file upload — walker", () => {
             contentMediaType: "image/png",
         });
         expect(tree.type).toBe("file");
-        expect(tree.constraints.mimeTypes).toStrictEqual(["image/png"]);
+        expect(fileConstraintsOf(tree)?.mimeTypes).toStrictEqual(["image/png"]);
     });
 
     it("has no mimeTypes when contentMediaType is absent", () => {
@@ -406,7 +432,7 @@ describe("file upload — walker", () => {
             format: "binary",
         });
         expect(tree.type).toBe("file");
-        expect(tree.constraints.mimeTypes).toBe(undefined);
+        expect(fileConstraintsOf(tree)?.mimeTypes).toBe(undefined);
     });
 });
 

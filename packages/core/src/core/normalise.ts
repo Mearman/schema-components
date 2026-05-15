@@ -200,7 +200,10 @@ function normaliseDraft201909Node(
     node: Record<string, unknown>
 ): Record<string, unknown> {
     if (typeof node.$recursiveRef === "string") {
-        node.$ref = node.$recursiveRef;
+        // $recursiveRef resolves to the nearest $recursiveAnchor.
+        // For rendering, the root schema is the document — normalise to "#"
+        // so the walker resolves to the root.
+        node.$ref = "#";
         delete node.$recursiveRef;
     }
     // $recursiveAnchor is consumed and not needed after normalisation
@@ -227,6 +230,14 @@ function normaliseDraft201909Node(
 function normaliseOpenApi30Node(
     node: Record<string, unknown>
 ): Record<string, unknown> {
+    // Normalise example → examples (OpenAPI 3.0 uses singular, 3.1 uses array)
+    if ("example" in node && !("examples" in node)) {
+        node.examples = [node.example];
+        delete node.example;
+    } else if ("example" in node) {
+        delete node.example;
+    }
+
     if (node.nullable !== true) {
         // nullable: false or absent — just strip the keyword if present
         if ("nullable" in node) {
@@ -277,9 +288,144 @@ function normaliseOpenApi30Node(
     return { anyOf: [wrapper, nullOption] };
 }
 
+/**
+ * Normalise OpenAPI 3.0.x `discriminator` keyword by injecting `const`
+ * values into each `oneOf`/`anyOf` option's discriminator property.
+ *
+ * In OpenAPI 3.0, `discriminator` is a sibling of `oneOf`/`anyOf`:
+ *   discriminator: { propertyName: "type" }
+ * The walker detects discriminated unions from `oneOf` + `const` on a
+ * property, so this normaliser injects the `const` values from the
+ * `mapping` or infers them from `$ref` fragment names.
+ */
+function normaliseOpenApi30Discriminator(
+    node: Record<string, unknown>
+): Record<string, unknown> {
+    const discriminator = node.discriminator;
+    if (!isObject(discriminator)) return node;
+
+    const propertyName = discriminator.propertyName;
+    if (typeof propertyName !== "string") return node;
+
+    const mapping = isObject(discriminator.mapping)
+        ? discriminator.mapping
+        : undefined;
+
+    const composite = node.oneOf ?? node.anyOf;
+    if (!Array.isArray(composite)) return node;
+
+    // Build reverse mapping: $ref → const value
+    const refToValue = new Map<string, string>();
+    if (mapping !== undefined) {
+        for (const [value, ref] of Object.entries(mapping)) {
+            if (typeof ref === "string") {
+                refToValue.set(ref, value);
+            }
+        }
+    }
+
+    // Inject const into each option that doesn't already have it
+    const normalisedComposite: unknown[] = [];
+    for (const option of composite) {
+        if (!isObject(option)) {
+            normalisedComposite.push(option);
+            continue;
+        }
+
+        const props = isObject(option.properties)
+            ? { ...option.properties }
+            : undefined;
+        const discProp = props?.[propertyName];
+
+        // If the discriminator property already has const, leave as-is
+        if (isObject(discProp) && "const" in discProp) {
+            normalisedComposite.push(option);
+            continue;
+        }
+
+        // Determine the const value
+        let constValue: string | undefined;
+        if (isObject(discProp) && typeof discProp.$ref === "string") {
+            constValue = refToValue.get(discProp.$ref);
+        }
+        if (constValue === undefined && typeof option.$ref === "string") {
+            constValue = refToValue.get(option.$ref);
+            // Fallback: derive from $ref fragment name
+            if (constValue === undefined) {
+                const fragment = option.$ref.split("/").pop();
+                if (fragment !== undefined) constValue = fragment;
+            }
+        }
+        // Inline option with mapping: reverse-lookup by matching option index
+        // to mapping entries in order
+        if (constValue === undefined && mapping !== undefined) {
+            const optionIndex = composite.indexOf(option);
+            const mappingEntries = Object.entries(mapping);
+            const entry =
+                optionIndex >= 0 && optionIndex < mappingEntries.length
+                    ? mappingEntries[optionIndex]
+                    : undefined;
+            if (entry !== undefined) {
+                constValue = entry[0];
+            }
+        }
+
+        if (constValue !== undefined) {
+            const normalisedProps = props ?? {};
+            normalisedProps[propertyName] = {
+                ...(isObject(discProp) ? discProp : {}),
+                const: constValue,
+            };
+            normalisedComposite.push({
+                ...option,
+                properties: normalisedProps,
+            });
+        } else {
+            normalisedComposite.push(option);
+        }
+    }
+
+    // Update the composite array in-place
+    if ("oneOf" in node) {
+        node.oneOf = normalisedComposite;
+    } else if ("anyOf" in node) {
+        node.anyOf = normalisedComposite;
+    }
+
+    // Remove discriminator — no longer needed after const injection
+    delete node.discriminator;
+    return node;
+}
+
 // ---------------------------------------------------------------------------
 // JSON Schema normalisation entry point
 // ---------------------------------------------------------------------------
+
+/**
+ * Combined OpenAPI 3.0.x node transform: nullable + discriminator.
+ * Applied to every schema node in an OpenAPI 3.0 document.
+ */
+function normaliseOpenApi30Combined(
+    node: Record<string, unknown>
+): Record<string, unknown> {
+    return normaliseOpenApi30Discriminator(normaliseOpenApi30Node(node));
+}
+
+function normaliseDynamicRefNode(
+    node: Record<string, unknown>
+): Record<string, unknown> {
+    if (typeof node.$dynamicRef === "string") {
+        // $dynamicRef resolves to the $dynamicAnchor in the dynamic scope.
+        // For rendering, the root schema is the document — normalise to "#"
+        // so the walker resolves to the root.
+        node.$ref = "#";
+        delete node.$dynamicRef;
+    }
+    if ("$dynamicAnchor" in node) {
+        delete node.$dynamicAnchor;
+    }
+    return node;
+}
 
 /**
  * Normalise a JSON Schema to canonical Draft 2020-12 form.
@@ -294,10 +440,10 @@ export function normaliseJsonSchema(
             return deepNormalise(schema, normaliseDraft04Node);
         case "draft-2019-09":
             return deepNormalise(schema, normaliseDraft201909Node);
-        // Draft 06, 07, and 2020-12 are already compatible with the walker
+        case "draft-2020-12":
+            return deepNormalise(schema, normaliseDynamicRefNode);
         case "draft-06":
         case "draft-07":
-        case "draft-2020-12":
             return schema;
     }
 }
@@ -347,7 +493,7 @@ function deepNormaliseOpenApi30Doc(
             const normalisedSchemas: Record<string, unknown> = {};
             for (const [name, schema] of Object.entries(schemas)) {
                 normalisedSchemas[name] = isObject(schema)
-                    ? deepNormalise(schema, normaliseOpenApi30Node)
+                    ? deepNormalise(schema, normaliseOpenApi30Combined)
                     : schema;
             }
             result.components = {
@@ -445,7 +591,14 @@ function normaliseParameter(
     const result: Record<string, unknown> = { ...param };
     const schema = param.schema;
     if (isObject(schema)) {
-        result.schema = deepNormalise(schema, normaliseOpenApi30Node);
+        result.schema = deepNormalise(schema, normaliseOpenApi30Combined);
+    }
+    // Normalise example → examples on the parameter itself
+    if ("example" in result && !("examples" in result)) {
+        result.examples = [result.example];
+        delete result.example;
+    } else if ("example" in result) {
+        delete result.example;
     }
     return result;
 }
@@ -493,7 +646,17 @@ function normaliseContentMap(
         const normalised: Record<string, unknown> = { ...mediaObj };
         const schema = mediaObj.schema;
         if (isObject(schema)) {
-            normalised.schema = deepNormalise(schema, normaliseOpenApi30Node);
+            normalised.schema = deepNormalise(
+                schema,
+                normaliseOpenApi30Combined
+            );
+        }
+        // Normalise example → examples on the media type object
+        if ("example" in normalised && !("examples" in normalised)) {
+            normalised.examples = { value: normalised.example };
+            delete normalised.example;
+        } else if ("example" in normalised) {
+            delete normalised.example;
         }
         result[mediaType] = normalised;
     }
@@ -562,7 +725,7 @@ function normaliseSwagger2Document(
         for (const [name, schema] of Object.entries(definitions)) {
             schemas[name] = isObject(schema)
                 ? deepNormalise(schema, (node) =>
-                      normaliseOpenApi30Node(normaliseDraft04Node(node))
+                      normaliseOpenApi30Combined(normaliseDraft04Node(node))
                   )
                 : schema;
         }
@@ -660,9 +823,28 @@ function normaliseSwaggerOperation(
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
-    // Copy non-parameter fields
+    // Resolve produces/consumes: operation-level overrides global
+    const globalProduces: unknown[] = Array.isArray(doc.produces)
+        ? doc.produces
+        : ["application/json"];
+    const globalConsumes: unknown[] = Array.isArray(doc.consumes)
+        ? doc.consumes
+        : ["application/json"];
+    const produces: unknown[] = Array.isArray(operation.produces)
+        ? operation.produces
+        : globalProduces;
+    const consumes: unknown[] = Array.isArray(operation.consumes)
+        ? operation.consumes
+        : globalConsumes;
+
+    // Copy non-special fields
     for (const [key, value] of Object.entries(operation)) {
-        if (key !== "parameters" && key !== "responses") {
+        if (
+            key !== "parameters" &&
+            key !== "responses" &&
+            key !== "produces" &&
+            key !== "consumes"
+        ) {
             result[key] = value;
         }
     }
@@ -672,6 +854,7 @@ function normaliseSwaggerOperation(
     if (Array.isArray(params)) {
         const nonBodyParams: unknown[] = [];
         let bodyParam: Record<string, unknown> | undefined;
+        let usesFormData = false;
 
         for (const param of params) {
             if (!isObject(param)) {
@@ -687,6 +870,7 @@ function normaliseSwaggerOperation(
             } else if (location === "formData") {
                 // Convert formData to request body with multipart
                 bodyParam = buildFormDataBody(resolvedParam, params);
+                usesFormData = true;
             } else {
                 nonBodyParams.push(
                     normaliseSwaggerParameter(resolvedParam, doc)
@@ -699,14 +883,17 @@ function normaliseSwaggerOperation(
         }
 
         if (bodyParam !== undefined) {
-            result.requestBody = buildRequestBody(bodyParam);
+            result.requestBody = buildRequestBody(
+                bodyParam,
+                usesFormData ? ["multipart/form-data"] : consumes
+            );
         }
     }
 
     // Responses: wrap schemas in content
     const responses = operation.responses;
     if (isObject(responses)) {
-        result.responses = normaliseSwaggerResponses(responses);
+        result.responses = normaliseSwaggerResponses(responses, doc, produces);
     }
 
     return result;
@@ -717,18 +904,30 @@ function normaliseSwaggerOperation(
  */
 function resolveSwaggerParameter(
     param: Record<string, unknown>,
-    doc: Record<string, unknown>
+    doc: Record<string, unknown>,
+    visited: Set<string> = new Set<string>()
 ): Record<string, unknown> {
     const ref = param.$ref;
     if (typeof ref !== "string" || !ref.startsWith("#/parameters/")) {
         return param;
     }
 
+    // Cycle detection
+    if (visited.has(ref)) return param;
+    const nextVisited = new Set(visited);
+    nextVisited.add(ref);
+
     const name = ref.slice("#/parameters/".length);
     const globalParams = doc.parameters;
     if (isObject(globalParams)) {
         const resolved = globalParams[name];
-        if (isObject(resolved)) return resolved;
+        if (isObject(resolved)) {
+            // Recursively resolve if the target is also a $ref
+            if (typeof resolved.$ref === "string") {
+                return resolveSwaggerParameter(resolved, doc, nextVisited);
+            }
+            return resolved;
+        }
     }
 
     return param;
@@ -741,12 +940,22 @@ function normaliseSwaggerParameter(
     param: Record<string, unknown>,
     doc: Record<string, unknown>
 ): Record<string, unknown> {
+    // Resolve $ref before processing
+    if (typeof param.$ref === "string") {
+        const resolved = resolveSwaggerParameter(param, doc);
+        // Avoid infinite recursion if the ref resolved to the same object
+        if (resolved !== param) {
+            return normaliseSwaggerParameter(resolved, doc);
+        }
+    }
+
     const result: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(param)) {
-        if (key === "type" || key === "format") {
+        if (key === "type" || key === "format" || key === "collectionFormat") {
             // Swagger parameters can have type/format directly —
-            // wrap in schema for OpenAPI 3.x
+            // wrap in schema for OpenAPI 3.x.
+            // collectionFormat is handled separately below.
             continue;
         }
         result[key] = value;
@@ -766,10 +975,31 @@ function normaliseSwaggerParameter(
         result.schema = schema;
     }
 
-    // Swagger parameters may also be $ref pointers — resolve them
-    if (typeof param.$ref === "string") {
-        const resolved = resolveSwaggerParameter(param, doc);
-        return normaliseSwaggerParameter(resolved, doc);
+    // collectionFormat → style + explode (OpenAPI 3.x)
+    const cf = param.collectionFormat;
+    if (typeof cf === "string") {
+        switch (cf) {
+            case "csv":
+                result.style = "form";
+                result.explode = false;
+                break;
+            case "ssv":
+                result.style = "spaceDelimited";
+                result.explode = false;
+                break;
+            case "tsv":
+                result.style = "tabDelimited";
+                result.explode = false;
+                break;
+            case "pipes":
+                result.style = "pipeDelimited";
+                result.explode = false;
+                break;
+            case "multi":
+                result.style = "form";
+                result.explode = true;
+                break;
+        }
     }
 
     return result;
@@ -792,9 +1022,15 @@ function buildFormDataBody(
         if (typeof name !== "string") continue;
 
         const schema: Record<string, unknown> = {};
-        if (typeof p.type === "string") schema.type = p.type;
-        if (typeof p.format === "string") schema.format = p.format;
-        if (p.enum !== undefined) schema.enum = p.enum;
+        if (p.type === "file") {
+            // Swagger 2.0 file upload → string + format: binary
+            schema.type = "string";
+            schema.format = "binary";
+        } else {
+            if (typeof p.type === "string") schema.type = p.type;
+            if (typeof p.format === "string") schema.format = p.format;
+            if (p.enum !== undefined) schema.enum = p.enum;
+        }
 
         properties[name] = schema;
 
@@ -818,14 +1054,21 @@ function buildFormDataBody(
  * Build an OpenAPI 3.x request body from a Swagger 2.0 body parameter.
  */
 function buildRequestBody(
-    bodyParam: Record<string, unknown>
+    bodyParam: Record<string, unknown>,
+    consumes: unknown[]
 ): Record<string, unknown> {
     const schema = bodyParam.schema;
-    const result: Record<string, unknown> = {
-        content: {
-            "application/json": isObject(schema) ? { schema } : {},
-        },
-    };
+    const content: Record<string, unknown> = {};
+
+    // Use consumes content types, falling back to application/json
+    const contentTypes = consumes.length > 0 ? consumes : ["application/json"];
+    for (const ct of contentTypes) {
+        if (typeof ct === "string") {
+            content[ct] = isObject(schema) ? { schema } : {};
+        }
+    }
+
+    const result: Record<string, unknown> = { content };
 
     if (bodyParam.required === true) {
         result.required = true;
@@ -841,8 +1084,44 @@ function buildRequestBody(
  * Normalise Swagger 2.0 responses to OpenAPI 3.x format.
  * Wraps `schema` in `content: { "application/json": { schema } }`.
  */
+/**
+ * Resolve a Swagger 2.0 response `$ref` (e.g. `#/responses/NotFound`).
+ */
+function resolveSwaggerResponse(
+    response: Record<string, unknown>,
+    doc: Record<string, unknown>,
+    visited: Set<string> = new Set<string>()
+): Record<string, unknown> {
+    const ref = response.$ref;
+    if (typeof ref !== "string" || !ref.startsWith("#/responses/")) {
+        return response;
+    }
+
+    // Cycle detection
+    if (visited.has(ref)) return response;
+    const nextVisited = new Set(visited);
+    nextVisited.add(ref);
+
+    const name = ref.slice("#/responses/".length);
+    const globalResponses = doc.responses;
+    if (isObject(globalResponses)) {
+        const resolved = globalResponses[name];
+        if (isObject(resolved)) {
+            // Recursively resolve if the target is also a $ref
+            if (typeof resolved.$ref === "string") {
+                return resolveSwaggerResponse(resolved, doc, nextVisited);
+            }
+            return resolved;
+        }
+    }
+
+    return response;
+}
+
 function normaliseSwaggerResponses(
-    responses: Record<string, unknown>
+    responses: Record<string, unknown>,
+    doc: Record<string, unknown>,
+    produces: unknown[]
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
@@ -852,21 +1131,30 @@ function normaliseSwaggerResponses(
             continue;
         }
 
+        // Resolve $ref to #/responses/Name
+        const resolved = resolveSwaggerResponse(response, doc);
+
         const normalised: Record<string, unknown> = {};
 
         // Copy non-schema fields
-        for (const [key, value] of Object.entries(response)) {
+        for (const [key, value] of Object.entries(resolved)) {
             if (key !== "schema") {
                 normalised[key] = value;
             }
         }
 
-        // Wrap schema in content
-        const schema = response.schema;
+        // Wrap schema in content with produces content types
+        const schema = resolved.schema;
         if (isObject(schema)) {
-            normalised.content = {
-                "application/json": { schema },
-            };
+            const content: Record<string, unknown> = {};
+            const contentTypes =
+                produces.length > 0 ? produces : ["application/json"];
+            for (const ct of contentTypes) {
+                if (typeof ct === "string") {
+                    content[ct] = { schema };
+                }
+            }
+            normalised.content = content;
         }
 
         result[code] = normalised;

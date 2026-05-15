@@ -238,8 +238,14 @@ function resolveOpenApiRef(
         const content = getProperty(requestBody, "content");
         if (!isObject(content)) throw new Error(`No content for ${ref}`);
         const json = getProperty(content, "application/json");
-        if (!isObject(json)) throw new Error(`No application/json for ${ref}`);
-        const schema = getProperty(json, "schema");
+        const multipart = getProperty(content, "multipart/form-data");
+        const mediaType = isObject(json)
+            ? json
+            : isObject(multipart)
+              ? multipart
+              : undefined;
+        if (mediaType === undefined) throw new Error(`No content for ${ref}`);
+        const schema = getProperty(mediaType, "schema");
         if (!isObject(schema))
             throw new Error(`Could not resolve request body schema for ${ref}`);
         return schema;

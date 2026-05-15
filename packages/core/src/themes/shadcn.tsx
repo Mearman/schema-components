@@ -233,12 +233,16 @@ function renderEnumInput(props: RenderProps): ReactNode {
                 props.onChange(e.target.value);
             }}
         >
-            <option value="">Select…</option>
-            {props.enumValues?.map((v) => (
-                <option key={v} value={v}>
-                    {v}
-                </option>
-            ))}
+            <option value="">Select\u2026</option>
+            {props.enumValues?.map((v) => {
+                const display =
+                    v === null ? "null" : typeof v === "string" ? v : String(v);
+                return (
+                    <option key={display} value={display}>
+                        {display}
+                    </option>
+                );
+            })}
         </select>
     );
 }

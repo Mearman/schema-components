@@ -191,11 +191,19 @@ function renderString(props: RenderProps): ReactNode {
                 {...ariaAttrs}
             >
                 <option value="">Select\u2026</option>
-                {props.enumValues.map((v) => (
-                    <option key={v} value={v}>
-                        {v}
-                    </option>
-                ))}
+                {props.enumValues.map((v) => {
+                    const display =
+                        v === null
+                            ? "null"
+                            : typeof v === "string"
+                              ? v
+                              : String(v);
+                    return (
+                        <option key={display} value={display}>
+                            {display}
+                        </option>
+                    );
+                })}
             </select>
         );
     }
@@ -329,11 +337,15 @@ function renderEnum(props: RenderProps): ReactNode {
             {...ariaAttrs}
         >
             <option value="">Select\u2026</option>
-            {props.enumValues?.map((v) => (
-                <option key={v} value={v}>
-                    {v}
-                </option>
-            ))}
+            {props.enumValues?.map((v) => {
+                const display =
+                    v === null ? "null" : typeof v === "string" ? v : String(v);
+                return (
+                    <option key={display} value={display}>
+                        {display}
+                    </option>
+                );
+            })}
         </select>
     );
 }
@@ -515,10 +527,12 @@ function renderDiscriminatedUnion(props: RenderProps): ReactNode {
 
     // Find the label for each option from the const on the discriminator property
     const optionLabels = options.map((opt) => {
-        const discriminatorField = opt.fields?.[discKey];
-        if (discriminatorField !== undefined) {
-            const constVal = discriminatorField.literalValues?.[0];
-            if (typeof constVal === "string") return constVal;
+        if (opt.type === "object") {
+            const discriminatorField = opt.fields[discKey];
+            if (discriminatorField?.type === "literal") {
+                const constVal = discriminatorField.literalValues[0];
+                if (typeof constVal === "string") return constVal;
+            }
         }
         return typeof opt.meta.title === "string" ? opt.meta.title : opt.type;
     });
