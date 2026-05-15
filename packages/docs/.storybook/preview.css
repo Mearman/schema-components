@@ -99,6 +99,87 @@
 }
 
 /* =========================================================================
+   System preference fallback — applies dark variables when the OS/browser
+   requests dark mode AND no theme class has been set by the decorator.
+   The decorator's .light-theme / .dark-theme classes have higher specificity
+   and override this block once the story renders.
+   ========================================================================= */
+
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme):not(.dark-theme) {
+        --sc-text: #e2e8f0;
+        --sc-text-secondary: #cbd5e1;
+        --sc-text-muted: #94a3b8;
+        --sc-text-description: #94a3b8;
+        --sc-bg: #1e293b;
+        --sc-bg-secondary: #0f172a;
+        --sc-border: #334155;
+        --sc-border-input: #475569;
+        --sc-focus: #60a5fa;
+        --sc-focus-ring: rgba(96, 165, 250, 0.2);
+        --sc-danger: #fca5a5;
+        --sc-tab-active-bg: #1e3a5f;
+        --sc-tab-active-border: #60a5fa;
+        --sc-tab-active-text: #93c5fd;
+        --sc-tab-bg: transparent;
+        --sc-tab-border: #475569;
+        --sc-tab-text: #94a3b8;
+        --sc-link: #93c5fd;
+        --sc-card-bg: #1e293b;
+        --sc-card-border: #334155;
+        --sc-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        --sc-code-bg: #0f172a;
+        --sc-code-text: #e2e8f0;
+        --sc-meta-tag-bg: #334155;
+        --sc-meta-tag-text: #94a3b8;
+        --sc-deprecated-bg: #422006;
+        --sc-deprecated-text: #fbbf24;
+        --sc-openapi-heading: #e2e8f0;
+        --sc-openapi-subheading: #cbd5e1;
+        --sc-openapi-muted: #94a3b8;
+        --sc-openapi-required: #fca5a5;
+        --sc-section-text: #94a3b8;
+
+        --hljs-base: #c9d1d9;
+        --hljs-bg: #0d1117;
+        --hljs-keyword: #ff7b72;
+        --hljs-string: #a5d6ff;
+        --hljs-number: #79c0ff;
+        --hljs-comment: #8b949e;
+        --hljs-builtin: #ffa657;
+        --hljs-literal: #79c0ff;
+        --hljs-title: #d2a8ff;
+        --hljs-attr: #79c0ff;
+        --hljs-attribute: #79c0ff;
+        --hljs-selector-tag: #7ee787;
+        --hljs-selector-class: #79c0ff;
+        --hljs-selector-id: #79c0ff;
+        --hljs-type: #ff7b72;
+        --hljs-section: #1f6feb;
+        --hljs-name: #7ee787;
+        --hljs-symbol: #ffa657;
+        --hljs-variable: #79c0ff;
+        --hljs-params: #79c0ff;
+        --hljs-regexp: #a5d6ff;
+        --hljs-meta: #79c0ff;
+        --hljs-tag: #7ee787;
+        --hljs-addition: #aff5b4;
+        --hljs-addition-bg: #033a16;
+        --hljs-deletion: #ffdcd7;
+        --hljs-deletion-bg: #67060c;
+        --hljs-emphasis: #c9d1d9;
+        --hljs-strong: #c9d1d9;
+        --hljs-bullet: #f2cc60;
+        --hljs-quote: #7ee787;
+        --hljs-link: #a5d6ff;
+        --hljs-code: #8b949e;
+        --hljs-formula: #8b949e;
+        --hljs-subst: #c9d1d9;
+        --hljs-doctag: #ff7b72;
+    }
+}
+
+/* =========================================================================
    Dark mode — activated by @storybook/addon-themes toolbar toggle.
    The addon adds .dark-theme to <html> inside the iframe.
    ========================================================================= */
@@ -309,6 +390,35 @@
 /* Docs description paragraphs */
 :root.dark-theme .sbdocs-p {
     color: var(--sc-text-secondary);
+}
+
+/* =========================================================================
+   System-preference autodocs overrides
+
+   Same as the .dark-theme overrides above, but triggered by OS/browser
+   preference when no theme class has been set by the decorator.
+   ========================================================================= */
+
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme):not(.dark-theme) .sbdocs-wrapper,
+    :root:not(.light-theme):not(.dark-theme) .sbdocs-preview,
+    :root:not(.light-theme):not(.dark-theme) .sbdocs-content {
+        background: var(--sc-bg);
+        color: var(--sc-text);
+    }
+
+    :root:not(.light-theme):not(.dark-theme) .sbdocs-preview > div {
+        background: var(--sc-bg);
+        color: var(--sc-text-secondary);
+    }
+
+    :root:not(.light-theme):not(.dark-theme) .sbdocs-title {
+        color: var(--sc-text);
+    }
+
+    :root:not(.light-theme):not(.dark-theme) .sbdocs-p {
+        color: var(--sc-text-secondary);
+    }
 }
 
 /* =========================================================================
