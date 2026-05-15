@@ -373,11 +373,12 @@ export function renderField(
                 err
             );
         }
-        if (result !== undefined && result !== null) {
-            if (isValidElement(result)) return result;
-            if (typeof result === "string" || typeof result === "number")
-                return result;
-        }
+        // Resolver returned null — propagate (e.g. empty array suppressed
+        // in read-only mode). Do NOT fall through to the final fallback.
+        if (result === null || result === undefined) return null;
+        if (isValidElement(result)) return result;
+        if (typeof result === "string" || typeof result === "number")
+            return result;
     }
 
     // 4. Final fallback for unhandled types
