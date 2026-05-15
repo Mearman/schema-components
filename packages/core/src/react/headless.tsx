@@ -446,9 +446,9 @@ function renderArray(props: RenderProps): ReactNode {
     const element = props.element;
     if (element === undefined) return null;
 
-    // In read-only mode, suppress empty arrays — there is nothing to display.
-    // This prevents orphaned "Children" labels on leaf nodes in recursive schemas.
-    if (props.readOnly && arr.length === 0) return null;
+    // Suppress empty arrays — there is nothing to display. This prevents
+    // orphaned "Children" labels on leaf nodes in recursive schemas.
+    if (arr.length === 0) return null;
 
     return (
         <div role="group" aria-label={props.meta.description ?? undefined}>
