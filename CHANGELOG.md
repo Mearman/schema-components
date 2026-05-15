@@ -1,3 +1,9 @@
+## [1.12.11](https://github.com/Mearman/schema-components/compare/v1.12.10...v1.12.11) (2026-05-15)
+
+### Documentation
+
+* replace ASCII diagrams in README with mermaid flowchart and remove directory tree ([dad43f3](https://github.com/Mearman/schema-components/commit/dad43f323d97a13d41e0554eb5d4fbe3b4508074))
+
 ## [1.12.10](https://github.com/Mearman/schema-components/compare/v1.12.9...v1.12.10) (2026-05-15)
 
 ### Bug Fixes
