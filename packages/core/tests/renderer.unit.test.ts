@@ -11,7 +11,7 @@ import {
     mergeResolvers,
     mergeHtmlResolvers,
 } from "../src/core/renderer.ts";
-import type { ComponentResolver, HtmlResolver } from "../src/core/types.ts";
+import type { ComponentResolver, HtmlResolver } from "../src/core/renderer.ts";
 
 // ---------------------------------------------------------------------------
 // RESOLVER_KEYS

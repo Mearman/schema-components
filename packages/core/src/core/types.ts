@@ -456,22 +456,7 @@ export function isUnknownField(field: WalkedField): field is UnknownField {
     return isField(field, "unknown");
 }
 
-export type {
-    BaseFieldProps,
-    ComponentResolver,
-    HtmlRenderFunction,
-    HtmlRenderProps,
-    HtmlResolver,
-    RenderFunction,
-    RenderProps,
-} from "./renderer.ts";
-
-export {
-    SchemaError,
-    SchemaNormalisationError,
-    SchemaRenderError,
-    SchemaFieldError,
-} from "./errors.ts";
+// Import types directly from renderer.ts and errors.ts
 
 // ---------------------------------------------------------------------------
 // Type-level JSON Schema parser (for `as const` literals)
