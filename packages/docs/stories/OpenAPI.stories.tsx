@@ -111,7 +111,7 @@ const petStoreSpec = {
 // ---------------------------------------------------------------------------
 
 const meta: Meta<typeof SchemaComponent> = {
-    title: "OpenAPI",
+    title: "OpenAPI/Schema Documents",
     component: SchemaComponent,
 };
 

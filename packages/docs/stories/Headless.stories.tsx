@@ -88,7 +88,7 @@ const mixedData = {
 // ---------------------------------------------------------------------------
 
 const meta: Meta<typeof SchemaComponent> = {
-    title: "React/Headless",
+    title: "Theme Adapters/Headless",
     component: SchemaComponent,
     argTypes: {
         readOnly: { control: "boolean" },

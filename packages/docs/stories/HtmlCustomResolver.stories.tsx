@@ -44,7 +44,7 @@ function HtmlPreview({ html }: { html: string }) {
 }
 
 const meta: Meta<typeof HtmlPreview> = {
-    title: "HTML/Custom Resolver",
+    title: "HTML Rendering/Custom Resolver",
     component: HtmlPreview,
 };
 

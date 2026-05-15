@@ -62,7 +62,7 @@ function ValidationDemo() {
 }
 
 const meta: Meta<typeof ValidationDemo> = {
-    title: "React/Validation",
+    title: "Validation/Overview",
     component: ValidationDemo,
 };
 

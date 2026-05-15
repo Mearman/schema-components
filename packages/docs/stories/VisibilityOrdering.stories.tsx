@@ -28,7 +28,7 @@ const paymentSchema = z.object({
 });
 
 const meta: Meta = {
-    title: "Visibility & Ordering",
+    title: "Objects & Layout/Visibility & Ordering",
 };
 export default meta;
 

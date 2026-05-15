@@ -7,7 +7,7 @@ import { z } from "zod";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
 const meta: Meta = {
-    title: "Records",
+    title: "Inputs/Records",
 };
 export default meta;
 

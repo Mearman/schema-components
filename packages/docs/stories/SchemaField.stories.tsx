@@ -54,7 +54,7 @@ function ProfileForm() {
 }
 
 const meta: Meta<typeof ProfileForm> = {
-    title: "React/SchemaField",
+    title: "Objects & Layout/SchemaField",
     component: ProfileForm,
 };
 

@@ -46,7 +46,7 @@ function EventForm({ readOnly }: { readOnly: boolean }) {
 }
 
 const meta: Meta<typeof EventForm> = {
-    title: "React/DateTime",
+    title: "Inputs/Date & Time",
     component: EventForm,
 };
 

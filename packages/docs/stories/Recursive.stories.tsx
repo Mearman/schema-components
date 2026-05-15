@@ -44,7 +44,7 @@ function TreeDemo({ readOnly }: { readOnly: boolean }) {
 }
 
 const meta: Meta<typeof TreeDemo> = {
-    title: "React/Recursive",
+    title: "Objects & Layout/Recursive",
     component: TreeDemo,
 };
 

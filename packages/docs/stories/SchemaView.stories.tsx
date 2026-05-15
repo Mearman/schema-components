@@ -32,7 +32,7 @@ const user = {
 };
 
 const meta: Meta = {
-    title: "SchemaView",
+    title: "Server Rendering/SchemaView",
 };
 export default meta;
 

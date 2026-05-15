@@ -85,7 +85,7 @@ function MuiPreview({
 }
 
 const meta: Meta<typeof MuiPreview> = {
-    title: "React/MUI",
+    title: "Theme Adapters/MUI",
     component: MuiPreview,
 };
 

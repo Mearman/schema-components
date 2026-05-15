@@ -17,7 +17,7 @@ const userData = {
 };
 
 const meta: Meta<typeof SchemaComponent> = {
-    title: "Introduction",
+    title: "Getting Started/Introduction",
     component: SchemaComponent,
     tags: ["autodocs"],
 };
