@@ -833,3 +833,22 @@ a:hover {
     border-top: 1px solid var(--sc-border);
     margin: 1.5rem 0;
 }
+
+/* =========================================================================
+   Mermaid diagrams
+   ========================================================================= */
+
+.readme-content pre.mermaid {
+    display: flex;
+    justify-content: center;
+    background: var(--sc-bg);
+    border: 1px solid var(--sc-border);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin: 0.75rem 0;
+}
+
+.readme-content pre.mermaid svg {
+    max-width: 100%;
+    height: auto;
+}
