@@ -308,6 +308,14 @@ function extractConstraintsFromJson(
     const maximum = getNumber(schema, "maximum");
     if (maximum !== undefined) constraints.maximum = maximum;
 
+    const exclusiveMinimum = getNumber(schema, "exclusiveMinimum");
+    if (exclusiveMinimum !== undefined)
+        constraints.exclusiveMinimum = exclusiveMinimum;
+
+    const exclusiveMaximum = getNumber(schema, "exclusiveMaximum");
+    if (exclusiveMaximum !== undefined)
+        constraints.exclusiveMaximum = exclusiveMaximum;
+
     const pattern = getString(schema, "pattern");
     if (pattern !== undefined) constraints.pattern = pattern;
 

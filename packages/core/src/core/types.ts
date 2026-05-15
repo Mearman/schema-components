@@ -195,6 +195,8 @@ export interface FieldConstraints {
     maxLength?: number;
     minimum?: number;
     maximum?: number;
+    exclusiveMinimum?: number;
+    exclusiveMaximum?: number;
     pattern?: string;
     format?: string;
     mimeTypes?: string[];
