@@ -282,6 +282,36 @@
 }
 
 /* =========================================================================
+   Storybook autodocs overrides
+
+   Storybook's @storybook/addon-docs injects emotion CSS with hardcoded
+   white backgrounds on .sbdocs-wrapper, .sbdocs-preview, etc. These
+   overrides make the docs pages respect the theme toggle.
+   ========================================================================= */
+
+:root.dark-theme .sbdocs-wrapper,
+:root.dark-theme .sbdocs-preview,
+:root.dark-theme .sbdocs-content {
+    background: var(--sc-bg);
+    color: var(--sc-text);
+}
+
+/* Docs preview inner panel (Zoom in / Show code toolbar) */
+:root.dark-theme .sbdocs-preview > div {
+    background: var(--sc-bg);
+    color: var(--sc-text-secondary);
+}
+
+:root.dark-theme .sbdocs-title {
+    color: var(--sc-text);
+}
+
+/* Docs description paragraphs */
+:root.dark-theme .sbdocs-p {
+    color: var(--sc-text-secondary);
+}
+
+/* =========================================================================
    Base element resets & defaults
    ========================================================================= */
 
