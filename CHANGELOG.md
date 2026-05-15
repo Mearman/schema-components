@@ -1,3 +1,9 @@
+## [1.10.6](https://github.com/Mearman/schema-components/compare/v1.10.5...v1.10.6) (2026-05-15)
+
+### Documentation
+
+* add Storybook badge ([f7fdfdd](https://github.com/Mearman/schema-components/commit/f7fdfdd4896971ee6a2c493edb8abaea7cee451b))
+
 ## [1.10.5](https://github.com/Mearman/schema-components/compare/v1.10.4...v1.10.5) (2026-05-15)
 
 ### Documentation
