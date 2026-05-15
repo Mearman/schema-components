@@ -13,6 +13,11 @@
 import { z } from "zod";
 import type { JsonObject, SchemaMeta } from "./types.ts";
 import { hasProperty, isObject, getProperty } from "./guards.ts";
+import { detectJsonSchemaDraft, detectOpenApiVersion } from "./version.ts";
+import {
+    normaliseJsonSchema as normaliseForDraft,
+    normaliseOpenApiSchemas,
+} from "./normalise.ts";
 
 // ---------------------------------------------------------------------------
 // Schema cache — avoids redundant z.toJSONSchema() calls
@@ -39,7 +44,8 @@ export function detectSchemaKind(input: unknown): SchemaKind {
     if (hasProperty(input, "_zod")) return "zod4";
     if (hasProperty(input, "_def") && !hasProperty(input, "_zod"))
         return "zod3";
-    if (hasProperty(input, "openapi")) return "openapi";
+    if (hasProperty(input, "openapi") || hasProperty(input, "swagger"))
+        return "openapi";
     return "jsonSchema";
 }
 
@@ -146,10 +152,12 @@ function normaliseZod4(input: unknown): NormalisedSchema {
 }
 
 function normaliseJsonSchema(jsonSchema: JsonObject): NormalisedSchema {
+    const draft = detectJsonSchemaDraft(jsonSchema);
+    const normalised = normaliseForDraft(jsonSchema, draft);
     return {
-        jsonSchema,
-        rootMeta: extractRootMetaFromJson(jsonSchema),
-        rootDocument: jsonSchema,
+        jsonSchema: normalised,
+        rootMeta: extractRootMetaFromJson(normalised),
+        rootDocument: normalised,
     };
 }
 
@@ -163,11 +171,14 @@ function normaliseOpenApi(
     doc: JsonObject,
     ref: string | undefined
 ): NormalisedSchema {
-    const resolved = resolveOpenApiRef(doc, ref);
+    const version = detectOpenApiVersion(doc);
+    const normalisedDoc =
+        version !== undefined ? normaliseOpenApiSchemas(doc, version) : doc;
+    const resolved = resolveOpenApiRef(normalisedDoc, ref);
     return {
         jsonSchema: resolved,
         rootMeta: extractRootMetaFromJson(resolved),
-        rootDocument: doc,
+        rootDocument: normalisedDoc,
     };
 }
 
