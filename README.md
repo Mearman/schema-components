@@ -1,5 +1,9 @@
 # schema-components
 
+[![npm version](https://img.shields.io/npm/v/schema-components.svg)](https://www.npmjs.com/package/schema-components)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Mearman/schema-components/ci.yml?branch=main)](https://github.com/Mearman/schema-components/actions)
+
 React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents.
 
 Define your data model once. Get presentational views, input fields, and editable forms — no manual wiring.
