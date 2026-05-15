@@ -1,3 +1,9 @@
+## [1.10.3](https://github.com/Mearman/schema-components/compare/v1.10.2...v1.10.3) (2026-05-15)
+
+### Documentation
+
+* add README landing page and autodocs to Storybook ([dbab5ce](https://github.com/Mearman/schema-components/commit/dbab5ce2d3ccacd26793df125ae3d62dc301c00c))
+
 ## [1.10.2](https://github.com/Mearman/schema-components/compare/v1.10.1...v1.10.2) (2026-05-15)
 
 ### Bug Fixes
