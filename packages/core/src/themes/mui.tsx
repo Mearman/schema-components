@@ -315,8 +315,13 @@ let MuiFormControlLabel: React.ComponentType<Record<string, unknown>> = (
 function toComponent(
     value: unknown
 ): React.ComponentType<Record<string, unknown>> {
+    // React components may be functions or forwardRef objects with a render property.
     if (typeof value === "function") {
         // @ts-expect-error -- Library boundary: Function is not assignable to ComponentType<Record<string, unknown>>
+        return value;
+    }
+    if (typeof value === "object" && value !== null && "render" in value) {
+        // @ts-expect-error -- Library boundary: forwardRef object is not assignable to ComponentType
         return value;
     }
     throw new Error(`Expected a React component, got ${typeof value}`);
