@@ -2,6 +2,17 @@ import "./preview.css";
 import type { Preview } from "@storybook/react";
 import { withThemeByClassName } from "@storybook/addon-themes";
 
+/**
+ * Theme-aware docs via @storybook/addon-themes.
+ *
+ * The `withThemeByClassName` decorator adds `light-theme` or `dark-theme`
+ * to <html> inside the iframe when the user toggles the toolbar button.
+ * `initialGlobals` ensures the correct class is set on first render
+ * (Storybook 10.3 doesn't always propagate globals to the iframe on load).
+ *
+ * CSS custom properties on :root / :root.dark-theme handle every colour
+ * via var() — no element-level overrides needed.
+ */
 const preview: Preview = {
     tags: ["autodocs"],
     decorators: [
@@ -13,6 +24,9 @@ const preview: Preview = {
             defaultTheme: "light",
         }),
     ],
+    initialGlobals: {
+        theme: "light",
+    },
     parameters: {
         controls: {
             matchers: {
