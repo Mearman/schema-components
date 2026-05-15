@@ -1,3 +1,9 @@
+## [1.12.4](https://github.com/Mearman/schema-components/compare/v1.12.3...v1.12.4) (2026-05-15)
+
+### Bug Fixes
+
+* **core:** use ref cache for proper recursive schema cycles ([a9528b1](https://github.com/Mearman/schema-components/commit/a9528b1ecaf5c34f622de37c47e1bfdf86afa593))
+
 ## [1.12.3](https://github.com/Mearman/schema-components/compare/v1.12.2...v1.12.3) (2026-05-15)
 
 ### Bug Fixes
