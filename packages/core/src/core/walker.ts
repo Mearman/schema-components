@@ -92,9 +92,13 @@ function dereference(
     ref: string,
     root: Record<string, unknown>
 ): Record<string, unknown> | undefined {
+    // $ref: "#" (empty fragment) refers to the root document per RFC 6901
+    if (ref === "#") return root;
     if (!ref.startsWith("#/")) return undefined;
 
     const parts = ref.slice(2).split("/");
+    // "#/" (empty JSON Pointer) also refers to the root document
+    if (parts.length === 1 && parts[0] === "") return root;
     let current: unknown = root;
 
     for (const part of parts) {
@@ -403,6 +407,7 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         isNullable: false,
         isOptional: false,
         defaultValue: undefined,
+        visitedRefs: new Set(),
     });
 }
 
@@ -418,6 +423,8 @@ interface WalkContext {
     isNullable: boolean;
     isOptional: boolean;
     defaultValue: unknown;
+    /** Track visited $ref targets to detect recursive schemas. */
+    visitedRefs: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -462,17 +469,33 @@ function walkNode(
     }
 
     // --- Handle $ref ---
-    const resolved = resolveRef(schema, ctx.rootDocument, new Set());
+    // Cycle detection: if we're already resolving this ref, bail out
+    const ref = getString(schema, "$ref");
+    if (ref !== undefined && ctx.visitedRefs.has(ref)) {
+        return buildField(schema, "unknown", ctx);
+    }
+
+    const resolved =
+        ref !== undefined
+            ? resolveRef(schema, ctx.rootDocument, new Set())
+            : schema;
+
+    // Track this ref for cycle detection in child walks
+    const childVisited =
+        ref !== undefined
+            ? new Set([...ctx.visitedRefs, ref])
+            : ctx.visitedRefs;
+    const ctxWithRef: WalkContext = { ...ctx, visitedRefs: childVisited };
 
     // --- Handle enum ---
     const enumValues = getArray(resolved, "enum");
     if (enumValues !== undefined) {
-        return walkEnum(resolved, enumValues, ctx);
+        return walkEnum(resolved, enumValues, ctxWithRef);
     }
 
     // --- Handle const (literal) ---
     if ("const" in resolved) {
-        return walkLiteral(resolved, ctx);
+        return walkLiteral(resolved, ctxWithRef);
     }
 
     // --- Extract type ---
@@ -480,39 +503,39 @@ function walkNode(
 
     // --- No type, no composition, no enum → unknown ---
     if (type === undefined) {
-        return buildField(resolved, "unknown", ctx);
+        return buildField(resolved, "unknown", ctxWithRef);
     }
 
     // --- Primitive types ---
-    if (type === "string") return walkString(resolved, ctx);
+    if (type === "string") return walkString(resolved, ctxWithRef);
     if (type === "number" || type === "integer")
-        return walkNumber(resolved, ctx);
-    if (type === "boolean") return walkBoolean(resolved, ctx);
+        return walkNumber(resolved, ctxWithRef);
+    if (type === "boolean") return walkBoolean(resolved, ctxWithRef);
     if (type === "null") {
-        return buildField(resolved, "null", ctx);
+        return buildField(resolved, "null", ctxWithRef);
     }
 
     // --- Object / Record ---
     if (type === "object") {
         const properties = getObject(resolved, "properties");
         if (properties !== undefined) {
-            return walkObject(resolved, properties, ctx);
+            return walkObject(resolved, properties, ctxWithRef);
         }
         // No properties — check for record (additionalProperties)
         const additionalProps = getObject(resolved, "additionalProperties");
         if (additionalProps !== undefined) {
-            return walkRecord(resolved, additionalProps, ctx);
+            return walkRecord(resolved, additionalProps, ctxWithRef);
         }
         // Empty object schema
-        return buildField(resolved, "object", ctx);
+        return buildField(resolved, "object", ctxWithRef);
     }
 
     // --- Array ---
     if (type === "array") {
-        return walkArray(resolved, ctx);
+        return walkArray(resolved, ctxWithRef);
     }
 
-    return buildField(resolved, "unknown", ctx);
+    return buildField(resolved, "unknown", ctxWithRef);
 }
 
 // ---------------------------------------------------------------------------
