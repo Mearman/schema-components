@@ -84,14 +84,10 @@ describe("recursive — read-only", () => {
             })
         );
 
-        // Count fieldsets — should have one per node (Root, Branch A, Branch B,
-        // Leaf A1, Leaf A2, Leaf B1 = 6 fieldsets total)
+        // Count fieldsets — one per node (Root, Branch A, Branch B,
+        // Leaf A1, Leaf A2, Leaf B1 = 6)
         const fieldsetCount = (html.match(/<fieldset>/g) ?? []).length;
         expect(fieldsetCount).toBe(6);
-
-        // Leaf nodes should NOT have nested fieldsets for their empty children
-        // Each leaf has no children data, so no nested fieldset should appear
-        // inside them. The total of 6 means no extra empty fieldsets.
     });
 });
 
@@ -115,5 +111,23 @@ describe("recursive — editable", () => {
         expect(html).toContain("Root");
         expect(html).toContain("Branch A");
         expect(html).toContain("Leaf A1");
+    });
+
+    it("does not render empty Children sections for leaf nodes", () => {
+        const html = renderToString(
+            createElement(SchemaComponent, {
+                schema: makeTreeSchema(),
+                value: treeData,
+            })
+        );
+
+        // Leaf nodes should not have empty group divs or orphaned Children labels
+        // Count fieldsets — one per node
+        const fieldsetCount = (html.match(/<fieldset>/g) ?? []).length;
+        expect(fieldsetCount).toBe(6);
+
+        // No empty group divs
+        const emptyGroups = html.match(/role="group"[^>]*><\/div>/g);
+        expect(emptyGroups).toBeNull();
     });
 });
