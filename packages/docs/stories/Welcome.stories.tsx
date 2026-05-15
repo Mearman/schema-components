@@ -34,7 +34,25 @@ export const Page: Story = {
     name: "README",
     parameters: {
         docs: {
-            disable: true,
+            page: () => (
+                <>
+                    <link
+                        rel="stylesheet"
+                        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css"
+                    />
+                    <div
+                        style={{
+                            fontFamily:
+                                '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                            lineHeight: 1.6,
+                            maxWidth: "48rem",
+                            padding: "2rem",
+                            color: "#1a1a1a",
+                        }}
+                        dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                </>
+            ),
         },
     },
     render: () => (
