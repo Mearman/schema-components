@@ -1,3 +1,10 @@
+## [1.10.5](https://github.com/Mearman/schema-components/compare/v1.10.4...v1.10.5) (2026-05-15)
+
+### Documentation
+
+* add npm, license, and CI badges to README ([e9bef58](https://github.com/Mearman/schema-components/commit/e9bef58ef75822775b266da6e1e57596aa0de971))
+* consolidate README — single source of truth via symlink ([3da376f](https://github.com/Mearman/schema-components/commit/3da376f2a47d9e52dc68000ebd7471a6e723ba63))
+
 ## [1.10.4](https://github.com/Mearman/schema-components/compare/v1.10.3...v1.10.4) (2026-05-15)
 
 ### Documentation
