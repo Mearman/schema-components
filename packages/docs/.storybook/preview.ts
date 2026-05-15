@@ -3,12 +3,23 @@ import type { Preview } from "@storybook/react";
 import { withThemeByClassName } from "@storybook/addon-themes";
 
 /**
+ * Detect system colour-scheme preference so Storybook defaults to the
+ * user's OS/browser setting on first load. Falls back to "light" when
+ * `window` is unavailable (SSR / test environments).
+ */
+const prefersDark =
+    typeof window !== "undefined" &&
+    "matchMedia" in window &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+const systemTheme = prefersDark ? "dark" : "light";
+
+/**
  * Theme-aware docs via @storybook/addon-themes.
  *
  * The `withThemeByClassName` decorator adds `light-theme` or `dark-theme`
  * to <html> inside the iframe when the user toggles the toolbar button.
- * `initialGlobals` ensures the correct class is set on first render
- * (Storybook 10.3 doesn't always propagate globals to the iframe on load).
+ * `initialGlobals` seeds the toolbar with the detected system preference
+ * so the correct class is set on first render.
  *
  * CSS custom properties on :root / :root.dark-theme handle every colour
  * via var() — no element-level overrides needed.
@@ -21,11 +32,11 @@ const preview: Preview = {
                 light: "light-theme",
                 dark: "dark-theme",
             },
-            defaultTheme: "light",
+            defaultTheme: systemTheme,
         }),
     ],
     initialGlobals: {
-        theme: "light",
+        theme: systemTheme,
     },
     parameters: {
         controls: {
