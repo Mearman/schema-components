@@ -27,7 +27,7 @@
         "husky": "9.1.7",
         "lint-staged": "17.0.2",
         "semantic-release": "25.0.3",
-        "turbo": "2.9.9"
+        "turbo": "2.9.10"
     },
     "packageManager": "pnpm@10.33.1"
 }
