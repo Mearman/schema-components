@@ -1,45 +1,341 @@
 /**
- * Base styles for the headless renderer in Storybook.
+ * Storybook preview styles for schema-components.
  *
  * The headless resolver produces semantic HTML elements (fieldset, input,
  * label, select, span) without CSS classes. This stylesheet provides
  * sensible defaults so stories are readable and aesthetically clean.
+ *
+ * All colours are defined as CSS custom properties, with dark mode
+ * overrides via `@media (prefers-color-scheme: dark)`. Highlight.js
+ * syntax highlighting tokens are also defined as vars — no CDN theme
+ * stylesheet is needed (and the Welcome story's CDN <link> is removed).
+ *
+ * Kitchen-sink-specific sizing: the label column uses a flexible width
+ * so longer labels like "Preferred contact time" are not clipped.
  */
 
-/* Reset fieldset defaults */
+/* =========================================================================
+   CSS Custom Properties — Light mode (default)
+   ========================================================================= */
+
+:root {
+    --sc-text: #1e293b;
+    --sc-text-secondary: #475569;
+    --sc-text-muted: #64748b;
+    --sc-text-description: #334155;
+    --sc-bg: #ffffff;
+    --sc-bg-secondary: #f8fafc;
+    --sc-border: #e2e8f0;
+    --sc-border-input: #d1d5db;
+    --sc-focus: #3b82f6;
+    --sc-focus-ring: rgba(59, 130, 246, 0.15);
+    --sc-danger: #dc2626;
+    --sc-tab-active-bg: #eff6ff;
+    --sc-tab-active-border: #3b82f6;
+    --sc-tab-active-text: #1d4ed8;
+    --sc-tab-bg: transparent;
+    --sc-tab-border: #d1d5db;
+    --sc-tab-text: #475569;
+    --sc-link: #2563eb;
+    --sc-card-bg: #ffffff;
+    --sc-card-border: #e2e8f0;
+    --sc-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --sc-code-bg: #f1f5f9;
+    --sc-code-text: #1e293b;
+    --sc-meta-tag-bg: #f1f5f9;
+    --sc-meta-tag-text: #6b7280;
+    --sc-deprecated-bg: #fef3c7;
+    --sc-deprecated-text: #92400e;
+    --sc-openapi-heading: #1e293b;
+    --sc-openapi-subheading: #475569;
+    --sc-openapi-muted: #64748b;
+    --sc-openapi-required: #dc2626;
+
+    /* Section heading colour in story pages */
+    --sc-section-text: #64748b;
+
+    /* Highlight.js token colours — GitHub light theme */
+    --hljs-base: #24292e;
+    --hljs-bg: #ffffff;
+    --hljs-keyword: #d73a49;
+    --hljs-string: #032f62;
+    --hljs-number: #005cc5;
+    --hljs-comment: #6a737d;
+    --hljs-builtin: #e36209;
+    --hljs-literal: #005cc5;
+    --hljs-title: #6f42c1;
+    --hljs-attr: #005cc5;
+    --hljs-attribute: #005cc5;
+    --hljs-selector-tag: #22863a;
+    --hljs-selector-class: #005cc5;
+    --hljs-selector-id: #005cc5;
+    --hljs-type: #d73a49;
+    --hljs-section: #005cc5;
+    --hljs-name: #22863a;
+    --hljs-symbol: #e36209;
+    --hljs-variable: #005cc5;
+    --hljs-params: #005cc5;
+    --hljs-regexp: #032f62;
+    --hljs-meta: #005cc5;
+    --hljs-tag: #22863a;
+    --hljs-addition: #22863a;
+    --hljs-addition-bg: #f0fff4;
+    --hljs-deletion: #b31d28;
+    --hljs-deletion-bg: #ffeef0;
+    --hljs-emphasis: #24292e;
+    --hljs-strong: #24292e;
+    --hljs-bullet: #735c0f;
+    --hljs-quote: #22863a;
+    --hljs-link: #032f62;
+    --hljs-code: #6a737d;
+    --hljs-formula: #6a737d;
+    --hljs-subst: #24292e;
+    --hljs-doctag: #d73a49;
+}
+
+/* =========================================================================
+   Dark mode overrides
+   ========================================================================= */
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --sc-text: #e2e8f0;
+        --sc-text-secondary: #cbd5e1;
+        --sc-text-muted: #94a3b8;
+        --sc-text-description: #94a3b8;
+        --sc-bg: #1e293b;
+        --sc-bg-secondary: #0f172a;
+        --sc-border: #334155;
+        --sc-border-input: #475569;
+        --sc-focus: #60a5fa;
+        --sc-focus-ring: rgba(96, 165, 250, 0.2);
+        --sc-danger: #fca5a5;
+        --sc-tab-active-bg: #1e3a5f;
+        --sc-tab-active-border: #60a5fa;
+        --sc-tab-active-text: #93c5fd;
+        --sc-tab-bg: transparent;
+        --sc-tab-border: #475569;
+        --sc-tab-text: #94a3b8;
+        --sc-link: #93c5fd;
+        --sc-card-bg: #1e293b;
+        --sc-card-border: #334155;
+        --sc-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        --sc-code-bg: #0f172a;
+        --sc-code-text: #e2e8f0;
+        --sc-meta-tag-bg: #334155;
+        --sc-meta-tag-text: #94a3b8;
+        --sc-deprecated-bg: #422006;
+        --sc-deprecated-text: #fbbf24;
+        --sc-openapi-heading: #e2e8f0;
+        --sc-openapi-subheading: #cbd5e1;
+        --sc-openapi-muted: #94a3b8;
+        --sc-openapi-required: #fca5a5;
+        --sc-section-text: #94a3b8;
+
+        /* Highlight.js token colours — GitHub Dark theme */
+        --hljs-base: #c9d1d9;
+        --hljs-bg: #0d1117;
+        --hljs-keyword: #ff7b72;
+        --hljs-string: #a5d6ff;
+        --hljs-number: #79c0ff;
+        --hljs-comment: #8b949e;
+        --hljs-builtin: #ffa657;
+        --hljs-literal: #79c0ff;
+        --hljs-title: #d2a8ff;
+        --hljs-attr: #79c0ff;
+        --hljs-attribute: #79c0ff;
+        --hljs-selector-tag: #7ee787;
+        --hljs-selector-class: #79c0ff;
+        --hljs-selector-id: #79c0ff;
+        --hljs-type: #ff7b72;
+        --hljs-section: #1f6feb;
+        --hljs-name: #7ee787;
+        --hljs-symbol: #ffa657;
+        --hljs-variable: #79c0ff;
+        --hljs-params: #79c0ff;
+        --hljs-regexp: #a5d6ff;
+        --hljs-meta: #79c0ff;
+        --hljs-tag: #7ee787;
+        --hljs-addition: #aff5b4;
+        --hljs-addition-bg: #033a16;
+        --hljs-deletion: #ffdcd7;
+        --hljs-deletion-bg: #67060c;
+        --hljs-emphasis: #c9d1d9;
+        --hljs-strong: #c9d1d9;
+        --hljs-bullet: #f2cc60;
+        --hljs-quote: #7ee787;
+        --hljs-link: #a5d6ff;
+        --hljs-code: #8b949e;
+        --hljs-formula: #8b949e;
+        --hljs-subst: #c9d1d9;
+        --hljs-doctag: #ff7b72;
+    }
+}
+
+/* =========================================================================
+   Highlight.js tokens — defined via CSS variables
+   ========================================================================= */
+
+.hljs {
+    color: var(--hljs-base);
+    background: var(--hljs-bg);
+}
+
+.hljs-keyword,
+.hljs-doctag,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable\.language_,
+.hljs-meta .hljs-keyword {
+    color: var(--hljs-keyword);
+}
+
+.hljs-title,
+.hljs-title\.class_,
+.hljs-title\.class_\.inherited__,
+.hljs-title\.function_ {
+    color: var(--hljs-title);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-number,
+.hljs-operator,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-variable,
+.hljs-meta {
+    color: var(--hljs-attr);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-meta .hljs-string {
+    color: var(--hljs-string);
+}
+
+.hljs-built_in,
+.hljs-symbol {
+    color: var(--hljs-builtin);
+}
+
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+    color: var(--hljs-comment);
+}
+
+.hljs-name,
+.hljs-selector-tag,
+.hljs-selector-pseudo,
+.hljs-quote {
+    color: var(--hljs-selector-tag);
+}
+
+.hljs-subst {
+    color: var(--hljs-subst);
+}
+
+.hljs-section {
+    color: var(--hljs-section);
+    font-weight: 700;
+}
+
+.hljs-bullet {
+    color: var(--hljs-bullet);
+}
+
+.hljs-emphasis {
+    color: var(--hljs-emphasis);
+    font-style: italic;
+}
+
+.hljs-strong {
+    color: var(--hljs-strong);
+    font-weight: 700;
+}
+
+.hljs-addition {
+    color: var(--hljs-addition);
+    background-color: var(--hljs-addition-bg);
+}
+
+.hljs-deletion {
+    color: var(--hljs-deletion);
+    background-color: var(--hljs-deletion-bg);
+}
+
+.hljs-params {
+    color: var(--hljs-params);
+}
+
+.hljs-link {
+    color: var(--hljs-link);
+    text-decoration: underline;
+}
+
+/* =========================================================================
+   Base element resets & defaults
+   ========================================================================= */
+
+body {
+    color: var(--sc-text);
+    background: var(--sc-bg);
+}
+
+/* =========================================================================
+   Fieldset (object container)
+   ========================================================================= */
+
 fieldset {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--sc-border);
     border-radius: 0.5rem;
     padding: 1rem 1.25rem;
     margin: 0;
+    min-width: 0;
 }
 
 fieldset legend {
     font-weight: 600;
     font-size: 0.875rem;
-    color: #334155;
+    color: var(--sc-text-secondary);
     padding: 0 0.375rem;
     margin-bottom: 0.5rem;
 }
 
-/* Field rows */
+/* =========================================================================
+   Field rows — label + input grid
+   ========================================================================= */
+
 fieldset > div {
     display: grid;
-    grid-template-columns: 10rem 1fr;
-    align-items: center;
+    grid-template-columns: minmax(10rem, max-content) 1fr;
+    align-items: baseline;
     gap: 0.5rem 1rem;
     margin-bottom: 0.5rem;
+    min-width: 0;
 }
 
-/* Labels */
+/* =========================================================================
+   Labels
+   ========================================================================= */
+
 label {
     font-size: 0.875rem;
     font-weight: 500;
-    color: #475569;
+    color: var(--sc-text-secondary);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* Inputs */
+/* =========================================================================
+   Inputs, selects, textareas
+   ========================================================================= */
+
 input[type="text"],
 input[type="email"],
 input[type="url"],
@@ -51,12 +347,13 @@ input[type="password"],
 select,
 textarea {
     width: 100%;
+    max-width: 100%;
     padding: 0.375rem 0.625rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--sc-border-input);
     border-radius: 0.375rem;
     font-size: 0.875rem;
-    color: #1e293b;
-    background: #fff;
+    color: var(--sc-text);
+    background: var(--sc-bg);
     box-sizing: border-box;
     line-height: 1.5;
 }
@@ -71,11 +368,11 @@ input[type="datetime-local"]:focus,
 select:focus,
 textarea:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+    border-color: var(--sc-focus);
+    box-shadow: 0 0 0 2px var(--sc-focus-ring);
 }
 
-/* Select */
+/* Select dropdown */
 select {
     appearance: auto;
 }
@@ -84,31 +381,40 @@ select {
 input[type="checkbox"] {
     width: 1rem;
     height: 1rem;
-    accent-color: #3b82f6;
+    accent-color: var(--sc-focus);
 }
 
 /* File input */
 input[type="file"] {
     font-size: 0.875rem;
-    color: #475569;
+    color: var(--sc-text-muted);
 }
 
-/* Read-only values */
+/* =========================================================================
+   Read-only display values
+   ========================================================================= */
+
 span[aria-readonly="true"] {
     font-size: 0.875rem;
-    color: #334155;
+    color: var(--sc-text);
     min-height: 1.5rem;
     display: inline-flex;
     align-items: center;
 }
 
-/* Required indicator */
+/* =========================================================================
+   Required indicator
+   ========================================================================= */
+
 span[aria-hidden="true"] {
-    color: #dc2626;
+    color: var(--sc-danger);
     font-weight: 600;
 }
 
-/* Tab panels (discriminated unions) */
+/* =========================================================================
+   Discriminated union tab panels
+   ========================================================================= */
+
 [role="tablist"] {
     display: flex;
     gap: 0.25rem;
@@ -117,34 +423,40 @@ span[aria-hidden="true"] {
 
 [role="tab"] {
     padding: 0.25rem 0.75rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--sc-tab-border);
     border-radius: 0.375rem;
-    background: transparent;
+    background: var(--sc-tab-bg);
     cursor: pointer;
     font-size: 0.875rem;
-    color: #475569;
+    color: var(--sc-tab-text);
 }
 
 [role="tab"][aria-selected="true"] {
-    border-color: #3b82f6;
-    background: #eff6ff;
-    color: #1d4ed8;
+    border-color: var(--sc-tab-active-border);
+    background: var(--sc-tab-active-bg);
+    color: var(--sc-tab-active-text);
 }
 
 [role="tabpanel"] {
     min-height: 2rem;
 }
 
-/* Array items */
+/* =========================================================================
+   Array groups
+   ========================================================================= */
+
 [role="group"] {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
 }
 
-/* Links (email, URL in read-only) */
+/* =========================================================================
+   Links (email, URL in read-only & README content)
+   ========================================================================= */
+
 a {
-    color: #2563eb;
+    color: var(--sc-link);
     text-decoration: none;
 }
 
@@ -152,27 +464,30 @@ a:hover {
     text-decoration: underline;
 }
 
-/* Section headings in OpenAPI components */
+/* =========================================================================
+   OpenAPI components
+   ========================================================================= */
+
 [data-operation] h3 {
     font-size: 1rem;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--sc-openapi-heading);
     margin: 0 0 0.75rem;
 }
 
 [data-operation] h4 {
     font-size: 0.875rem;
     font-weight: 600;
-    color: #475569;
+    color: var(--sc-openapi-subheading);
     margin: 1rem 0 0.5rem;
     padding-bottom: 0.25rem;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--sc-border);
 }
 
 [data-operation] h5 {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #64748b;
+    color: var(--sc-openapi-muted);
     margin: 0.75rem 0 0.375rem;
 }
 
@@ -186,19 +501,19 @@ a:hover {
 
 [data-parameter] label {
     font-weight: 600;
-    color: #334155;
+    color: var(--sc-text-secondary);
 }
 
 [data-required] {
-    color: #dc2626;
+    color: var(--sc-openapi-required);
     font-size: 0.875rem;
 }
 
 [data-content-type] {
     display: inline-block;
     font-size: 0.75rem;
-    color: #6b7280;
-    background: #f1f5f9;
+    color: var(--sc-meta-tag-text);
+    background: var(--sc-meta-tag-bg);
     padding: 0.125rem 0.5rem;
     border-radius: 0.25rem;
     margin-left: 0.5rem;
@@ -207,8 +522,8 @@ a:hover {
 [data-deprecated] {
     display: inline-block;
     font-size: 0.75rem;
-    color: #92400e;
-    background: #fef3c7;
+    color: var(--sc-deprecated-text);
+    background: var(--sc-deprecated-bg);
     padding: 0.125rem 0.5rem;
     border-radius: 0.25rem;
     margin-left: 0.5rem;
@@ -216,6 +531,123 @@ a:hover {
 
 [data-description] {
     font-size: 0.8125rem;
-    color: #64748b;
+    color: var(--sc-openapi-muted);
     margin-left: 0.5rem;
+}
+
+/* =========================================================================
+   README body text defaults
+   ========================================================================= */
+
+.readme-content {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        sans-serif;
+    line-height: 1.6;
+    max-width: 48rem;
+    padding: 2rem;
+    color: var(--sc-text);
+}
+
+.readme-content h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--sc-border);
+    color: var(--sc-text);
+}
+
+.readme-content h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.75rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--sc-border);
+    color: var(--sc-text);
+}
+
+.readme-content h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1.25rem 0 0.5rem;
+    color: var(--sc-text);
+}
+
+.readme-content p {
+    margin: 0.75rem 0;
+    color: var(--sc-text);
+}
+
+.readme-content ul,
+.readme-content ol {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.readme-content li {
+    margin: 0.25rem 0;
+}
+
+.readme-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.75rem 0;
+}
+
+.readme-content th {
+    background: var(--sc-bg-secondary);
+    font-weight: 600;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--sc-border);
+    color: var(--sc-text);
+}
+
+.readme-content td {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--sc-border);
+    color: var(--sc-text);
+}
+
+.readme-content code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.875em;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    background: var(--sc-code-bg);
+    color: var(--sc-code-text);
+}
+
+.readme-content pre {
+    margin: 0.75rem 0;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+}
+
+.readme-content pre code {
+    display: block;
+    padding: 1rem;
+    overflow-x: auto;
+    background: var(--hljs-bg);
+    color: var(--hljs-base);
+    border-radius: 0.5rem;
+    border: 1px solid var(--sc-border);
+}
+
+.readme-content blockquote {
+    margin: 0.75rem 0;
+    padding: 0.5rem 1rem;
+    border-left: 4px solid var(--sc-focus);
+    background: var(--sc-bg-secondary);
+    border-radius: 0.25rem;
+}
+
+.readme-content blockquote p {
+    margin: 0;
+}
+
+.readme-content hr {
+    border: none;
+    border-top: 1px solid var(--sc-border);
+    margin: 1.5rem 0;
 }

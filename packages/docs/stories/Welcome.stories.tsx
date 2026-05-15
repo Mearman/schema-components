@@ -1,5 +1,10 @@
 /**
  * README landing page — renders the core package README as a Storybook story.
+ *
+ * Syntax highlighting is handled entirely by CSS custom properties defined in
+ * preview.css (no CDN highlight.js theme stylesheet needed). Highlight.js
+ * still tokenises the code via marked-highlight; the .hljs-* token colours
+ * are provided by --hljs-* variables that switch automatically in dark mode.
  */
 import hljs from "highlight.js";
 import { marked } from "marked";
@@ -35,43 +40,17 @@ export const Page: Story = {
     parameters: {
         docs: {
             page: () => (
-                <>
-                    <link
-                        rel="stylesheet"
-                        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css"
-                    />
-                    <div
-                        style={{
-                            fontFamily:
-                                '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                            lineHeight: 1.6,
-                            maxWidth: "48rem",
-                            padding: "2rem",
-                            color: "#1a1a1a",
-                        }}
-                        dangerouslySetInnerHTML={{ __html: html }}
-                    />
-                </>
+                <div
+                    className="readme-content"
+                    dangerouslySetInnerHTML={{ __html: html }}
+                />
             ),
         },
     },
     render: () => (
-        <>
-            <link
-                rel="stylesheet"
-                href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css"
-            />
-            <div
-                style={{
-                    fontFamily:
-                        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                    lineHeight: 1.6,
-                    maxWidth: "48rem",
-                    padding: "2rem",
-                    color: "#1a1a1a",
-                }}
-                dangerouslySetInnerHTML={{ __html: html }}
-            />
-        </>
+        <div
+            className="readme-content"
+            dangerouslySetInnerHTML={{ __html: html }}
+        />
     ),
 };
