@@ -1,3 +1,13 @@
+## [1.10.2](https://github.com/Mearman/schema-components/compare/v1.10.1...v1.10.2) (2026-05-15)
+
+### Bug Fixes
+
+* **react:** render records in headless resolver ([d661106](https://github.com/Mearman/schema-components/commit/d6611065059ee08434e76cbbf7ae1881f48da74a))
+
+### Documentation
+
+* enable autodocs for all stories ([f8064e9](https://github.com/Mearman/schema-components/commit/f8064e9cbc99c5ce4d7bda8c592d36056465c486))
+
 ## [1.10.1](https://github.com/Mearman/schema-components/compare/v1.10.0...v1.10.1) (2026-05-15)
 
 ### Documentation
