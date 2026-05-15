@@ -1,3 +1,9 @@
+## [1.10.9](https://github.com/Mearman/schema-components/compare/v1.10.8...v1.10.9) (2026-05-15)
+
+### Documentation
+
+* show brand names in repo badges ([a8ae5a3](https://github.com/Mearman/schema-components/commit/a8ae5a36b19173c2d9386cda70766e60d79f3918))
+
 ## [1.10.8](https://github.com/Mearman/schema-components/compare/v1.10.7...v1.10.8) (2026-05-15)
 
 ### Documentation
