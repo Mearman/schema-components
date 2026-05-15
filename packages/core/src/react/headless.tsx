@@ -370,6 +370,12 @@ function renderObject(props: RenderProps): ReactNode {
                         updated[key] = v;
                         props.onChange(updated);
                     };
+                    const child = toReactNode(
+                        props.renderChild(field, childValue, childOnChange)
+                    );
+                    // Suppress the label when the child renders nothing
+                    // (e.g. empty array in read-only mode)
+                    if (child === null || child === undefined) return null;
                     return (
                         <div key={key}>
                             {typeof field.meta.description === "string" && (
@@ -386,13 +392,7 @@ function renderObject(props: RenderProps): ReactNode {
                                     )}
                                 </label>
                             )}
-                            {toReactNode(
-                                props.renderChild(
-                                    field,
-                                    childValue,
-                                    childOnChange
-                                )
-                            )}
+                            {child}
                         </div>
                     );
                 })}
@@ -445,6 +445,10 @@ function renderArray(props: RenderProps): ReactNode {
     const arr = Array.isArray(props.value) ? props.value : [];
     const element = props.element;
     if (element === undefined) return null;
+
+    // In read-only mode, suppress empty arrays — there is nothing to display.
+    // This prevents orphaned "Children" labels on leaf nodes in recursive schemas.
+    if (props.readOnly && arr.length === 0) return null;
 
     return (
         <div role="group" aria-label={props.meta.description ?? undefined}>
