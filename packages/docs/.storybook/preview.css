@@ -348,12 +348,43 @@ fieldset legend {
 }
 
 /* =========================================================================
+   Nested fieldsets — lighter visual treatment, stacked layout
+   ========================================================================= */
+
+fieldset fieldset {
+    border-color: var(--sc-border-input);
+    border-style: dashed;
+    border-radius: 0.375rem;
+    padding: 0.75rem 1rem;
+}
+
+fieldset fieldset legend {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--sc-text-muted);
+    padding: 0 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+/*
+ * Nested fieldset field rows stack labels above inputs.
+ * The two-column grid (minmax(10rem, max-content) 1fr) is too wide
+ * for the ~14rem available inside a nested fieldset, leaving inputs
+ * effectively zero-width. Stacking avoids the squeeze entirely.
+ */
+fieldset fieldset > div {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+    margin-bottom: 0.375rem;
+}
+
+/* =========================================================================
    Field rows — label + input grid
    ========================================================================= */
 
 fieldset > div {
     display: grid;
-    grid-template-columns: minmax(10rem, max-content) 1fr;
+    grid-template-columns: minmax(8rem, max-content) 1fr;
     align-items: baseline;
     gap: 0.5rem 1rem;
     margin-bottom: 0.5rem;
@@ -439,7 +470,7 @@ span[aria-readonly="true"] {
     font-size: 0.875rem;
     color: var(--sc-text);
     min-height: 1.5rem;
-    display: inline-flex;
+    display: flex;
     align-items: center;
 }
 

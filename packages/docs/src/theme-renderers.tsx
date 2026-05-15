@@ -55,7 +55,7 @@ export function ThemeSchemaDemo({
     );
 
     if (theme === "headless") {
-        return <div style={{ maxWidth: "36rem" }}>{component}</div>;
+        return component;
     }
 
     if (theme === "mui") {
@@ -63,7 +63,7 @@ export function ThemeSchemaDemo({
             <MuiThemeProvider theme={muiTheme}>
                 <CssBaseline />
                 <SchemaProvider resolver={muiResolver}>
-                    <div style={{ maxWidth: "36rem" }}>{component}</div>
+                    {component}
                 </SchemaProvider>
             </MuiThemeProvider>
         );
@@ -73,7 +73,7 @@ export function ThemeSchemaDemo({
         return (
             <MantineProvider theme={mantineTheme} defaultColorScheme="light">
                 <SchemaProvider resolver={mantineResolver}>
-                    <div style={{ maxWidth: "36rem" }}>{component}</div>
+                    {component}
                 </SchemaProvider>
             </MantineProvider>
         );
@@ -82,7 +82,7 @@ export function ThemeSchemaDemo({
     if (theme === "radix") {
         return (
             <RadixTheme appearance="light" accentColor="blue" radius="medium">
-                <RadixCard style={{ maxWidth: "36rem" }}>
+                <RadixCard>
                     <SchemaProvider resolver={radixResolver}>
                         {component}
                     </SchemaProvider>
