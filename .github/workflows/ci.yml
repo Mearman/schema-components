@@ -122,6 +122,8 @@ jobs:
         name: Storybook tests
         needs: check
         runs-on: ubuntu-latest
+        container:
+            image: mcr.microsoft.com/playwright:v1.59.1-noble
         steps:
             - uses: actions/checkout@v6.0.2
 
@@ -143,9 +145,18 @@ jobs:
 
             - run: pnpm build
 
-            - run: pnpm --filter @schema-components/docs exec npx playwright install chromium --with-deps
+            - name: Check playwright browsers
+              run: ls -la /ms-playwright/
 
-            - run: pnpm test-storybook
+            - name: Check HOME and env
+              run: |
+                  echo "HOME=$HOME"
+                  echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
+                  node -e "console.log('playwright browsers:', require('playwright-core/lib/server').registry?.directory?.() || 'unknown')"
+
+            - run: pnpm --filter @schema-components/docs test-storybook
+              env:
+                  PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
 
     release:
         name: Release
