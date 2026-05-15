@@ -28,19 +28,25 @@ import type {
     NegationField,
     FileField,
     UnknownField,
-    StringConstraints,
-    NumberConstraints,
-    ArrayConstraints,
-    ObjectConstraints,
-    FileConstraints,
     Editability,
     FieldBase,
 } from "./types.ts";
 import { resolveEditability } from "./types.ts";
 import { isObject } from "./guards.ts";
+import { resolveRef } from "./ref.ts";
+import { mergeAllOf, normaliseAnyOf, detectDiscriminated } from "./merge.ts";
+import {
+    extractStringConstraints,
+    extractNumberConstraints,
+    extractArrayConstraints,
+    extractObjectConstraints,
+    extractFileConstraints,
+    stripInapplicableConstraints,
+} from "./constraints.ts";
 
-// Object/record guards are imported from core/guards.ts.
-// Remaining helpers are walker-specific.
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
 function getString(
     obj: Record<string, unknown>,
@@ -48,14 +54,6 @@ function getString(
 ): string | undefined {
     const value = obj[key];
     return typeof value === "string" ? value : undefined;
-}
-
-function getNumber(
-    obj: Record<string, unknown>,
-    key: string
-): number | undefined {
-    const value = obj[key];
-    return typeof value === "number" ? value : undefined;
 }
 
 function getArray(
@@ -88,261 +86,6 @@ export interface WalkOptions {
 }
 
 // ---------------------------------------------------------------------------
-// $ref resolution
-// ---------------------------------------------------------------------------
-
-const MAX_REF_DEPTH = 10;
-
-function resolveRef(
-    schema: Record<string, unknown>,
-    rootDocument: Record<string, unknown>,
-    visited: Set<string>
-): Record<string, unknown> {
-    const ref = getString(schema, "$ref");
-    if (ref === undefined) return schema;
-
-    // Cycle detection
-    if (visited.has(ref))
-        return {
-            type: "unknown",
-            editability: "editable",
-            meta: {},
-            constraints: {},
-        };
-    if (visited.size >= MAX_REF_DEPTH)
-        return {
-            type: "unknown",
-            editability: "editable",
-            meta: {},
-            constraints: {},
-        };
-
-    const resolved = dereference(ref, rootDocument);
-    if (resolved === undefined)
-        return {
-            type: "unknown",
-            editability: "editable",
-            meta: {},
-            constraints: {},
-        };
-
-    // Recursively resolve if the target is also a $ref
-    const nextVisited = new Set(visited);
-    nextVisited.add(ref);
-    return resolveRef(resolved, rootDocument, nextVisited);
-}
-
-function dereference(
-    ref: string,
-    root: Record<string, unknown>
-): Record<string, unknown> | undefined {
-    // $ref: "#" (empty fragment) refers to the root document per RFC 6901
-    if (ref === "#") return root;
-
-    // JSON Pointer: #/path/to/schema
-    if (ref.startsWith("#/")) {
-        const parts = ref.slice(2).split("/");
-        // "#/" (empty JSON Pointer) also refers to the root document
-        if (parts.length === 1 && parts[0] === "") return root;
-        let current: unknown = root;
-
-        for (const part of parts) {
-            if (!isObject(current)) return undefined;
-            // JSON Pointer: ~1 → /, ~0 → ~
-            const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
-            current = current[decoded];
-        }
-
-        return isObject(current) ? current : undefined;
-    }
-
-    // $anchor: #SomeName — scan document for matching $anchor
-    if (ref.startsWith("#") && ref.length > 1) {
-        const anchorName = ref.slice(1);
-        const found = findAnchor(root, anchorName);
-        if (found !== undefined) return found;
-    }
-
-    return undefined;
-}
-
-/**
- * Recursively scan a schema document for a `$anchor` matching the given name.
- * Returns the schema object containing the anchor, or undefined.
- */
-function findAnchor(
-    node: unknown,
-    anchorName: string
-): Record<string, unknown> | undefined {
-    if (!isObject(node)) return undefined;
-    if (node.$anchor === anchorName) return node;
-
-    // Recurse into known sub-schema locations
-    for (const value of Object.values(node)) {
-        if (isObject(value)) {
-            const found = findAnchor(value, anchorName);
-            if (found !== undefined) return found;
-        }
-        if (Array.isArray(value)) {
-            for (const item of value) {
-                const found = findAnchor(item, anchorName);
-                if (found !== undefined) return found;
-            }
-        }
-    }
-
-    return undefined;
-}
-
-// ---------------------------------------------------------------------------
-// allOf merging
-// ---------------------------------------------------------------------------
-
-/**
- * Merge multiple JSON Schema objects from allOf into one.
- * Merges: properties, required, meta fields, and constraints.
- */
-function mergeAllOf(schemas: unknown[]): Record<string, unknown> {
-    const merged: Record<string, unknown> = {};
-    const properties: Record<string, unknown> = {};
-    const required: string[] = [];
-
-    for (const entry of schemas) {
-        if (!isObject(entry)) continue;
-
-        // Merge properties
-        const props = getObject(entry, "properties");
-        if (props !== undefined) {
-            for (const [key, value] of Object.entries(props)) {
-                properties[key] = value;
-            }
-        }
-
-        // Merge required
-        const req = getArray(entry, "required");
-        if (req !== undefined) {
-            for (const r of req) {
-                if (typeof r === "string" && !required.includes(r)) {
-                    required.push(r);
-                }
-            }
-        }
-
-        // Merge meta and constraints directly onto the result
-        for (const [key, value] of Object.entries(entry)) {
-            if (
-                key === "properties" ||
-                key === "required" ||
-                key === "allOf" ||
-                key === "type"
-            ) {
-                continue;
-            }
-            // First write wins for meta/constraints
-            if (!(key in merged)) {
-                merged[key] = value;
-            }
-        }
-
-        // Inherit type from first schema that has one
-        if (!("type" in merged)) {
-            const type = getString(entry, "type");
-            if (type !== undefined) merged.type = type;
-        }
-    }
-
-    if (Object.keys(properties).length > 0) {
-        merged.properties = properties;
-    }
-    if (required.length > 0) {
-        merged.required = required;
-    }
-
-    return merged;
-}
-
-// ---------------------------------------------------------------------------
-// Nullable detection from anyOf
-// ---------------------------------------------------------------------------
-
-interface NormalisedAnyOf {
-    inner: Record<string, unknown>;
-    isNullable: boolean;
-}
-
-/**
- * Detect `anyOf: [T, { type: "null" }]` → nullable T.
- * Returns the non-null schema and a nullable flag.
- */
-function normaliseAnyOf(options: unknown[]): NormalisedAnyOf | undefined {
-    if (options.length !== 2) return undefined;
-
-    let inner: Record<string, unknown> | undefined;
-    let hasNull = false;
-
-    for (const opt of options) {
-        if (!isObject(opt)) return undefined;
-        if (opt.type === "null") {
-            hasNull = true;
-        } else {
-            inner = opt;
-        }
-    }
-
-    if (!hasNull || inner === undefined) return undefined;
-    return { inner, isNullable: true };
-}
-
-// ---------------------------------------------------------------------------
-// Discriminated union detection from oneOf + const
-// ---------------------------------------------------------------------------
-
-interface Discriminated {
-    options: Record<string, unknown>[];
-    discriminator: string;
-}
-
-/**
- * Detect oneOf where every option is an object with a property
- * that has a `const` value → discriminated union.
- */
-function detectDiscriminated(options: unknown[]): Discriminated | undefined {
-    if (options.length === 0) return undefined;
-
-    // All options must be objects with properties
-    let discriminator: string | undefined;
-
-    for (const opt of options) {
-        if (!isObject(opt)) return undefined;
-
-        const props = getObject(opt, "properties");
-        if (props === undefined) return undefined;
-
-        // Find a property with `const` in this option
-        let foundKey: string | undefined;
-        for (const [key, value] of Object.entries(props)) {
-            if (isObject(value) && "const" in value) {
-                foundKey = key;
-                break;
-            }
-        }
-
-        if (foundKey === undefined) return undefined;
-
-        // All options must use the same discriminator key
-        if (discriminator === undefined) {
-            discriminator = foundKey;
-        } else if (discriminator !== foundKey) {
-            return undefined;
-        }
-    }
-
-    if (discriminator === undefined) return undefined;
-
-    return { options: options.filter(isObject), discriminator };
-}
-
-// ---------------------------------------------------------------------------
 // Meta extraction from JSON Schema keywords
 // ---------------------------------------------------------------------------
 
@@ -368,86 +111,6 @@ function extractMetaFromJson(schema: Record<string, unknown>): SchemaMeta {
     }
 
     return meta;
-}
-
-// ---------------------------------------------------------------------------
-// Constraint extraction — type-specific
-// ---------------------------------------------------------------------------
-
-function extractStringConstraints(
-    schema: Record<string, unknown>
-): StringConstraints {
-    const c: StringConstraints = {};
-    const minLength = getNumber(schema, "minLength");
-    if (minLength !== undefined) c.minLength = minLength;
-    const maxLength = getNumber(schema, "maxLength");
-    if (maxLength !== undefined) c.maxLength = maxLength;
-    const pattern = getString(schema, "pattern");
-    if (pattern !== undefined) c.pattern = pattern;
-    const format = getString(schema, "format");
-    if (format !== undefined) c.format = format;
-    const contentEncoding = getString(schema, "contentEncoding");
-    if (contentEncoding !== undefined) c.contentEncoding = contentEncoding;
-    const contentMediaType = getString(schema, "contentMediaType");
-    if (contentMediaType !== undefined) c.contentMediaType = contentMediaType;
-    return c;
-}
-
-function extractNumberConstraints(
-    schema: Record<string, unknown>
-): NumberConstraints {
-    const c: NumberConstraints = {};
-    const minimum = getNumber(schema, "minimum");
-    if (minimum !== undefined) c.minimum = minimum;
-    const maximum = getNumber(schema, "maximum");
-    if (maximum !== undefined) c.maximum = maximum;
-    const exclusiveMinimum = getNumber(schema, "exclusiveMinimum");
-    if (exclusiveMinimum !== undefined) c.exclusiveMinimum = exclusiveMinimum;
-    const exclusiveMaximum = getNumber(schema, "exclusiveMaximum");
-    if (exclusiveMaximum !== undefined) c.exclusiveMaximum = exclusiveMaximum;
-    const multipleOf = getNumber(schema, "multipleOf");
-    if (multipleOf !== undefined) c.multipleOf = multipleOf;
-    return c;
-}
-
-function extractArrayConstraints(
-    schema: Record<string, unknown>
-): ArrayConstraints {
-    const c: ArrayConstraints = {};
-    const minItems = getNumber(schema, "minItems");
-    if (minItems !== undefined) c.minItems = minItems;
-    const maxItems = getNumber(schema, "maxItems");
-    if (maxItems !== undefined) c.maxItems = maxItems;
-    if (schema.uniqueItems === true) c.uniqueItems = true;
-    const contains = getObject(schema, "contains");
-    if (contains !== undefined) c.contains = contains;
-    const minContains = getNumber(schema, "minContains");
-    if (minContains !== undefined) c.minContains = minContains;
-    const maxContains = getNumber(schema, "maxContains");
-    if (maxContains !== undefined) c.maxContains = maxContains;
-    return c;
-}
-
-function extractObjectConstraints(
-    schema: Record<string, unknown>
-): ObjectConstraints {
-    const c: ObjectConstraints = {};
-    const minProperties = getNumber(schema, "minProperties");
-    if (minProperties !== undefined) c.minProperties = minProperties;
-    const maxProperties = getNumber(schema, "maxProperties");
-    if (maxProperties !== undefined) c.maxProperties = maxProperties;
-    return c;
-}
-
-function extractFileConstraints(
-    schema: Record<string, unknown>
-): FileConstraints {
-    const c: FileConstraints = {};
-    const contentMediaType = getString(schema, "contentMediaType");
-    if (contentMediaType !== undefined) {
-        c.mimeTypes = [contentMediaType];
-    }
-    return c;
 }
 
 // ---------------------------------------------------------------------------
@@ -593,11 +256,6 @@ function walkNode(
     }
 
     // --- Handle $ref ---
-    // Recursive $ref support: cache results by ref string.
-    // When a cycle is detected (same ref encountered during its own
-    // resolution), return the placeholder which will be filled in
-    // after the outer resolution completes. This creates proper
-    // object graph cycles that renderers follow based on data depth.
     const ref = getString(schema, "$ref");
     if (ref !== undefined) {
         const cached = ctx.refResults.get(ref);
@@ -958,7 +616,10 @@ function walkUnion(options: unknown[], ctx: WalkContext): UnionField {
 }
 
 function walkDiscriminatedUnion(
-    discriminated: Discriminated,
+    discriminated: {
+        options: Record<string, unknown>[];
+        discriminator: string;
+    },
     ctx: WalkContext
 ): DiscriminatedUnionField {
     return {
@@ -974,10 +635,6 @@ function walkDiscriminatedUnion(
         discriminator: discriminated.discriminator,
     };
 }
-
-// ---------------------------------------------------------------------------
-// Build a WalkedField with common properties
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Field construction — produces discriminated WalkedField variants
@@ -1089,76 +746,8 @@ function buildFileField(
 }
 
 // ---------------------------------------------------------------------------
-// Narrowing helpers
+// Utility functions
 // ---------------------------------------------------------------------------
-
-/**
- * Constraint keywords that apply only to specific types.
- * Used to strip inapplicable constraints when expanding type arrays.
- */
-const STRING_CONSTRAINTS = new Set(["minLength", "maxLength", "pattern"]);
-const NUMBER_CONSTRAINTS = new Set([
-    "minimum",
-    "maximum",
-    "exclusiveMinimum",
-    "exclusiveMaximum",
-    "multipleOf",
-]);
-const ARRAY_CONSTRAINTS = new Set([
-    "minItems",
-    "maxItems",
-    "uniqueItems",
-    "contains",
-    "minContains",
-    "maxContains",
-]);
-const OBJECT_CONSTRAINTS = new Set(["minProperties", "maxProperties"]);
-
-/**
- * Return a copy of the schema with constraint keywords that don't apply
- * to the given type removed. Meta keywords (description, title, etc.)
- * and composition keywords are always preserved.
- */
-function stripInapplicableConstraints(
-    schema: Record<string, unknown>,
-    targetType: string
-): Record<string, unknown> {
-    const applicable = new Set([
-        ...STRING_CONSTRAINTS,
-        ...NUMBER_CONSTRAINTS,
-        ...ARRAY_CONSTRAINTS,
-        ...OBJECT_CONSTRAINTS,
-    ]);
-
-    // Keep only constraints that apply to the target type
-    let keepForType: Set<string>;
-    switch (targetType) {
-        case "string":
-            keepForType = STRING_CONSTRAINTS;
-            break;
-        case "number":
-        case "integer":
-            keepForType = NUMBER_CONSTRAINTS;
-            break;
-        case "array":
-            keepForType = ARRAY_CONSTRAINTS;
-            break;
-        case "object":
-            keepForType = OBJECT_CONSTRAINTS;
-            break;
-        default:
-            keepForType = new Set();
-    }
-
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(schema)) {
-        if (applicable.has(key) && !keepForType.has(key)) {
-            continue; // strip inapplicable constraint
-        }
-        result[key] = value;
-    }
-    return result;
-}
 
 /**
  * Return a copy of the schema without the specified keys.

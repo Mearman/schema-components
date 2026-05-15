@@ -14,7 +14,7 @@
 
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { headlessResolver } from "../react/headless.tsx";
-import { toReactNode } from "../react/headless.tsx";
+import { toReactNode } from "../react/headlessRenderers.tsx";
 import { toRecord } from "../core/guards.ts";
 import type { ReactNode } from "react";
 
