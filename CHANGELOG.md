@@ -1,3 +1,9 @@
+## [1.12.9](https://github.com/Mearman/schema-components/compare/v1.12.8...v1.12.9) (2026-05-15)
+
+### Bug Fixes
+
+* detect system colour-scheme preference for Storybook theme ([255403a](https://github.com/Mearman/schema-components/commit/255403a1d9f9961f13677a1aa833e84f0c774923))
+
 ## [1.12.8](https://github.com/Mearman/schema-components/compare/v1.12.7...v1.12.8) (2026-05-15)
 
 ### Bug Fixes
