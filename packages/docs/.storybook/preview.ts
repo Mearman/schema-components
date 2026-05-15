@@ -12,6 +12,7 @@ const preview: Preview = {
         options: {
             storySort: {
                 order: [
+                    "README",
                     "Getting Started",
                     [
                         "Introduction",
