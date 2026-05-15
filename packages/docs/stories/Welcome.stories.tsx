@@ -31,12 +31,7 @@ const html = typeof parseResult === "string" ? parseResult : "";
 
 const meta: Meta = {
     title: "README",
-};
-export default meta;
-type Story = StoryObj;
-
-export const Page: Story = {
-    name: "README",
+    tags: ["autodocs"],
     parameters: {
         docs: {
             page: () => (
@@ -47,6 +42,13 @@ export const Page: Story = {
             ),
         },
     },
+};
+export default meta;
+type Story = StoryObj;
+
+export const Page: Story = {
+    name: "README",
+    tags: ["!dev"],
     render: () => (
         <div
             className="readme-content"
