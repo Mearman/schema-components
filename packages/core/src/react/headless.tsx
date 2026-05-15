@@ -400,6 +400,47 @@ function renderObject(props: RenderProps): ReactNode {
     );
 }
 
+function renderRecord(props: RenderProps): ReactNode {
+    const obj = isObject(props.value) ? props.value : {};
+    const valueType = props.valueType;
+    if (valueType === undefined) return null;
+
+    const entries = Object.entries(obj);
+    if (entries.length === 0) {
+        return (
+            <span aria-readonly={props.readOnly ? "true" : undefined}>
+                {"—"}
+            </span>
+        );
+    }
+
+    return (
+        <div role="group" aria-label={props.meta.description ?? "Record"}>
+            {entries.map(([key, value]) => {
+                const childPath = props.path ? `${props.path}.${key}` : key;
+                const childId = inputId(childPath);
+                const childOnChange = (nextValue: unknown) => {
+                    const updated: Record<string, unknown> = {};
+                    for (const [k, val] of Object.entries(obj)) {
+                        updated[k] = val;
+                    }
+                    updated[key] = nextValue;
+                    props.onChange(updated);
+                };
+
+                return (
+                    <div key={key}>
+                        <label htmlFor={childId}>{key}</label>
+                        {toReactNode(
+                            props.renderChild(valueType, value, childOnChange)
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 function renderArray(props: RenderProps): ReactNode {
     const arr = Array.isArray(props.value) ? props.value : [];
     const element = props.element;
@@ -744,6 +785,7 @@ export const headlessResolver: ComponentResolver = {
     boolean: renderBoolean,
     enum: renderEnum,
     object: renderObject,
+    record: renderRecord,
     array: renderArray,
     union: renderUnion,
     discriminatedUnion: renderDiscriminatedUnion,
