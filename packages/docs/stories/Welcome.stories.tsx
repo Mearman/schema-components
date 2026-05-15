@@ -5,7 +5,7 @@ import hljs from "highlight.js";
 import { marked } from "marked";
 import { markedHighlight } from "marked-highlight";
 import type { Meta, StoryObj } from "@storybook/react";
-import readme from "../../core/README.md?raw";
+import readme from "../../../README.md?raw";
 
 marked.use(
     markedHighlight({
