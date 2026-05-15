@@ -1,3 +1,9 @@
+## [1.10.1](https://github.com/Mearman/schema-components/compare/v1.10.0...v1.10.1) (2026-05-15)
+
+### Documentation
+
+* restructure Storybook and add completeness demos ([8562562](https://github.com/Mearman/schema-components/commit/8562562e3b823c2f92daf386a0e90123e97edd2f))
+
 ## [1.10.0](https://github.com/Mearman/schema-components/compare/v1.9.1...v1.10.0) (2026-05-15)
 
 ### Features
