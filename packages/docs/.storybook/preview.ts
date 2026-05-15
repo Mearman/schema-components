@@ -22,6 +22,7 @@ const preview: Preview = {
                         "Headless",
                         "MUI",
                         "Mantine",
+                        "Radix",
                         "Recursive",
                         "SchemaField",
                         "Shadcn",
