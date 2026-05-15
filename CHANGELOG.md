@@ -1,3 +1,9 @@
+## [1.10.7](https://github.com/Mearman/schema-components/compare/v1.10.6...v1.10.7) (2026-05-15)
+
+### Documentation
+
+* add GitHub repo badge ([7f470c6](https://github.com/Mearman/schema-components/commit/7f470c68b927b325eeeabd5b285f4d34f92d27bf))
+
 ## [1.10.6](https://github.com/Mearman/schema-components/compare/v1.10.5...v1.10.6) (2026-05-15)
 
 ### Documentation
