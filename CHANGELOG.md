@@ -1,3 +1,9 @@
+## [1.12.10](https://github.com/Mearman/schema-components/compare/v1.12.9...v1.12.10) (2026-05-15)
+
+### Bug Fixes
+
+* respect system colour-scheme preference on initial load ([7e414ef](https://github.com/Mearman/schema-components/commit/7e414ef01f19e9f199882bb2ee484ea2a6272296))
+
 ## [1.12.9](https://github.com/Mearman/schema-components/compare/v1.12.8...v1.12.9) (2026-05-15)
 
 ### Bug Fixes
