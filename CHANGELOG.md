@@ -1,3 +1,9 @@
+## [1.11.0](https://github.com/Mearman/schema-components/compare/v1.10.10...v1.11.0) (2026-05-15)
+
+### Features
+
+* theme-aware docs with CSS custom properties and dark mode support ([8c02593](https://github.com/Mearman/schema-components/commit/8c02593720e0d9c2f467a894539d0acff43f5c34))
+
 ## [1.10.10](https://github.com/Mearman/schema-components/compare/v1.10.9...v1.10.10) (2026-05-15)
 
 ### Bug Fixes
