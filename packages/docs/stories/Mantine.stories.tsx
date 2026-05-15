@@ -80,7 +80,7 @@ function MantinePreview({
 }
 
 const meta: Meta<typeof MantinePreview> = {
-    title: "React/Mantine",
+    title: "Theme Adapters/Mantine",
     component: MantinePreview,
 };
 

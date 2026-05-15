@@ -37,7 +37,7 @@ const profileData = {
 };
 
 const meta: Meta<typeof SchemaComponent> = {
-    title: "JSON Schema",
+    title: "Getting Started/JSON Schema",
     component: SchemaComponent,
 };
 

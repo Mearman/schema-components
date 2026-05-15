@@ -82,7 +82,7 @@ function OnErrorPreview() {
 }
 
 const meta: Meta<typeof ErrorBoundaryPreview> = {
-    title: "React/Errors",
+    title: "Validation/Errors",
     component: ErrorBoundaryPreview,
     tags: ["!test"],
 };

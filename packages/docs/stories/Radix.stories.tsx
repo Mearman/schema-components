@@ -78,7 +78,7 @@ function RadixPreview({
 }
 
 const meta: Meta<typeof RadixPreview> = {
-    title: "React/Radix",
+    title: "Theme Adapters/Radix",
     component: RadixPreview,
 };
 

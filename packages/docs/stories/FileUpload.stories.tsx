@@ -35,7 +35,7 @@ function UploadForm({ readOnly }: { readOnly: boolean }) {
 }
 
 const meta: Meta<typeof UploadForm> = {
-    title: "React/FileUpload",
+    title: "Inputs/File Upload",
     component: UploadForm,
 };
 

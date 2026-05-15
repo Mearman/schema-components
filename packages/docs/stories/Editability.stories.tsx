@@ -23,7 +23,7 @@ const value = {
 };
 
 const meta: Meta = {
-    title: "Editability",
+    title: "Editability/Overview",
 };
 export default meta;
 

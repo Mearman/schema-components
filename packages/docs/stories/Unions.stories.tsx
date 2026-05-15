@@ -47,7 +47,7 @@ const searchData = {
 };
 
 const meta: Meta<typeof SchemaComponent> = {
-    title: "React/Unions",
+    title: "Extensibility/Unions",
     component: SchemaComponent,
 };
 

@@ -88,7 +88,7 @@ function StreamingPreview({ chunks }: { chunks: string[] }) {
 // ---------------------------------------------------------------------------
 
 const meta: Meta<typeof StreamingPreview> = {
-    title: "HTML/Streaming",
+    title: "HTML Rendering/Streaming",
     component: StreamingPreview,
 };
 

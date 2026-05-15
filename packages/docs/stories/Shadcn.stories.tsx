@@ -74,7 +74,7 @@ function ShadcnPreview({
 }
 
 const meta: Meta<typeof ShadcnPreview> = {
-    title: "React/Shadcn",
+    title: "Theme Adapters/shadcn",
     component: ShadcnPreview,
 };
 

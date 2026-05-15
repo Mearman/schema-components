@@ -74,7 +74,7 @@ function HtmlPreview({ html }: { html: string }) {
 // ---------------------------------------------------------------------------
 
 const meta: Meta<typeof HtmlPreview> = {
-    title: "HTML/Static",
+    title: "HTML Rendering/Static",
     component: HtmlPreview,
 };
 

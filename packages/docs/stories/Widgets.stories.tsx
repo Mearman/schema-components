@@ -43,7 +43,7 @@ const value = {
 };
 
 const meta: Meta = {
-    title: "Widgets",
+    title: "Extensibility/Widgets",
 };
 export default meta;
 
