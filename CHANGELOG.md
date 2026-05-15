@@ -1,3 +1,9 @@
+## [1.12.1](https://github.com/Mearman/schema-components/compare/v1.12.0...v1.12.1) (2026-05-15)
+
+### Bug Fixes
+
+* add initialGlobals to seed theme state on docs page load ([ba24932](https://github.com/Mearman/schema-components/commit/ba24932b6356a117f663d1240a68a3fda6b02e76))
+
 ## [1.12.0](https://github.com/Mearman/schema-components/compare/v1.11.0...v1.12.0) (2026-05-15)
 
 ### Features
