@@ -407,7 +407,7 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         isNullable: false,
         isOptional: false,
         defaultValue: undefined,
-        visitedRefs: new Set(),
+        refResults: new Map(),
     });
 }
 
@@ -423,8 +423,13 @@ interface WalkContext {
     isNullable: boolean;
     isOptional: boolean;
     defaultValue: unknown;
-    /** Track visited $ref targets to detect recursive schemas. */
-    visitedRefs: Set<string>;
+    /** Cache of $ref → WalkedField for recursive schema support.
+     *  When a $ref is encountered during construction, a placeholder is
+     *  stored here. If the same $ref is encountered again (cycle), the
+     *  placeholder is returned. After construction, the placeholder is
+     *  filled in via Object.assign, creating a proper object graph cycle
+     *  that renderers follow based on data depth. */
+    refResults: Map<string, WalkedField>;
 }
 
 // ---------------------------------------------------------------------------
@@ -469,73 +474,84 @@ function walkNode(
     }
 
     // --- Handle $ref ---
-    // Cycle detection: if we're already resolving this ref, bail out
+    // Recursive $ref support: cache results by ref string.
+    // When a cycle is detected (same ref encountered during its own
+    // resolution), return the placeholder which will be filled in
+    // after the outer resolution completes. This creates proper
+    // object graph cycles that renderers follow based on data depth.
     const ref = getString(schema, "$ref");
-    if (ref !== undefined && ctx.visitedRefs.has(ref)) {
-        return buildField(schema, "unknown", ctx);
+    if (ref !== undefined) {
+        const cached = ctx.refResults.get(ref);
+        if (cached !== undefined) return cached;
+
+        const resolved = resolveRef(schema, ctx.rootDocument, new Set());
+
+        // Placeholder is stored in the cache BEFORE recursing so that
+        // re-encountering the same $ref returns it instead of recursing
+        // infinitely. After walkNode completes, the placeholder is
+        // filled in via Object.assign — any references to it in the
+        // tree automatically see the updated properties.
+        const placeholder: WalkedField = {
+            type: "unknown",
+            editability: "editable",
+            meta: {},
+            constraints: {},
+        };
+        ctx.refResults.set(ref, placeholder);
+
+        const result = walkNode(resolved, ctx);
+        Object.assign(placeholder, result);
+        return placeholder;
     }
 
-    const resolved =
-        ref !== undefined
-            ? resolveRef(schema, ctx.rootDocument, new Set())
-            : schema;
-
-    // Track this ref for cycle detection in child walks
-    const childVisited =
-        ref !== undefined
-            ? new Set([...ctx.visitedRefs, ref])
-            : ctx.visitedRefs;
-    const ctxWithRef: WalkContext = { ...ctx, visitedRefs: childVisited };
-
     // --- Handle enum ---
-    const enumValues = getArray(resolved, "enum");
+    const enumValues = getArray(schema, "enum");
     if (enumValues !== undefined) {
-        return walkEnum(resolved, enumValues, ctxWithRef);
+        return walkEnum(schema, enumValues, ctx);
     }
 
     // --- Handle const (literal) ---
-    if ("const" in resolved) {
-        return walkLiteral(resolved, ctxWithRef);
+    if ("const" in schema) {
+        return walkLiteral(schema, ctx);
     }
 
     // --- Extract type ---
-    const type = getString(resolved, "type");
+    const type = getString(schema, "type");
 
     // --- No type, no composition, no enum → unknown ---
     if (type === undefined) {
-        return buildField(resolved, "unknown", ctxWithRef);
+        return buildField(schema, "unknown", ctx);
     }
 
     // --- Primitive types ---
-    if (type === "string") return walkString(resolved, ctxWithRef);
-    if (type === "number" || type === "integer")
-        return walkNumber(resolved, ctxWithRef);
-    if (type === "boolean") return walkBoolean(resolved, ctxWithRef);
+    if (type === "string") return walkString(schema, ctx);
+    if (type === "number" || type === "integer") return walkNumber(schema, ctx);
+    if (type === "boolean") return walkBoolean(schema, ctx);
     if (type === "null") {
-        return buildField(resolved, "null", ctxWithRef);
+        return buildField(schema, "null", ctx);
     }
 
     // --- Object / Record ---
     if (type === "object") {
-        const properties = getObject(resolved, "properties");
+        const properties = getObject(schema, "properties");
         if (properties !== undefined) {
-            return walkObject(resolved, properties, ctxWithRef);
+            return walkObject(schema, properties, ctx);
         }
         // No properties — check for record (additionalProperties)
-        const additionalProps = getObject(resolved, "additionalProperties");
+        const additionalProps = getObject(schema, "additionalProperties");
         if (additionalProps !== undefined) {
-            return walkRecord(resolved, additionalProps, ctxWithRef);
+            return walkRecord(schema, additionalProps, ctx);
         }
         // Empty object schema
-        return buildField(resolved, "object", ctxWithRef);
+        return buildField(schema, "object", ctx);
     }
 
     // --- Array ---
     if (type === "array") {
-        return walkArray(resolved, ctxWithRef);
+        return walkArray(schema, ctx);
     }
 
-    return buildField(resolved, "unknown", ctxWithRef);
+    return buildField(schema, "unknown", ctx);
 }
 
 // ---------------------------------------------------------------------------

@@ -257,6 +257,26 @@ describe("integration — recursive schemas", () => {
             "presentation"
         );
     });
+
+    it("creates a graph cycle for recursive element", () => {
+        const treeSchema: z.ZodType = z.object({
+            label: z.string(),
+            children: z.array(z.lazy(() => treeSchema)).optional(),
+        });
+
+        const tree = walkSchema(treeSchema);
+        const element = assertDefined(
+            getField(tree, "children").element,
+            "expected element"
+        );
+        // The element's own children.element should be the same object
+        // reference (graph cycle) — not a different object or unknown
+        const nestedElement = assertDefined(
+            getField(element, "children").element,
+            "expected nested element"
+        );
+        expect(nestedElement).toBe(element);
+    });
 });
 
 // ---------------------------------------------------------------------------
