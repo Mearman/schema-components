@@ -1,3 +1,9 @@
+## [1.12.3](https://github.com/Mearman/schema-components/compare/v1.12.2...v1.12.3) (2026-05-15)
+
+### Bug Fixes
+
+* deduplicate README landing page to docs-only ([eec6a34](https://github.com/Mearman/schema-components/commit/eec6a34cd63e2aa7c576277f34d3603e59159256))
+
 ## [1.12.2](https://github.com/Mearman/schema-components/compare/v1.12.1...v1.12.2) (2026-05-15)
 
 ### Bug Fixes
