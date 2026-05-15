@@ -21,6 +21,7 @@ const preview: Preview = {
                         "FileUpload",
                         "Headless",
                         "MUI",
+                        "Mantine",
                         "Recursive",
                         "SchemaField",
                         "Shadcn",
