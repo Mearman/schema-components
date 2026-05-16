@@ -1,0 +1,175 @@
+import { Meta, Title, Subtitle, Canvas, Source } from "@storybook/addon-docs/blocks";
+import * as OpenApiStories from "./OpenAPI.stories.tsx";
+import * as OpenApiOperationStories from "./OpenApiOperations.stories.tsx";
+import * as OpenApiAdvancedStories from "./OpenApiAdvanced.stories.tsx";
+import * as OpenApiCallbacksLinksStories from "./OpenApiCallbacksLinks.stories.tsx";
+
+<Meta title="OpenAPI/Walkthrough" />
+
+<Title>OpenAPI walkthrough</Title>
+
+<Subtitle>
+    From an OpenAPI document to a rendered operation. Covers component schemas,
+    parameters, request bodies, and responses for Swagger 2.0, OpenAPI 3.0.x,
+    and 3.1.x.
+</Subtitle>
+
+## Start with a document
+
+Given an OpenAPI 3.1 document like the one below, every story on this page is
+driven by it — there is no separate setup per component:
+
+<Source
+    language="ts"
+    code={`const petStore = {
+    openapi: "3.1.0",
+    info: { title: "Pet Store", version: "1.0.0" },
+    paths: {
+        "/pets": {
+            get: {
+                summary: "List pets",
+                parameters: [
+                    {
+                        name: "limit",
+                        in: "query",
+                        required: false,
+                        schema: { type: "integer", minimum: 1, maximum: 100 },
+                    },
+                    {
+                        name: "status",
+                        in: "query",
+                        required: false,
+                        schema: { type: "string", enum: ["available", "pending", "sold"] },
+                    },
+                ],
+                responses: { "200": { description: "A list of pets" /* ... */ } },
+            },
+            post: {
+                summary: "Create a pet",
+                requestBody: { /* ... */ },
+                responses: { "201": { description: "Created" } },
+            },
+        },
+    },
+    components: {
+        schemas: {
+            Pet: {
+                type: "object",
+                properties: {
+                    id: { type: "string", format: "uuid" },
+                    name: { type: "string" },
+                    status: { type: "string", enum: ["available", "pending", "sold"] },
+                },
+                required: ["id", "name"],
+            },
+        },
+    },
+} as const;`}
+/>
+
+## Rendering a component schema
+
+The simplest entry point is `SchemaComponent` with a JSON Pointer to a component
+schema. The walker resolves the `$ref`, normalises any 3.0-era keywords
+(`nullable`, `discriminator`), and renders the same way it would render a Zod
+schema:
+
+<Source
+    language="tsx"
+    code={`<SchemaComponent
+    schema={petStore}
+    ref="#/components/schemas/Pet"
+    value={{ id: "pet_abc123", name: "Fido", status: "available" }}
+/>`}
+/>
+
+<Canvas of={OpenApiStories.ComponentSchema} />
+
+Add `readOnly` and the same schema renders as a labelled read-only view:
+
+<Canvas of={OpenApiStories.ComponentSchemaReadOnly} />
+
+## Whole operations with `<ApiOperation>`
+
+For a complete operation — parameters, request body, and every response — use
+`ApiOperation`. It pulls everything for one `path` and `method` from the document
+and renders headings, content-type badges, status codes, and the underlying
+schemas in one go:
+
+<Source
+    language="tsx"
+    code={`import { ApiOperation } from "schema-components/openapi/components";
+
+<ApiOperation schema={petStore} path="/pets" method="post" />`}
+/>
+
+<Canvas of={OpenApiOperationStories.FullOperation} />
+
+## Drilling in: parameters only
+
+When you only want the parameter list — for a sidebar, a quick reference card, or
+an embedded snippet — `ApiParameters` skips the rest:
+
+<Source
+    language="tsx"
+    code={`import { ApiParameters } from "schema-components/openapi/components";
+
+<ApiParameters schema={petStore} path="/pets" method="get" />`}
+/>
+
+<Canvas of={OpenApiOperationStories.ParametersOnly} />
+
+## Drilling in: request body only
+
+`ApiRequestBody` extracts the content schema for the chosen media type (defaults
+to `application/json`) and renders it just like a top-level schema. Field
+overrides are type-safe when the document is declared `as const`:
+
+<Source
+    language="tsx"
+    code={`import { ApiRequestBody } from "schema-components/openapi/components";
+
+<ApiRequestBody
+    schema={petStore}
+    path="/pets"
+    method="post"
+    fields={{ name: { description: "Pet name" } }}
+/>`}
+/>
+
+<Canvas of={OpenApiOperationStories.RequestBodyOnly} />
+
+## Drilling in: a single response
+
+`ApiResponse` selects one status code and renders its schema with status
+information:
+
+<Canvas of={OpenApiOperationStories.ResponseOnly} />
+
+## Legacy and advanced inputs
+
+The parser restructures Swagger 2.0 documents into OpenAPI 3.1 before walking
+them, so the same components work without any per-version branching:
+
+<Canvas of={OpenApiAdvancedStories.Swagger2ListItems} />
+
+OpenAPI 3.0 `nullable` is rewritten to `type: [...]` arrays during normalisation:
+
+<Canvas of={OpenApiAdvancedStories.OpenApi30Nullable} />
+
+`discriminator` mappings drive the discriminated-union renderer:
+
+<Canvas of={OpenApiAdvancedStories.DiscriminatorDog} />
+
+Callbacks are rendered as nested operations alongside the parent:
+
+<Canvas of={OpenApiCallbacksLinksStories.SubscriptionWithCallback} />
+
+## What's next
+
+- **OpenAPI / Schema Documents** — every `SchemaComponent` example for OpenAPI
+  inputs, including the WriteOnly + ref combinations.
+- **OpenAPI / Completeness** — operation-level rendering across multiple content
+  types in one go.
+- **OpenAPI / Webhooks** — 3.1 webhook payloads via `listWebhooks` and direct
+  `ApiRequestBody` rendering.
