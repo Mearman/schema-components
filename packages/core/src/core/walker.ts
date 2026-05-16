@@ -432,6 +432,13 @@ function walkObject(
         unevaluatedProperties = walkNode(unevalProps, ctx);
     }
 
+    // --- propertyNames ---
+    const propertyNamesSchema = getObject(schema, "propertyNames");
+    const walkedPropertyNames: WalkedField | undefined =
+        propertyNamesSchema !== undefined
+            ? walkNode(propertyNamesSchema, ctx)
+            : undefined;
+
     return {
         ...buildBase(schema, ctx),
         type: "object",
@@ -457,6 +464,9 @@ function walkObject(
             ? { unevaluatedProperties }
             : {}),
         ...(unevaluatedPropertiesClosed ? { unevaluatedPropertiesClosed } : {}),
+        ...(walkedPropertyNames !== undefined
+            ? { propertyNames: walkedPropertyNames }
+            : {}),
     };
 }
 
@@ -491,7 +501,7 @@ function walkArray(
     schema: Record<string, unknown>,
     ctx: WalkContext
 ): ArrayField | TupleField {
-    // prefixItems → tuple type (Draft 2020-12)
+    // prefixItems -> tuple type (Draft 2020-12)
     const prefixItems = getArray(schema, "prefixItems");
     if (prefixItems !== undefined) {
         const walkedItems = prefixItems
@@ -505,6 +515,13 @@ function walkArray(
         };
     }
 
+    // --- unevaluatedItems ---
+    const unevaluatedItemsSchema = getObject(schema, "unevaluatedItems");
+    const walkedUnevaluatedItems: WalkedField | undefined =
+        unevaluatedItemsSchema !== undefined
+            ? walkNode(unevaluatedItemsSchema, ctx)
+            : undefined;
+
     const items = getObject(schema, "items");
     if (items !== undefined) {
         const elementOverride = extractChildOverride(ctx.fieldOverrides, "[]");
@@ -516,6 +533,9 @@ function walkArray(
                 ...ctx,
                 fieldOverrides: elementOverride,
             }),
+            ...(walkedUnevaluatedItems !== undefined
+                ? { unevaluatedItems: walkedUnevaluatedItems }
+                : {}),
         };
     }
 
@@ -523,6 +543,9 @@ function walkArray(
         ...buildBase(schema, ctx),
         type: "array",
         constraints: extractArrayConstraints(schema),
+        ...(walkedUnevaluatedItems !== undefined
+            ? { unevaluatedItems: walkedUnevaluatedItems }
+            : {}),
     };
 }
 

@@ -431,6 +431,7 @@ function buildRenderProps(
         props.elseClause = tree.elseClause;
     if (tree.type === "negation") props.negated = tree.negated;
     if (tree.type === "literal") props.literalValues = tree.literalValues;
+    if (tree.examples !== undefined) props.examples = tree.examples;
     return props;
 }
 

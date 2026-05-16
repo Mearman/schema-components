@@ -77,6 +77,8 @@ export interface BaseFieldProps {
     valueType?: WalkedField;
     /** For literals: the literal value(s). */
     literalValues?: (string | number | boolean | null)[];
+    /** Example values from the schema's `examples` keyword. */
+    examples?: unknown[];
     /** Walked field tree for recursive rendering. */
     tree: WalkedField;
 }
