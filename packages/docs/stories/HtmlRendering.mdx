@@ -1,0 +1,141 @@
+import { Meta, Title, Subtitle, Canvas, Source } from "@storybook/addon-docs/blocks";
+import * as HtmlStaticStories from "./HtmlStatic.stories.tsx";
+import * as HtmlStreamingStories from "./HtmlStreaming.stories.tsx";
+import * as HtmlParityStories from "./HtmlParity.stories.tsx";
+import * as HtmlCustomResolverStories from "./HtmlCustomResolver.stories.tsx";
+
+<Meta title="HTML Rendering/Overview" />
+
+<Title>HTML rendering</Title>
+
+<Subtitle>
+    `renderToHtml` emits semantic HTML strings from any schema — no React runtime,
+    no DOM, no hydration. Use it for SSR, email templates, server-rendered admin
+    panels, or any context where React is unavailable or unwanted.
+</Subtitle>
+
+## Why a separate HTML renderer?
+
+The React renderer assumes a React tree, hooks, and (for editable mode) state. A
+lot of real-world surfaces have none of those:
+
+- Server-rendered pages where you only need the HTML markup.
+- Email templates that must be a single string of valid HTML.
+- Static site builds that emit markup at build time.
+- Admin tools written in another framework that still want to render schemas
+  consistently.
+
+`renderToHtml` shares the same walker as the React path, so a schema renders to
+the same shape (and the same `sc-*` class hooks) regardless of which output you
+use.
+
+## Static rendering
+
+The simplest form: pass a schema and a value, get back a string of HTML:
+
+<Source
+    language="tsx"
+    code={`import { renderToHtml } from "schema-components/html/renderToHtml";
+
+const html = renderToHtml(userSchema, {
+    value: { name: "Ada Lovelace", email: "ada@example.com", role: "admin" },
+});`}
+/>
+
+<Canvas of={HtmlStaticStories.EditableForm} />
+
+Switch to read-only output by passing `readOnly: true`:
+
+<Canvas of={HtmlStaticStories.ReadOnlyDisplay} />
+
+Nested objects render as nested `<fieldset>` elements:
+
+<Canvas of={HtmlStaticStories.NestedReadOnly} />
+
+## Default stylesheet
+
+The HTML output uses semantic markup with `sc-*` class hooks. A default
+stylesheet is bundled at `schema-components/styles.css` (also published as
+`schema-components/html/styles.css`). Link it for instant styling:
+
+<Source
+    language="html"
+    code={`<link rel="stylesheet" href="/path/to/schema-components/styles.css" />
+${"<!-- ...your rendered HTML here... -->"}`}
+/>
+
+<Canvas of={HtmlStaticStories.WithStylesheet} />
+
+## Streaming rendering
+
+For large schemas or progressive page loads, `renderToHtmlChunks` yields an
+iterable of string chunks that you can pipe straight into a response stream:
+
+<Source
+    language="tsx"
+    code={`import { renderToHtmlChunks } from "schema-components/html/renderToHtmlStream";
+
+for (const chunk of renderToHtmlChunks(largeSchema, { value: data })) {
+    response.write(chunk);
+}`}
+/>
+
+<Canvas of={HtmlStreamingStories.LargeSchemaChunks} />
+
+The streaming output is byte-identical to `renderToHtml` — there is no special
+"streaming-only" wrapper or fragment marker. The story below joins every chunk
+and compares the result to `renderToHtml(...)` directly:
+
+<Canvas of={HtmlStreamingStories.ChunkedEquivalence} />
+
+## Parity with the React renderer
+
+The React renderer, the static HTML renderer, and the streaming HTML renderer all
+walk the same schema tree. The parity story renders the kitchen-sink schema
+through every path so you can verify they produce equivalent output:
+
+<Canvas of={HtmlParityStories.Default} />
+
+## Custom resolvers
+
+The HTML renderer accepts an `HtmlResolver` — the same shape as
+`ComponentResolver` from the React side, but each function returns a `string`
+instead of a `ReactElement`. Override individual schema types and the rest fall
+back to the default renderers:
+
+<Source
+    language="tsx"
+    code={`import {
+    renderToHtml,
+    type HtmlResolver,
+} from "schema-components/html/renderToHtml";
+
+const highlightResolver: HtmlResolver = {
+    string: (props) => {
+        if (props.readOnly) {
+            const text = typeof props.value === "string" ? props.value : "";
+            return \`<span class="sc-value sc-value--highlight">\${text}</span>\`;
+        }
+        return renderToHtml(z.string(), { value: props.value });
+    },
+};
+
+const html = renderToHtml(cardSchema, {
+    value: cardData,
+    readOnly: true,
+    resolver: highlightResolver,
+});`}
+/>
+
+<Canvas of={HtmlCustomResolverStories.CustomResolver} />
+
+## What's next
+
+- **HTML Rendering / Static** — every supported schema type as a static HTML
+  string.
+- **HTML Rendering / Streaming** — chunked output across editable, read-only, and
+  large-schema scenarios.
+- **HTML Rendering / Parity** — side-by-side comparison of the React, static, and
+  streaming renderers for the same schema.
+- **HTML Rendering / Custom Resolver** — full custom resolver examples,
+  including partial overrides that fall back to the defaults.
