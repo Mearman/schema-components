@@ -1,0 +1,172 @@
+import { Meta, Title, Subtitle, Canvas, Source } from "@storybook/addon-docs/blocks";
+import * as HeadlessStories from "./Headless.stories.tsx";
+import * as ShadcnStories from "./Shadcn.stories.tsx";
+import * as MuiStories from "./Mui.stories.tsx";
+import * as MantineStories from "./Mantine.stories.tsx";
+import * as RadixStories from "./Radix.stories.tsx";
+import * as ThemeComparisonStories from "./ThemeComparison.stories.tsx";
+
+<Meta title="Theme Adapters/Overview" />
+
+<Title>Theme adapters</Title>
+
+<Subtitle>
+    Headless by default. Wrap with `SchemaProvider` and a resolver to swap in any
+    component library — shadcn/ui, MUI, Mantine, Radix Themes, or your own.
+</Subtitle>
+
+## Headless first
+
+Out of the box, `SchemaComponent` emits plain HTML: `<fieldset>`, `<label>`,
+`<input>`, `<select>`, `<span>`. No CSS classes. No styling assumptions. Drop it
+into any design system and bring your own CSS:
+
+<Canvas of={HeadlessStories.Editable} />
+
+This headless renderer is the baseline every theme adapter is compared against.
+It works in any React environment, including server components, and never imports
+a UI library.
+
+## Swapping renderers with `SchemaProvider`
+
+A theme adapter is a `ComponentResolver` — a record mapping schema types
+(`string`, `number`, `enum`, `object`, etc.) to React components. Wrap your tree
+in `SchemaProvider` and pass a resolver to override one or more types:
+
+<Source
+    language="tsx"
+    code={`import { SchemaProvider } from "schema-components/react/SchemaComponent";
+import { shadcnResolver } from "schema-components/themes/shadcn";
+
+<SchemaProvider resolver={shadcnResolver}>
+    <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+</SchemaProvider>`}
+/>
+
+Any schema type the resolver does not implement falls back to the headless
+default, so a partial resolver is a valid resolver.
+
+## Built-in adapters
+
+The library ships four production-ready resolvers, each backed by the real
+component library — these stories use the actual `@mui/material`, `@mantine/core`,
+`@radix-ui/themes`, and shadcn/ui components, not stubs.
+
+### shadcn/ui + Tailwind
+
+<Canvas of={ShadcnStories.EditableProfile} />
+
+### MUI (Material UI)
+
+<Canvas of={MuiStories.EditableProfile} />
+
+### Mantine
+
+<Canvas of={MantineStories.EditableProfile} />
+
+### Radix Themes
+
+<Canvas of={RadixStories.EditableProfile} />
+
+## Comparing the same schema across every adapter
+
+Identical schema, identical value, four resolvers — this is the quickest way to
+audit visual consistency, focus styles, and read-only formatting before
+committing to one:
+
+<Canvas of={ThemeComparisonStories.Editable} />
+
+## The resolver contract
+
+Every adapter implements `ComponentResolver`. Every key is optional, and every
+function receives the same `RenderProps` regardless of schema type. The
+abbreviated shape:
+
+<Source
+    language="ts"
+    code={`import type { ReactElement } from "react";
+
+interface RenderProps {
+    schema: JsonSchema;        // The current sub-schema being rendered
+    value: unknown;            // Current value at this path
+    onChange?: (next: unknown) => void;
+    readOnly: boolean;
+    writeOnly: boolean;
+    name?: string;             // Property name for nested fields
+    path: ReadonlyArray<string | number>;
+    fieldOverrides?: FieldOverrides;
+}
+
+type RenderFunction = (props: RenderProps) => ReactElement;
+
+interface ComponentResolver {
+    string?: RenderFunction;
+    number?: RenderFunction;
+    boolean?: RenderFunction;
+    enum?: RenderFunction;
+    object?: RenderFunction;
+    array?: RenderFunction;
+    tuple?: RenderFunction;
+    record?: RenderFunction;
+    union?: RenderFunction;
+    discriminatedUnion?: RenderFunction;
+    conditional?: RenderFunction;
+    negation?: RenderFunction;
+    recursive?: RenderFunction;
+    literal?: RenderFunction;
+    file?: RenderFunction;
+    unknown?: RenderFunction;
+}`}
+/>
+
+The same shape exists for HTML output as `HtmlResolver`, with `RenderFunction`
+returning a `string` instead of a React element — see
+[HTML Rendering / Overview](?path=/docs/html-rendering-overview--docs).
+
+## Writing your own resolver
+
+A minimal custom resolver only needs to implement the types you want to override.
+Everything else falls back to the headless default:
+
+<Source
+    language="tsx"
+    code={`import type { ComponentResolver } from "schema-components/core/renderer";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+const myResolver: ComponentResolver = {
+    string: ({ schema, value, onChange, readOnly, name }) => {
+        const description =
+            typeof schema === "object" && schema !== null && "description" in schema
+                ? String(schema.description)
+                : name;
+
+        if (readOnly) {
+            return <span className="text-sm">{String(value ?? "")}</span>;
+        }
+        return (
+            <div className="space-y-1">
+                <Label htmlFor={name}>{description}</Label>
+                <Input
+                    id={name}
+                    value={typeof value === "string" ? value : ""}
+                    onChange={(e) => onChange?.(e.target.value)}
+                />
+            </div>
+        );
+    },
+};
+
+<SchemaProvider resolver={myResolver}>
+    <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+</SchemaProvider>`}
+/>
+
+## What's next
+
+- **Theme Adapters / Setup** — how each adapter is wired into a Storybook story,
+  including provider setup and stylesheet imports.
+- **Theme Adapters / Comparison** — every adapter on one page, with the same
+  schema, in editable and read-only modes.
+- **Theme Adapters / Headless** — every supported schema type rendered with the
+  default resolver.
