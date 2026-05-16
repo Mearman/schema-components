@@ -17,12 +17,11 @@
 
 import { z } from "zod";
 import type { SchemaComponentProps } from "../src/react/SchemaComponent.tsx";
+import type { FieldOverride, FieldOverrides } from "../src/core/types.ts";
 import type {
-    FieldOverride,
-    FieldOverrides,
     FromJSONSchema,
     ResolveOpenAPIRef,
-} from "../src/core/types.ts";
+} from "../src/core/typeInference.ts";
 import type {
     ApiOperationProps,
     ApiParametersProps,
@@ -349,7 +348,7 @@ void runtimeOpenApiFields;
 // ---------------------------------------------------------------------------
 
 import type { SchemaFieldProps } from "../src/react/SchemaComponent.tsx";
-import type { PathOfType, TypeAtPath } from "../src/core/types.ts";
+import type { PathOfType, TypeAtPath } from "../src/core/typeInference.ts";
 
 // --- Zod schema: path is inferred from z.infer ---
 

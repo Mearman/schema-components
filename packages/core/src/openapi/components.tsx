@@ -16,14 +16,12 @@ import type { ReactNode } from "react";
 import type { OperationInfo, ParameterInfo, ResponseInfo } from "./parser.ts";
 import { normaliseSchema } from "../core/adapter.ts";
 import { renderField } from "../react/SchemaComponent.tsx";
+import type { FieldOverride, SchemaMeta, WalkedField } from "../core/types.ts";
 import type {
-    FieldOverride,
     InferParameterOverrides,
     InferRequestBodyFields,
     InferResponseFields,
-    SchemaMeta,
-    WalkedField,
-} from "../core/types.ts";
+} from "../core/typeInference.ts";
 import { toRecordOrUndefined } from "../core/guards.ts";
 import { SchemaNormalisationError } from "../core/errors.ts";
 import {
