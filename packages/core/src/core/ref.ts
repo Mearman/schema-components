@@ -92,7 +92,8 @@ export function resolveRef(
     rootDocument: Record<string, unknown>,
     visited: Set<string>,
     diagnostics?: DiagnosticsOptions,
-    maxDepth?: number
+    maxDepth?: number,
+    externalResolver?: ExternalResolver
 ): Record<string, unknown> {
     const ref = getString(schema, "$ref");
     if (ref === undefined) return schema;
@@ -131,6 +132,42 @@ export function resolveRef(
         };
     }
 
+    // External resolution: if ref doesn't start with #, try externalResolver
+    if (!ref.startsWith("#") && externalResolver !== undefined) {
+        const hashIndex = ref.indexOf("#");
+        const uri = hashIndex >= 0 ? ref.slice(0, hashIndex) : ref;
+        const fragment = hashIndex >= 0 ? ref.slice(hashIndex) : "#";
+        const externalDoc = externalResolver(uri);
+        if (isObject(externalDoc)) {
+            const target = dereference(fragment, externalDoc);
+            if (target !== undefined) {
+                const nextVisited = new Set(visited);
+                nextVisited.add(ref);
+                return resolveRef(
+                    target,
+                    externalDoc,
+                    nextVisited,
+                    diagnostics,
+                    maxDepth,
+                    externalResolver
+                );
+            }
+        }
+        // Resolver didn't return a usable document
+        emitDiagnostic(diagnostics, {
+            code: "external-ref",
+            message: `External resolver returned no document for: ${ref}`,
+            pointer: ref,
+            detail: { ref, uri },
+        });
+        return {
+            type: "unknown",
+            editability: "editable",
+            meta: {},
+            constraints: {},
+        };
+    }
+
     // Internal resolution
     const resolved = dereference(ref, rootDocument);
     if (resolved === undefined) {
@@ -156,7 +193,8 @@ export function resolveRef(
         rootDocument,
         nextVisited,
         diagnostics,
-        maxDepth
+        maxDepth,
+        externalResolver
     );
 }
 

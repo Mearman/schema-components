@@ -25,6 +25,7 @@ import {
     extractFileConstraints,
 } from "./constraints.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
+import type { ExternalResolver } from "./ref.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -67,6 +68,8 @@ export interface WalkOptions {
     rootDocument?: Record<string, unknown> | undefined;
     /** Diagnostics channel for surfacing silent fallbacks. */
     diagnostics?: DiagnosticsOptions;
+    /** Sync resolver for external $ref URIs. */
+    externalResolver?: ExternalResolver;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +170,8 @@ export interface WalkContext {
     diagnostics: DiagnosticsOptions | undefined;
     /** Derived $ref depth bound from the root document. */
     maxRefDepth: number;
+    /** Sync resolver for external $ref URIs. */
+    externalResolver: ExternalResolver | undefined;
 }
 
 // ---------------------------------------------------------------------------

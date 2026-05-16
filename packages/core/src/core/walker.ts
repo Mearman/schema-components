@@ -114,6 +114,7 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         fieldOverrides,
         rootDocument,
         diagnostics,
+        externalResolver,
     } = options;
 
     if (typeof schema === "boolean") {
@@ -148,7 +149,8 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         doc,
         new Set(),
         diagnostics,
-        maxRefDepth
+        maxRefDepth,
+        externalResolver
     );
 
     return walkNode(resolved, {
@@ -163,6 +165,7 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         pointer: "",
         diagnostics,
         maxRefDepth,
+        externalResolver,
     });
 }
 
@@ -223,7 +226,8 @@ function walkNode(
             ctx.rootDocument,
             new Set(),
             ctx.diagnostics,
-            ctx.maxRefDepth
+            ctx.maxRefDepth,
+            ctx.externalResolver
         );
 
         // Placeholder is stored in the cache BEFORE recursing so that
