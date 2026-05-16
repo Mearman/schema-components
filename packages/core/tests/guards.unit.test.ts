@@ -162,3 +162,211 @@ describe("toRecordOrUndefined", () => {
         expect(toRecordOrUndefined(42)).toBe(undefined);
     });
 });
+
+// ---------------------------------------------------------------------------
+// WalkedField type guard coverage
+// ---------------------------------------------------------------------------
+
+import {
+    isStringField,
+    isNumberField,
+    isBooleanField,
+    isNullField,
+    isEnumField,
+    isLiteralField,
+    isObjectField,
+    isArrayField,
+    isTupleField,
+    isRecordField,
+    isUnionField,
+    isDiscriminatedUnionField,
+    isConditionalField,
+    isNegationField,
+    isFileField,
+    isUnknownField,
+} from "../src/core/types.ts";
+import type { WalkedField } from "../src/core/types.ts";
+import { walk } from "../src/core/walker.ts";
+
+const baseField = {
+    editability: "editable" as const,
+    meta: {},
+    constraints: {},
+};
+
+describe("WalkedField type guards", () => {
+    it("isStringField narrows string fields", () => {
+        const field: WalkedField = { ...baseField, type: "string" };
+        expect(isStringField(field)).toBe(true);
+        expect(isNumberField(field)).toBe(false);
+        if (isStringField(field)) {
+            expect(field.constraints).toBeDefined();
+        }
+    });
+
+    it("isNumberField narrows number fields", () => {
+        const field: WalkedField = { ...baseField, type: "number" };
+        expect(isNumberField(field)).toBe(true);
+        expect(isStringField(field)).toBe(false);
+    });
+
+    it("isBooleanField narrows boolean fields", () => {
+        const field: WalkedField = { ...baseField, type: "boolean" };
+        expect(isBooleanField(field)).toBe(true);
+    });
+
+    it("isNullField narrows null fields", () => {
+        const field: WalkedField = { ...baseField, type: "null" };
+        expect(isNullField(field)).toBe(true);
+    });
+
+    it("isEnumField narrows enum fields", () => {
+        const field: WalkedField = {
+            ...baseField,
+            type: "enum",
+            enumValues: ["a", "b"],
+        };
+        expect(isEnumField(field)).toBe(true);
+        if (isEnumField(field)) {
+            expect(field.enumValues).toEqual(["a", "b"]);
+        }
+    });
+
+    it("isLiteralField narrows literal fields", () => {
+        const field: WalkedField = {
+            ...baseField,
+            type: "literal",
+            literalValues: ["hello"],
+        };
+        expect(isLiteralField(field)).toBe(true);
+        if (isLiteralField(field)) {
+            expect(field.literalValues).toEqual(["hello"]);
+        }
+    });
+
+    it("isObjectField narrows object fields", () => {
+        const field: WalkedField = {
+            ...baseField,
+            type: "object",
+            fields: {},
+            requiredFields: [],
+        };
+        expect(isObjectField(field)).toBe(true);
+        if (isObjectField(field)) {
+            expect(field.fields).toEqual({});
+        }
+    });
+
+    it("isArrayField narrows array fields", () => {
+        const field: WalkedField = { ...baseField, type: "array" };
+        expect(isArrayField(field)).toBe(true);
+    });
+
+    it("isTupleField narrows tuple fields", () => {
+        const field: WalkedField = {
+            ...baseField,
+            type: "tuple",
+            prefixItems: [],
+        };
+        expect(isTupleField(field)).toBe(true);
+        if (isTupleField(field)) {
+            expect(field.prefixItems).toEqual([]);
+        }
+    });
+
+    it("isRecordField narrows record fields", () => {
+        const field: WalkedField = {
+            ...baseField,
+            type: "record",
+            keyType: { ...baseField, type: "string" },
+            valueType: { ...baseField, type: "string" },
+        };
+        expect(isRecordField(field)).toBe(true);
+    });
+
+    it("isUnionField narrows union fields", () => {
+        const field: WalkedField = {
+            ...baseField,
+            type: "union",
+            options: [],
+        };
+        expect(isUnionField(field)).toBe(true);
+    });
+
+    it("isDiscriminatedUnionField narrows discriminated union fields", () => {
+        const field: WalkedField = {
+            ...baseField,
+            type: "discriminatedUnion",
+            options: [],
+            discriminator: "type",
+        };
+        expect(isDiscriminatedUnionField(field)).toBe(true);
+        if (isDiscriminatedUnionField(field)) {
+            expect(field.discriminator).toBe("type");
+        }
+    });
+
+    it("isConditionalField narrows conditional fields", () => {
+        const field: WalkedField = {
+            ...baseField,
+            type: "conditional",
+            ifClause: { ...baseField, type: "unknown" },
+        };
+        expect(isConditionalField(field)).toBe(true);
+    });
+
+    it("isNegationField narrows negation fields", () => {
+        const field: WalkedField = {
+            ...baseField,
+            type: "negation",
+            negated: { ...baseField, type: "unknown" },
+        };
+        expect(isNegationField(field)).toBe(true);
+    });
+
+    it("isFileField narrows file fields", () => {
+        const field: WalkedField = { ...baseField, type: "file" };
+        expect(isFileField(field)).toBe(true);
+    });
+
+    it("isUnknownField narrows unknown fields", () => {
+        const field: WalkedField = { ...baseField, type: "unknown" };
+        expect(isUnknownField(field)).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// WalkedField integration — type guards + walker
+// ---------------------------------------------------------------------------
+
+describe("type guards with walked fields", () => {
+    it("guards conditional fields from if/then/else", () => {
+        const schema = {
+            type: "string",
+            if: { minLength: 5 },
+            then: { maxLength: 100 },
+        } as Record<string, unknown>;
+        const result = walk(schema);
+        expect(isConditionalField(result)).toBe(true);
+    });
+
+    it("guards negation fields from not", () => {
+        const schema = {
+            not: { type: "string" },
+        } as Record<string, unknown>;
+        const result = walk(schema);
+        expect(isNegationField(result)).toBe(true);
+    });
+
+    it(" guards tuple fields from prefixItems", () => {
+        const schema = {
+            type: "array",
+            prefixItems: [{ type: "string" }, { type: "number" }],
+        } as Record<string, unknown>;
+        const result = walk(schema);
+        expect(isTupleField(result)).toBe(true);
+        if (isTupleField(result)) {
+            expect(result.prefixItems.length).toBe(2);
+        }
+    });
+});
