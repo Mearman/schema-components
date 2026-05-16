@@ -33,8 +33,8 @@ describe("RESOLVER_KEYS", () => {
         expect(RESOLVER_KEYS).toContain("unknown");
     });
 
-    it("has 15 entries", () => {
-        expect(RESOLVER_KEYS.length).toBe(15);
+    it("has 16 entries", () => {
+        expect(RESOLVER_KEYS.length).toBe(16);
     });
 });
 

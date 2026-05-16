@@ -679,3 +679,69 @@ describe("walk — recursive ($ref to root)", () => {
         ).toBe(true);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Recursive schema — cycle detection (recursive type marker)
+// ---------------------------------------------------------------------------
+
+describe("walk — recursive cycle detection", () => {
+    it("creates a circular placeholder for direct $ref cycles", () => {
+        // Schema where 'child' $refs back to root via $anchor
+        const schema = {
+            $anchor: "Node",
+            type: "object",
+            properties: {
+                name: { type: "string", description: "Name" },
+                child: { $ref: "#Node", description: "Child node" },
+            },
+            required: ["name"],
+        } as Record<string, unknown>;
+
+        const tree = walk(schema, { rootDocument: schema });
+        expect(tree.type).toBe("object");
+
+        // The first 'child' field resolves to the actual object
+        const childField = getField(tree, "child");
+        expect(childField.type).toBe("object");
+
+        // The nested 'child' should be the same object reference (graph cycle).
+        // The renderer's depth limit prevents infinite recursion.
+        const nestedChild = getField(childField, "child");
+        expect(nestedChild).toBe(childField);
+    });
+
+    it("creates a circular placeholder for array-item $ref cycles", () => {
+        // Schema where array items $ref back to root
+        const schema = {
+            type: "object",
+            properties: {
+                label: { type: "string" },
+                children: {
+                    type: "array",
+                    items: { $ref: "#" },
+                    description: "Children",
+                },
+            },
+            required: ["label"],
+        } as Record<string, unknown>;
+
+        const tree = walk(schema, { rootDocument: schema });
+        const childrenField = getField(tree, "children");
+        expect(childrenField.type).toBe("array");
+
+        // The array element should be the root object (resolved once)
+        const element = assertDefined(
+            elementOf(childrenField),
+            "expected element"
+        );
+        expect(element.type).toBe("object");
+
+        // The nested element should be the same reference (graph cycle)
+        const nestedChildren = getField(element, "children");
+        const nestedElement = assertDefined(
+            elementOf(nestedChildren),
+            "expected nested element"
+        );
+        expect(nestedElement).toBe(element);
+    });
+});

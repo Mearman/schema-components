@@ -27,6 +27,7 @@ import {
     renderUnion,
     renderDiscriminatedUnion,
     renderFile,
+    renderRecursive,
     renderUnknown,
 } from "./headlessRenderers.tsx";
 
@@ -50,5 +51,6 @@ export const headlessResolver: ComponentResolver = {
     union: renderUnion,
     discriminatedUnion: renderDiscriminatedUnion,
     file: renderFile,
+    recursive: renderRecursive,
     unknown: renderUnknown,
 };
