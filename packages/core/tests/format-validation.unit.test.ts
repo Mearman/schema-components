@@ -17,7 +17,7 @@ import type { Diagnostic } from "../src/core/diagnostics.ts";
 
 /**
  * Get a format pattern by name, throwing if the format is not registered.
- * This avoids `!` assertions while keeping tests concise.
+ * This avoids non-null assertions while keeping tests concise.
  */
 function patternFor(format: string): RegExp {
     const p = FORMAT_PATTERNS[format];
@@ -125,6 +125,103 @@ describe("FORMAT_PATTERNS", () => {
         expect(hostname.test("example.com")).toBe(true);
         expect(hostname.test("sub.domain.example.com")).toBe(true);
     });
+
+    // --- New format patterns ---
+
+    it("uri-reference accepts absolute URIs", () => {
+        const ref = patternFor("uri-reference");
+        expect(ref.test("https://example.com/path")).toBe(true);
+    });
+
+    it("uri-reference accepts relative refs", () => {
+        const ref = patternFor("uri-reference");
+        expect(ref.test("/path/to/resource")).toBe(true);
+        expect(ref.test("")).toBe(true);
+        expect(ref.test("?query=value")).toBe(true);
+        expect(ref.test("#fragment")).toBe(true);
+    });
+
+    it("json-pointer accepts valid pointers", () => {
+        const jp = patternFor("json-pointer");
+        expect(jp.test("")).toBe(true);
+        expect(jp.test("/foo")).toBe(true);
+        expect(jp.test("/foo/bar")).toBe(true);
+        expect(jp.test("/foo~0bar")).toBe(true);
+        expect(jp.test("/foo~1bar")).toBe(true);
+    });
+
+    it("json-pointer rejects invalid pointers", () => {
+        expect(patternFor("json-pointer").test("foo")).toBe(false);
+    });
+
+    it("relative-json-pointer accepts valid pointers", () => {
+        const rjp = patternFor("relative-json-pointer");
+        expect(rjp.test("0")).toBe(true);
+        expect(rjp.test("1/foo")).toBe(true);
+        expect(rjp.test("3#/definitions/X")).toBe(true);
+    });
+
+    it("relative-json-pointer rejects invalid pointers", () => {
+        expect(patternFor("relative-json-pointer").test("01")).toBe(false);
+        expect(patternFor("relative-json-pointer").test("-1")).toBe(false);
+    });
+
+    it("duration accepts valid ISO 8601 durations", () => {
+        const dur = patternFor("duration");
+        expect(dur.test("P1Y2M3DT4H5M6S")).toBe(true);
+        expect(dur.test("PT1H")).toBe(true);
+        expect(dur.test("P1W")).toBe(true);
+        expect(dur.test("P0D")).toBe(true);
+    });
+
+    it("duration rejects invalid durations", () => {
+        expect(patternFor("duration").test("P")).toBe(false);
+        expect(patternFor("duration").test("1H")).toBe(false);
+    });
+
+    it("idn-email accepts Unicode emails", () => {
+        const idn = patternFor("idn-email");
+        expect(idn.test("user@例え.jp")).toBe(true);
+        expect(idn.test("user@example.com")).toBe(true);
+    });
+
+    it("idn-hostname accepts Unicode hostnames", () => {
+        const idn = patternFor("idn-hostname");
+        expect(idn.test("例え.jp")).toBe(true);
+        expect(idn.test("example.com")).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Predicate validators (iri, iri-reference, regex)
+// ---------------------------------------------------------------------------
+
+describe("predicate validators", () => {
+    it("iri accepts valid IRIs", () => {
+        expect(validateFormat("https://例え.jp/path", "iri")).toBe(true);
+        expect(validateFormat("http://example.com", "iri")).toBe(true);
+    });
+
+    it("iri rejects invalid IRIs", () => {
+        expect(validateFormat("not an iri", "iri")).toBe(false);
+    });
+
+    it("iri-reference accepts valid IRI references", () => {
+        expect(validateFormat("https://example.com", "iri-reference")).toBe(
+            true
+        );
+        expect(validateFormat("", "iri-reference")).toBe(true);
+        expect(validateFormat("/path", "iri-reference")).toBe(true);
+    });
+
+    it("regex accepts valid regex patterns", () => {
+        expect(validateFormat("^[a-z]+$", "regex")).toBe(true);
+        expect(validateFormat(".*", "regex")).toBe(true);
+    });
+
+    it("regex rejects invalid regex patterns", () => {
+        expect(validateFormat("[invalid", "regex")).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -189,5 +286,16 @@ describe("walker formatPattern integration", () => {
     it("does not set formatPattern for binary format (file field)", () => {
         const tree = walk({ type: "string", format: "binary" });
         expect(tree.type).toBe("file");
+    });
+
+    it("does not set formatPattern for predicate-only formats", () => {
+        const tree = walk({ type: "string", format: "iri" });
+        if (tree.type !== "string") {
+            expect.unreachable("Expected string field");
+            return;
+        }
+        expect(tree.constraints.format).toBe("iri");
+        // iri has no regex pattern — only a predicate validator
+        expect(tree.constraints.formatPattern).toBeUndefined();
     });
 });
