@@ -174,6 +174,8 @@ export interface StringConstraints {
     maxLength?: number;
     pattern?: string;
     format?: string;
+    /** Derived RegExp from the format string, if the format is recognised. */
+    formatPattern?: RegExp;
     contentEncoding?: string;
     contentMediaType?: string;
 }

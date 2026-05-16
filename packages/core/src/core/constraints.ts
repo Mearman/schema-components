@@ -15,6 +15,7 @@ import type {
 import { isObject } from "./guards.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { emitDiagnostic } from "./diagnostics.ts";
+import { FORMAT_PATTERNS } from "./formats.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -63,7 +64,10 @@ export function extractStringConstraints(
     const format = getString(schema, "format");
     if (format !== undefined) {
         c.format = format;
-        if (format !== "binary" && !KNOWN_FORMATS.has(format)) {
+        const pattern = FORMAT_PATTERNS[format];
+        if (pattern !== undefined) {
+            c.formatPattern = pattern;
+        } else if (format !== "binary") {
             emitDiagnostic(diagnostics, {
                 code: "unknown-format",
                 message: `Unknown format: ${format}`,
@@ -209,31 +213,3 @@ export function stripInapplicableConstraints(
     }
     return result;
 }
-
-// ---------------------------------------------------------------------------
-// Known formats — used by extractStringConstraints to emit diagnostics
-// ---------------------------------------------------------------------------
-
-/**
- * JSON Schema formats that the library recognises.
- * Unknown formats emit an `unknown-format` diagnostic.
- */
-const KNOWN_FORMATS: ReadonlySet<string> = new Set([
-    "date-time",
-    "date",
-    "time",
-    "uuid",
-    "email",
-    "ipv4",
-    "ipv6",
-    "uri",
-    "uri-reference",
-    "uri-template",
-    "hostname",
-    "binary",
-    "byte",
-    "password",
-    "regex",
-    "json-pointer",
-    "relative-json-pointer",
-]);
