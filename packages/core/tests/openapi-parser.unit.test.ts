@@ -297,6 +297,51 @@ describe("webhooks", () => {
         expect(petUpdated?.operations[0]?.operationId).toBe("updatePet");
     });
 
+    it("resolves request bodies and responses for webhook operations by name (OpenAPI 3.1)", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {},
+            webhooks: {
+                orderCreated: {
+                    post: {
+                        requestBody: {
+                            required: true,
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            orderId: { type: "string" },
+                                        },
+                                        required: ["orderId"],
+                                    },
+                                },
+                            },
+                        },
+                        responses: {
+                            "200": { description: "Acknowledged" },
+                        },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+        const body = getRequestBody(parsed, "orderCreated", "post");
+        expect(body?.required).toBe(true);
+        expect(body?.schema).toEqual({
+            type: "object",
+            properties: { orderId: { type: "string" } },
+            required: ["orderId"],
+        });
+
+        const responses = getResponses(parsed, "orderCreated", "post");
+        expect(responses.length).toBe(1);
+        expect(responses[0]?.statusCode).toBe("200");
+        expect(responses[0]?.description).toBe("Acknowledged");
+    });
+
     it("returns empty array for document without webhooks", () => {
         const doc = {
             openapi: "3.1.0",
@@ -358,6 +403,83 @@ describe("parser edge cases", () => {
         expect(responses.length).toBe(1);
         expect(responses[0]?.schema).toBeUndefined();
         expect(responses[0]?.contentTypes).toEqual([]);
+    });
+
+    it("resolves $ref on a path item to components/pathItems (OpenAPI 3.1)", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/widgets": { $ref: "#/components/pathItems/Collection" },
+                "/widgets/{id}": { $ref: "#/components/pathItems/Item" },
+            },
+            components: {
+                pathItems: {
+                    Collection: {
+                        get: {
+                            operationId: "listWidgets",
+                            summary: "List all widgets",
+                            responses: {
+                                "200": {
+                                    description: "OK",
+                                    content: {
+                                        "application/json": {
+                                            schema: {
+                                                type: "array",
+                                                items: { type: "string" },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    Item: {
+                        parameters: [
+                            {
+                                name: "id",
+                                in: "path",
+                                required: true,
+                                schema: { type: "string" },
+                            },
+                        ],
+                        get: {
+                            operationId: "getWidget",
+                            responses: { "200": { description: "OK" } },
+                        },
+                        delete: {
+                            operationId: "deleteWidget",
+                            responses: { "204": { description: "No Content" } },
+                        },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+
+        const operations = listOperations(parsed);
+        expect(operations.map((o) => `${o.method} ${o.path}`).sort()).toEqual([
+            "delete /widgets/{id}",
+            "get /widgets",
+            "get /widgets/{id}",
+        ]);
+        expect(
+            operations.find((o) => o.path === "/widgets" && o.method === "get")
+                ?.operationId
+        ).toBe("listWidgets");
+
+        const responses = getResponses(parsed, "/widgets", "get");
+        expect(responses.length).toBe(1);
+        expect(responses[0]?.schema).toEqual({
+            type: "array",
+            items: { type: "string" },
+        });
+
+        const params = getParameters(parsed, "/widgets/{id}", "get");
+        expect(params.length).toBe(1);
+        expect(params[0]?.name).toBe("id");
+        expect(params[0]?.location).toBe("path");
     });
 
     it("handles non-json content type", () => {

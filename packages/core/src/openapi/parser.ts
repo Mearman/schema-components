@@ -177,14 +177,46 @@ export function getSchema(
 
 const METHODS = ["get", "post", "put", "patch", "delete"] as const;
 
+/**
+ * Resolve a path item, following a `$ref` to `components/pathItems/<Name>`
+ * (OpenAPI 3.1) if present. Returns `undefined` when the value is not a
+ * path item, the ref is malformed, or the target does not resolve.
+ */
+function resolvePathItem(
+    parsed: OpenApiDocument,
+    pathItem: unknown
+): JsonObject | undefined {
+    if (!isObject(pathItem)) return undefined;
+    const ref = getString(pathItem, "$ref");
+    if (ref === undefined) return pathItem;
+    const target = resolveRefInDoc(parsed.doc, ref);
+    return target ?? undefined;
+}
+
+function lookupPathItem(
+    parsed: OpenApiDocument,
+    path: string
+): JsonObject | undefined {
+    const paths = getProperty(parsed.doc, "paths");
+    const resolved = resolvePathItem(parsed, getProperty(paths, path));
+    if (resolved !== undefined) return resolved;
+    // OpenAPI 3.1 webhook fallback: identifiers without a leading `/` can
+    // address `webhooks/<name>` directly, allowing the same accessors
+    // (getRequestBody, getResponses, etc.) to work for both paths and
+    // webhooks.
+    const webhooks = getProperty(parsed.doc, "webhooks");
+    return resolvePathItem(parsed, getProperty(webhooks, path));
+}
+
 export function listOperations(parsed: OpenApiDocument): OperationInfo[] {
     const operations: OperationInfo[] = [];
     const paths = getProperty(parsed.doc, "paths");
 
     if (!isObject(paths)) return operations;
 
-    for (const [path, pathItem] of Object.entries(paths)) {
-        if (!isObject(pathItem)) continue;
+    for (const [path, rawPathItem] of Object.entries(paths)) {
+        const pathItem = resolvePathItem(parsed, rawPathItem);
+        if (pathItem === undefined) continue;
 
         for (const method of METHODS) {
             const operation = getProperty(pathItem, method);
@@ -214,9 +246,8 @@ export function getParameters(
     path: string,
     method: string
 ): ParameterInfo[] {
-    const paths = getProperty(parsed.doc, "paths");
-    const pathItem = getProperty(paths, path);
-    if (!isObject(pathItem)) return [];
+    const pathItem = lookupPathItem(parsed, path);
+    if (pathItem === undefined) return [];
 
     const operation = getProperty(pathItem, method);
     if (!isObject(operation)) return [];
@@ -288,8 +319,7 @@ export function getRequestBody(
     path: string,
     method: string
 ): RequestBodyInfo | undefined {
-    const paths = getProperty(parsed.doc, "paths");
-    const pathItem = getProperty(paths, path);
+    const pathItem = lookupPathItem(parsed, path);
     const operation = getProperty(pathItem, method);
     const requestBody = getProperty(operation, "requestBody");
     if (!isObject(requestBody)) return undefined;
@@ -324,8 +354,7 @@ export function getResponses(
     path: string,
     method: string
 ): ResponseInfo[] {
-    const paths = getProperty(parsed.doc, "paths");
-    const pathItem = getProperty(paths, path);
+    const pathItem = lookupPathItem(parsed, path);
     const operation = getProperty(pathItem, method);
     const responses = getProperty(operation, "responses");
     if (!isObject(responses)) return [];
@@ -401,8 +430,7 @@ export function getSecurityRequirements(
     path: string,
     method: string
 ): SecurityRequirement[] {
-    const paths = getProperty(parsed.doc, "paths");
-    const pathItem = getProperty(paths, path);
+    const pathItem = lookupPathItem(parsed, path);
     const operation = getProperty(pathItem, method);
 
     // Operation-level security overrides global
@@ -562,8 +590,7 @@ export function listCallbacks(
     path: string,
     method: string
 ): CallbackInfo[] {
-    const paths = getProperty(parsed.doc, "paths");
-    const pathItem = getProperty(paths, path);
+    const pathItem = lookupPathItem(parsed, path);
     const operation = getProperty(pathItem, method);
     if (!isObject(operation)) return [];
 
@@ -617,8 +644,7 @@ export function getLinks(
     method: string,
     statusCode: string
 ): LinkInfo[] {
-    const paths = getProperty(parsed.doc, "paths");
-    const pathItem = getProperty(paths, path);
+    const pathItem = lookupPathItem(parsed, path);
     const operation = getProperty(pathItem, method);
     const responses = getProperty(operation, "responses");
     const response = getProperty(responses, statusCode);
