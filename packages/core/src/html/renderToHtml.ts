@@ -88,20 +88,33 @@ export function renderToHtml(
     const tree = walk(jsonSchema, walkOptions);
     const resolver = options.resolver ?? defaultHtmlResolver;
 
-    const renderChild = (
-        childTree: WalkedField,
-        childValue: unknown,
-        pathSuffix?: string
-    ): string => {
-        const childPath = pathSuffix ?? childTree.meta.description ?? "";
-        return renderFieldHtml(
-            childTree,
-            childValue,
-            resolver,
-            childPath,
-            renderChild
-        );
-    };
+    // Depth limit prevents infinite recursion on circular schema references
+    const MAX_HTML_DEPTH = 10;
+    const makeRenderChild =
+        (currentDepth: number) =>
+        (
+            childTree: WalkedField,
+            childValue: unknown,
+            pathSuffix?: string
+        ): string => {
+            if (currentDepth >= MAX_HTML_DEPTH) {
+                const label =
+                    typeof childTree.meta.description === "string"
+                        ? childTree.meta.description
+                        : "schema";
+                return `<fieldset class="sc-recursive"><em>\u21bb ${label} (recursive)</em></fieldset>`;
+            }
+            const childPath = pathSuffix ?? childTree.meta.description ?? "";
+            return renderFieldHtml(
+                childTree,
+                childValue,
+                resolver,
+                childPath,
+                makeRenderChild(currentDepth + 1)
+            );
+        };
+
+    const renderChild = makeRenderChild(0);
 
     const effectiveValue = options.value ?? tree.defaultValue;
     return renderFieldHtml(tree, effectiveValue, resolver, "", renderChild);

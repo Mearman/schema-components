@@ -160,6 +160,7 @@ export type SchemaType =
     | "discriminatedUnion"
     | "conditional"
     | "negation"
+    | "recursive"
     | "file"
     | "unknown";
 
@@ -368,6 +369,13 @@ export interface FileField extends FieldBase {
     constraints: FileConstraints;
 }
 
+export interface RecursiveField extends FieldBase {
+    type: "recursive";
+    constraints: Record<string, never>;
+    /** The $ref string that would create the cycle (e.g. "#" or "#Node"). */
+    refTarget: string;
+}
+
 export interface UnknownField extends FieldBase {
     type: "unknown";
     constraints: Record<string, never>;
@@ -392,6 +400,7 @@ export type WalkedField =
     | DiscriminatedUnionField
     | ConditionalField
     | NegationField
+    | RecursiveField
     | FileField
     | UnknownField;
 
@@ -468,6 +477,10 @@ export function isNegationField(field: WalkedField): field is NegationField {
 
 export function isFileField(field: WalkedField): field is FileField {
     return isField(field, "file");
+}
+
+export function isRecursiveField(field: WalkedField): field is RecursiveField {
+    return isField(field, "recursive");
 }
 
 export function isUnknownField(field: WalkedField): field is UnknownField {

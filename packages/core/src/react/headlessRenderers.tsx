@@ -727,6 +727,19 @@ export function renderFile(props: RenderProps): ReactNode {
     );
 }
 
+export function renderRecursive(props: RenderProps): ReactNode {
+    const refTarget = props.refTarget ?? "";
+    const label =
+        typeof props.meta.description === "string"
+            ? props.meta.description
+            : refTarget;
+    return (
+        <fieldset>
+            <em>↻ {label} (recursive)</em>
+        </fieldset>
+    );
+}
+
 export function renderUnknown(props: RenderProps): ReactNode {
     const id = inputId(props.path);
 

@@ -632,6 +632,17 @@ function renderFileHtml(props: HtmlRenderProps): string {
 // Unknown renderer
 // ---------------------------------------------------------------------------
 
+function renderRecursiveHtml(props: HtmlRenderProps): string {
+    const refTarget = props.refTarget ?? "";
+    const label =
+        typeof props.meta.description === "string"
+            ? props.meta.description
+            : refTarget;
+    return serialize(
+        h("fieldset", { class: "sc-recursive" }, `↻ ${label} (recursive)`)
+    );
+}
+
 function renderUnknownHtml(props: HtmlRenderProps): string {
     if (props.readOnly) {
         if (props.value === undefined || props.value === null) {
@@ -773,6 +784,7 @@ export const defaultHtmlResolver: HtmlResolver = {
     discriminatedUnion: renderDiscriminatedUnionHtml,
     conditional: renderConditionalHtml,
     negation: renderNegationHtml,
+    recursive: renderRecursiveHtml,
     file: renderFileHtml,
     unknown: renderUnknownHtml,
 };

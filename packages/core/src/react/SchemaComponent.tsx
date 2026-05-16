@@ -241,21 +241,26 @@ export function SchemaComponent<
 
     const tree = walk(jsonSchema, walkOptions);
 
-    const renderChild = (
-        childTree: WalkedField,
-        childValue: unknown,
-        childOnChange: (v: unknown) => void
-    ): ReactNode => {
-        return renderField(
-            childTree,
-            childValue,
-            childOnChange,
-            userResolver,
-            renderChild,
-            instanceWidgets,
-            contextWidgets
-        );
-    };
+    const makeRenderChild =
+        (currentDepth: number) =>
+        (
+            childTree: WalkedField,
+            childValue: unknown,
+            childOnChange: (v: unknown) => void
+        ): ReactNode => {
+            return renderField(
+                childTree,
+                childValue,
+                childOnChange,
+                userResolver,
+                makeRenderChild(currentDepth + 1),
+                instanceWidgets,
+                contextWidgets,
+                currentDepth + 1
+            );
+        };
+
+    const renderChild = makeRenderChild(0);
 
     const effectiveValue = value ?? tree.defaultValue;
     return renderField(
@@ -265,7 +270,8 @@ export function SchemaComponent<
         userResolver,
         renderChild,
         instanceWidgets,
-        contextWidgets
+        contextWidgets,
+        0
     );
 }
 
@@ -317,6 +323,9 @@ function runValidation(
 // Field rendering — delegates to resolver or headless fallback
 // ---------------------------------------------------------------------------
 
+/** Maximum rendering depth before treating a field as recursive. */
+const MAX_RENDER_DEPTH = 10;
+
 export function renderField(
     tree: WalkedField,
     value: unknown,
@@ -328,10 +337,22 @@ export function renderField(
         onChange: (v: unknown) => void
     ) => ReactNode,
     instanceWidgets?: WidgetMap,
-    contextWidgets?: WidgetMap
+    contextWidgets?: WidgetMap,
+    depth = 0
 ): ReactNode {
-    // 0. Visibility check — hidden fields render nothing
-    if (tree.meta.visible === false) return null;
+    // 0. Depth limit — prevent infinite recursion on circular schemas
+    if (depth >= MAX_RENDER_DEPTH) {
+        const refTarget = tree.type === "recursive" ? tree.refTarget : "";
+        const label =
+            typeof tree.meta.description === "string"
+                ? tree.meta.description
+                : refTarget;
+        return (
+            <fieldset>
+                <em>↻ {label || "schema"} (recursive)</em>
+            </fieldset>
+        );
+    }
 
     // 1. Check widget registry for .meta({ component }) hint
     //    Resolution order: instance → context → global
@@ -430,6 +451,7 @@ function buildRenderProps(
     if (tree.type === "conditional" && tree.elseClause !== undefined)
         props.elseClause = tree.elseClause;
     if (tree.type === "negation") props.negated = tree.negated;
+    if (tree.type === "recursive") props.refTarget = tree.refTarget;
     if (tree.type === "literal") props.literalValues = tree.literalValues;
     if (tree.examples !== undefined) props.examples = tree.examples;
     return props;
@@ -565,21 +587,26 @@ export function SchemaField<
         ]
     );
 
-    const renderChild = (
-        childTree: WalkedField,
-        childValue: unknown,
-        childOnChange: (v: unknown) => void
-    ): ReactNode => {
-        return renderField(
-            childTree,
-            childValue,
-            childOnChange,
-            userResolver,
-            renderChild,
-            undefined,
-            contextWidgets
-        );
-    };
+    const makeRenderChild =
+        (currentDepth: number) =>
+        (
+            childTree: WalkedField,
+            childValue: unknown,
+            childOnChange: (v: unknown) => void
+        ): ReactNode => {
+            return renderField(
+                childTree,
+                childValue,
+                childOnChange,
+                userResolver,
+                makeRenderChild(currentDepth + 1),
+                undefined,
+                contextWidgets,
+                currentDepth + 1
+            );
+        };
+
+    const renderChild = makeRenderChild(0);
 
     return renderField(
         fieldTree,
@@ -588,7 +615,8 @@ export function SchemaField<
         userResolver,
         renderChild,
         undefined,
-        contextWidgets
+        contextWidgets,
+        0
     );
 }
 

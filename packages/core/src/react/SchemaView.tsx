@@ -23,7 +23,7 @@
  * is passed explicitly.
  */
 
-import { isValidElement, type ReactNode } from "react";
+import { createElement, isValidElement, type ReactNode } from "react";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { mergeResolvers, getRenderFunction } from "../core/renderer.ts";
 import type { WidgetMap } from "./SchemaComponent.tsx";
@@ -121,18 +121,35 @@ export function SchemaView({
             ? mergeResolvers(resolver, headlessResolver)
             : headlessResolver;
 
-    // Recursive render — no hooks, pure functions
-    const renderChild = (
-        childTree: WalkedField,
-        childValue: unknown
-    ): ReactNode =>
-        renderFieldServer(
-            childTree,
-            childValue,
-            userResolver,
-            renderChild,
-            widgets
-        );
+    // Recursive render — no hooks, pure functions. Depth limit prevents
+    // infinite recursion on circular schema references.
+    const MAX_SERVER_DEPTH = 10;
+    const makeRenderChild =
+        (currentDepth: number) =>
+        (childTree: WalkedField, childValue: unknown): ReactNode => {
+            if (currentDepth >= MAX_SERVER_DEPTH) {
+                const label =
+                    typeof childTree.meta.description === "string"
+                        ? childTree.meta.description
+                        : childTree.type === "recursive"
+                          ? childTree.refTarget
+                          : "schema";
+                return createElement(
+                    "fieldset",
+                    null,
+                    createElement("em", null, `\u21bb ${label} (recursive)`)
+                );
+            }
+            return renderFieldServer(
+                childTree,
+                childValue,
+                userResolver,
+                makeRenderChild(currentDepth + 1),
+                widgets
+            );
+        };
+
+    const renderChild = makeRenderChild(0);
 
     return renderFieldServer(
         tree,
@@ -213,6 +230,7 @@ function renderFieldServer(
         if (tree.type === "conditional" && tree.elseClause !== undefined)
             props.elseClause = tree.elseClause;
         if (tree.type === "negation") props.negated = tree.negated;
+        if (tree.type === "recursive") props.refTarget = tree.refTarget;
         if (tree.type === "literal") props.literalValues = tree.literalValues;
 
         try {

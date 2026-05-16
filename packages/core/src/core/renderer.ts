@@ -66,6 +66,8 @@ export interface BaseFieldProps {
     elseClause?: WalkedField;
     /** For negations: the negated sub-schema. */
     negated?: WalkedField;
+    /** For recursive fields: the $ref string that would create the cycle. */
+    refTarget?: string;
     /** For objects: map of field name → WalkedField. */
     fields?: Record<string, WalkedField>;
     /** For unions: the option schemas. */
@@ -153,6 +155,7 @@ export interface ComponentResolver {
     discriminatedUnion?: RenderFunction;
     conditional?: RenderFunction;
     negation?: RenderFunction;
+    recursive?: RenderFunction;
     literal?: RenderFunction;
     file?: RenderFunction;
     unknown?: RenderFunction;
@@ -182,6 +185,7 @@ export interface HtmlResolver {
     discriminatedUnion?: HtmlRenderFunction;
     conditional?: HtmlRenderFunction;
     negation?: HtmlRenderFunction;
+    recursive?: HtmlRenderFunction;
     literal?: HtmlRenderFunction;
     file?: HtmlRenderFunction;
     unknown?: HtmlRenderFunction;
@@ -204,6 +208,7 @@ export const RESOLVER_KEYS = [
     "discriminatedUnion",
     "conditional",
     "negation",
+    "recursive",
     "literal",
     "file",
     "unknown",
@@ -229,6 +234,7 @@ export function typeToKey(type: WalkedField["type"]): ResolverKey {
         case "discriminatedUnion":
         case "conditional":
         case "negation":
+        case "recursive":
         case "literal":
         case "file":
         case "unknown":
