@@ -18,6 +18,10 @@ npm install schema-components
 
 Peer dependencies: `zod@^4.0.0`, `react@^18.0.0 || ^19.0.0`.
 
+### Zod version requirement
+
+schema-components requires **Zod 4**. If you are on Zod 3, see the [Zod 4 migration guide](https://zod.dev/v4/migration). The library detects Zod 3 inputs and throws a descriptive error rather than silently misbehaving.
+
 ## Quick start
 
 ```tsx

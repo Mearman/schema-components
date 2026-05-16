@@ -246,3 +246,22 @@ describe("normaliseSchema — OpenAPI", () => {
         expect(result.jsonSchema.required).toContain("code");
     });
 });
+
+// ---------------------------------------------------------------------------
+// Zod 3 error message
+// ---------------------------------------------------------------------------
+
+describe("Zod 3 error message", () => {
+    it("includes the migration guide URL in the error message", () => {
+        // Simulate a Zod 3 schema: has _def but no _zod
+        const fakeZod3 = { _def: { typeName: "ZodString" } };
+        expect(() => normaliseSchema(fakeZod3)).toThrow(
+            /https:\/\/zod\.dev\/v4\/migration/
+        );
+    });
+
+    it("suggests the install command in the error message", () => {
+        const fakeZod3 = { _def: { typeName: "ZodString" } };
+        expect(() => normaliseSchema(fakeZod3)).toThrow(/pnpm add zod@\^4/);
+    });
+});

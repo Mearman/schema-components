@@ -175,7 +175,10 @@ function normaliseJsonSchema(jsonSchema: JsonObject): NormalisedSchema {
 
 function normaliseZod3(): never {
     throw new Error(
-        "Zod 3 schemas are not yet supported. Convert to Zod 4 or provide JSON Schema directly."
+        "Zod 3 schemas are not supported. schema-components requires Zod 4. " +
+            "Detected: Zod 3 (has _def without _zod). " +
+            "See the Zod 4 migration guide at https://zod.dev/v4/migration or " +
+            "run: pnpm add zod@^4"
     );
 }
 
