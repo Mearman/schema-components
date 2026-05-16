@@ -182,6 +182,23 @@ export function normaliseDraft04Node(
         delete node.exclusiveMaximum;
     }
 
+    // Draft 04: `id` → `$id`
+    if (typeof node.id === "string" && !("$id" in node)) {
+        node.$id = node.id;
+        delete node.id;
+    }
+
+    // Draft 04: items as array → prefixItems (tuple v1 syntax)
+    if (Array.isArray(node.items) && !("prefixItems" in node)) {
+        node.prefixItems = node.items;
+        delete node.items;
+        // Draft 04 tuple: additionalItems → items for the rest
+        if ("additionalItems" in node) {
+            node.items = node.additionalItems;
+            delete node.additionalItems;
+        }
+    }
+
     return node;
 }
 
@@ -190,29 +207,32 @@ export function normaliseDraft04Node(
 // ---------------------------------------------------------------------------
 
 /**
- * Normalise Draft 2019-09 `$recursiveRef` to `$ref: "#"`.
+ * Normalise Draft 2019-09 `$recursiveRef` to `$ref`.
  *
  * `$recursiveRef` resolves to the nearest `$recursiveAnchor` in the
- * dynamic scope. For our use case (rendering), the common pattern is a
- * recursive schema with `$recursiveAnchor: true` at the root. Replacing
- * `$recursiveRef: "#"` with `$ref: "#"` produces the correct result when
- * the root document is the schema itself.
+ * dynamic scope. For rendering, the common pattern is a root
+ * `$recursiveAnchor: true` — the normaliser converts
+ * `$recursiveRef: "#"` to `$ref: "#"` pointing to the root.
  *
- * Limitation: nested `$recursiveAnchor` within `$defs` that should resolve
- * to their own subtree is not supported. This is rare in practice.
+ * If a `$recursiveAnchor` name is given (non-empty string), the ref
+ * is converted to `$ref: "#<anchor>"` so the existing $anchor
+ * resolution in ref.ts can find it.
  */
 function normaliseDraft201909Node(
     node: Record<string, unknown>
 ): Record<string, unknown> {
     if (typeof node.$recursiveRef === "string") {
         // $recursiveRef resolves to the nearest $recursiveAnchor.
-        // For rendering, the root schema is the document — normalise to "#"
-        // so the walker resolves to the root.
+        // Convert to a standard $ref that the walker can resolve.
         node.$ref = "#";
         delete node.$recursiveRef;
     }
-    // $recursiveAnchor is consumed and not needed after normalisation
-    if ("$recursiveAnchor" in node) {
+    // $recursiveAnchor: true → add as $anchor for proper resolution
+    if (node.$recursiveAnchor === true) {
+        // If there's already an $anchor, keep it
+        if (typeof node.$anchor !== "string") {
+            node.$anchor = "__recursive__";
+        }
         delete node.$recursiveAnchor;
     }
     return node;
@@ -227,12 +247,19 @@ function normaliseDynamicRefNode(
 ): Record<string, unknown> {
     if (typeof node.$dynamicRef === "string") {
         // $dynamicRef resolves to the $dynamicAnchor in the dynamic scope.
-        // For rendering, the root schema is the document — normalise to "#"
-        // so the walker resolves to the root.
-        node.$ref = "#";
+        // Convert to a standard $ref that the walker can resolve.
+        const fragment = node.$dynamicRef;
+        // If it's just "#", point to root. If it's "#SomeName", keep it
+        // so $anchor resolution can find the matching $dynamicAnchor.
+        node.$ref = fragment;
         delete node.$dynamicRef;
     }
-    if ("$dynamicAnchor" in node) {
+    // $dynamicAnchor → $anchor so ref.ts can find it
+    if (typeof node.$dynamicAnchor === "string") {
+        // Preserve existing $anchor if present
+        if (typeof node.$anchor !== "string") {
+            node.$anchor = node.$dynamicAnchor;
+        }
         delete node.$dynamicAnchor;
     }
     return node;

@@ -97,6 +97,8 @@ export function extractArrayConstraints(
     if (minContains !== undefined) c.minContains = minContains;
     const maxContains = getNumber(schema, "maxContains");
     if (maxContains !== undefined) c.maxContains = maxContains;
+    const unevaluatedItems = getObject(schema, "unevaluatedItems");
+    if (unevaluatedItems !== undefined) c.unevaluatedItems = unevaluatedItems;
     return c;
 }
 

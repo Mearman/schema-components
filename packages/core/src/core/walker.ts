@@ -483,6 +483,39 @@ function walkLiteral(
     };
 }
 
+// ---------------------------------------------------------------------------
+// Object sub-schema helpers
+// ---------------------------------------------------------------------------
+
+/** Walk a map of sub-schemas (patternProperties, dependentSchemas). */
+function walkSubSchemaMap(
+    map: Record<string, unknown>,
+    ctx: WalkContext
+): Record<string, WalkedField> {
+    const result: Record<string, WalkedField> = {};
+    for (const [key, value] of Object.entries(map)) {
+        if (isObject(value)) {
+            result[key] = walkNode(value, ctx);
+        }
+    }
+    return result;
+}
+
+/** Walk a dependentRequired map (Record<string, string[]>). */
+function walkDependentRequiredMap(
+    map: Record<string, unknown>
+): Record<string, string[]> {
+    const result: Record<string, string[]> = {};
+    for (const [key, value] of Object.entries(map)) {
+        if (Array.isArray(value)) {
+            result[key] = value.filter(
+                (x): x is string => typeof x === "string"
+            );
+        }
+    }
+    return result;
+}
+
 function walkObject(
     schema: Record<string, unknown>,
     properties: Record<string, unknown>,
@@ -525,12 +558,70 @@ function walkObject(
         }
     }
 
+    // --- patternProperties ---
+    const patternProps = getObject(schema, "patternProperties");
+    const walkedPatternProps: Record<string, WalkedField> | undefined =
+        patternProps !== undefined
+            ? walkSubSchemaMap(patternProps, ctx)
+            : undefined;
+
+    // --- additionalProperties as boolean or schema ---
+    let additionalPropertiesClosed: boolean | undefined;
+    let additionalPropertiesSchema: WalkedField | undefined;
+    const additionalProps = schema.additionalProperties;
+    if (additionalProps === false) {
+        additionalPropertiesClosed = true;
+    } else if (isObject(additionalProps)) {
+        additionalPropertiesSchema = walkNode(additionalProps, ctx);
+    }
+
+    // --- dependentSchemas ---
+    const depSchemas = getObject(schema, "dependentSchemas");
+    const walkedDepSchemas: Record<string, WalkedField> | undefined =
+        depSchemas !== undefined
+            ? walkSubSchemaMap(depSchemas, ctx)
+            : undefined;
+
+    // --- dependentRequired ---
+    const depReq = getObject(schema, "dependentRequired");
+    const walkedDepReq: Record<string, string[]> | undefined =
+        depReq !== undefined ? walkDependentRequiredMap(depReq) : undefined;
+
+    // --- unevaluatedProperties ---
+    let unevaluatedProperties: WalkedField | undefined;
+    let unevaluatedPropertiesClosed: boolean | undefined;
+    const unevalProps = schema.unevaluatedProperties;
+    if (unevalProps === false) {
+        unevaluatedPropertiesClosed = true;
+    } else if (isObject(unevalProps)) {
+        unevaluatedProperties = walkNode(unevalProps, ctx);
+    }
+
     return {
         ...buildBase(schema, ctx),
         type: "object",
         constraints: extractObjectConstraints(schema),
         fields,
         requiredFields,
+        ...(walkedPatternProps !== undefined &&
+        Object.keys(walkedPatternProps).length > 0
+            ? { patternProperties: walkedPatternProps }
+            : {}),
+        ...(additionalPropertiesClosed ? { additionalPropertiesClosed } : {}),
+        ...(additionalPropertiesSchema !== undefined
+            ? { additionalPropertiesSchema }
+            : {}),
+        ...(walkedDepSchemas !== undefined &&
+        Object.keys(walkedDepSchemas).length > 0
+            ? { dependentSchemas: walkedDepSchemas }
+            : {}),
+        ...(walkedDepReq !== undefined && Object.keys(walkedDepReq).length > 0
+            ? { dependentRequired: walkedDepReq }
+            : {}),
+        ...(unevaluatedProperties !== undefined
+            ? { unevaluatedProperties }
+            : {}),
+        ...(unevaluatedPropertiesClosed ? { unevaluatedPropertiesClosed } : {}),
     };
 }
 
