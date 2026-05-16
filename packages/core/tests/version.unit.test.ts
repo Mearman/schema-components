@@ -5,10 +5,15 @@ import { describe, it, expect } from "vitest";
 import {
     detectJsonSchemaDraft,
     detectOpenApiVersion,
+    inferJsonSchemaDraft,
+    inferJsonSchemaDraftWithReason,
     isOpenApi30,
     isOpenApi31,
     isSwagger2,
 } from "../src/core/version.ts";
+import { walk } from "../src/core/walker.ts";
+import { normaliseSchema } from "../src/core/adapter.ts";
+import type { Diagnostic } from "../src/core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // detectJsonSchemaDraft
@@ -63,8 +68,14 @@ describe("detectJsonSchemaDraft", () => {
         ).toBe("draft-04");
     });
 
-    it("defaults to draft-2020-12 when $schema is absent", () => {
-        expect(detectJsonSchemaDraft({ type: "string" })).toBe("draft-2020-12");
+    it("falls back to heuristic when $schema is absent", () => {
+        // has `if` → Draft 07
+        expect(
+            detectJsonSchemaDraft({
+                type: "string",
+                if: { minLength: 1 },
+            })
+        ).toBe("draft-07");
     });
 
     it("defaults to draft-2020-12 when $schema is not a string", () => {
@@ -75,6 +86,204 @@ describe("detectJsonSchemaDraft", () => {
         expect(
             detectJsonSchemaDraft({ $schema: "http://example.com/unknown" })
         ).toBe("draft-2020-12");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// inferJsonSchemaDraft
+// ---------------------------------------------------------------------------
+
+describe("inferJsonSchemaDraft", () => {
+    it("infers Draft 2020-12 from $dynamicRef", () => {
+        expect(inferJsonSchemaDraft({ $dynamicRef: "#Foo" })).toBe(
+            "draft-2020-12"
+        );
+    });
+
+    it("infers Draft 2020-12 from $dynamicAnchor", () => {
+        expect(inferJsonSchemaDraft({ $dynamicAnchor: "Foo" })).toBe(
+            "draft-2020-12"
+        );
+    });
+
+    it("infers Draft 2020-12 from prefixItems", () => {
+        expect(inferJsonSchemaDraft({ prefixItems: [] })).toBe("draft-2020-12");
+    });
+
+    it("infers Draft 2019-09 from $recursiveRef", () => {
+        expect(inferJsonSchemaDraft({ $recursiveRef: "#" })).toBe(
+            "draft-2019-09"
+        );
+    });
+
+    it("infers Draft 2019-09 from $recursiveAnchor", () => {
+        expect(inferJsonSchemaDraft({ $recursiveAnchor: true })).toBe(
+            "draft-2019-09"
+        );
+    });
+
+    it("infers Draft 2019-09 from unevaluatedProperties", () => {
+        expect(inferJsonSchemaDraft({ unevaluatedProperties: false })).toBe(
+            "draft-2019-09"
+        );
+    });
+
+    it("infers Draft 2019-09 from unevaluatedItems", () => {
+        expect(inferJsonSchemaDraft({ unevaluatedItems: false })).toBe(
+            "draft-2019-09"
+        );
+    });
+
+    it("infers Draft 07 from if/then/else", () => {
+        expect(inferJsonSchemaDraft({ if: {}, then: {} })).toBe("draft-07");
+    });
+
+    it("infers Draft 07 from contentEncoding", () => {
+        expect(inferJsonSchemaDraft({ contentEncoding: "base64" })).toBe(
+            "draft-07"
+        );
+    });
+
+    it("infers Draft 07 from contentMediaType", () => {
+        expect(
+            inferJsonSchemaDraft({ contentMediaType: "application/json" })
+        ).toBe("draft-07");
+    });
+
+    it("infers Draft 06 from const", () => {
+        expect(inferJsonSchemaDraft({ const: "active" })).toBe("draft-06");
+    });
+
+    it("infers Draft 06 from propertyNames", () => {
+        expect(inferJsonSchemaDraft({ propertyNames: {} })).toBe("draft-06");
+    });
+
+    it("infers Draft 06 from examples array", () => {
+        expect(inferJsonSchemaDraft({ examples: ["foo", "bar"] })).toBe(
+            "draft-06"
+        );
+    });
+
+    it("does not infer Draft 06 from non-array examples", () => {
+        expect(inferJsonSchemaDraft({ examples: "not-array" })).toBe(
+            "draft-2020-12"
+        );
+    });
+
+    it("infers Draft 04 from boolean exclusiveMinimum", () => {
+        expect(
+            inferJsonSchemaDraft({ minimum: 0, exclusiveMinimum: true })
+        ).toBe("draft-04");
+    });
+
+    it("infers Draft 04 from boolean exclusiveMaximum", () => {
+        expect(
+            inferJsonSchemaDraft({ maximum: 10, exclusiveMaximum: true })
+        ).toBe("draft-04");
+    });
+
+    it("infers Draft 04 from bare id (no $id)", () => {
+        expect(inferJsonSchemaDraft({ id: "MySchema" })).toBe("draft-04");
+    });
+
+    it("does not infer Draft 04 when both id and $id present", () => {
+        expect(inferJsonSchemaDraft({ id: "X", $id: "Y" })).toBe(
+            "draft-2020-12"
+        );
+    });
+
+    it("defaults to draft-2020-12 when no keywords match", () => {
+        expect(inferJsonSchemaDraft({ type: "string" })).toBe("draft-2020-12");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// inferJsonSchemaDraftWithReason
+// ---------------------------------------------------------------------------
+
+describe("inferJsonSchemaDraftWithReason", () => {
+    it("returns inference reason for prefixItems", () => {
+        const result = inferJsonSchemaDraftWithReason({ prefixItems: [] });
+        expect(result.draft).toBe("draft-2020-12");
+        expect(result.inferredFrom).toBe(
+            "dynamic-ref-or-anchor-or-prefixItems"
+        );
+    });
+
+    it("returns no-signal for empty schema", () => {
+        const result = inferJsonSchemaDraftWithReason({});
+        expect(result.draft).toBe("draft-2020-12");
+        expect(result.inferredFrom).toBe("no-signal");
+    });
+
+    it("returns reason for boolean exclusiveMinimum", () => {
+        const result = inferJsonSchemaDraftWithReason({
+            exclusiveMinimum: true,
+        });
+        expect(result.draft).toBe("draft-04");
+        expect(result.inferredFrom).toBe("boolean-exclusive-min-max");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// assumed-draft diagnostic
+// ---------------------------------------------------------------------------
+
+describe("assumed-draft diagnostic", () => {
+    it("emits assumed-draft diagnostic when schema has no $schema", () => {
+        const diags: Diagnostic[] = [];
+        normaliseSchema({ type: "string", if: { minLength: 1 } }, undefined, {
+            diagnostics: {
+                diagnostics: (d: Diagnostic) => {
+                    diags.push(d);
+                },
+            },
+        });
+        const assumed = diags.filter((d) => d.code === "assumed-draft");
+        expect(assumed.length).toBe(1);
+        const diag = assumed[0];
+        if (diag === undefined) throw new Error("expected assumed-draft");
+        expect(diag.detail?.draft).toBe("draft-07");
+        expect(diag.detail?.inferredFrom).toBe("if-then-else");
+    });
+
+    it("does not emit assumed-draft when $schema is present", () => {
+        const diags: Diagnostic[] = [];
+        normaliseSchema(
+            {
+                $schema: "http://json-schema.org/draft-07/schema#",
+                type: "string",
+            },
+            undefined,
+            {
+                diagnostics: {
+                    diagnostics: (d: Diagnostic) => {
+                        diags.push(d);
+                    },
+                },
+            }
+        );
+        const assumed = diags.filter((d) => d.code === "assumed-draft");
+        expect(assumed.length).toBe(0);
+    });
+
+    it("uses heuristic result for normalisation", () => {
+        // Draft 04 with boolean exclusiveMinimum but no $schema
+        const result = normaliseSchema({
+            type: "number",
+            minimum: 0,
+            exclusiveMinimum: true,
+        });
+        const tree = walk(result.jsonSchema, {
+            rootDocument: result.rootDocument,
+        });
+        // Should be normalised: exclusiveMinimum: true + minimum: 0 → exclusiveMinimum: 0
+        if (tree.type !== "number") {
+            expect.unreachable("Expected number field");
+            return;
+        }
+        expect(tree.constraints.exclusiveMinimum).toBe(0);
+        expect(tree.constraints.minimum).toBeUndefined();
     });
 });
 

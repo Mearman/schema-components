@@ -40,34 +40,192 @@ const DRAFT_URIS: ReadonlyMap<string, JsonSchemaDraft> = new Map([
 
 /**
  * Detect the JSON Schema draft version from a schema's `$schema` URI.
- * Returns `"draft-2020-12"` as the default when `$schema` is absent —
- * this is the most compatible assumption for modern schemas.
+ * When `$schema` is absent, uses heuristic keyword detection via
+ * `inferJsonSchemaDraft` to guess the draft version.
+ * Returns `"draft-2020-12"` as the final fallback when no heuristic
+ * matches either.
  */
 export function detectJsonSchemaDraft(
     schema: Record<string, unknown>
 ): JsonSchemaDraft {
     const $schema = schema.$schema;
-    if (typeof $schema !== "string") return "draft-2020-12";
+    if (typeof $schema === "string") {
+        // Exact match first
+        const exact = DRAFT_URIS.get($schema);
+        if (exact !== undefined) return exact;
 
-    // Exact match first
-    const exact = DRAFT_URIS.get($schema);
-    if (exact !== undefined) return exact;
-
-    // Prefix match for variations (trailing #, with/without fragment)
-    for (const [uri, draft] of DRAFT_URIS) {
-        if ($schema.startsWith(uri) || $schema === uri) {
-            return draft;
+        // Prefix match for variations (trailing #, with/without fragment)
+        for (const [uri, draft] of DRAFT_URIS) {
+            if ($schema.startsWith(uri) || $schema === uri) {
+                return draft;
+            }
         }
+
+        // Known prefix patterns
+        if ($schema.includes("/draft/2020-12/")) return "draft-2020-12";
+        if ($schema.includes("/draft/2019-09/")) return "draft-2019-09";
+        if ($schema.includes("/draft-07")) return "draft-07";
+        if ($schema.includes("/draft-06")) return "draft-06";
+        if ($schema.includes("/draft-04")) return "draft-04";
+
+        return "draft-2020-12";
     }
 
-    // Known prefix patterns
-    if ($schema.includes("/draft/2020-12/")) return "draft-2020-12";
-    if ($schema.includes("/draft/2019-09/")) return "draft-2019-09";
-    if ($schema.includes("/draft-07")) return "draft-07";
-    if ($schema.includes("/draft-06")) return "draft-06";
-    if ($schema.includes("/draft-04")) return "draft-04";
+    // No $schema — use heuristic keyword detection
+    return inferJsonSchemaDraft(schema);
+}
 
+// ---------------------------------------------------------------------------
+// Heuristic draft inference (when $schema is absent)
+// ---------------------------------------------------------------------------
+
+/**
+ * Inference result carrying the detected draft and the heuristic
+ * that triggered it.
+ */
+export interface InferredDraft {
+    draft: JsonSchemaDraft;
+    inferredFrom: string;
+}
+
+/**
+ * Infer the JSON Schema draft from keyword presence when `$schema`
+ * is absent. Examined from highest-confidence to lowest.
+ *
+ * Heuristics:
+ * 1. `$dynamicRef` / `$dynamicAnchor` / `prefixItems` → Draft 2020-12
+ * 2. `$recursiveRef` / `$recursiveAnchor` / `unevaluatedProperties` /
+ *    `dependentSchemas` → Draft 2019-09
+ * 3. `if` / `then` / `else`, `contentEncoding` / `contentMediaType` → Draft 07
+ * 4. `const`, `examples` (array), `propertyNames` → Draft 06
+ * 5. Boolean `exclusiveMinimum`, `id` (no `$`), `definitions` only → Draft 04
+ * 6. No signal → Draft 2020-12
+ */
+export function inferJsonSchemaDraft(
+    schema: Record<string, unknown>
+): JsonSchemaDraft {
+    // Draft 2020-12 keywords
+    if (
+        "$dynamicRef" in schema ||
+        "$dynamicAnchor" in schema ||
+        "prefixItems" in schema
+    ) {
+        return "draft-2020-12";
+    }
+
+    // Draft 2019-09 keywords
+    if (
+        "$recursiveRef" in schema ||
+        "$recursiveAnchor" in schema ||
+        "unevaluatedProperties" in schema ||
+        "unevaluatedItems" in schema
+    ) {
+        return "draft-2019-09";
+    }
+
+    // Draft 07 keywords (if/then/else, contentEncoding, contentMediaType)
+    if ("if" in schema || "then" in schema || "else" in schema) {
+        return "draft-07";
+    }
+    if ("contentEncoding" in schema || "contentMediaType" in schema) {
+        return "draft-07";
+    }
+
+    // Draft 06 keywords (const, examples as array, propertyNames)
+    if ("const" in schema || "propertyNames" in schema) {
+        return "draft-06";
+    }
+    const examples = schema.examples;
+    if (Array.isArray(examples)) {
+        return "draft-06";
+    }
+
+    // Draft 04 signals: boolean exclusiveMinimum/Maximum, bare `id`,
+    // `definitions` without `$defs`
+    if (
+        typeof schema.exclusiveMinimum === "boolean" ||
+        typeof schema.exclusiveMaximum === "boolean"
+    ) {
+        return "draft-04";
+    }
+    if ("id" in schema && !("$id" in schema)) {
+        return "draft-04";
+    }
+
+    // No signal — default to Draft 2020-12
     return "draft-2020-12";
+}
+
+/**
+ * Like `inferJsonSchemaDraft` but also returns the heuristic that
+ * triggered the inference, for diagnostic emission.
+ */
+export function inferJsonSchemaDraftWithReason(
+    schema: Record<string, unknown>
+): InferredDraft {
+    // Draft 2020-12 keywords
+    if (
+        "$dynamicRef" in schema ||
+        "$dynamicAnchor" in schema ||
+        "prefixItems" in schema
+    ) {
+        return {
+            draft: "draft-2020-12",
+            inferredFrom: "dynamic-ref-or-anchor-or-prefixItems",
+        };
+    }
+
+    // Draft 2019-09 keywords
+    if (
+        "$recursiveRef" in schema ||
+        "$recursiveAnchor" in schema ||
+        "unevaluatedProperties" in schema ||
+        "unevaluatedItems" in schema
+    ) {
+        return {
+            draft: "draft-2019-09",
+            inferredFrom: "recursive-ref-or-anchor-or-unevaluated",
+        };
+    }
+
+    // Draft 07 keywords
+    if ("if" in schema || "then" in schema || "else" in schema) {
+        return {
+            draft: "draft-07",
+            inferredFrom: "if-then-else",
+        };
+    }
+    if ("contentEncoding" in schema || "contentMediaType" in schema) {
+        return {
+            draft: "draft-07",
+            inferredFrom: "content-encoding-or-media-type",
+        };
+    }
+
+    // Draft 06 keywords
+    if ("const" in schema || "propertyNames" in schema) {
+        return {
+            draft: "draft-06",
+            inferredFrom: "const-or-propertyNames",
+        };
+    }
+    const examples = schema.examples;
+    if (Array.isArray(examples)) {
+        return { draft: "draft-06", inferredFrom: "examples" };
+    }
+
+    // Draft 04 signals
+    if (
+        typeof schema.exclusiveMinimum === "boolean" ||
+        typeof schema.exclusiveMaximum === "boolean"
+    ) {
+        return { draft: "draft-04", inferredFrom: "boolean-exclusive-min-max" };
+    }
+    if ("id" in schema && !("$id" in schema)) {
+        return { draft: "draft-04", inferredFrom: "id-without-dollar" };
+    }
+
+    return { draft: "draft-2020-12", inferredFrom: "no-signal" };
 }
 
 // ---------------------------------------------------------------------------

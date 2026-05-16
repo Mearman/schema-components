@@ -31,7 +31,8 @@ export type DiagnosticCode =
     | "dropped-swagger-feature"
     | "external-ref"
     | "type-negation-fallback"
-    | "conditional-fallback";
+    | "conditional-fallback"
+    | "assumed-draft";
 
 // ---------------------------------------------------------------------------
 // Diagnostic structure

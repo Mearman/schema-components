@@ -15,8 +15,11 @@ import type { JsonObject, SchemaMeta } from "./types.ts";
 import { hasProperty, isObject, getProperty } from "./guards.ts";
 import { dereference } from "./ref.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
+import { emitDiagnostic } from "./diagnostics.ts";
+import type { JsonSchemaDraft } from "./version.ts";
 import {
     detectJsonSchemaDraft,
+    inferJsonSchemaDraftWithReason,
     detectOpenApiVersion,
     isSwagger2,
 } from "./version.ts";
@@ -126,7 +129,7 @@ export function normaliseSchema(
             break;
         case "jsonSchema":
             if (!isObject(input)) throw new Error("Invalid JSON Schema");
-            result = normaliseJsonSchema(input);
+            result = normaliseJsonSchema(input, options?.diagnostics);
             break;
     }
 
@@ -163,8 +166,28 @@ function normaliseZod4(input: unknown): NormalisedSchema {
     };
 }
 
-function normaliseJsonSchema(jsonSchema: JsonObject): NormalisedSchema {
-    const draft = detectJsonSchemaDraft(jsonSchema);
+function normaliseJsonSchema(
+    jsonSchema: JsonObject,
+    diagnostics?: DiagnosticsOptions
+): NormalisedSchema {
+    let draft: JsonSchemaDraft;
+
+    if (typeof jsonSchema.$schema !== "string") {
+        const inferred = inferJsonSchemaDraftWithReason(jsonSchema);
+        draft = inferred.draft;
+        emitDiagnostic(diagnostics, {
+            code: "assumed-draft",
+            message: `No $schema present; inferred ${inferred.draft} from keywords (${inferred.inferredFrom})`,
+            pointer: "",
+            detail: {
+                inferredFrom: inferred.inferredFrom,
+                draft: inferred.draft,
+            },
+        });
+    } else {
+        draft = detectJsonSchemaDraft(jsonSchema);
+    }
+
     const normalised = normaliseForDraft(jsonSchema, draft);
     return {
         jsonSchema: normalised,
