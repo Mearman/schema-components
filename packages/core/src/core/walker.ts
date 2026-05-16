@@ -442,7 +442,16 @@ function walkString(
         return buildFileField(schema, ctx);
     }
 
-    return buildStringField(schema, ctx);
+    const field = buildStringField(schema, ctx);
+
+    // Walk contentSchema if present — describes the decoded form
+    // when contentEncoding / contentMediaType are present.
+    const contentSchema = getObject(schema, "contentSchema");
+    if (contentSchema !== undefined) {
+        field.meta.decodedSchema = walkNode(contentSchema, ctx);
+    }
+
+    return field;
 }
 
 function walkNumber(
