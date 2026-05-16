@@ -79,7 +79,7 @@ One walker, one input format. The walker reads standard JSON Schema keywords (Dr
 |---|---|
 | JSON Schema Draft 04 / 06 / 07 / 2019-09 / 2020-12 | All supported; older drafts normalised to Draft 2020-12 |
 | OpenAPI 2.0 (Swagger) | Full document restructure to OpenAPI 3.1 |
-| OpenAPI 3.0.x | `nullable`, `discriminator`, `example` normalised; callbacks, links, security, headers |
+| OpenAPI 3.0.x | `nullable`, `discriminator`, `example` normalised |
 | OpenAPI 3.1.x | Native; webhooks and `components/pathItems` resolved |
 
 See [packages/core/README.md](packages/core/README.md#spec-support) for the full keyword matrix and documented type-level fallbacks.
