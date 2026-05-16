@@ -3,11 +3,13 @@
  * (dynamic key-value maps).
  */
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, within } from "storybook/test";
 import { z } from "zod";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
 const meta: Meta = {
     title: "Inputs/Records",
+    tags: ["record", "json-schema"],
 };
 export default meta;
 
@@ -22,6 +24,7 @@ const stringRecordSchema = {
 
 export const StringValues: StoryObj = {
     name: "String record (read-only)",
+    tags: ["record", "readonly"],
     render: () => (
         <SchemaComponent
             schema={stringRecordSchema}
@@ -29,16 +32,50 @@ export const StringValues: StoryObj = {
             readOnly
         />
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByText("Ada")).toBeInTheDocument();
+        await expect(canvas.getByText("London")).toBeInTheDocument();
+        await expect(canvas.getByText("Engineer")).toBeInTheDocument();
+    },
 };
 
 export const StringValuesEditable: StoryObj = {
     name: "String record (editable)",
+    tags: ["record", "editable"],
     render: () => (
         <SchemaComponent
             schema={stringRecordSchema}
             value={{ name: "Ada", city: "London", role: "Engineer" }}
         />
     ),
+    play: async ({ canvasElement, step }) => {
+        const canvas = within(canvasElement);
+        await step(
+            "every record entry renders as an editable text input",
+            async () => {
+                const inputs = await canvas.findAllByRole("textbox");
+                await expect(inputs).toHaveLength(3);
+                for (const input of inputs) {
+                    await expect(input).toBeEnabled();
+                }
+            }
+        );
+        await step(
+            "initial display values come from the record's keys and values",
+            async () => {
+                await expect(
+                    canvas.getByDisplayValue("Ada")
+                ).toBeInTheDocument();
+                await expect(
+                    canvas.getByDisplayValue("London")
+                ).toBeInTheDocument();
+                await expect(
+                    canvas.getByDisplayValue("Engineer")
+                ).toBeInTheDocument();
+            }
+        );
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -52,6 +89,7 @@ const numberRecordSchema = {
 
 export const NumberValues: StoryObj = {
     name: "Number record",
+    tags: ["record", "readonly"],
     render: () => (
         <SchemaComponent
             schema={numberRecordSchema}
@@ -67,6 +105,7 @@ export const NumberValues: StoryObj = {
 
 export const EmptyRecord: StoryObj = {
     name: "Empty record",
+    tags: ["record", "readonly"],
     render: () => (
         <SchemaComponent schema={stringRecordSchema} value={{}} readOnly />
     ),
@@ -78,6 +117,7 @@ export const EmptyRecord: StoryObj = {
 
 export const NoValue: StoryObj = {
     name: "No value",
+    tags: ["record", "readonly"],
     render: () => <SchemaComponent schema={stringRecordSchema} readOnly />,
 };
 
@@ -100,6 +140,7 @@ const objectWithRecordSchema = {
 
 export const RecordWithinObject: StoryObj = {
     name: "Record field within object",
+    tags: ["record", "readonly"],
     render: () => (
         <SchemaComponent
             schema={objectWithRecordSchema}
@@ -126,6 +167,7 @@ const zodRecordSchema = z.object({
 
 export const ZodRecord: StoryObj = {
     name: "Zod record",
+    tags: ["record", "zod", "readonly"],
     render: () => (
         <SchemaComponent
             schema={zodRecordSchema}

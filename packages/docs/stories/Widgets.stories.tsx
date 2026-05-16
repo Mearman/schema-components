@@ -3,6 +3,7 @@
  * widget resolution with the WidgetMap type.
  */
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, within } from "storybook/test";
 import { z } from "zod";
 import {
     SchemaComponent,
@@ -10,10 +11,12 @@ import {
     registerWidget,
     type WidgetMap,
 } from "schema-components/react/SchemaComponent";
+import type { RenderProps } from "schema-components/core/renderer";
 
 // Register a global widget
-registerWidget("badge", ({ value }) => (
+registerWidget("badge", ({ value }: RenderProps) => (
     <span
+        data-testid="global-badge"
         style={{
             display: "inline-block",
             padding: "0.125rem 0.5rem",
@@ -36,7 +39,7 @@ const schema = z.object({
         .meta({ component: "badge", description: "Department" }),
 });
 
-const value = {
+const widgetValue = {
     name: "Ada Lovelace",
     role: "admin",
     department: "Engineering",
@@ -44,6 +47,7 @@ const value = {
 
 const meta: Meta = {
     title: "Extensibility/Widgets",
+    tags: ["widget", "editable"],
 };
 export default meta;
 
@@ -53,7 +57,18 @@ export default meta;
 
 export const GlobalWidget: StoryObj = {
     name: "Global widget (registerWidget)",
-    render: () => <SchemaComponent schema={schema} value={value} readOnly />,
+    tags: ["widget", "readonly"],
+    render: () => (
+        <SchemaComponent schema={schema} value={widgetValue} readOnly />
+    ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const badges = await canvas.findAllByTestId("global-badge");
+        // Two fields wear the badge widget; the plain `name` field does not.
+        await expect(badges).toHaveLength(2);
+        await expect(badges[0]).toHaveTextContent("admin");
+        await expect(badges[1]).toHaveTextContent("Engineering");
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -63,8 +78,9 @@ export const GlobalWidget: StoryObj = {
 const contextWidgets: WidgetMap = new Map([
     [
         "badge",
-        ({ value }) => (
+        ({ value }: RenderProps) => (
             <span
+                data-testid="context-badge"
                 style={{
                     display: "inline-block",
                     padding: "0.25rem 0.75rem",
@@ -83,11 +99,17 @@ const contextWidgets: WidgetMap = new Map([
 
 export const ContextScoped: StoryObj = {
     name: "Context-scoped widget (SchemaProvider)",
+    tags: ["widget", "readonly"],
     render: () => (
         <SchemaProvider resolver={{}} widgets={contextWidgets}>
-            <SchemaComponent schema={schema} value={value} readOnly />
+            <SchemaComponent schema={schema} value={widgetValue} readOnly />
         </SchemaProvider>
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const badges = await canvas.findAllByTestId("context-badge");
+        await expect(badges).toHaveLength(2);
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -97,8 +119,9 @@ export const ContextScoped: StoryObj = {
 const instanceWidgets: WidgetMap = new Map([
     [
         "badge",
-        ({ value }) => (
+        ({ value }: RenderProps) => (
             <span
+                data-testid="instance-badge"
                 style={{
                     display: "inline-block",
                     padding: "0.25rem 0.75rem",
@@ -118,14 +141,20 @@ const instanceWidgets: WidgetMap = new Map([
 
 export const InstanceScoped: StoryObj = {
     name: "Instance-scoped widget (widgets prop)",
+    tags: ["widget", "readonly"],
     render: () => (
         <SchemaComponent
             schema={schema}
-            value={value}
+            value={widgetValue}
             readOnly
             widgets={instanceWidgets}
         />
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const badges = await canvas.findAllByTestId("instance-badge");
+        await expect(badges).toHaveLength(2);
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -134,16 +163,24 @@ export const InstanceScoped: StoryObj = {
 
 export const InstanceOverridesContext: StoryObj = {
     name: "Instance overrides context",
+    tags: ["widget", "readonly"],
     render: () => (
         <SchemaProvider resolver={{}} widgets={contextWidgets}>
             <SchemaComponent
                 schema={schema}
-                value={value}
+                value={widgetValue}
                 readOnly
                 widgets={instanceWidgets}
             />
         </SchemaProvider>
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        // Instance-scoped wins over context-scoped of the same name.
+        await expect(canvas.queryAllByTestId("context-badge")).toHaveLength(0);
+        const instanceBadges = await canvas.findAllByTestId("instance-badge");
+        await expect(instanceBadges).toHaveLength(2);
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -158,10 +195,11 @@ const richtextSchema = z.object({
 const richtextWidgets: WidgetMap = new Map([
     [
         "richtext",
-        ({ value, onChange, readOnly: isReadOnly }) => {
+        ({ value, onChange, readOnly: isReadOnly }: RenderProps) => {
             if (isReadOnly) {
                 return (
                     <div
+                        data-testid="richtext-readonly"
                         style={{
                             border: "1px solid #e5e7eb",
                             borderRadius: "0.375rem",
@@ -177,6 +215,7 @@ const richtextWidgets: WidgetMap = new Map([
             }
             return (
                 <textarea
+                    data-testid="richtext-editor"
                     value={typeof value === "string" ? value : ""}
                     onChange={(e) => {
                         onChange(e.target.value);
@@ -198,6 +237,7 @@ const richtextWidgets: WidgetMap = new Map([
 
 export const RichTextWidget: StoryObj = {
     name: "Rich text widget (editable)",
+    tags: ["widget", "editable"],
     render: () => (
         <SchemaComponent
             schema={richtextSchema}
@@ -208,10 +248,24 @@ export const RichTextWidget: StoryObj = {
             widgets={richtextWidgets}
         />
     ),
+    play: async ({ canvasElement, step }) => {
+        const canvas = within(canvasElement);
+        await step(
+            "the richtext widget renders an editable textarea with the schema value",
+            async () => {
+                const editor = await canvas.findByTestId("richtext-editor");
+                await expect(editor).toBeEnabled();
+                await expect(editor).toHaveValue(
+                    "This is some **markdown** content."
+                );
+            }
+        );
+    },
 };
 
 export const RichTextWidgetReadOnly: StoryObj = {
     name: "Rich text widget (read-only)",
+    tags: ["widget", "readonly"],
     render: () => (
         <SchemaComponent
             schema={richtextSchema}
@@ -223,4 +277,11 @@ export const RichTextWidgetReadOnly: StoryObj = {
             widgets={richtextWidgets}
         />
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const readonlyBody = await canvas.findByTestId("richtext-readonly");
+        await expect(readonlyBody).toHaveTextContent(
+            "This is some **markdown** content."
+        );
+    },
 };

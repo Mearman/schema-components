@@ -3,6 +3,7 @@
  */
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { z } from "zod";
 import { SchemaField } from "schema-components/react/SchemaComponent";
 
@@ -56,6 +57,7 @@ function ProfileForm() {
 const meta: Meta<typeof ProfileForm> = {
     title: "Objects & Layout/SchemaField",
     component: ProfileForm,
+    tags: ["editable", "zod"],
 };
 
 export default meta;
@@ -63,4 +65,34 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     render: () => <ProfileForm />,
+    play: async ({ canvasElement, step }) => {
+        const canvas = within(canvasElement);
+        await step(
+            "editing the name SchemaField mutates only the name slice of state",
+            async () => {
+                const nameInput =
+                    await canvas.findByPlaceholderText(/full name/i);
+                await userEvent.clear(nameInput);
+                await userEvent.type(nameInput, "Grace Hopper");
+                await waitFor(async () => {
+                    await expect(nameInput).toHaveValue("Grace Hopper");
+                });
+            }
+        );
+        await step(
+            "the email SchemaField retains its existing value while a sibling is edited",
+            async () => {
+                const emailInput =
+                    await canvas.findByPlaceholderText(/email address/i);
+                await expect(emailInput).toHaveValue("ada@example.com");
+            }
+        );
+        await step("the role select reflects schema enum values", async () => {
+            const roleSelect = canvas.getByRole("combobox");
+            await userEvent.selectOptions(roleSelect, "editor");
+            await waitFor(async () => {
+                await expect(roleSelect).toHaveValue("editor");
+            });
+        });
+    },
 };

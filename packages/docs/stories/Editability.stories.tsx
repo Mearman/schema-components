@@ -2,7 +2,10 @@
  * Editability stories — demonstrates readOnly/writeOnly override hierarchy
  * and the `readOnly: false` escape hatch via the `fields` prop.
  */
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+import { linkTo } from "@storybook/addon-links";
 import { z } from "zod";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
@@ -14,7 +17,7 @@ const userSchema = z.object({
     notes: z.string().meta({ description: "Notes" }),
 });
 
-const value = {
+const baseValue = {
     name: "Ada Lovelace",
     email: "ada@example.com",
     role: "admin",
@@ -22,40 +25,118 @@ const value = {
     notes: "Pioneer of computer science",
 };
 
-const meta: Meta = {
+interface EditabilityArgs {
+    readOnly: boolean;
+    writeOnly: boolean;
+}
+
+function EditabilityDemo({ readOnly, writeOnly }: EditabilityArgs) {
+    const [value, setValue] = useState<unknown>(baseValue);
+    return (
+        <SchemaComponent
+            schema={userSchema}
+            value={value}
+            onChange={(next) => {
+                setValue(next);
+            }}
+            readOnly={readOnly}
+            writeOnly={writeOnly}
+        />
+    );
+}
+
+const meta: Meta<EditabilityArgs> = {
     title: "Editability/Overview",
+    component: EditabilityDemo,
+    tags: ["editable", "readonly", "writeonly"],
+    argTypes: {
+        readOnly: {
+            control: "boolean",
+            description: "Force every field to render as read-only output.",
+        },
+        writeOnly: {
+            control: "boolean",
+            description: "Force every field to render as an editable input.",
+        },
+    },
+    args: {
+        readOnly: false,
+        writeOnly: false,
+    },
 };
 export default meta;
+type Story = StoryObj<EditabilityArgs>;
 
 // ---------------------------------------------------------------------------
 // Editable (default)
 // ---------------------------------------------------------------------------
 
-export const Editable: StoryObj = {
+export const Editable: Story = {
     name: "Editable (default)",
-    render: () => <SchemaComponent schema={userSchema} value={value} />,
+    args: { readOnly: false, writeOnly: false },
+    play: async ({ canvasElement, step }) => {
+        const canvas = within(canvasElement);
+        await step(
+            "name field is editable and reflects new value",
+            async () => {
+                const nameInput =
+                    await canvas.findByPlaceholderText(/full name/i);
+                await expect(nameInput).toBeEnabled();
+                await userEvent.clear(nameInput);
+                await userEvent.type(nameInput, "Grace Hopper");
+                await waitFor(async () => {
+                    await expect(nameInput).toHaveValue("Grace Hopper");
+                });
+            }
+        );
+        await step("boolean field toggles on click", async () => {
+            const activeCheckbox = canvas.getByRole<HTMLInputElement>(
+                "checkbox",
+                { name: /active/i }
+            );
+            const initiallyChecked = activeCheckbox.checked;
+            await userEvent.click(activeCheckbox);
+            await waitFor(async () => {
+                await expect(activeCheckbox.checked).toBe(!initiallyChecked);
+            });
+        });
+    },
 };
 
 // ---------------------------------------------------------------------------
 // Read-only (component prop)
 // ---------------------------------------------------------------------------
 
-export const ReadOnly: StoryObj = {
+export const ReadOnly: Story = {
     name: "Read-only (component prop)",
-    render: () => (
-        <SchemaComponent schema={userSchema} value={value} readOnly />
-    ),
+    tags: ["readonly"],
+    args: { readOnly: true, writeOnly: false },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        // No editable inputs should be present.
+        const textInputs = canvas.queryAllByRole("textbox");
+        await expect(textInputs).toHaveLength(0);
+        await expect(canvas.getByText("Ada Lovelace")).toBeInTheDocument();
+    },
 };
 
 // ---------------------------------------------------------------------------
 // Write-only (component prop)
 // ---------------------------------------------------------------------------
 
-export const WriteOnly: StoryObj = {
+export const WriteOnly: Story = {
     name: "Write-only (component prop)",
-    render: () => (
-        <SchemaComponent schema={userSchema} value={value} writeOnly />
-    ),
+    tags: ["writeonly", "editable"],
+    args: { readOnly: false, writeOnly: true },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const textInputs = await canvas.findAllByRole("textbox");
+        // Write-only forces every text field to render as an input.
+        await expect(textInputs.length).toBeGreaterThan(0);
+        for (const input of textInputs) {
+            await expect(input).toBeEnabled();
+        }
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -74,6 +155,7 @@ const readOnlySchema = z.object({
 
 export const SchemaReadOnly: StoryObj = {
     name: "Schema-level readOnly fields",
+    tags: ["readonly", "editable"],
     render: () => (
         <SchemaComponent
             schema={readOnlySchema}
@@ -84,6 +166,14 @@ export const SchemaReadOnly: StoryObj = {
             }}
         />
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        // Only the editable `name` field renders as an input.
+        const nameInput = await canvas.findByPlaceholderText(/^name$/i);
+        await expect(nameInput).toBeEnabled();
+        // The read-only `id` and `createdAt` values appear as text, not inputs.
+        await expect(canvas.getByText("usr_123")).toBeInTheDocument();
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -92,10 +182,11 @@ export const SchemaReadOnly: StoryObj = {
 
 export const ReadOnlyOverride: StoryObj = {
     name: "Read-only with editable escape hatch",
+    tags: ["readonly", "editable"],
     render: () => (
         <SchemaComponent
             schema={userSchema}
-            value={value}
+            value={baseValue}
             readOnly
             fields={{
                 name: { readOnly: false },
@@ -103,6 +194,19 @@ export const ReadOnlyOverride: StoryObj = {
             }}
         />
     ),
+    play: async ({ canvasElement, step }) => {
+        const canvas = within(canvasElement);
+        await step(
+            "name and notes remain editable despite component readOnly",
+            async () => {
+                const nameInput =
+                    await canvas.findByPlaceholderText(/full name/i);
+                await expect(nameInput).toBeEnabled();
+                const notesInput = await canvas.findByPlaceholderText(/notes/i);
+                await expect(notesInput).toBeEnabled();
+            }
+        );
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -111,10 +215,11 @@ export const ReadOnlyOverride: StoryObj = {
 
 export const MixedEditability: StoryObj = {
     name: "Mixed editability per field",
+    tags: ["editable", "readonly"],
     render: () => (
         <SchemaComponent
             schema={userSchema}
-            value={value}
+            value={baseValue}
             fields={{
                 name: { readOnly: false },
                 email: { readOnly: true },
@@ -124,6 +229,13 @@ export const MixedEditability: StoryObj = {
             }}
         />
     ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const nameInput = await canvas.findByPlaceholderText(/full name/i);
+        await expect(nameInput).toBeEnabled();
+        // Email rendered as read-only text, so no textbox role for that label.
+        await expect(canvas.getByText("ada@example.com")).toBeInTheDocument();
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -132,14 +244,86 @@ export const MixedEditability: StoryObj = {
 
 export const WriteOnlyFields: StoryObj = {
     name: "Write-only on sensitive fields",
+    tags: ["writeonly", "editable"],
     render: () => (
         <SchemaComponent
             schema={userSchema}
-            value={value}
+            value={baseValue}
             fields={{
                 email: { writeOnly: true },
                 notes: { writeOnly: true },
             }}
         />
+    ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        // Write-only forces these as inputs even though the rest defaults to editable.
+        const emailInput = await canvas.findByPlaceholderText(/email/i);
+        await expect(emailInput).toBeEnabled();
+    },
+};
+
+// ---------------------------------------------------------------------------
+// Cross-reference to validation behaviour
+// ---------------------------------------------------------------------------
+
+export const SeeAlsoValidation: StoryObj = {
+    name: "See also: Validation",
+    tags: ["editable", "validation"],
+    parameters: {
+        docs: {
+            description: {
+                story: "Editability controls which fields accept input. To see how those inputs are validated against the schema, jump to the Validation overview.",
+            },
+        },
+    },
+    render: () => (
+        <div
+            style={{
+                display: "grid",
+                gap: "0.75rem",
+                maxWidth: "32rem",
+                padding: "1rem",
+                border: "1px solid #e5e7eb",
+                borderRadius: "0.5rem",
+            }}
+        >
+            <p style={{ margin: 0, color: "#475569", fontSize: "0.875rem" }}>
+                Editable fields participate in schema validation. Open the
+                Validation overview to see live constraint feedback.
+            </p>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                    type="button"
+                    onClick={linkTo("Validation/Overview", "Default")}
+                    style={{
+                        border: "1px solid #2563eb",
+                        background: "#2563eb",
+                        color: "#fff",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.875rem",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                    }}
+                >
+                    Validation overview
+                </button>
+                <button
+                    type="button"
+                    onClick={linkTo("Validation/Errors", "ErrorBoundary")}
+                    style={{
+                        border: "1px solid #94a3b8",
+                        background: "#fff",
+                        color: "#0f172a",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.875rem",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                    }}
+                >
+                    Error boundary
+                </button>
+            </div>
+        </div>
     ),
 };
