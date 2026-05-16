@@ -191,4 +191,58 @@ describe("normaliseSchema — OpenAPI", () => {
         expect(result.jsonSchema.type).toBe("object");
         expect(result.jsonSchema.properties).toBeTruthy();
     });
+
+    it("resolves JSON Pointer ref into paths (OpenAPI 3.0 response schema)", () => {
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/users/{id}": {
+                    get: {
+                        responses: {
+                            "200": {
+                                description: "User",
+                                content: {
+                                    "application/json": {
+                                        schema: {
+                                            type: "object",
+                                            properties: {
+                                                name: { type: "string" },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const result = normaliseSchema(
+            doc,
+            "#/paths/~1users~1{id}/get/responses/200/content/application~1json/schema"
+        );
+        expect(result.jsonSchema.type).toBe("object");
+    });
+
+    it("resolves #/definitions ref in Swagger 2.0 document", () => {
+        const doc = {
+            swagger: "2.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {},
+            definitions: {
+                Error: {
+                    type: "object",
+                    properties: {
+                        code: { type: "integer" },
+                        message: { type: "string" },
+                    },
+                    required: ["code", "message"],
+                },
+            },
+        };
+        const result = normaliseSchema(doc, "#/definitions/Error");
+        expect(result.jsonSchema.type).toBe("object");
+        expect(result.jsonSchema.required).toContain("code");
+    });
 });

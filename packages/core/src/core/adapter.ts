@@ -13,7 +13,12 @@
 import { z } from "zod";
 import type { JsonObject, SchemaMeta } from "./types.ts";
 import { hasProperty, isObject, getProperty } from "./guards.ts";
-import { detectJsonSchemaDraft, detectOpenApiVersion } from "./version.ts";
+import { dereference } from "./ref.ts";
+import {
+    detectJsonSchemaDraft,
+    detectOpenApiVersion,
+    isSwagger2,
+} from "./version.ts";
 import {
     normaliseJsonSchema as normaliseForDraft,
     normaliseOpenApiSchemas,
@@ -167,6 +172,21 @@ function normaliseZod3(): never {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Swagger 2.0 ref prefix rewrites (adapter layer)
+// ---------------------------------------------------------------------------
+
+/**
+ * Mapping of Swagger 2.0 $ref prefixes to their OpenAPI 3.x equivalents.
+ * Used by the adapter to rewrite user-provided ref strings so they
+ * resolve correctly against the normalised document.
+ */
+const REF_REWRITES_ADAPTER: readonly [string, string][] = [
+    ["#/definitions/", "#/components/schemas/"],
+    ["#/parameters/", "#/components/parameters/"],
+    ["#/responses/", "#/components/responses/"],
+];
+
 function normaliseOpenApi(
     doc: JsonObject,
     ref: string | undefined
@@ -174,7 +194,24 @@ function normaliseOpenApi(
     const version = detectOpenApiVersion(doc);
     const normalisedDoc =
         version !== undefined ? normaliseOpenApiSchemas(doc, version) : doc;
-    const resolved = resolveOpenApiRef(normalisedDoc, ref);
+
+    // Rewrite Swagger 2.0 ref prefixes to match the normalised document
+    // structure (definitions → components/schemas, etc.)
+    let rewrittenRef = ref;
+    if (
+        rewrittenRef !== undefined &&
+        version !== undefined &&
+        isSwagger2(version)
+    ) {
+        for (const [from, to] of REF_REWRITES_ADAPTER) {
+            if (rewrittenRef.startsWith(from)) {
+                rewrittenRef = to + rewrittenRef.slice(from.length);
+                break;
+            }
+        }
+    }
+
+    const resolved = resolveOpenApiRef(normalisedDoc, rewrittenRef);
     return {
         jsonSchema: resolved,
         rootMeta: extractRootMetaFromJson(resolved),
@@ -249,6 +286,12 @@ function resolveOpenApiRef(
         if (!isObject(schema))
             throw new Error(`Could not resolve request body schema for ${ref}`);
         return schema;
+    }
+
+    // Fallback: try JSON Pointer dereference for any #/... ref
+    if (ref.startsWith("#/")) {
+        const resolved = dereference(ref, doc);
+        if (resolved !== undefined) return resolved;
     }
 
     throw new Error(`Unsupported OpenAPI ref format: ${ref}`);
