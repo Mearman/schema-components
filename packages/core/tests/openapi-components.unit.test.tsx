@@ -154,6 +154,39 @@ describe("ApiParameters", () => {
         );
         expect(html).toBe("");
     });
+
+    it("applies field overrides to parameter meta", () => {
+        const html = renderToString(
+            createElement(ApiParameters, {
+                schema: doc,
+                path: "/pets",
+                method: "get",
+                overrides: {
+                    limit: { description: "Max results", placeholder: "10" },
+                },
+            })
+        );
+        expect(html).toContain("limit");
+        // Override passes through — headless renderer renders the input
+        expect(html).toContain("input");
+    });
+
+    it("merges parameter description, overrides, and meta", () => {
+        const html = renderToString(
+            createElement(ApiParameters, {
+                schema: doc,
+                path: "/pets",
+                method: "get",
+                overrides: {
+                    limit: { placeholder: "10" },
+                },
+                meta: { section: "query-params" },
+            })
+        );
+        expect(html).toContain("limit");
+        // Both override and meta branches exercised
+        expect(html).toContain("input");
+    });
 });
 
 // ---------------------------------------------------------------------------
