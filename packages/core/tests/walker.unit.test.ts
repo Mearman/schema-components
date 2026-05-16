@@ -786,14 +786,16 @@ describe("circular ref resolution", () => {
         const defs: Record<string, unknown> = {};
         const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
         for (let i = 0; i < letters.length - 1; i++) {
-            defs[letters[i]] = {
+            const current = String(letters[i]);
+            const next = String(letters[i + 1]);
+            defs[current] = {
                 type: "object",
                 properties: {
-                    next: { $ref: `#/$defs/${String(letters[i + 1])}` },
+                    next: { $ref: `#/$defs/${next}` },
                 },
             };
         }
-        defs[letters.at(-1) ?? "Z"] = {
+        defs[String(letters.at(-1))] = {
             type: "string",
         };
 

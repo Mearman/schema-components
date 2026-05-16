@@ -56,6 +56,7 @@ export interface ResponseInfo {
     description: string | undefined;
     contentTypes: string[];
     schema: JsonObject | undefined;
+    headers: Map<string, HeaderInfo>;
 }
 
 export interface RequestBodyInfo {
@@ -63,6 +64,35 @@ export interface RequestBodyInfo {
     description: string | undefined;
     contentTypes: string[];
     schema: JsonObject | undefined;
+}
+
+export interface SecurityRequirement {
+    name: string;
+    scopes: string[];
+}
+
+export interface SecurityScheme {
+    type: string;
+    description: string | undefined;
+    name: string | undefined;
+    location: string | undefined;
+    scheme: string | undefined;
+    bearerFormat: string | undefined;
+    flows: JsonObject | undefined;
+    openIdConnectUrl: string | undefined;
+}
+
+export interface HeaderInfo {
+    name: string;
+    description: string | undefined;
+    required: boolean;
+    deprecated: boolean;
+    schema: JsonObject | undefined;
+}
+
+export interface WebhookInfo {
+    name: string;
+    operations: OperationInfo[];
 }
 
 function toParameterLocation(value: unknown): ParameterLocation {
@@ -282,12 +312,14 @@ export function getResponses(
         const schema = isObject(content)
             ? extractSchemaFromContent(content)
             : undefined;
+        const headers = getResponseHeaders(response);
 
         result.push({
             statusCode,
             description: getString(response, "description"),
             contentTypes,
             schema,
+            headers,
         });
     }
     return result;
@@ -331,4 +363,134 @@ function resolveRefInDoc(doc: JsonObject, ref: string): JsonObject | undefined {
     }
 
     return isObject(current) ? current : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Security requirements and schemes
+// ---------------------------------------------------------------------------
+
+export function getSecurityRequirements(
+    parsed: OpenApiDocument,
+    path: string,
+    method: string
+): SecurityRequirement[] {
+    const paths = getProperty(parsed.doc, "paths");
+    const pathItem = getProperty(paths, path);
+    const operation = getProperty(pathItem, method);
+
+    // Operation-level security overrides global
+    const opSecurity = getProperty(operation, "security");
+    const globalSecurity = getProperty(parsed.doc, "security");
+    const securityArray: unknown[] = Array.isArray(opSecurity)
+        ? opSecurity
+        : Array.isArray(globalSecurity)
+          ? globalSecurity
+          : [];
+
+    const result: SecurityRequirement[] = [];
+    for (const entry of securityArray) {
+        if (!isObject(entry)) continue;
+        for (const [name, scopes] of Object.entries(entry)) {
+            result.push({
+                name,
+                scopes: Array.isArray(scopes)
+                    ? scopes.filter((s): s is string => typeof s === "string")
+                    : [],
+            });
+        }
+    }
+    return result;
+}
+
+export function getSecuritySchemes(
+    parsed: OpenApiDocument
+): Map<string, SecurityScheme> {
+    const result = new Map<string, SecurityScheme>();
+    const components = getProperty(parsed.doc, "components");
+    const securitySchemes = getProperty(components, "securitySchemes");
+
+    if (!isObject(securitySchemes)) return result;
+
+    for (const [name, scheme] of Object.entries(securitySchemes)) {
+        if (!isObject(scheme)) continue;
+        const flowsProp = getProperty(scheme, "flows");
+        result.set(name, {
+            type: getString(scheme, "type") ?? "",
+            description: getString(scheme, "description"),
+            name: getString(scheme, "name"),
+            location: getString(scheme, "in"),
+            scheme: getString(scheme, "scheme"),
+            bearerFormat: getString(scheme, "bearerFormat"),
+            flows: isObject(flowsProp) ? flowsProp : undefined,
+            openIdConnectUrl: getString(scheme, "openIdConnectUrl"),
+        });
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Response headers
+// ---------------------------------------------------------------------------
+
+export function getResponseHeaders(
+    response: JsonObject
+): Map<string, HeaderInfo> {
+    const result = new Map<string, HeaderInfo>();
+    const headers = getProperty(response, "headers");
+
+    if (!isObject(headers)) return result;
+
+    for (const [name, headerObj] of Object.entries(headers)) {
+        if (!isObject(headerObj)) continue;
+
+        // Resolve $ref on the header
+        const ref = getString(headerObj, "$ref");
+        const resolved =
+            ref !== undefined ? resolveRefInDoc(headerObj, ref) : undefined;
+        const header = resolved ?? headerObj;
+        const schemaProp = getProperty(header, "schema");
+
+        result.set(name, {
+            name,
+            description: getString(header, "description"),
+            required: getProperty(header, "required") === true,
+            deprecated: getProperty(header, "deprecated") === true,
+            schema: isObject(schemaProp) ? schemaProp : undefined,
+        });
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Webhooks (OpenAPI 3.1)
+// ---------------------------------------------------------------------------
+
+export function listWebhooks(parsed: OpenApiDocument): WebhookInfo[] {
+    const result: WebhookInfo[] = [];
+    const webhooks = getProperty(parsed.doc, "webhooks");
+
+    if (!isObject(webhooks)) return result;
+
+    for (const [name, hookItem] of Object.entries(webhooks)) {
+        if (!isObject(hookItem)) continue;
+
+        const operations: OperationInfo[] = [];
+        for (const method of METHODS) {
+            const operation = getProperty(hookItem, method);
+            if (!isObject(operation)) continue;
+
+            operations.push({
+                path: name,
+                method,
+                operationId: getString(operation, "operationId"),
+                summary: getString(operation, "summary"),
+                description: getString(operation, "description"),
+                deprecated: getProperty(operation, "deprecated") === true,
+                operation,
+            });
+        }
+
+        result.push({ name, operations });
+    }
+    return result;
 }
