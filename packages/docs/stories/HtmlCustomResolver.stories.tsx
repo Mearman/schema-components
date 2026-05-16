@@ -3,10 +3,8 @@
  */
 import type { Meta, StoryObj } from "@storybook/react";
 import { z } from "zod";
-import {
-    renderToHtml,
-    type HtmlResolver,
-} from "schema-components/html/renderToHtml";
+import { renderToHtml } from "schema-components/html/renderToHtml";
+import type { HtmlResolver } from "schema-components/core/renderer";
 
 const cardSchema = z.object({
     title: z.string().meta({ description: "Title" }),
@@ -46,6 +44,7 @@ function HtmlPreview({ html }: { html: string }) {
 const meta: Meta<typeof HtmlPreview> = {
     title: "HTML Rendering/Custom Resolver",
     component: HtmlPreview,
+    tags: ["html"],
 };
 
 export default meta;
