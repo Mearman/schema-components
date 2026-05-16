@@ -44,6 +44,59 @@ export const Draft04: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Draft 06: const, examples (plural), $id, exclusiveMinimum as number,
+// propertyNames, contains
+// ---------------------------------------------------------------------------
+
+const draft06Schema = {
+    $schema: "http://json-schema.org/draft-06/schema#",
+    $id: "https://example.com/widget.json",
+    type: "object" as const,
+    properties: {
+        kind: {
+            type: "string" as const,
+            description: "Discriminator (Draft 06 const)",
+            const: "widget",
+        },
+        name: {
+            type: "string" as const,
+            description: "Name (with examples)",
+            examples: ["Spline reticulator", "Frobnicator"],
+        },
+        version: {
+            type: "integer" as const,
+            description: "Version (exclusiveMinimum as number)",
+            exclusiveMinimum: 0,
+        },
+        tags: {
+            type: "array" as const,
+            description: "Tags (contains at least one 'priority' tag)",
+            contains: { const: "priority" },
+        },
+        attributes: {
+            type: "object" as const,
+            description: "Attributes (propertyNames restricts keys)",
+            propertyNames: { pattern: "^[a-z][a-z0-9_]*$" },
+            additionalProperties: { type: "string" as const },
+        },
+    },
+    required: ["kind", "name"],
+} as const;
+
+export const Draft06: Story = {
+    args: {
+        schema: draft06Schema,
+        value: {
+            kind: "widget",
+            name: "Spline reticulator",
+            version: 3,
+            tags: ["priority", "beta"],
+            attributes: { colour: "red", weight: "heavy" },
+        },
+    },
+};
+
+// ---------------------------------------------------------------------------
 // Draft 07: examples, contentEncoding, contentMediaType
 // ---------------------------------------------------------------------------
 
