@@ -1,3 +1,40 @@
+## [1.14.0](https://github.com/Mearman/schema-components/compare/v1.13.0...v1.14.0) (2026-05-16)
+
+### Features
+
+* **core:** add cycle marker for type-level $ref recursion ([b8d5408](https://github.com/Mearman/schema-components/commit/b8d54087b961e1abfc1c064ff8027c5a53e9e950))
+* **core:** add diagnostics channel for surfacing silent fallbacks ([25d6c21](https://github.com/Mearman/schema-components/commit/25d6c215821857bc4fac28be1044ccb889f81c7a))
+* **core:** add standard JSON Schema format patterns and validators ([ce071df](https://github.com/Mearman/schema-components/commit/ce071dfe0657a9074ee8f2c43b289af41ecf68cc))
+* **core:** handle boolean schemas (true/false) at sub-schema positions ([9752fc8](https://github.com/Mearman/schema-components/commit/9752fc875b44532efd4eceef482063cd99a48ea5))
+* **core:** infer JSON Schema draft from keywords when $schema absent ([53aac44](https://github.com/Mearman/schema-components/commit/53aac443b83bb1e64f61e1838958850c91257eff))
+* **core:** map JSON Schema format to validation constraints ([53c8869](https://github.com/Mearman/schema-components/commit/53c8869d099d0983a69a96b78f84395bbe10ba73))
+* **core:** merge annotation siblings of $ref per Draft 2020-12 ([b852db6](https://github.com/Mearman/schema-components/commit/b852db61c3ff1ed8295f3d0c16f0e855b044058d))
+* **core:** split legacy dependencies into dependentRequired/Schemas ([24d80b1](https://github.com/Mearman/schema-components/commit/24d80b1b0b38f0d1a499bb118310518f3c994277))
+* **core:** walk contentSchema for content-encoded string fields ([d4e635b](https://github.com/Mearman/schema-components/commit/d4e635b3544d09bda7430d8782c4797e7ea8b268))
+* **core:** wire ExternalResolver through walker for inline external $ref ([8a0b8a5](https://github.com/Mearman/schema-components/commit/8a0b8a543522e7e1731f3e3fe223d0a60eb806b2))
+* **openapi:** add multi-document $ref resolution via bundleOpenApiDoc ([47b0cd1](https://github.com/Mearman/schema-components/commit/47b0cd114b1a37d3427be6c202a093d58edd0510))
+* **openapi:** render parsed-but-ignored security, callbacks, links, and headers ([3376ba8](https://github.com/Mearman/schema-components/commit/3376ba87e69792e4c4e075282500744ae2fc3f3d))
+
+### Bug Fixes
+
+* **openapi:** route OAS 3.0 documents through Draft 04 normalisation ([3dc87e1](https://github.com/Mearman/schema-components/commit/3dc87e1b801141a6498dccfdb1ec25935d67c126))
+* resolve pre-existing type errors blocking pnpm check ([a6e5593](https://github.com/Mearman/schema-components/commit/a6e5593861629c3104557d26ceab244dfc53d20a))
+
+### Refactoring
+
+* **core:** derive $ref depth bound from document instead of literal ([fed94e4](https://github.com/Mearman/schema-components/commit/fed94e41e3e913f91ceb0c08af9bd0db4b2712d6))
+
+### Documentation
+
+* improve Zod 3 error message and document version requirement ([b8c30d0](https://github.com/Mearman/schema-components/commit/b8c30d054e9bd8cb6ee09da626d9b8b9b774fbb9))
+* update spec-support tables to match verified compliance ([738448e](https://github.com/Mearman/schema-components/commit/738448efe117bc432283161dc03446a5855a88f6))
+
+### Tests
+
+* **core:** add inline conformance harness for JSON Schema drafts 04–2020-12 ([0a51eb2](https://github.com/Mearman/schema-components/commit/0a51eb2c821e760a0c6da5a4a8a4dd357f6df50e))
+* **openapi:** cover parameter field overrides and meta merging ([58e59a7](https://github.com/Mearman/schema-components/commit/58e59a75e5c5d2d009576a0b0b739bc8f39970e7))
+* **openapi:** walk real-world OpenAPI documents end-to-end ([b522fc5](https://github.com/Mearman/schema-components/commit/b522fc5420e6c56d9384740389f8fa0347f66027))
+
 ## [1.13.0](https://github.com/Mearman/schema-components/compare/v1.12.11...v1.13.0) (2026-05-16)
 
 ### Features
