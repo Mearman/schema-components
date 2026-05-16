@@ -4,7 +4,17 @@
  * Compile-time types that map `as const` schema literals to TypeScript types.
  * Provides autocomplete for `fields` and `overrides` props on React components.
  *
- * Supports all JSON Schema draft versions (04–2020-12) and OpenAPI 3.x / Swagger 2.0.
+ * Supports all JSON Schema draft versions (04-2020-12) and OpenAPI 3.x / Swagger 2.0.
+ *
+ * Known limitations:
+ * - Recursive schemas ($recursiveRef) -> unknown (TS cannot express recursive types)
+ * - `not` -> unknown (TS cannot negate types)
+ * - `if`/`then`/`else` -> base schema without conditionals (TS cannot evaluate conditions)
+ * - `propertyNames` -> ignored (TS cannot validate key shapes)
+ * - `dependentSchemas` / `dependentRequired` -> ignored (runtime-only conditionals)
+ * - `unevaluatedProperties` -> ignored (runtime-only)
+ * - `contains` / `minContains` / `maxContains` -> element type unchanged (runtime constraints)
+ * - OpenAPI path-based refs -> uses existing path traversal types where possible
  */
 
 import type { FieldOverride, FieldOverrides } from "./types.ts";
@@ -21,46 +31,65 @@ type ArrayToUnion<A> = A extends readonly unknown[] ? A[number] : never;
 
 /**
  * Maps a JSON Schema structure to a TypeScript type.
- * Works with `as const` literals — provides full autocomplete for `fields`.
+ * Works with `as const` literals -- provides full autocomplete for `fields`.
  *
- * Supports all JSON Schema draft versions (04–2020-12) and OpenAPI 3.x:
+ * Supports all JSON Schema draft versions (04-2020-12) and OpenAPI 3.x:
  * - Primitive types: string, number, integer, boolean, null
- * - type as array: `["string", "null"]` → `string | null` (nullable)
- * - enum → union of literal types
- * - const → literal type
- * - object with properties/required → specific object type
- * - object with additionalProperties → Record<string, T>
- * - array with items → T[]
- * - array with prefixItems → tuple type
- * - allOf → intersection type
- * - anyOf → union type
- * - oneOf → union type
- * - $ref → resolved via $defs/definitions context
+ * - type as array: `["string", "null"]` -> `string | null` (nullable)
+ * - enum -> union of literal types
+ * - const -> literal type
+ * - object with properties/required -> specific object type
+ * - object with additionalProperties -> Record<string, T>
+ * - array with items -> T[]
+ * - array with prefixItems -> tuple type
+ * - allOf -> intersection type
+ * - anyOf -> union type
+ * - oneOf -> union type
+ * - $ref -> resolved via $defs/definitions/$anchor context
+ * - $dynamicRef -> resolved via $dynamicAnchor in definitions
+ * - $recursiveRef -> unknown (recursive types not expressible in TS)
+ * - if/then/else -> base schema (conditionals not expressible in TS)
+ * - not -> unknown (negation not expressible in TS)
+ * - patternProperties -> merged into loose index signature
  */
 export type FromJSONSchema<
     S,
     Defs extends Record<string, unknown> = Record<string, never>,
 > = S extends { $ref: infer R extends string }
     ? ResolveSchemaRef<R, Defs>
-    : S extends { allOf: infer A }
-      ? AllOfToType<A, Defs>
-      : S extends { anyOf: infer A }
-        ? UnionOfMembers<A, Defs>
-        : S extends { oneOf: infer A }
-          ? UnionOfMembers<A, Defs>
-          : S extends { const: infer V }
-            ? V
-            : S extends { enum: infer E }
-              ? ArrayToUnion<E>
-              : S extends { type: infer T }
-                ? TypeToTs<T, S, Defs>
-                : S extends readonly (infer E)[]
-                  ? E
-                  : unknown;
+    : S extends { $recursiveRef: string }
+      ? /** $recursiveRef: TypeScript cannot express recursive types. */
+        unknown
+      : S extends { $dynamicRef: infer R extends string }
+        ? ResolveSchemaRef<R, Defs>
+        : S extends { allOf: infer A }
+          ? AllOfToType<A, Defs>
+          : S extends { anyOf: infer A }
+            ? UnionOfMembers<A, Defs>
+            : S extends { oneOf: infer A }
+              ? UnionOfMembers<A, Defs>
+              : S extends { if: unknown }
+                ? /** if/then/else: infer base schema without conditionals. */
+                  FromJSONSchema<Omit<S, "if" | "then" | "else">, Defs>
+                : S extends { not: unknown }
+                  ? /** not: TypeScript cannot negate types. */
+                    unknown
+                  : S extends { const: infer V }
+                    ? V
+                    : S extends { enum: infer E }
+                      ? ArrayToUnion<E>
+                      : S extends { type: infer T }
+                        ? TypeToTs<T, S, Defs>
+                        : S extends readonly (infer E)[]
+                          ? E
+                          : unknown;
 
 /**
  * Resolve a $ref against the local definitions context.
- * Supports `#/$defs/Name`, `#/definitions/Name`, and bare `#` (root).
+ * Supports:
+ * - `#` (root)
+ * - `#/$defs/Name` and `#/definitions/Name` (named definitions)
+ * - `#SomeName` ($anchor, $dynamicAnchor resolved from definitions)
  */
 type ResolveSchemaRef<
     R extends string,
@@ -75,7 +104,11 @@ type ResolveSchemaRef<
         ? Name extends keyof Defs
             ? FromJSONSchema<Defs[Name], Defs>
             : unknown
-        : unknown;
+        : R extends `#${infer AnchorName}`
+          ? AnchorName extends keyof Defs
+              ? FromJSONSchema<Defs[AnchorName], Defs>
+              : unknown
+          : unknown;
 
 /**
  * Merge an allOf array into an intersection type.
@@ -90,7 +123,7 @@ type AllOfToType<
 /**
  * Convert an anyOf/oneOf array into a union type.
  * Filters out `{ type: "null" }` members and instead makes the result nullable
- * when at least one null member is present — mirrors the walker's normaliseAnyOf.
+ * when at least one null member is present -- mirrors the walker's normaliseAnyOf.
  */
 type UnionOfMembers<
     A,
@@ -113,7 +146,7 @@ type HasNullMember<A> = A extends readonly unknown[]
     : false;
 
 /**
- * Dispatch on a `type` value — handles single types, type arrays,
+ * Dispatch on a `type` value -- handles single types, type arrays,
  * and delegates to the appropriate type-specific resolver.
  */
 type TypeToTs<T, S, Defs extends Record<string, unknown>> = T extends "string"
@@ -133,7 +166,7 @@ type TypeToTs<T, S, Defs extends Record<string, unknown>> = T extends "string"
                 : unknown;
 
 /**
- * Handle `type` as an array (Draft 04–07): `["string", "null"]`.
+ * Handle `type` as an array (Draft 04-07): `["string", "null"]`.
  * Filters out "null" and makes the result nullable.
  */
 type TypeArrayToTs<
@@ -174,7 +207,10 @@ type OmitArrayHelpers<S> = Omit<
 >;
 
 /**
- * Parse an array schema: prefixItems → tuple, items → T[], or unknown[].
+ * Parse an array schema: prefixItems -> tuple, items -> T[], or unknown[].
+ *
+ * `contains` / `minContains` / `maxContains` constrain elements at runtime
+ * but don't change the compile-time array element type.
  */
 type ArraySchemaToTs<S, Defs extends Record<string, unknown>> = S extends {
     prefixItems: infer P;
@@ -195,27 +231,63 @@ type PrefixItemsToTuple<
     : [];
 
 /**
- * Parse an object schema: properties + required → specific object,
- * additionalProperties → Record, or empty object.
+ * Parse an object schema: properties + required -> specific object,
+ * additionalProperties -> Record, or empty object.
+ *
+ * Handles:
+ * - `properties` + `required` -> specific object type with required/optional keys
+ * - `additionalProperties` as schema -> Record<string, T>
+ * - `patternProperties` -> merged into a loose index signature alongside specific props
+ *   (TypeScript cannot express regex-keyed properties)
+ * - `propertyNames` -> ignored at type level (TS cannot validate key shapes)
+ * - `dependentSchemas` / `dependentRequired` -> ignored (runtime-only conditionals)
+ * - `unevaluatedProperties` -> ignored (runtime-only)
  */
 type ObjectSchemaToTs<S, Defs extends Record<string, unknown>> = S extends {
     type: "object";
     properties: infer P;
 }
     ? ExtractDefs<S, Defs> extends infer D extends Record<string, unknown>
-        ? {
-              [K in keyof P as K extends RequiredKeysOf<S>
-                  ? K
-                  : never]: FromJSONSchema<P[K], D>;
-          } & {
-              [K in keyof P as K extends RequiredKeysOf<S>
-                  ? never
-                  : K]?: FromJSONSchema<P[K], D>;
-          }
+        ? MergePatternProps<
+              {
+                  [K in keyof P as K extends RequiredKeysOf<S>
+                      ? K
+                      : never]: FromJSONSchema<P[K], D>;
+              } & {
+                  [K in keyof P as K extends RequiredKeysOf<S>
+                      ? never
+                      : K]?: FromJSONSchema<P[K], D>;
+              },
+              S,
+              D
+          >
         : never
     : S extends { additionalProperties: infer V }
       ? Record<string, FromJSONSchema<V, Defs>>
       : Record<string, unknown>;
+
+/**
+ * If the schema has `patternProperties`, intersect the base object type
+ * with a `Record<string, T>` index signature covering all pattern values.
+ * If no `patternProperties`, return the base type unchanged.
+ */
+type MergePatternProps<
+    Base,
+    S,
+    Defs extends Record<string, unknown>,
+> = S extends { patternProperties: infer PP }
+    ? PP extends Record<string, unknown>
+        ? Base & Record<string, UnionOfPatternValues<PP, Defs>>
+        : Base
+    : Base;
+
+/**
+ * Extract the union of all pattern property value types.
+ */
+type UnionOfPatternValues<
+    PP extends Record<string, unknown>,
+    Defs extends Record<string, unknown>,
+> = { [K in keyof PP]: FromJSONSchema<PP[K], Defs> }[keyof PP];
 
 /**
  * Extract the `required` array from a schema as a union of string literals.
@@ -229,19 +301,38 @@ type RequiredKeysOf<S> = S extends { required: infer R }
 
 /**
  * Extract $defs / definitions from a schema for $ref resolution context.
+ * Also indexes schemas with `$anchor` or `$dynamicAnchor` by their anchor name,
+ * enabling `#SomeName` ref resolution.
  * Merges with the existing Defs context from parent schemas.
  */
-type ExtractDefs<S, ParentDefs extends Record<string, unknown>> = S extends {
-    $defs: infer D;
-}
+type ExtractDefs<S, ParentDefs extends Record<string, unknown>> =
+    ExtractRawDefs<S> extends infer RawDefs extends Record<string, unknown>
+        ? RawDefs & ParentDefs & ExtractAnchors<RawDefs>
+        : ParentDefs;
+
+/** Extract raw $defs / definitions maps. */
+type ExtractRawDefs<S> = S extends { $defs: infer D }
     ? D extends Record<string, unknown>
-        ? D & ParentDefs
-        : ParentDefs
+        ? D
+        : Record<string, never>
     : S extends { definitions: infer D }
       ? D extends Record<string, unknown>
-          ? D & ParentDefs
-          : ParentDefs
-      : ParentDefs;
+          ? D
+          : Record<string, never>
+      : Record<string, never>;
+
+/**
+ * Build a map of `$anchor` name -> schema from a definitions block.
+ * Scans each definition value for `$anchor` or `$dynamicAnchor` and
+ * creates entries like `{ Tree: <schema-with-$anchor-Tree> }`.
+ */
+type ExtractAnchors<D extends Record<string, unknown>> = {
+    [K in keyof D as D[K] extends { $anchor: infer A extends string }
+        ? A
+        : D[K] extends { $dynamicAnchor: infer A extends string }
+          ? A
+          : never]: D[K];
+};
 
 // ---------------------------------------------------------------------------
 // Type-level utilities
@@ -249,7 +340,7 @@ type ExtractDefs<S, ParentDefs extends Record<string, unknown>> = S extends {
 
 /**
  * Convert a union to an intersection.
- * `A | B` → `A & B`. Used for allOf merging.
+ * `A | B` -> `A & B`. Used for allOf merging.
  */
 type UnionToIntersection<U> = (
     U extends unknown ? (k: U) => void : never
@@ -259,6 +350,11 @@ type UnionToIntersection<U> = (
 
 /**
  * Resolves an OpenAPI `ref` string to its JSON Schema, then parses it.
+ *
+ * Handles:
+ * - `#/components/schemas/Name` (OpenAPI 3.x)
+ * - `#/definitions/Name` (Swagger 2.0)
+ * - `#/paths/...` (path-based refs, navigating the document tree)
  */
 export type ResolveOpenAPIRef<
     Spec extends Record<string, unknown>,
@@ -277,9 +373,47 @@ export type ResolveOpenAPIRef<
               ? FromJSONSchema<Spec["definitions"][Name]>
               : unknown
           : unknown
-      : Ref extends `${string}/${string}`
-        ? unknown // Path-based ref resolution is too deep to type statically
+      : Ref extends `#/paths/${infer PathRest}`
+        ? ResolvePathBasedRef<Spec, PathRest>
         : unknown;
+
+/**
+ * Resolve a path-based $ref after the `#/paths/` prefix.
+ * Splits on `/` and navigates the document tree.
+ *
+ * Note: JSON Pointer tilde encoding (~1 for /, ~0 for ~) is not decoded
+ * at the type level. For `as const` literals, use the literal path
+ * character directly (e.g. `#/paths//pets/get/...`).
+ */
+type ResolvePathBasedRef<
+    Spec extends Record<string, unknown>,
+    PathRest extends string,
+> =
+    Spec["paths"] extends Record<string, unknown>
+        ? ResolvePathSegments<Spec["paths"], SplitPath<PathRest>>
+        : unknown;
+
+/**
+ * Split a path string on `/` into a tuple of segments.
+ * The first segment is the path key (may be empty for `/pets` -> `""` / `"pets"`).
+ */
+type SplitPath<S extends string> = S extends `${infer Head}/${infer Tail}`
+    ? [Head, ...SplitPath<Tail>]
+    : [S];
+
+/**
+ * Recursively navigate into a document object by path segments.
+ */
+type ResolvePathSegments<Doc, Segs extends string[]> = Segs extends [
+    infer Head extends string,
+    ...infer Rest extends string[],
+]
+    ? Doc extends Record<string, unknown>
+        ? Rest extends []
+            ? Doc[Head]
+            : ResolvePathSegments<Doc[Head], Rest>
+        : unknown
+    : unknown;
 
 // ---------------------------------------------------------------------------
 // Type-level OpenAPI path traversal (for as const literals)
