@@ -95,6 +95,33 @@ export interface WebhookInfo {
     operations: OperationInfo[];
 }
 
+export interface ExternalDocs {
+    url: string;
+    description: string | undefined;
+}
+
+export interface XmlInfo {
+    name: string | undefined;
+    namespace: string | undefined;
+    prefix: string | undefined;
+    attribute: boolean;
+    wrapped: boolean;
+}
+
+export interface CallbackInfo {
+    name: string;
+    operations: OperationInfo[];
+}
+
+export interface LinkInfo {
+    name: string;
+    operationId: string | undefined;
+    operationRef: string | undefined;
+    description: string | undefined;
+    parameters: Map<string, string>;
+    requestBody: string | undefined;
+}
+
 function toParameterLocation(value: unknown): ParameterLocation {
     if (
         value === "query" ||
@@ -491,6 +518,146 @@ export function listWebhooks(parsed: OpenApiDocument): WebhookInfo[] {
         }
 
         result.push({ name, operations });
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// External documentation
+// ---------------------------------------------------------------------------
+
+export function getExternalDocs(obj: JsonObject): ExternalDocs | undefined {
+    const docs = getProperty(obj, "externalDocs");
+    if (!isObject(docs)) return undefined;
+    const url = getString(docs, "url");
+    if (typeof url !== "string") return undefined;
+    return {
+        url,
+        description: getString(docs, "description"),
+    };
+}
+
+// ---------------------------------------------------------------------------
+// XML representation
+// ---------------------------------------------------------------------------
+
+export function getXmlInfo(schema: JsonObject): XmlInfo | undefined {
+    const xml = getProperty(schema, "xml");
+    if (!isObject(xml)) return undefined;
+    return {
+        name: getString(xml, "name"),
+        namespace: getString(xml, "namespace"),
+        prefix: getString(xml, "prefix"),
+        attribute: getProperty(xml, "attribute") === true,
+        wrapped: getProperty(xml, "wrapped") === true,
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Callbacks (OpenAPI 3.0)
+// ---------------------------------------------------------------------------
+
+export function listCallbacks(
+    parsed: OpenApiDocument,
+    path: string,
+    method: string
+): CallbackInfo[] {
+    const paths = getProperty(parsed.doc, "paths");
+    const pathItem = getProperty(paths, path);
+    const operation = getProperty(pathItem, method);
+    if (!isObject(operation)) return [];
+
+    const callbacks = getProperty(operation, "callbacks");
+    if (!isObject(callbacks)) return [];
+
+    const result: CallbackInfo[] = [];
+    for (const [name, callbackItem] of Object.entries(callbacks)) {
+        if (!isObject(callbackItem)) continue;
+
+        const operations: OperationInfo[] = [];
+        for (const [cbPath, cbPathItem] of Object.entries(callbackItem)) {
+            if (!isObject(cbPathItem)) continue;
+
+            // Callback path items may contain nested methods
+            for (const cbMethod of METHODS) {
+                const cbOp = getProperty(cbPathItem, cbMethod);
+                if (!isObject(cbOp)) continue;
+
+                // Callbacks may use $ref to reuse paths
+                const ref = getString(cbOp, "$ref");
+                const resolved =
+                    ref !== undefined
+                        ? (resolveRefInDoc(parsed.doc, ref) ?? cbOp)
+                        : cbOp;
+
+                operations.push({
+                    path: `${name}/${cbPath}`,
+                    method: cbMethod,
+                    operationId: getString(resolved, "operationId"),
+                    summary: getString(resolved, "summary"),
+                    description: getString(resolved, "description"),
+                    deprecated: getProperty(resolved, "deprecated") === true,
+                    operation: isObject(resolved) ? resolved : cbOp,
+                });
+            }
+        }
+
+        result.push({ name, operations });
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Links (OpenAPI 3.0 response links)
+// ---------------------------------------------------------------------------
+
+export function getLinks(
+    parsed: OpenApiDocument,
+    path: string,
+    method: string,
+    statusCode: string
+): LinkInfo[] {
+    const paths = getProperty(parsed.doc, "paths");
+    const pathItem = getProperty(paths, path);
+    const operation = getProperty(pathItem, method);
+    const responses = getProperty(operation, "responses");
+    const response = getProperty(responses, statusCode);
+    if (!isObject(response)) return [];
+
+    const links = getProperty(response, "links");
+    if (!isObject(links)) return [];
+
+    const result: LinkInfo[] = [];
+    for (const [name, linkObj] of Object.entries(links)) {
+        if (!isObject(linkObj)) continue;
+
+        // Resolve $ref on the link
+        const ref = getString(linkObj, "$ref");
+        const resolved =
+            ref !== undefined
+                ? (resolveRefInDoc(parsed.doc, ref) ?? linkObj)
+                : linkObj;
+        const link = isObject(resolved) ? resolved : linkObj;
+
+        // Extract parameters map
+        const params = getProperty(link, "parameters");
+        const paramMap = new Map<string, string>();
+        if (isObject(params)) {
+            for (const [paramName, paramValue] of Object.entries(params)) {
+                if (typeof paramValue === "string") {
+                    paramMap.set(paramName, paramValue);
+                }
+            }
+        }
+
+        result.push({
+            name,
+            operationId: getString(link, "operationId"),
+            operationRef: getString(link, "operationRef"),
+            description: getString(link, "description"),
+            parameters: paramMap,
+            requestBody: getString(link, "requestBody"),
+        });
     }
     return result;
 }
