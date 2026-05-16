@@ -10,6 +10,25 @@ import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { emitDiagnostic } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
+// External resolver hook
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolver function for external $ref URIs.
+ * Called with the URI portion (everything before `#`) of an external ref.
+ * Returns the parsed document (JSON object) or undefined.
+ */
+export type ExternalResolver = (uri: string) => unknown;
+
+/**
+ * Options for $ref resolution.
+ */
+export interface RefOptions {
+    diagnostics?: DiagnosticsOptions;
+    externalResolver?: ExternalResolver;
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -75,6 +94,7 @@ export function resolveRef(
         };
     }
 
+    // Internal resolution
     const resolved = dereference(ref, rootDocument);
     if (resolved === undefined) {
         emitDiagnostic(diagnostics, {
