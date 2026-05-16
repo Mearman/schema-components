@@ -1,3 +1,53 @@
+## [1.13.0](https://github.com/Mearman/schema-components/compare/v1.12.11...v1.13.0) (2026-05-16)
+
+### Features
+
+* **core:** add full JSON Schema keyword support with discriminated WalkedField types ([1a8fd3d](https://github.com/Mearman/schema-components/commit/1a8fd3df84c89b5ca4ad602ab4280c1b6faa4f64))
+* **core:** add JSON Schema draft and OpenAPI version detection ([3861649](https://github.com/Mearman/schema-components/commit/386164978fdb4dbf40a93da47b14ecfd2d217b18))
+* **core:** extract exclusiveMinimum/exclusiveMaximum constraints ([3d0063b](https://github.com/Mearman/schema-components/commit/3d0063bc8af402dbb63116312df2c4441a53106e))
+* **core:** full type inference for all JSON Schema and OpenAPI versions ([c8c353e](https://github.com/Mearman/schema-components/commit/c8c353ec4998edbb682d94c22ea87b822f4953f5))
+* **core:** full type inference for all JSON Schema keywords and OpenAPI versions ([eab2b59](https://github.com/Mearman/schema-components/commit/eab2b590fba8eb8249b89586227e9a5f978cfb65))
+* **core:** normalise legacy JSON Schema and OpenAPI to Draft 2020-12 ([383b3ea](https://github.com/Mearman/schema-components/commit/383b3ea29f3b00f63721cb972b3bb365d442317f))
+* **core:** type inference for additionalProperties, dependentSchemas, security types ([d80d5da](https://github.com/Mearman/schema-components/commit/d80d5dadbbe2cb31b431722816f6656e884822eb))
+* **core:** walk patternProperties, dependentSchemas, dependentRequired, and unevaluatedProperties ([4c42f25](https://github.com/Mearman/schema-components/commit/4c42f252b36ef9b8e1f891c07153663d9a46353b))
+* **core:** walk propertyNames, unevaluatedItems, and surface examples ([d46608d](https://github.com/Mearman/schema-components/commit/d46608dbcc9000fbe4d96a9cbe964f6df39b77d1))
+* **openapi:** parse callbacks, links, externalDocs, and XML ([11a2fac](https://github.com/Mearman/schema-components/commit/11a2facc5c874acfd28ea83af1536276a4a5fcfb))
+* **openapi:** parse security schemes, response headers, and webhooks ([51a3413](https://github.com/Mearman/schema-components/commit/51a34134a4fd94ed74f0a386825e867cd0800168))
+* **openapi:** resolve pathItem $ref and webhook accessors ([7d6bfaa](https://github.com/Mearman/schema-components/commit/7d6bfaaa32c8535d748a81213ac6756227afe083))
+
+### Bug Fixes
+
+* **core:** prevent infinite recursion on circular schema references ([0afe155](https://github.com/Mearman/schema-components/commit/0afe155c58f4f5fe3b5b35be3b42bb034792fe09))
+* **openapi:** rewrite $ref strings during Swagger 2.0 normalisation ([114fea4](https://github.com/Mearman/schema-components/commit/114fea424c6af7d7a9502fac1069572750f2c6f1))
+* **openapi:** support JSON Pointer refs and rewrite Swagger 2.0 ref prefixes ([f67ae1a](https://github.com/Mearman/schema-components/commit/f67ae1a8df0b01fa4f7d8b4ae270db711fb6a643))
+
+### Refactoring
+
+* **core:** extract type-level inference into typeInference.ts ([a753fc4](https://github.com/Mearman/schema-components/commit/a753fc4de4cff62097095ccbfe0b774fc592e46d))
+* **core:** extract walker building blocks into walkBuilders.ts ([0286cc0](https://github.com/Mearman/schema-components/commit/0286cc0112293fe570491dd902b6d203087f1114))
+* **core:** split large modules into focused files ([d35a4bd](https://github.com/Mearman/schema-components/commit/d35a4bdd8a6d6bdfda91c00079a7ad7b54106fb9))
+* **core:** split large test files under 800-line threshold ([9e6247f](https://github.com/Mearman/schema-components/commit/9e6247ff001c6f16e1546dbf05da88597d246388))
+* **core:** split type-inference tests into focused modules ([39c88d2](https://github.com/Mearman/schema-components/commit/39c88d222a142aa340920888d39ead7ad698289a))
+
+### Documentation
+
+* add Draft 06 and Webhooks stories ([ddaafef](https://github.com/Mearman/schema-components/commit/ddaafefb72863abc3ee12e5da3c24bf6b320f066))
+* add stories for all JSON Schema and OpenAPI features ([319c611](https://github.com/Mearman/schema-components/commit/319c611ea55ab8d5f89eee39276ebd93a353f5ba))
+* **core:** add spec support keyword matrix and type-level fallback table ([0155059](https://github.com/Mearman/schema-components/commit/0155059ac9e50ceaeae5632ec234dc3cafbeb1f3))
+* render mermaid diagrams in README story ([28612fd](https://github.com/Mearman/schema-components/commit/28612fde5bc8d078fbbb5adfa42f88406e5d427c))
+* stories for advanced constraints, callbacks, links, examples ([6ab858c](https://github.com/Mearman/schema-components/commit/6ab858cc3f6ae50c768edd1221cfc981a454658e))
+
+### Tests
+
+* **core:** add extended draft-compat and full-compliance test suites ([9aa1004](https://github.com/Mearman/schema-components/commit/9aa100477c23275b4739336900a9e379b59c3004))
+* **core:** circular $ref resolution — self-referencing, mutual, and depth limit ([e073cd1](https://github.com/Mearman/schema-components/commit/e073cd1bf3ef7c9a7af355a0735723e8b6a04acf))
+* **core:** compile-time and runtime tests for all inference and walker gaps ([10a8c27](https://github.com/Mearman/schema-components/commit/10a8c27990d6ad837198128f4c262d6169a56ba9))
+* **core:** comprehensive coverage for openapi30, parser, and type guards ([719576e](https://github.com/Mearman/schema-components/commit/719576e7455a980e1548acbe0cf63c386def9609))
+
+### Chores
+
+* add no-re-exports ESLint rule ([589176b](https://github.com/Mearman/schema-components/commit/589176b6063a88a1147688d117300ac5d1ffbcaa))
+
 ## [1.12.11](https://github.com/Mearman/schema-components/compare/v1.12.10...v1.12.11) (2026-05-15)
 
 ### Documentation
