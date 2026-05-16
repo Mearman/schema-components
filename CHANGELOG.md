@@ -1,3 +1,32 @@
+## [1.15.0](https://github.com/Mearman/schema-components/compare/v1.14.0...v1.15.0) (2026-05-16)
+
+### Features
+
+* **docs:** add MdxMermaid helper for rendering diagrams in MDX pages ([6c0bfa9](https://github.com/Mearman/schema-components/commit/6c0bfa9dc8895b1938d38be70ad3169e3f3d8af1))
+* **docs:** tag stories, expose argTypes, and cross-link related demos ([12a6d37](https://github.com/Mearman/schema-components/commit/12a6d37d5317abadc72002d955811ca9566927b9))
+
+### Bug Fixes
+
+* **docs:** import HtmlResolver from core/renderer ([cdc863f](https://github.com/Mearman/schema-components/commit/cdc863f3b1678c24bfa81821a9f8c5e5b126bf7d))
+* **docs:** theme MDX content and argstable in dark mode ([fee2822](https://github.com/Mearman/schema-components/commit/fee2822d3b6172570676a0daa819c5fa6de5af88))
+
+### Documentation
+
+* **docs:** add Getting Started MDX page ([df3e643](https://github.com/Mearman/schema-components/commit/df3e6430878649b8b11eac8d3818a499177d956a))
+* **docs:** add How it works MDX page ([0f2f77e](https://github.com/Mearman/schema-components/commit/0f2f77e4d6c11a60f2b8b8176b6d102c79d955b6))
+* **html:** add HTML Rendering overview MDX page ([e06b54d](https://github.com/Mearman/schema-components/commit/e06b54d5f5a980beb19bedccdb2e81839db9b599))
+* **openapi:** add OpenAPI walkthrough MDX page ([7936869](https://github.com/Mearman/schema-components/commit/79368691456a42a12e1074ccf3f4e18b89408b24))
+* **themes:** add Theme Adapters overview MDX page ([ae486f3](https://github.com/Mearman/schema-components/commit/ae486f3ba5fa103789f4e6661b0fa7199db08c4d))
+
+### Tests
+
+* **docs:** add play functions, argTypes, and tags to interactive stories ([618dcdd](https://github.com/Mearman/schema-components/commit/618dcdd4806689cb83f8f60168dfb1d41f216727))
+
+### Chores
+
+* **docs:** add @storybook/addon-links ([45434fd](https://github.com/Mearman/schema-components/commit/45434fd3be948c0840a7d0328411e7f24585d63c))
+* **docs:** include mdx files in stories glob ([f9fb4bc](https://github.com/Mearman/schema-components/commit/f9fb4bc22038447cb5882e3722bc7be2593e7fd4))
+
 ## [1.14.0](https://github.com/Mearman/schema-components/compare/v1.13.0...v1.14.0) (2026-05-16)
 
 ### Features
