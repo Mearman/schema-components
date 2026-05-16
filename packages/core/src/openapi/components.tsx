@@ -14,6 +14,12 @@
 
 import type { ReactNode } from "react";
 import type { OperationInfo, ParameterInfo, ResponseInfo } from "./parser.ts";
+import {
+    listCallbacks,
+    getSecurityRequirements,
+    getSecuritySchemes,
+    getLinks,
+} from "./parser.ts";
 import { normaliseSchema } from "../core/adapter.ts";
 import { renderField } from "../react/SchemaComponent.tsx";
 import type { FieldOverride, SchemaMeta, WalkedField } from "../core/types.ts";
@@ -30,8 +36,13 @@ import {
     resolveParameters,
     resolveRequestBody,
     resolveResponse,
+    getParsed,
 } from "./resolve.ts";
 import type { WidgetMap } from "../react/SchemaComponent.tsx";
+import { ApiSecurity } from "./ApiSecurity.tsx";
+import { ApiCallbacks } from "./ApiCallbacks.tsx";
+import { ApiLinks } from "./ApiLinks.tsx";
+import { ApiResponseHeaders } from "./ApiResponseHeaders.tsx";
 
 // ---------------------------------------------------------------------------
 // Internal: render a JSON Schema directly (walker + renderField)
@@ -148,10 +159,19 @@ export function ApiOperation<
 }: ApiOperationProps<Doc, Path, Method>): ReactNode {
     const rootDoc = toDoc(doc);
     const resolved = resolveOperation(rootDoc, path, method);
+    const parsed = getParsed(rootDoc);
+    const securityReqs = getSecurityRequirements(parsed, path, method);
+    const securitySchemes = getSecuritySchemes(parsed);
+    const callbacks = listCallbacks(parsed, path, method);
 
     return (
         <section data-operation={`${method.toUpperCase()} ${path}`}>
             <OperationHeader operation={resolved.operation} />
+            <ApiSecurity
+                requirements={securityReqs}
+                schemes={securitySchemes}
+            />
+            <ApiCallbacks callbacks={callbacks} />
             {resolved.parameters.length > 0 && (
                 <section data-parameters>
                     <h4>Parameters</h4>
@@ -199,6 +219,8 @@ export function ApiOperation<
                             value={responseValue}
                             meta={meta}
                             widgets={widgets}
+                            path={path}
+                            method={method}
                         />
                     ))}
                 </section>
@@ -383,6 +405,8 @@ export function ApiResponse<
             fields={fields}
             meta={meta}
             widgets={widgets}
+            path={path}
+            method={method}
         />
     );
 }
@@ -448,6 +472,8 @@ function ResponseCard({
     fields,
     meta,
     widgets,
+    path,
+    method,
 }: {
     response: ResponseInfo;
     rootDoc: Record<string, unknown>;
@@ -455,6 +481,8 @@ function ResponseCard({
     fields?: unknown;
     meta?: SchemaMeta | undefined;
     widgets?: WidgetMap | undefined;
+    path?: string;
+    method?: string;
 }): ReactNode {
     if (response.schema === undefined) {
         return (
@@ -468,6 +496,17 @@ function ResponseCard({
         );
     }
 
+    // Get links for this response if we have path/method context
+    let links: import("./parser.ts").LinkInfo[] = [];
+    if (path !== undefined && method !== undefined) {
+        try {
+            const parsed = getParsed(rootDoc);
+            links = getLinks(parsed, path, method, response.statusCode);
+        } catch {
+            // links lookup may fail for various reasons; that's fine
+        }
+    }
+
     return (
         <div data-status={response.statusCode}>
             <h5>{response.statusCode}</h5>
@@ -478,6 +517,8 @@ function ResponseCard({
                 meta: { readOnly: true, ...meta },
                 widgets,
             })}
+            <ApiResponseHeaders headers={response.headers} />
+            <ApiLinks links={links} />
         </div>
     );
 }

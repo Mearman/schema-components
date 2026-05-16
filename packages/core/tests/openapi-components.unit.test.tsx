@@ -10,6 +10,10 @@ import {
     ApiRequestBody,
     ApiResponse,
 } from "../src/openapi/components.tsx";
+import { ApiSecurity } from "../src/openapi/ApiSecurity.tsx";
+import { ApiCallbacks } from "../src/openapi/ApiCallbacks.tsx";
+import { ApiLinks } from "../src/openapi/ApiLinks.tsx";
+import { ApiResponseHeaders } from "../src/openapi/ApiResponseHeaders.tsx";
 
 const doc = {
     openapi: "3.1.0",
@@ -224,5 +228,160 @@ describe("ApiResponse", () => {
                 })
             )
         ).toThrow("Response not found");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// ApiSecurity
+// ---------------------------------------------------------------------------
+
+describe("ApiSecurity", () => {
+    it("renders security requirements and schemes", () => {
+        const html = renderToString(
+            createElement(ApiSecurity, {
+                requirements: [{ name: "bearerAuth", scopes: [] }],
+                schemes: new Map([
+                    [
+                        "bearerAuth",
+                        {
+                            type: "http",
+                            scheme: "bearer",
+                            description: "JWT auth",
+                        },
+                    ],
+                ]),
+            })
+        );
+        expect(html).toContain("Security");
+        expect(html).toContain("bearerAuth");
+        expect(html).toContain("http");
+        expect(html).toContain("JWT auth");
+    });
+
+    it("returns null for empty requirements", () => {
+        const html = renderToString(
+            createElement(ApiSecurity, {
+                requirements: [],
+                schemes: new Map(),
+            })
+        );
+        expect(html).toBe("");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// ApiCallbacks
+// ---------------------------------------------------------------------------
+
+describe("ApiCallbacks", () => {
+    it("renders callback definitions", () => {
+        const html = renderToString(
+            createElement(ApiCallbacks, {
+                callbacks: [
+                    {
+                        name: "onEvent",
+                        operations: [
+                            {
+                                path: "/callback",
+                                method: "post",
+                                operationId: undefined,
+                                summary: "Event callback",
+                                description: undefined,
+                                deprecated: false,
+                                operation: {},
+                            },
+                        ],
+                    },
+                ],
+            })
+        );
+        expect(html).toContain("Callbacks");
+        expect(html).toContain("onEvent");
+        expect(html).toContain("POST");
+        expect(html).toContain("Event callback");
+    });
+
+    it("returns null for empty callbacks", () => {
+        const html = renderToString(
+            createElement(ApiCallbacks, {
+                callbacks: [],
+            })
+        );
+        expect(html).toBe("");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// ApiLinks
+// ---------------------------------------------------------------------------
+
+describe("ApiLinks", () => {
+    it("renders link definitions", () => {
+        const html = renderToString(
+            createElement(ApiLinks, {
+                links: [
+                    {
+                        name: "GetUserById",
+                        operationId: "getUser",
+                        operationRef: undefined,
+                        description: "Link to user details",
+                        parameters: new Map([["userId", "$response.body#/id"]]),
+                        requestBody: undefined,
+                    },
+                ],
+            })
+        );
+        expect(html).toContain("Links");
+        expect(html).toContain("GetUserById");
+        expect(html).toContain("getUser");
+        expect(html).toContain("Link to user details");
+        expect(html).toContain("userId");
+    });
+
+    it("returns null for empty links", () => {
+        const html = renderToString(
+            createElement(ApiLinks, {
+                links: [],
+            })
+        );
+        expect(html).toBe("");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// ApiResponseHeaders
+// ---------------------------------------------------------------------------
+
+describe("ApiResponseHeaders", () => {
+    it("renders response headers", () => {
+        const headers = new Map([
+            [
+                "X-Rate-Limit",
+                {
+                    name: "X-Rate-Limit",
+                    description: "Rate limit per hour",
+                    required: true,
+                    deprecated: false,
+                    schema: { type: "integer" },
+                },
+            ],
+        ]);
+        const html = renderToString(
+            createElement(ApiResponseHeaders, {
+                headers,
+            })
+        );
+        expect(html).toContain("Headers");
+        expect(html).toContain("X-Rate-Limit");
+        expect(html).toContain("Rate limit per hour");
+    });
+
+    it("returns null for empty headers", () => {
+        const html = renderToString(
+            createElement(ApiResponseHeaders, {
+                headers: new Map(),
+            })
+        );
+        expect(html).toBe("");
     });
 });
