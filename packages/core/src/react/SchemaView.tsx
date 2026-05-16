@@ -29,7 +29,8 @@ import { mergeResolvers, getRenderFunction } from "../core/renderer.ts";
 import type { WidgetMap } from "./SchemaComponent.tsx";
 import { headlessResolver } from "./headless.tsx";
 import { normaliseSchema } from "../core/adapter.ts";
-import { walk, type WalkOptions } from "../core/walker.ts";
+import { walk } from "../core/walker.ts";
+import type { WalkOptions } from "../core/walkBuilders.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import { SchemaNormalisationError, SchemaRenderError } from "../core/errors.ts";
 

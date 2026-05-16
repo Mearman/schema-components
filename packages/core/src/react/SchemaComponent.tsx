@@ -23,7 +23,8 @@ import {
     isValidElement,
     type ReactNode,
 } from "react";
-import { walk, type WalkOptions } from "../core/walker.ts";
+import { walk } from "../core/walker.ts";
+import type { WalkOptions } from "../core/walkBuilders.ts";
 import { normaliseSchema } from "../core/adapter.ts";
 import { getRenderFunction, mergeResolvers } from "../core/renderer.ts";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
