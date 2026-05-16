@@ -1,0 +1,100 @@
+import { Meta, Title, Subtitle, Canvas, Source } from "@storybook/addon-docs/blocks";
+import * as IntroductionStories from "./Introduction.stories.tsx";
+
+<Meta title="Getting Started/Quick Start" />
+
+<Title>Quick Start</Title>
+
+<Subtitle>
+    Install the package, give `SchemaComponent` a Zod schema and a value, and you have
+    an editable form. Add `readOnly` for a read-only view.
+</Subtitle>
+
+## Install
+
+`schema-components` is published to npm as `schema-components`. Install it with your
+package manager of choice:
+
+<Source
+    language="bash"
+    code={`pnpm add schema-components
+# or
+npm install schema-components
+# or
+yarn add schema-components`}
+/>
+
+### Peer dependencies
+
+The library declares the following peer dependencies — install them in your project
+if they are not already present:
+
+| Peer | Range |
+| --- | --- |
+| `zod` | `^4.0.0` |
+| `react` | `^18.0.0 \|\| ^19.0.0` |
+
+Zod 4 is required. Zod 3 inputs are detected and rejected with a descriptive error
+rather than being silently mis-handled. If you are still on Zod 3, follow the
+[Zod 4 migration guide](https://zod.dev/v4/migration) before installing.
+
+## Your first `SchemaComponent`
+
+Define a schema with `z.object(...)`, attach human-readable descriptions with
+`.meta({ description })`, and pass the schema plus a value to `SchemaComponent`:
+
+<Source
+    language="tsx"
+    code={`import { useState } from "react";
+import { z } from "zod";
+import { SchemaComponent } from "schema-components/react/SchemaComponent";
+
+const userSchema = z.object({
+    name: z.string().min(1).meta({ description: "Full name" }),
+    email: z.email().meta({ description: "Email address" }),
+    role: z.enum(["admin", "editor", "viewer"]).meta({ description: "Role" }),
+    active: z.boolean().meta({ description: "Active" }),
+});
+
+export function UserCard() {
+    const [user, setUser] = useState({
+        name: "Ada Lovelace",
+        email: "ada@example.com",
+        role: "admin" as const,
+        active: true,
+    });
+
+    return (
+        <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+    );
+}`}
+/>
+
+Every property becomes an input with a label, constraints (`min`, `max`, `format`,
+`enum`) applied automatically. The `Default` story below is the exact schema above
+rendered live:
+
+<Canvas of={IntroductionStories.Default} />
+
+## Read-only view
+
+Pass `readOnly` and the same schema renders formatted text, links, and badges
+instead of inputs. No separate "display" component is needed:
+
+<Source
+    language="tsx"
+    code={`<SchemaComponent schema={userSchema} value={user} readOnly />`}
+/>
+
+<Canvas of={IntroductionStories.ReadOnly} />
+
+## What to explore next
+
+- **How it works** — the walker, JSON Schema as a lingua franca, and why
+  `z.toJSONSchema()` is the only conversion you need to think about.
+- **OpenAPI / Walkthrough** — render full operations, parameters, and request
+  bodies from an OpenAPI document.
+- **Theme Adapters / Overview** — wrap the renderer in `SchemaProvider` to swap
+  in shadcn, MUI, Mantine, or Radix components.
+- **HTML Rendering / Overview** — emit static HTML strings for SSR, email
+  templates, or any context without React.
