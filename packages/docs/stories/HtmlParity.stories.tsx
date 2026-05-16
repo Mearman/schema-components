@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { linkTo } from "@storybook/addon-links";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 import { renderToHtml } from "schema-components/html/renderToHtml";
 import { renderToHtmlChunks } from "schema-components/html/renderToHtmlStream";
@@ -45,6 +46,48 @@ function HtmlParity() {
                     <div dangerouslySetInnerHTML={{ __html: streamedHtml }} />
                 </DemoCard>
             </StorySection>
+            <div
+                style={{
+                    display: "flex",
+                    gap: "0.5rem",
+                    marginTop: "1rem",
+                    flexWrap: "wrap",
+                }}
+            >
+                <button
+                    type="button"
+                    onClick={linkTo("Theme Adapters/Headless", "Editable")}
+                    style={{
+                        border: "1px solid #94a3b8",
+                        background: "#fff",
+                        color: "#0f172a",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.875rem",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                    }}
+                >
+                    React headless renderer
+                </button>
+                <button
+                    type="button"
+                    onClick={linkTo(
+                        "HTML Rendering/Streaming",
+                        "ChunkedEditable"
+                    )}
+                    style={{
+                        border: "1px solid #94a3b8",
+                        background: "#fff",
+                        color: "#0f172a",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.875rem",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                    }}
+                >
+                    HTML streaming
+                </button>
+            </div>
         </StoryPage>
     );
 }
@@ -52,6 +95,7 @@ function HtmlParity() {
 const meta: Meta<typeof HtmlParity> = {
     title: "HTML Rendering/Parity",
     component: HtmlParity,
+    tags: ["html"],
 };
 
 export default meta;

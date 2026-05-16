@@ -10,6 +10,7 @@ import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
 const meta: Meta = {
     title: "OpenAPI/Callbacks & Links",
+    tags: ["openapi"],
 };
 export default meta;
 type Story = StoryObj<typeof meta>;

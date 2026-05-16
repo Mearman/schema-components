@@ -19,7 +19,17 @@ const userData = {
 const meta: Meta<typeof SchemaComponent> = {
     title: "Getting Started/Introduction",
     component: SchemaComponent,
-    tags: ["autodocs"],
+    tags: ["autodocs", "editable", "readonly", "zod"],
+    argTypes: {
+        readOnly: {
+            control: "boolean",
+            description: "Render the form as read-only formatted output.",
+        },
+        writeOnly: {
+            control: "boolean",
+            description: "Force every field to render as an editable input.",
+        },
+    },
 };
 
 export default meta;

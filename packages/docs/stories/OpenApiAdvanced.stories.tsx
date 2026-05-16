@@ -11,6 +11,7 @@ import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
 const meta: Meta = {
     title: "OpenAPI/Advanced Features",
+    tags: ["openapi", "composition"],
 };
 export default meta;
 type Story = StoryObj<typeof meta>;

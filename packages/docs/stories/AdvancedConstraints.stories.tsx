@@ -8,6 +8,10 @@ import { SchemaComponent } from "schema-components/react/SchemaComponent";
 const meta: Meta<typeof SchemaComponent> = {
     title: "JSON Schema/Advanced Constraints",
     component: SchemaComponent,
+    tags: ["json-schema", "editable"],
+    argTypes: {
+        readOnly: { control: "boolean" },
+    },
 };
 export default meta;
 type Story = StoryObj<typeof meta>;

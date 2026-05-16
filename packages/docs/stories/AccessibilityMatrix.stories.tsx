@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { linkTo } from "@storybook/addon-links";
 import { z } from "zod";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 import {
@@ -66,6 +67,23 @@ function AccessibilityMatrix() {
                     </DemoCard>
                 </DemoGrid>
             </StorySection>
+            <div style={{ marginTop: "1rem" }}>
+                <button
+                    type="button"
+                    onClick={linkTo("Editability/Overview", "Editable")}
+                    style={{
+                        border: "1px solid #94a3b8",
+                        background: "#fff",
+                        color: "#0f172a",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.875rem",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                    }}
+                >
+                    Editability matrix
+                </button>
+            </div>
         </StoryPage>
     );
 }
@@ -73,6 +91,7 @@ function AccessibilityMatrix() {
 const meta: Meta<typeof AccessibilityMatrix> = {
     title: "Accessibility/Matrix",
     component: AccessibilityMatrix,
+    tags: ["accessibility", "editable", "readonly"],
 };
 
 export default meta;

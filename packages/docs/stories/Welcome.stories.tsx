@@ -148,7 +148,9 @@ function ReadmeContent(): ReactElement {
 
 const meta: Meta = {
     title: "README",
-    tags: ["autodocs"],
+    // `autodocs` controls the Docs tab; `!test` keeps the heavy README parse
+    // and mermaid rendering out of the storybook vitest runner.
+    tags: ["autodocs", "!test"],
     parameters: {
         docs: {
             page: ReadmeContent,

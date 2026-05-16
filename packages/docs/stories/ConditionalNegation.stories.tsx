@@ -7,6 +7,10 @@ import { SchemaComponent } from "schema-components/react/SchemaComponent";
 const meta: Meta<typeof SchemaComponent> = {
     title: "JSON Schema/Conditional & Negation",
     component: SchemaComponent,
+    tags: ["json-schema", "composition"],
+    argTypes: {
+        readOnly: { control: "boolean" },
+    },
 };
 export default meta;
 type Story = StoryObj<typeof meta>;

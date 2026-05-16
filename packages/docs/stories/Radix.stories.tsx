@@ -80,6 +80,14 @@ function RadixPreview({
 const meta: Meta<typeof RadixPreview> = {
     title: "Theme Adapters/Radix",
     component: RadixPreview,
+    tags: ["theme-adapter", "editable", "readonly"],
+    argTypes: {
+        readOnly: {
+            control: "boolean",
+            description:
+                "Toggle the form between editable and read-only views.",
+        },
+    },
 };
 
 export default meta;

@@ -98,6 +98,7 @@ function AdapterSetup() {
 const meta: Meta<typeof AdapterSetup> = {
     title: "Theme Adapters/Setup",
     component: AdapterSetup,
+    tags: ["theme-adapter"],
 };
 
 export default meta;

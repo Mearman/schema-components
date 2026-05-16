@@ -52,6 +52,7 @@ function OpenApiCompleteness() {
 const meta: Meta<typeof OpenApiCompleteness> = {
     title: "OpenAPI/Completeness",
     component: OpenApiCompleteness,
+    tags: ["openapi"],
 };
 
 export default meta;

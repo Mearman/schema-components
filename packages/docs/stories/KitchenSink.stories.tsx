@@ -60,6 +60,7 @@ function KitchenSink() {
 const meta: Meta<typeof KitchenSink> = {
     title: "Getting Started/Kitchen Sink",
     component: KitchenSink,
+    tags: ["editable", "readonly", "union"],
 };
 
 export default meta;

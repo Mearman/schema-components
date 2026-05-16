@@ -39,6 +39,17 @@ const profileData = {
 const meta: Meta<typeof SchemaComponent> = {
     title: "Getting Started/JSON Schema",
     component: SchemaComponent,
+    tags: ["json-schema", "editable", "readonly"],
+    argTypes: {
+        readOnly: {
+            control: "boolean",
+            description: "Render the form as read-only formatted output.",
+        },
+        writeOnly: {
+            control: "boolean",
+            description: "Force every field to render as an editable input.",
+        },
+    },
 };
 
 export default meta;

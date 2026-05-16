@@ -90,9 +90,16 @@ const mixedData = {
 const meta: Meta<typeof SchemaComponent> = {
     title: "Theme Adapters/Headless",
     component: SchemaComponent,
+    tags: ["theme-adapter", "editable", "readonly"],
     argTypes: {
-        readOnly: { control: "boolean" },
-        writeOnly: { control: "boolean" },
+        readOnly: {
+            control: "boolean",
+            description: "Render every field as read-only formatted output.",
+        },
+        writeOnly: {
+            control: "boolean",
+            description: "Force every field to render as an editable input.",
+        },
     },
 };
 

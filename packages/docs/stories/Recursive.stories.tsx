@@ -46,6 +46,13 @@ function TreeDemo({ readOnly }: { readOnly: boolean }) {
 const meta: Meta<typeof TreeDemo> = {
     title: "Objects & Layout/Recursive",
     component: TreeDemo,
+    tags: ["recursive", "editable", "zod"],
+    argTypes: {
+        readOnly: {
+            control: "boolean",
+            description: "Render the recursive tree as static text.",
+        },
+    },
 };
 
 export default meta;

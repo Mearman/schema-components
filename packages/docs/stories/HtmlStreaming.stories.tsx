@@ -90,6 +90,7 @@ function StreamingPreview({ chunks }: { chunks: string[] }) {
 const meta: Meta<typeof StreamingPreview> = {
     title: "HTML Rendering/Streaming",
     component: StreamingPreview,
+    tags: ["html"],
 };
 
 export default meta;

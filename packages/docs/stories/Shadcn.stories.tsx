@@ -76,6 +76,14 @@ function ShadcnPreview({
 const meta: Meta<typeof ShadcnPreview> = {
     title: "Theme Adapters/shadcn",
     component: ShadcnPreview,
+    tags: ["theme-adapter", "editable", "readonly"],
+    argTypes: {
+        readOnly: {
+            control: "boolean",
+            description:
+                "Toggle the form between editable and read-only views.",
+        },
+    },
 };
 
 export default meta;

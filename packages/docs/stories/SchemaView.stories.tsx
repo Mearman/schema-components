@@ -33,6 +33,7 @@ const user = {
 
 const meta: Meta = {
     title: "Server Rendering/SchemaView",
+    tags: ["server-render", "readonly", "zod"],
 };
 export default meta;
 

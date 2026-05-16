@@ -8,6 +8,7 @@ import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
 const meta: Meta = {
     title: "Inputs/Defaults",
+    tags: ["editable", "zod", "json-schema"],
 };
 export default meta;
 

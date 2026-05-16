@@ -29,6 +29,7 @@ const paymentSchema = z.object({
 
 const meta: Meta = {
     title: "Objects & Layout/Visibility & Ordering",
+    tags: ["editable", "readonly", "zod"],
 };
 export default meta;
 
