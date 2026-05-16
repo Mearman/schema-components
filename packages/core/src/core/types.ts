@@ -239,6 +239,8 @@ export interface FieldBase {
     isNullable?: boolean;
     /** Default value from the schema's `default` keyword. */
     defaultValue?: unknown;
+    /** Example values from the schema's `examples` keyword. */
+    examples?: unknown[];
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +300,8 @@ export interface ObjectField extends FieldBase {
     unevaluatedProperties?: WalkedField;
     /** Whether unevaluatedProperties is explicitly `false`. */
     unevaluatedPropertiesClosed?: boolean;
+    /** Schema constraining property names (from `propertyNames`). */
+    propertyNames?: WalkedField;
 }
 
 export interface ArrayField extends FieldBase {
@@ -305,6 +309,8 @@ export interface ArrayField extends FieldBase {
     constraints: ArrayConstraints;
     /** The element sub-schema. */
     element?: WalkedField;
+    /** Walked schema for unevaluated items. */
+    unevaluatedItems?: WalkedField;
 }
 
 export interface TupleField extends FieldBase {

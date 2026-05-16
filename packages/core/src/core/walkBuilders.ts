@@ -177,6 +177,11 @@ export function buildBase(
 
     const defaultValue = "default" in schema ? schema.default : undefined;
 
+    const examplesRaw = schema.examples;
+    const examples: unknown[] | undefined = Array.isArray(examplesRaw)
+        ? examplesRaw
+        : undefined;
+
     const editability = resolveEditability(
         mergedMeta,
         ctx.componentMeta,
@@ -202,6 +207,7 @@ export function buildBase(
         isOptional: ctx.isOptional,
         isNullable: ctx.isNullable,
         defaultValue: defaultValue ?? ctx.defaultValue,
+        ...(examples !== undefined ? { examples } : {}),
     };
 }
 
