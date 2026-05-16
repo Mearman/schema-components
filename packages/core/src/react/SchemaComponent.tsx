@@ -30,12 +30,14 @@ import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import type {
     FieldOverride,
     FieldOverrides,
-    FromJSONSchema,
-    PathOfType,
-    ResolveOpenAPIRef,
     SchemaMeta,
     WalkedField,
 } from "../core/types.ts";
+import type {
+    FromJSONSchema,
+    PathOfType,
+    ResolveOpenAPIRef,
+} from "../core/typeInference.ts";
 import { headlessResolver } from "./headless.tsx";
 import { resolvePath, resolveValue, setNestedValue } from "./fieldPath.ts";
 import { isObject, toRecordOrUndefined } from "../core/guards.ts";
