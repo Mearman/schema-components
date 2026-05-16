@@ -69,6 +69,17 @@ One walker, one input format. The walker reads standard JSON Schema keywords (Dr
 
 `z.fromJSONSchema()` is used **only for validation** — converting JSON Schema / OpenAPI inputs back to Zod when `validate` is true and the original wasn't a Zod schema.
 
+## Spec support
+
+| Spec | Support |
+|---|---|
+| JSON Schema Draft 04 / 06 / 07 / 2019-09 / 2020-12 | All supported; older drafts normalised to Draft 2020-12 |
+| OpenAPI 2.0 (Swagger) | Full document restructure to OpenAPI 3.1 |
+| OpenAPI 3.0.x | `nullable`, `discriminator`, `example` normalised; callbacks, links, security, headers |
+| OpenAPI 3.1.x | Native; webhooks and `components/pathItems` resolved |
+
+See [packages/core/README.md](packages/core/README.md#spec-support) for the full keyword matrix and documented type-level fallbacks.
+
 ## Examples
 
 ### All input formats

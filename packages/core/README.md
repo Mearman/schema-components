@@ -179,6 +179,37 @@ import { SchemaField } from "schema-components/react/SchemaComponent";
 
 When the schema is a Zod schema or typed `as const`, only valid dot-paths like `"address.city"` are accepted. Invalid paths trigger TypeScript errors. Runtime schemas accept any string.
 
+## Spec support
+
+The walker reads canonical Draft 2020-12 JSON Schema. Older drafts and OpenAPI documents are normalised to that form transparently.
+
+| Spec | Detection | Normalisation | Notes |
+|---|---|---|---|
+| JSON Schema Draft 04 | `http://json-schema.org/draft-04/schema#` | `exclusiveMinimum`/`Maximum` boolean → number; `id` left in place | |
+| JSON Schema Draft 06 | `http://json-schema.org/draft-06/schema#` | Pass-through (canonical for `const`, `examples[]`, `$id`, `propertyNames`, `contains`) | |
+| JSON Schema Draft 07 | `http://json-schema.org/draft-07/schema#` | Pass-through (adds `if`/`then`/`else`, `contentEncoding`, `contentMediaType`) | |
+| JSON Schema Draft 2019-09 | `https://json-schema.org/draft/2019-09/schema` | `$recursiveRef` → `$ref`, `$recursiveAnchor` → `$anchor` | Adds `unevaluatedProperties`/`Items`, `dependentSchemas`/`Required` |
+| JSON Schema Draft 2020-12 | `https://json-schema.org/draft/2020-12/schema` (default) | `$dynamicRef` → `$ref`, `$dynamicAnchor` → `$anchor`; tuple form via `prefixItems` | |
+| OpenAPI 2.0 (Swagger) | `swagger: "2.0"` | Full document restructure → OpenAPI 3.1; `definitions` → `components/schemas`; body params → `requestBody`; `formData` → `multipart/form-data`; `collectionFormat` → `style`/`explode` | |
+| OpenAPI 3.0.x | `openapi: "3.0.x"` | `nullable` → `anyOf [T, null]`; `discriminator` mapping → injected `const`; `example` → `examples[]` | Callbacks, links, security schemes preserved |
+| OpenAPI 3.1.x | `openapi: "3.1.x"` | Direct (already Draft 2020-12) | Webhooks, `components/pathItems`, JSON Schema `type` arrays, `examples[]` |
+
+### Documented type-level fallbacks
+
+A few JSON Schema keywords can't be expressed in TypeScript's type system. They are handled at runtime by the walker, but `FromJSONSchema<S>` falls back as follows (each pinned by `tests/type-inference-advanced.test.ts`):
+
+| Keyword | Type-level result | Why |
+|---|---|---|
+| `not` | `unknown` | TypeScript has no type negation |
+| `if` / `then` / `else` | Base schema (conditions ignored) | Requires value-dependent conditional evaluation |
+| `propertyNames` | Ignored | Cannot constrain object key *shape* |
+| `dependentSchemas` / `dependentRequired` | Ignored | Cross-field runtime conditionals |
+| `unevaluatedProperties` / `unevaluatedItems` | Ignored | Requires whole-tree evaluation context |
+| `contains` / `minContains` / `maxContains` | Element type unchanged | Constraint metadata only |
+| `$recursiveRef` | `unknown` | Recursive types not expressible |
+
+Runtime rendering and validation handle each of these correctly; only the static type widens.
+
 ## OpenAPI components
 
 Render API operations with type-safe field overrides:
