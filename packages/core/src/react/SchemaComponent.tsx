@@ -39,6 +39,7 @@ import type {
     PathOfType,
     ResolveOpenAPIRef,
 } from "../core/typeInference.ts";
+import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
 import { headlessResolver } from "./headless.tsx";
 import { resolvePath, resolveValue, setNestedValue } from "./fieldPath.ts";
 import { isObject, toRecordOrUndefined } from "../core/guards.ts";
@@ -144,6 +145,10 @@ export interface SchemaComponentProps<
     onValidationError?: (error: unknown) => void;
     /** Called when schema normalisation or rendering fails. */
     onError?: (error: import("../core/errors.ts").SchemaError) => void;
+    /** Called with each diagnostic emitted during schema processing. */
+    onDiagnostic?: (diagnostic: Diagnostic) => void;
+    /** When true, any diagnostic becomes a thrown error. */
+    strict?: boolean;
     /** Per-field meta overrides — nested object mirroring schema shape. */
     fields?: InferFields<T, Ref>;
     /** Meta overrides applied to the root schema. */
@@ -173,6 +178,8 @@ export function SchemaComponent<
     validate,
     onValidationError,
     onError,
+    onDiagnostic,
+    strict,
     fields,
     meta: componentMeta,
     readOnly,
@@ -191,13 +198,20 @@ export function SchemaComponent<
         return merged;
     }, [componentMeta, readOnly, writeOnly, description]);
 
+    const diagnostics: DiagnosticsOptions | undefined =
+        onDiagnostic !== undefined || strict === true
+            ? { diagnostics: onDiagnostic, strict }
+            : undefined;
+
     // Normalise input → JSON Schema
     let jsonSchema: Record<string, unknown>;
     let zodSchema: unknown;
     let rootMeta: SchemaMeta | undefined;
     let rootDocument: Record<string, unknown>;
     try {
-        const normalised = normaliseSchema(schemaInput, refInput);
+        const normalised = normaliseSchema(schemaInput, refInput, {
+            diagnostics,
+        });
         jsonSchema = normalised.jsonSchema;
         zodSchema = normalised.zodSchema;
         rootMeta = normalised.rootMeta;
@@ -237,6 +251,7 @@ export function SchemaComponent<
         rootMeta,
         fieldOverrides: fields,
         rootDocument,
+        diagnostics,
     };
 
     const tree = walk(jsonSchema, walkOptions);

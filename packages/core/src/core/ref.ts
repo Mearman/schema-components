@@ -6,6 +6,8 @@
  */
 
 import { isObject } from "./guards.ts";
+import type { DiagnosticsOptions } from "./diagnostics.ts";
+import { emitDiagnostic } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -37,40 +39,62 @@ const MAX_REF_DEPTH = 10;
 export function resolveRef(
     schema: Record<string, unknown>,
     rootDocument: Record<string, unknown>,
-    visited: Set<string>
+    visited: Set<string>,
+    diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
     const ref = getString(schema, "$ref");
     if (ref === undefined) return schema;
 
     // Cycle detection
-    if (visited.has(ref))
+    if (visited.has(ref)) {
+        emitDiagnostic(diagnostics, {
+            code: "unresolved-ref",
+            message: `Circular $ref detected: ${ref}`,
+            pointer: ref,
+            detail: { ref },
+        });
         return {
             type: "unknown",
             editability: "editable",
             meta: {},
             constraints: {},
         };
-    if (visited.size >= MAX_REF_DEPTH)
+    }
+    if (visited.size >= MAX_REF_DEPTH) {
+        emitDiagnostic(diagnostics, {
+            code: "unresolved-ref",
+            message: `Maximum $ref depth exceeded: ${ref}`,
+            pointer: ref,
+            detail: { ref, depth: visited.size },
+        });
         return {
             type: "unknown",
             editability: "editable",
             meta: {},
             constraints: {},
         };
+    }
 
     const resolved = dereference(ref, rootDocument);
-    if (resolved === undefined)
+    if (resolved === undefined) {
+        emitDiagnostic(diagnostics, {
+            code: "unresolved-ref",
+            message: `Could not resolve $ref: ${ref}`,
+            pointer: ref,
+            detail: { ref },
+        });
         return {
             type: "unknown",
             editability: "editable",
             meta: {},
             constraints: {},
         };
+    }
 
     // Recursively resolve if the target is also a $ref
     const nextVisited = new Set(visited);
     nextVisited.add(ref);
-    return resolveRef(resolved, rootDocument, nextVisited);
+    return resolveRef(resolved, rootDocument, nextVisited, diagnostics);
 }
 
 // ---------------------------------------------------------------------------

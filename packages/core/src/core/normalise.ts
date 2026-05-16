@@ -19,6 +19,7 @@ import { isOpenApi30, isSwagger2 } from "./version.ts";
 import { isObject } from "./guards.ts";
 import { deepNormaliseOpenApi30Doc } from "./openapi30.ts";
 import { normaliseSwagger2Document } from "./swagger2.ts";
+import type { DiagnosticsOptions } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Sub-schema location keys
@@ -303,13 +304,15 @@ export function normaliseJsonSchema(
  */
 export function normaliseOpenApiSchemas(
     doc: Record<string, unknown>,
-    version: OpenApiVersionInfo
+    version: OpenApiVersionInfo,
+    diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
     if (isSwagger2(version)) {
         return normaliseSwagger2Document(
             doc,
             deepNormalise,
-            normaliseDraft04Node
+            normaliseDraft04Node,
+            diagnostics
         );
     }
 

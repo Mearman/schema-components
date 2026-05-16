@@ -49,13 +49,20 @@ import {
     isPrimitive,
 } from "./walkBuilders.ts";
 import type { WalkOptions, WalkContext } from "./walkBuilders.ts";
+import { emitDiagnostic, appendPointer } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Walker entry point
 // ---------------------------------------------------------------------------
 
 export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
-    const { componentMeta, rootMeta, fieldOverrides, rootDocument } = options;
+    const {
+        componentMeta,
+        rootMeta,
+        fieldOverrides,
+        rootDocument,
+        diagnostics,
+    } = options;
 
     if (!isObject(schema)) {
         return {
@@ -66,9 +73,20 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         };
     }
 
+    // Detect external $ref before resolution attempt
+    const topRef = typeof schema.$ref === "string" ? schema.$ref : undefined;
+    if (topRef !== undefined && !topRef.startsWith("#")) {
+        emitDiagnostic(diagnostics, {
+            code: "external-ref",
+            message: `External $ref not supported: ${topRef}`,
+            pointer: "",
+            detail: { ref: topRef },
+        });
+    }
+
     // Resolve $ref if present
     const doc = rootDocument ?? schema;
-    const resolved = resolveRef(schema, doc, new Set());
+    const resolved = resolveRef(schema, doc, new Set(), diagnostics);
 
     return walkNode(resolved, {
         componentMeta,
@@ -79,6 +97,8 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         isOptional: false,
         defaultValue: undefined,
         refResults: new Map(),
+        pointer: "",
+        diagnostics,
     });
 }
 
@@ -129,7 +149,12 @@ function walkNode(
         const cached = ctx.refResults.get(ref);
         if (cached !== undefined) return cached;
 
-        const resolved = resolveRef(schema, ctx.rootDocument, new Set());
+        const resolved = resolveRef(
+            schema,
+            ctx.rootDocument,
+            new Set(),
+            ctx.diagnostics
+        );
 
         // Placeholder is stored in the cache BEFORE recursing so that
         // re-encountering the same $ref returns it instead of recursing
@@ -152,6 +177,12 @@ function walkNode(
     // --- Handle if/then/else conditional ---
     const ifSchema = getObject(schema, "if");
     if (ifSchema !== undefined) {
+        emitDiagnostic(ctx.diagnostics, {
+            code: "conditional-fallback",
+            message:
+                "if/then/else rendered as base schema; conditionals require runtime evaluation",
+            pointer: ctx.pointer,
+        });
         const base = buildBase(
             withoutKeys(schema, ["if", "then", "else"]),
             ctx
@@ -176,6 +207,12 @@ function walkNode(
     // --- Handle not (negation) ---
     const notSchema = getObject(schema, "not");
     if (notSchema !== undefined) {
+        emitDiagnostic(ctx.diagnostics, {
+            code: "type-negation-fallback",
+            message:
+                "not schema rendered as negation; TypeScript cannot negate types",
+            pointer: ctx.pointer,
+        });
         const base = buildBase(withoutKeys(schema, ["not"]), ctx);
         const negated: NegationField = {
             ...base,
@@ -194,6 +231,14 @@ function walkNode(
 
     // --- Handle const (literal) ---
     if ("const" in schema) {
+        if (!isPrimitive(schema.const)) {
+            emitDiagnostic(ctx.diagnostics, {
+                code: "invalid-const",
+                message: `const value is not a primitive: ${typeof schema.const}`,
+                pointer: ctx.pointer,
+                detail: { constValue: schema.const },
+            });
+        }
         return walkLiteral(schema, ctx);
     }
 
@@ -247,6 +292,12 @@ function walkNode(
 
     // --- No type, no composition, no enum → unknown ---
     if (type === undefined) {
+        emitDiagnostic(ctx.diagnostics, {
+            code: "unsupported-type",
+            message:
+                "Schema has no type, composition, enum, or const; rendering as unknown",
+            pointer: ctx.pointer,
+        });
         return buildUnknownField(schema, ctx);
     }
 
@@ -283,6 +334,14 @@ function walkNode(
     if (type === "array") {
         return walkArray(schema, ctx);
     }
+
+    // --- Unknown type string ---
+    emitDiagnostic(ctx.diagnostics, {
+        code: "unsupported-type",
+        message: `Unknown schema type: ${type}`,
+        pointer: ctx.pointer,
+        detail: { type },
+    });
 
     return buildUnknownField(schema, ctx);
 }
@@ -369,6 +428,7 @@ function walkObject(
             ...ctx,
             fieldOverrides: childOverride,
             isOptional: !isRequired,
+            pointer: appendPointer(ctx.pointer, key),
         };
 
         // If this field explicitly overrides editability, suppress

@@ -33,6 +33,7 @@ import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import { SchemaNormalisationError, SchemaRenderError } from "../core/errors.ts";
+import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -59,6 +60,10 @@ export interface SchemaViewProps {
     resolver?: ComponentResolver;
     /** Instance-scoped widgets. */
     widgets?: WidgetMap;
+    /** Called with each diagnostic emitted during schema processing. */
+    onDiagnostic?: (diagnostic: Diagnostic) => void;
+    /** When true, any diagnostic becomes a thrown error. */
+    strict?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,16 +89,25 @@ export function SchemaView({
     description,
     resolver,
     widgets,
+    onDiagnostic,
+    strict,
 }: SchemaViewProps): ReactNode {
     const mergedMeta: SchemaMeta = { ...componentMeta, readOnly: true };
     if (description !== undefined) mergedMeta.description = description;
+
+    const diagnostics: DiagnosticsOptions | undefined =
+        onDiagnostic !== undefined || strict === true
+            ? { diagnostics: onDiagnostic, strict }
+            : undefined;
 
     // Normalise input → JSON Schema
     let jsonSchema: Record<string, unknown>;
     let rootMeta: SchemaMeta | undefined;
     let rootDocument: Record<string, unknown>;
     try {
-        const normalised = normaliseSchema(schemaInput, refInput);
+        const normalised = normaliseSchema(schemaInput, refInput, {
+            diagnostics,
+        });
         jsonSchema = normalised.jsonSchema;
         rootMeta = normalised.rootMeta;
         rootDocument = normalised.rootDocument;
@@ -111,6 +125,7 @@ export function SchemaView({
         rootMeta,
         fieldOverrides: fields,
         rootDocument,
+        diagnostics,
     };
 
     const tree = walk(jsonSchema, walkOptions);

@@ -24,6 +24,7 @@ import {
     extractNumberConstraints,
     extractFileConstraints,
 } from "./constraints.ts";
+import type { DiagnosticsOptions } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -64,6 +65,8 @@ export interface WalkOptions {
     fieldOverrides?: Record<string, unknown> | undefined;
     /** The root document for $ref resolution. */
     rootDocument?: Record<string, unknown> | undefined;
+    /** Diagnostics channel for surfacing silent fallbacks. */
+    diagnostics?: DiagnosticsOptions;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +161,10 @@ export interface WalkContext {
     defaultValue: unknown;
     /** Cache of $ref → WalkedField for recursive schema support. */
     refResults: Map<string, WalkedField>;
+    /** JSON Pointer tracking for diagnostics. */
+    pointer: string;
+    /** Diagnostics channel for surfacing silent fallbacks. */
+    diagnostics: DiagnosticsOptions | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +225,11 @@ export function buildStringField(
     return {
         ...buildBase(schema, ctx),
         type: "string",
-        constraints: extractStringConstraints(schema),
+        constraints: extractStringConstraints(
+            schema,
+            ctx.diagnostics,
+            ctx.pointer
+        ),
     };
 }
 

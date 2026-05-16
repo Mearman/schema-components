@@ -14,6 +14,7 @@ import { z } from "zod";
 import type { JsonObject, SchemaMeta } from "./types.ts";
 import { hasProperty, isObject, getProperty } from "./guards.ts";
 import { dereference } from "./ref.ts";
+import type { DiagnosticsOptions } from "./diagnostics.ts";
 import {
     detectJsonSchemaDraft,
     detectOpenApiVersion,
@@ -91,9 +92,15 @@ export interface NormalisedSchema {
     rootDocument: JsonObject;
 }
 
+export interface NormaliseOptions {
+    /** Diagnostics channel for surfacing silent fallbacks. */
+    diagnostics?: DiagnosticsOptions;
+}
+
 export function normaliseSchema(
     input: unknown,
-    ref?: string
+    ref?: string,
+    options?: NormaliseOptions
 ): NormalisedSchema {
     // Cache lookup for object identity (Zod schemas, JSON Schema objects)
     // Only cache when no ref is provided — refs produce different results
@@ -115,7 +122,7 @@ export function normaliseSchema(
             break;
         case "openapi":
             if (!isObject(input)) throw new Error("Invalid OpenAPI document");
-            result = normaliseOpenApi(input, ref);
+            result = normaliseOpenApi(input, ref, options);
             break;
         case "jsonSchema":
             if (!isObject(input)) throw new Error("Invalid JSON Schema");
@@ -189,11 +196,14 @@ const REF_REWRITES_ADAPTER: readonly [string, string][] = [
 
 function normaliseOpenApi(
     doc: JsonObject,
-    ref: string | undefined
+    ref: string | undefined,
+    options?: NormaliseOptions
 ): NormalisedSchema {
     const version = detectOpenApiVersion(doc);
     const normalisedDoc =
-        version !== undefined ? normaliseOpenApiSchemas(doc, version) : doc;
+        version !== undefined
+            ? normaliseOpenApiSchemas(doc, version, options?.diagnostics)
+            : doc;
 
     // Rewrite Swagger 2.0 ref prefixes to match the normalised document
     // structure (definitions → components/schemas, etc.)

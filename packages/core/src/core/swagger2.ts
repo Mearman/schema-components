@@ -12,6 +12,8 @@
 import { isObject } from "../core/guards.ts";
 import type { NodeTransform } from "./normalise.ts";
 import { normaliseOpenApi30Combined } from "./openapi30.ts";
+import type { DiagnosticsOptions } from "./diagnostics.ts";
+import { emitDiagnostic } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Document-level transformation
@@ -27,7 +29,8 @@ export function normaliseSwagger2Document(
         schema: Record<string, unknown>,
         transform: NodeTransform
     ) => Record<string, unknown>,
-    normaliseDraft04Node: NodeTransform
+    normaliseDraft04Node: NodeTransform,
+    diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {
         openapi: "3.1.0",
@@ -110,6 +113,20 @@ export function normaliseSwagger2Document(
     // Rewrite $ref strings from Swagger 2.0 locations to OpenAPI 3.x
     // locations: #/definitions/X → #/components/schemas/X, etc.
     rewriteSwaggerRefs(result);
+
+    // Emit diagnostics for dropped Swagger 2.0 features
+    if (
+        isObject(doc.xml) ||
+        (isObject(doc.definitions) && hasXmlInSchemas(doc.definitions))
+    ) {
+        emitDiagnostic(diagnostics, {
+            code: "dropped-swagger-feature",
+            message:
+                "Swagger 2.0 xml markup is not supported and will be dropped",
+            pointer: "",
+            detail: { feature: "xml" },
+        });
+    }
 
     return result;
 }
@@ -558,4 +575,18 @@ function rewriteSwaggerRefs(node: unknown): void {
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Swagger 2.0 feature detection helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if any schema in a definitions block contains an `xml` property.
+ */
+function hasXmlInSchemas(definitions: Record<string, unknown>): boolean {
+    for (const schema of Object.values(definitions)) {
+        if (isObject(schema) && "xml" in schema) return true;
+    }
+    return false;
 }
