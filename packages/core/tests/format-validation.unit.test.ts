@@ -12,104 +12,118 @@ import { walk } from "../src/core/walker.ts";
 import type { Diagnostic } from "../src/core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
+// Helper — safe access to FORMAT_PATTERNS entries
+// ---------------------------------------------------------------------------
+
+/**
+ * Get a format pattern by name, throwing if the format is not registered.
+ * This avoids `!` assertions while keeping tests concise.
+ */
+function patternFor(format: string): RegExp {
+    const p = FORMAT_PATTERNS[format];
+    if (p === undefined) {
+        throw new Error(`No pattern registered for format "${format}"`);
+    }
+    return p;
+}
+
+// ---------------------------------------------------------------------------
 // FORMAT_PATTERNS — canonical positives
 // ---------------------------------------------------------------------------
 
 describe("FORMAT_PATTERNS", () => {
     it("uuid accepts canonical UUIDs", () => {
-        expect(
-            FORMAT_PATTERNS.uuid.test("550e8400-e29b-41d4-a716-446655440000")
-        ).toBe(true);
-        expect(
-            FORMAT_PATTERNS.uuid.test("00000000-0000-0000-0000-000000000000")
-        ).toBe(true);
+        const uuid = patternFor("uuid");
+        expect(uuid.test("550e8400-e29b-41d4-a716-446655440000")).toBe(true);
+        expect(uuid.test("00000000-0000-0000-0000-000000000000")).toBe(true);
     });
 
     it("uuid rejects non-UUIDs", () => {
-        expect(FORMAT_PATTERNS.uuid.test("not-a-uuid")).toBe(false);
-        expect(FORMAT_PATTERNS.uuid.test("550e8400-e29b-41d4-a716")).toBe(
-            false
-        );
+        const uuid = patternFor("uuid");
+        expect(uuid.test("not-a-uuid")).toBe(false);
+        expect(uuid.test("550e8400-e29b-41d4-a716")).toBe(false);
     });
 
     it("email accepts valid emails", () => {
-        expect(FORMAT_PATTERNS.email.test("user@example.com")).toBe(true);
-        expect(FORMAT_PATTERNS.email.test("a@b.co")).toBe(true);
+        const email = patternFor("email");
+        expect(email.test("user@example.com")).toBe(true);
+        expect(email.test("a@b.co")).toBe(true);
     });
 
     it("email rejects invalid emails", () => {
-        expect(FORMAT_PATTERNS.email.test("not-an-email")).toBe(false);
-        expect(FORMAT_PATTERNS.email.test("@example.com")).toBe(false);
-        expect(FORMAT_PATTERNS.email.test("user@")).toBe(false);
+        const email = patternFor("email");
+        expect(email.test("not-an-email")).toBe(false);
+        expect(email.test("@example.com")).toBe(false);
+        expect(email.test("user@")).toBe(false);
     });
 
     it("date-time accepts ISO 8601 datetime", () => {
-        expect(FORMAT_PATTERNS["date-time"].test("2024-01-15T10:30:00Z")).toBe(
-            true
-        );
-        expect(
-            FORMAT_PATTERNS["date-time"].test("2024-01-15T10:30:00+05:30")
-        ).toBe(true);
-        expect(
-            FORMAT_PATTERNS["date-time"].test("2024-01-15T10:30:00.123Z")
-        ).toBe(true);
+        const dt = patternFor("date-time");
+        expect(dt.test("2024-01-15T10:30:00Z")).toBe(true);
+        expect(dt.test("2024-01-15T10:30:00+05:30")).toBe(true);
+        expect(dt.test("2024-01-15T10:30:00.123Z")).toBe(true);
     });
 
     it("date-time rejects invalid datetimes", () => {
-        expect(FORMAT_PATTERNS["date-time"].test("2024-01-15")).toBe(false);
-        expect(FORMAT_PATTERNS["date-time"].test("not-a-date")).toBe(false);
+        const dt = patternFor("date-time");
+        expect(dt.test("2024-01-15")).toBe(false);
+        expect(dt.test("not-a-date")).toBe(false);
     });
 
     it("date accepts YYYY-MM-DD", () => {
-        expect(FORMAT_PATTERNS.date.test("2024-01-15")).toBe(true);
+        expect(patternFor("date").test("2024-01-15")).toBe(true);
     });
 
     it("date rejects non-dates", () => {
-        expect(FORMAT_PATTERNS.date.test("2024/01/15")).toBe(false);
-        expect(FORMAT_PATTERNS.date.test("not-a-date")).toBe(false);
+        const date = patternFor("date");
+        expect(date.test("2024/01/15")).toBe(false);
+        expect(date.test("not-a-date")).toBe(false);
     });
 
     it("time accepts HH:MM:SS", () => {
-        expect(FORMAT_PATTERNS.time.test("10:30:00")).toBe(true);
-        expect(FORMAT_PATTERNS.time.test("10:30:00Z")).toBe(true);
-        expect(FORMAT_PATTERNS.time.test("10:30:00.123+05:30")).toBe(true);
+        const time = patternFor("time");
+        expect(time.test("10:30:00")).toBe(true);
+        expect(time.test("10:30:00Z")).toBe(true);
+        expect(time.test("10:30:00.123+05:30")).toBe(true);
     });
 
     it("time rejects invalid times", () => {
-        expect(FORMAT_PATTERNS.time.test("not-a-time")).toBe(false);
+        expect(patternFor("time").test("not-a-time")).toBe(false);
     });
 
     it("ipv4 accepts valid IPv4 addresses", () => {
-        expect(FORMAT_PATTERNS.ipv4.test("192.168.1.1")).toBe(true);
-        expect(FORMAT_PATTERNS.ipv4.test("0.0.0.0")).toBe(true);
+        const ipv4 = patternFor("ipv4");
+        expect(ipv4.test("192.168.1.1")).toBe(true);
+        expect(ipv4.test("0.0.0.0")).toBe(true);
     });
 
     it("ipv4 rejects invalid IPv4", () => {
-        expect(FORMAT_PATTERNS.ipv4.test("not-an-ip")).toBe(false);
-        expect(FORMAT_PATTERNS.ipv4.test("1.2.3")).toBe(false);
+        const ipv4 = patternFor("ipv4");
+        expect(ipv4.test("not-an-ip")).toBe(false);
+        expect(ipv4.test("1.2.3")).toBe(false);
     });
 
     it("ipv6 accepts valid IPv6 addresses", () => {
-        expect(FORMAT_PATTERNS.ipv6.test("::1")).toBe(true);
+        expect(patternFor("ipv6").test("::1")).toBe(true);
         expect(
-            FORMAT_PATTERNS.ipv6.test("2001:0db8:85a3:0000:0000:8a2e:0370:7334")
+            patternFor("ipv6").test("2001:0db8:85a3:0000:0000:8a2e:0370:7334")
         ).toBe(true);
     });
 
     it("uri accepts valid URIs", () => {
-        expect(FORMAT_PATTERNS.uri.test("https://example.com")).toBe(true);
-        expect(FORMAT_PATTERNS.uri.test("ftp://files.example.com")).toBe(true);
+        const uri = patternFor("uri");
+        expect(uri.test("https://example.com")).toBe(true);
+        expect(uri.test("ftp://files.example.com")).toBe(true);
     });
 
     it("uri rejects invalid URIs", () => {
-        expect(FORMAT_PATTERNS.uri.test("not a uri")).toBe(false);
+        expect(patternFor("uri").test("not a uri")).toBe(false);
     });
 
     it("hostname accepts valid hostnames", () => {
-        expect(FORMAT_PATTERNS.hostname.test("example.com")).toBe(true);
-        expect(FORMAT_PATTERNS.hostname.test("sub.domain.example.com")).toBe(
-            true
-        );
+        const hostname = patternFor("hostname");
+        expect(hostname.test("example.com")).toBe(true);
+        expect(hostname.test("sub.domain.example.com")).toBe(true);
     });
 });
 

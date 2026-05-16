@@ -64,9 +64,12 @@ export async function bundleOpenApiDoc(
     if (!isObject(result.components)) {
         result.components = {};
     }
-    const components = result.components;
-    if (!isObject(components.schemas)) {
-        components.schemas = {};
+    // Ensure components.schemas exists
+    if (!isObject(result.components)) {
+        result.components = {};
+    }
+    if (isObject(result.components) && !isObject(result.components.schemas)) {
+        result.components.schemas = {};
     }
 
     // Walk and inline external refs

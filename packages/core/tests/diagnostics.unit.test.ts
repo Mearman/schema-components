@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import { walk } from "../src/core/walker.ts";
 import { normaliseSchema } from "../src/core/adapter.ts";
 import type { Diagnostic, DiagnosticSink } from "../src/core/diagnostics.ts";
+import { assertDefined } from "./helpers.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,8 +32,9 @@ describe("walker diagnostics", () => {
             walk({}, { diagnostics: { diagnostics: sink } });
         });
         expect(diags.length).toBe(1);
-        expect(diags[0].code).toBe("unsupported-type");
-        expect(diags[0].pointer).toBe("");
+        const diag = assertDefined(diags[0], "expected diagnostic");
+        expect(diag.code).toBe("unsupported-type");
+        expect(diag.pointer).toBe("");
     });
 
     it("emits unsupported-type for unknown type string", () => {
@@ -40,8 +42,9 @@ describe("walker diagnostics", () => {
             walk({ type: "custom" }, { diagnostics: { diagnostics: sink } });
         });
         expect(diags.length).toBe(1);
-        expect(diags[0].code).toBe("unsupported-type");
-        expect(diags[0].detail?.type).toBe("custom");
+        const diag = assertDefined(diags[0], "expected diagnostic");
+        expect(diag.code).toBe("unsupported-type");
+        expect(diag.detail?.type).toBe("custom");
     });
 
     it("emits invalid-const for non-primitive const value", () => {
@@ -52,7 +55,8 @@ describe("walker diagnostics", () => {
             );
         });
         expect(diags.length).toBe(1);
-        expect(diags[0].code).toBe("invalid-const");
+        const diag = assertDefined(diags[0], "expected diagnostic");
+        expect(diag.code).toBe("invalid-const");
     });
 
     it("does not emit invalid-const for primitive const value", () => {
@@ -70,7 +74,8 @@ describe("walker diagnostics", () => {
             );
         });
         expect(diags.length).toBe(1);
-        expect(diags[0].code).toBe("type-negation-fallback");
+        const diag = assertDefined(diags[0], "expected diagnostic");
+        expect(diag.code).toBe("type-negation-fallback");
     });
 
     it("emits conditional-fallback for if/then/else schema", () => {
@@ -99,9 +104,8 @@ describe("walker diagnostics", () => {
         });
         const external = diags.filter((d) => d.code === "external-ref");
         expect(external.length).toBe(1);
-        expect(external[0].detail?.ref).toBe(
-            "external.yaml#/components/schemas/Pet"
-        );
+        const ext = assertDefined(external[0], "expected external-ref");
+        expect(ext.detail?.ref).toBe("external.yaml#/components/schemas/Pet");
         // Also emits unresolved-ref since dereference can't resolve external refs
         const unresolved = diags.filter((d) => d.code === "unresolved-ref");
         expect(unresolved.length).toBe(1);
@@ -121,7 +125,11 @@ describe("walker diagnostics", () => {
         });
         const unsupported = diags.filter((d) => d.code === "unsupported-type");
         expect(unsupported.length).toBe(1);
-        expect(unsupported[0].pointer).toBe("/inner");
+        const unsup = assertDefined(
+            unsupported[0],
+            "expected unsupported-type"
+        );
+        expect(unsup.pointer).toBe("/inner");
     });
 
     it("emits unknown-format for unrecognised format string", () => {
@@ -133,7 +141,8 @@ describe("walker diagnostics", () => {
         });
         const fmt = diags.filter((d) => d.code === "unknown-format");
         expect(fmt.length).toBe(1);
-        expect(fmt[0].detail?.format).toBe("custom-format");
+        const fmtDiag = assertDefined(fmt[0], "expected unknown-format");
+        expect(fmtDiag.detail?.format).toBe("custom-format");
     });
 
     it("does not emit unknown-format for known formats", () => {
@@ -176,7 +185,8 @@ describe("ref diagnostics", () => {
         });
         const unresolved = diags.filter((d) => d.code === "unresolved-ref");
         expect(unresolved.length).toBe(1);
-        expect(unresolved[0].detail?.ref).toBe("#/components/schemas/Missing");
+        const ref = assertDefined(unresolved[0], "expected unresolved-ref");
+        expect(ref.detail?.ref).toBe("#/components/schemas/Missing");
     });
 });
 

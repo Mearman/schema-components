@@ -97,7 +97,12 @@ export function SchemaView({
 
     const diagnostics: DiagnosticsOptions | undefined =
         onDiagnostic !== undefined || strict === true
-            ? { diagnostics: onDiagnostic, strict }
+            ? {
+                  ...(onDiagnostic !== undefined
+                      ? { diagnostics: onDiagnostic }
+                      : {}),
+                  ...(strict !== undefined ? { strict } : {}),
+              }
             : undefined;
 
     // Normalise input → JSON Schema
@@ -105,9 +110,11 @@ export function SchemaView({
     let rootMeta: SchemaMeta | undefined;
     let rootDocument: Record<string, unknown>;
     try {
-        const normalised = normaliseSchema(schemaInput, refInput, {
-            diagnostics,
-        });
+        const normalised = normaliseSchema(
+            schemaInput,
+            refInput,
+            diagnostics !== undefined ? { diagnostics } : undefined
+        );
         jsonSchema = normalised.jsonSchema;
         rootMeta = normalised.rootMeta;
         rootDocument = normalised.rootDocument;
@@ -125,7 +132,7 @@ export function SchemaView({
         rootMeta,
         fieldOverrides: fields,
         rootDocument,
-        diagnostics,
+        ...(diagnostics !== undefined ? { diagnostics } : {}),
     };
 
     const tree = walk(jsonSchema, walkOptions);

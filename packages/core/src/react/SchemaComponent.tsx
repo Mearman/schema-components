@@ -200,7 +200,12 @@ export function SchemaComponent<
 
     const diagnostics: DiagnosticsOptions | undefined =
         onDiagnostic !== undefined || strict === true
-            ? { diagnostics: onDiagnostic, strict }
+            ? {
+                  ...(onDiagnostic !== undefined
+                      ? { diagnostics: onDiagnostic }
+                      : {}),
+                  ...(strict !== undefined ? { strict } : {}),
+              }
             : undefined;
 
     // Normalise input → JSON Schema
@@ -209,9 +214,11 @@ export function SchemaComponent<
     let rootMeta: SchemaMeta | undefined;
     let rootDocument: Record<string, unknown>;
     try {
-        const normalised = normaliseSchema(schemaInput, refInput, {
-            diagnostics,
-        });
+        const normalised = normaliseSchema(
+            schemaInput,
+            refInput,
+            diagnostics !== undefined ? { diagnostics } : undefined
+        );
         jsonSchema = normalised.jsonSchema;
         zodSchema = normalised.zodSchema;
         rootMeta = normalised.rootMeta;
@@ -251,7 +258,7 @@ export function SchemaComponent<
         rootMeta,
         fieldOverrides: fields,
         rootDocument,
-        diagnostics,
+        ...(diagnostics !== undefined ? { diagnostics } : {}),
     };
 
     const tree = walk(jsonSchema, walkOptions);

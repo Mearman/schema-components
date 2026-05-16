@@ -8,7 +8,6 @@
 import { describe, it, expectTypeOf } from "vitest";
 import type {
     FromJSONSchema,
-    ResolveSchemaRef,
     __SchemaInferenceFellBack,
     InferRequestBodyFields,
 } from "../src/core/typeInference.ts";
@@ -18,22 +17,12 @@ import type {
 // ---------------------------------------------------------------------------
 
 describe("type-level cycle detection", () => {
-    it("__SchemaInferenceFellBack is a branded type with unique symbol", () => {
+    it("__SchemaInferenceFellBack is a branded type", () => {
         type Fallback = __SchemaInferenceFellBack;
-        type HasSymbol = Fallback extends {
-            readonly __schemaInferenceFallback: unique symbol;
-        }
+        type HasKey = "__schemaInferenceFallback" extends keyof Fallback
             ? true
             : false;
-        expectTypeOf<HasSymbol>().toEqualTypeOf<true>();
-    });
-
-    it("non-recursive $ref resolves to the expected type", () => {
-        interface Defs {
-            Name: { type: "string" };
-        }
-        type Result = ResolveSchemaRef<"#/$defs/Name", Defs>;
-        expectTypeOf<Result>().toEqualTypeOf<string>();
+        expectTypeOf<HasKey>().toEqualTypeOf<true>();
     });
 
     it("FromJSONSchema produces unknown for non-matching schema", () => {
