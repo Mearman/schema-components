@@ -107,6 +107,10 @@ export function normaliseSwagger2Document(
         result.externalDocs = doc.externalDocs;
     }
 
+    // Rewrite $ref strings from Swagger 2.0 locations to OpenAPI 3.x
+    // locations: #/definitions/X → #/components/schemas/X, etc.
+    rewriteSwaggerRefs(result);
+
     return result;
 }
 
@@ -510,4 +514,48 @@ function normaliseSwaggerResponses(
     }
 
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// $ref rewriting
+// ---------------------------------------------------------------------------
+
+/**
+ * Mapping of Swagger 2.0 $ref prefixes to OpenAPI 3.x equivalents.
+ * Applied after document restructuring so all $ref strings point
+ * to the correct locations in the normalised document.
+ */
+const REF_REWRITES: readonly [string, string][] = [
+    ["#/definitions/", "#/components/schemas/"],
+    ["#/parameters/", "#/components/parameters/"],
+    ["#/responses/", "#/components/responses/"],
+];
+
+/**
+ * Deep-rewrite $ref strings in a normalised Swagger 2.0 document
+ * from Swagger 2.0 locations to OpenAPI 3.x locations.
+ * Mutates the object in place \u2014 called only on the fresh clone
+ * produced by normaliseSwagger2Document.
+ */
+function rewriteSwaggerRefs(node: unknown): void {
+    if (!isObject(node)) return;
+
+    if (typeof node.$ref === "string") {
+        for (const [from, to] of REF_REWRITES) {
+            if (node.$ref.startsWith(from)) {
+                node.$ref = to + node.$ref.slice(from.length);
+                break;
+            }
+        }
+    }
+
+    for (const value of Object.values(node)) {
+        if (isObject(value)) {
+            rewriteSwaggerRefs(value);
+        } else if (Array.isArray(value)) {
+            for (const item of value) {
+                rewriteSwaggerRefs(item);
+            }
+        }
+    }
 }
