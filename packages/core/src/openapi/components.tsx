@@ -27,6 +27,7 @@ import type {
     InferParameterOverrides,
     InferRequestBodyFields,
     InferResponseFields,
+    UnsafeFields,
 } from "../core/typeInference.ts";
 import { toRecordOrUndefined } from "../core/guards.ts";
 import { SchemaNormalisationError } from "../core/errors.ts";
@@ -138,6 +139,11 @@ export interface ApiOperationProps<
     requestBodyFields?: Doc extends Record<string, unknown>
         ? InferRequestBodyFields<Doc, Path, Method>
         : Record<string, FieldOverride>;
+    /** Escape hatch for recursive schemas where type-level inference fails.
+     * Typed as Record<string, FieldOverride> — use when the schema contains
+     * deeply nested $ref chains.
+     */
+    unsafeFields?: UnsafeFields;
     /** Instance-scoped widgets. */
     widgets?: WidgetMap;
 }

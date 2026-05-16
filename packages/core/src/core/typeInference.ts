@@ -85,6 +85,44 @@ export type FromJSONSchema<
                           : unknown;
 
 /**
+ * Marker type emitted when OpenAPI $ref resolution hits the type-level
+ * recursion depth limit. Instead of silently falling back to
+ * `Record<string, FieldOverride>`, produces this branded type so
+ * consumers can detect it via conditional types.
+ *
+ * Usage:
+ * ```ts
+ * type Fields = InferRequestBodyFields<Doc, "/users", "post">;
+ * type IsFallback = Fields extends __SchemaInferenceFellBack ? true : false;
+ * ```
+ */
+export interface __SchemaInferenceFellBack {
+    readonly __schemaInferenceFallback: unique symbol;
+}
+
+/**
+ * Escape hatch for recursive schemas where type-level inference
+ * cannot proceed. Typed as `Record<string, FieldOverride>` but
+ * explicitly branded so callers know they are using the unsafe path.
+ *
+ * JSDoc trade-off note: This bypasses field-level type safety.
+ * Prefer restructuring the schema to avoid deep $ref chains
+ * when possible.
+ */
+export type UnsafeFields = Record<string, FieldOverride> & {
+    /** Marks this as the unsafe fallback for recursive schemas. */
+    readonly __unsafe?: true;
+};
+
+/**
+ * Convert a `FromJSONSchema` result to `unknown` when recursion is detected.
+ * Returns the original type when the schema is non-recursive.
+ */
+type DetectRecursiveFallback<T> = unknown extends T
+    ? __SchemaInferenceFellBack
+    : T;
+
+/**
  * Resolve a $ref against the local definitions context.
  * Supports:
  * - `#` (root)
@@ -94,21 +132,26 @@ export type FromJSONSchema<
 type ResolveSchemaRef<
     R extends string,
     Defs extends Record<string, unknown>,
-> = R extends "#"
-    ? unknown
-    : R extends `#/$defs/${infer Name}`
-      ? Name extends keyof Defs
-          ? FromJSONSchema<Defs[Name], Defs>
-          : unknown
-      : R extends `#/definitions/${infer Name}`
+    Depth extends number = 0,
+> = Depth extends 10
+    ? __SchemaInferenceFellBack
+    : R extends "#"
+      ? unknown
+      : R extends `#/$defs/${infer Name}`
         ? Name extends keyof Defs
-            ? FromJSONSchema<Defs[Name], Defs>
+            ? DetectRecursiveFallback<FromJSONSchema<Defs[Name], Defs>>
             : unknown
-        : R extends `#${infer AnchorName}`
-          ? AnchorName extends keyof Defs
-              ? FromJSONSchema<Defs[AnchorName], Defs>
+        : R extends `#/definitions/${infer Name}`
+          ? Name extends keyof Defs
+              ? DetectRecursiveFallback<FromJSONSchema<Defs[Name], Defs>>
               : unknown
-          : unknown;
+          : R extends `#${infer AnchorName}`
+            ? AnchorName extends keyof Defs
+                ? DetectRecursiveFallback<
+                      FromJSONSchema<Defs[AnchorName], Defs>
+                  >
+                : unknown
+            : unknown;
 
 /**
  * Merge an allOf array into an intersection type.
@@ -519,7 +562,9 @@ export type OpenAPIResponseType<
 
 /**
  * Infer the fields prop type for ApiRequestBody.
- * Falls back to Record<string, FieldOverride> for runtime documents.
+ * Surfaces `__SchemaInferenceFellBack` when the schema contains
+ * recursive $ref chains that exceed type-level depth limits.
+ * Falls back to `Record<string, FieldOverride>` for runtime documents.
  */
 export type InferRequestBodyFields<
     Doc,
@@ -527,12 +572,20 @@ export type InferRequestBodyFields<
     Method extends string,
 > =
     unknown extends OpenAPIRequestBodyType<Doc, Path, Method>
-        ? Record<string, FieldOverride>
+        ? OpenAPIRequestBodyType<
+              Doc,
+              Path,
+              Method
+          > extends __SchemaInferenceFellBack
+            ? __SchemaInferenceFellBack
+            : Record<string, FieldOverride>
         : FieldOverrides<OpenAPIRequestBodyType<Doc, Path, Method>>;
 
 /**
  * Infer the fields prop type for ApiResponse.
- * Falls back to Record<string, FieldOverride> for runtime documents.
+ * Surfaces `__SchemaInferenceFellBack` when the schema contains
+ * recursive $ref chains that exceed type-level depth limits.
+ * Falls back to `Record<string, FieldOverride>` for runtime documents.
  */
 export type InferResponseFields<
     Doc,
@@ -541,12 +594,19 @@ export type InferResponseFields<
     Status extends string,
 > =
     unknown extends OpenAPIResponseType<Doc, Path, Method, Status>
-        ? Record<string, FieldOverride>
+        ? OpenAPIResponseType<
+              Doc,
+              Path,
+              Method,
+              Status
+          > extends __SchemaInferenceFellBack
+            ? __SchemaInferenceFellBack
+            : Record<string, FieldOverride>
         : FieldOverrides<OpenAPIResponseType<Doc, Path, Method, Status>>;
 
 /**
  * Infer the overrides prop type for ApiParameters.
- * Falls back to Record<string, FieldOverride> for runtime documents.
+ * Falls back to `Record<string, FieldOverride>` for runtime documents.
  */
 export type InferParameterOverrides<
     Doc,
