@@ -132,6 +132,22 @@ export function deepNormalise(
                 result[key] = value;
             }
         }
+        // dependencies: mixed map — string[] values pass through,
+        // schema-object values need recursive normalisation.
+        // After the per-node transform, this key will have been removed
+        // (replaced by dependentRequired/dependentSchemas), but during
+        // recursion the transform hasn't run yet on children.
+        else if (key === "dependencies" && isObject(value)) {
+            const normalised: Record<string, unknown> = {};
+            for (const [dk, dv] of Object.entries(value)) {
+                if (isObject(dv)) {
+                    normalised[dk] = deepNormalise(dv, transform);
+                } else {
+                    normalised[dk] = dv;
+                }
+            }
+            result[key] = normalised;
+        }
         // Non-schema values: pass through
         else {
             result[key] = value;
@@ -139,6 +155,71 @@ export function deepNormalise(
     }
 
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// Legacy `dependencies` splitting (Draft 04–07)
+// ---------------------------------------------------------------------------
+
+/**
+ * Split the legacy `dependencies` keyword into `dependentRequired` and
+ * `dependentSchemas` per the Draft 2019-09+ replacement.
+ *
+ * Each key in `dependencies` maps to either:
+ * - `string[]` → `dependentRequired`
+ * - A schema object → `dependentSchemas`
+ *
+ * Both forms can coexist within the same `dependencies` object.
+ * After splitting, `dependencies` is removed from the node.
+ */
+function splitDependencies(node: Record<string, unknown>): void {
+    const deps = node.dependencies;
+    if (!isObject(deps)) return;
+
+    const requiredEntries: Record<string, string[]> = {};
+    const schemaEntries: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(deps)) {
+        if (Array.isArray(value)) {
+            const strings = value.filter(
+                (v): v is string => typeof v === "string"
+            );
+            if (strings.length === value.length) {
+                requiredEntries[key] = strings;
+            }
+        } else if (isObject(value)) {
+            schemaEntries[key] = value;
+        }
+        // Malformed values (neither string[] nor schema object) are dropped.
+        // The walker will not encounter them, which is the correct behaviour
+        // for invalid input.
+    }
+
+    if (Object.keys(requiredEntries).length > 0) {
+        // Merge with any existing dependentRequired
+        const existing = node.dependentRequired;
+        if (isObject(existing)) {
+            for (const [k, v] of Object.entries(requiredEntries)) {
+                existing[k] = v;
+            }
+        } else {
+            node.dependentRequired = requiredEntries;
+        }
+    }
+
+    if (Object.keys(schemaEntries).length > 0) {
+        // Merge with any existing dependentSchemas
+        const existing = node.dependentSchemas;
+        if (isObject(existing)) {
+            for (const [k, v] of Object.entries(schemaEntries)) {
+                existing[k] = v;
+            }
+        } else {
+            node.dependentSchemas = schemaEntries;
+        }
+    }
+
+    delete node.dependencies;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +281,28 @@ export function normaliseDraft04Node(
         }
     }
 
+    // Draft 04: dependencies → dependentRequired + dependentSchemas
+    splitDependencies(node);
+
+    return node;
+}
+
+// ---------------------------------------------------------------------------
+// Draft 06/07: dependencies splitting + passthrough normalisation
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalise Draft 06/07 nodes.
+ *
+ * These drafts introduced `exclusiveMinimum`/`exclusiveMaximum` as numbers
+ * (already in final form) and `const`/`examples`, but still use the
+ * legacy `dependencies` keyword. Split it into `dependentRequired` /
+ * `dependentSchemas` so the walker can process them uniformly.
+ */
+function normaliseDraft06Or07Node(
+    node: Record<string, unknown>
+): Record<string, unknown> {
+    splitDependencies(node);
     return node;
 }
 
@@ -287,7 +390,7 @@ export function normaliseJsonSchema(
             return deepNormalise(schema, normaliseDynamicRefNode);
         case "draft-06":
         case "draft-07":
-            return schema;
+            return deepNormalise(schema, normaliseDraft06Or07Node);
     }
 }
 
