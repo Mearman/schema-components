@@ -2,7 +2,7 @@
  * $ref resolution for JSON Schema.
  *
  * Handles JSON Pointer dereference, $anchor lookup, cycle detection,
- * and maximum depth limiting.
+ * and depth limiting derived from the document's own $ref count.
  */
 
 import { isObject } from "./guards.ts";
@@ -41,10 +41,38 @@ function getString(
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Derived depth bound
 // ---------------------------------------------------------------------------
 
-const MAX_REF_DEPTH = 10;
+/**
+ * Count all distinct `$ref` strings reachable from a root document.
+ * A chain longer than the number of distinct refs is necessarily cyclic.
+ * Returns at least 1 so that single-ref schemas have a usable bound.
+ */
+export function countDistinctRefs(root: Record<string, unknown>): number {
+    const refs = new Set<string>();
+    collectRefs(root, refs);
+    return Math.max(refs.size, 1);
+}
+
+function collectRefs(node: unknown, refs: Set<string>): void {
+    if (!isObject(node)) return;
+
+    const ref = node.$ref;
+    if (typeof ref === "string") {
+        refs.add(ref);
+    }
+
+    for (const value of Object.values(node)) {
+        if (isObject(value)) {
+            collectRefs(value, refs);
+        } else if (Array.isArray(value)) {
+            for (const item of value) {
+                collectRefs(item, refs);
+            }
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // $ref resolution
@@ -54,12 +82,17 @@ const MAX_REF_DEPTH = 10;
  * Resolve a `$ref` in a schema against a root document.
  * Returns the original schema if no `$ref` is present.
  * Returns an unknown-schema placeholder on cycle or depth exceeded.
+ *
+ * The depth bound is derived from the number of distinct `$ref` strings
+ * in the root document — a chain longer than that count is necessarily
+ * cyclic. When `maxDepth` is not provided, a reasonable default is used.
  */
 export function resolveRef(
     schema: Record<string, unknown>,
     rootDocument: Record<string, unknown>,
     visited: Set<string>,
-    diagnostics?: DiagnosticsOptions
+    diagnostics?: DiagnosticsOptions,
+    maxDepth?: number
 ): Record<string, unknown> {
     const ref = getString(schema, "$ref");
     if (ref === undefined) return schema;
@@ -79,12 +112,16 @@ export function resolveRef(
             constraints: {},
         };
     }
-    if (visited.size >= MAX_REF_DEPTH) {
+
+    // Depth bound: derived from document's distinct ref count, or a
+    // reasonable default of 64 for callers that don't pre-compute.
+    const depthLimit = maxDepth ?? 64;
+    if (visited.size >= depthLimit) {
         emitDiagnostic(diagnostics, {
-            code: "unresolved-ref",
-            message: `Maximum $ref depth exceeded: ${ref}`,
+            code: "depth-exceeded",
+            message: `$ref depth exceeded derived bound (${String(depthLimit)}): ${ref}`,
             pointer: ref,
-            detail: { ref, depth: visited.size },
+            detail: { ref, depth: visited.size, bound: depthLimit },
         });
         return {
             type: "unknown",
@@ -114,7 +151,13 @@ export function resolveRef(
     // Recursively resolve if the target is also a $ref
     const nextVisited = new Set(visited);
     nextVisited.add(ref);
-    return resolveRef(resolved, rootDocument, nextVisited, diagnostics);
+    return resolveRef(
+        resolved,
+        rootDocument,
+        nextVisited,
+        diagnostics,
+        maxDepth
+    );
 }
 
 // ---------------------------------------------------------------------------

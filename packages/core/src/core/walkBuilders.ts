@@ -165,6 +165,8 @@ export interface WalkContext {
     pointer: string;
     /** Diagnostics channel for surfacing silent fallbacks. */
     diagnostics: DiagnosticsOptions | undefined;
+    /** Derived $ref depth bound from the root document. */
+    maxRefDepth: number;
 }
 
 // ---------------------------------------------------------------------------

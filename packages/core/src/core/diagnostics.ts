@@ -32,7 +32,8 @@ export type DiagnosticCode =
     | "external-ref"
     | "type-negation-fallback"
     | "conditional-fallback"
-    | "assumed-draft";
+    | "assumed-draft"
+    | "depth-exceeded";
 
 // ---------------------------------------------------------------------------
 // Diagnostic structure

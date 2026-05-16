@@ -23,7 +23,7 @@ import type {
     NegationField,
 } from "./types.ts";
 import { isObject } from "./guards.ts";
-import { resolveRef } from "./ref.ts";
+import { resolveRef, countDistinctRefs } from "./ref.ts";
 import { mergeAllOf, normaliseAnyOf, detectDiscriminated } from "./merge.ts";
 import {
     extractArrayConstraints,
@@ -86,7 +86,14 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
 
     // Resolve $ref if present
     const doc = rootDocument ?? schema;
-    const resolved = resolveRef(schema, doc, new Set(), diagnostics);
+    const maxRefDepth = countDistinctRefs(doc);
+    const resolved = resolveRef(
+        schema,
+        doc,
+        new Set(),
+        diagnostics,
+        maxRefDepth
+    );
 
     return walkNode(resolved, {
         componentMeta,
@@ -99,6 +106,7 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         refResults: new Map(),
         pointer: "",
         diagnostics,
+        maxRefDepth,
     });
 }
 
@@ -153,7 +161,8 @@ function walkNode(
             schema,
             ctx.rootDocument,
             new Set(),
-            ctx.diagnostics
+            ctx.diagnostics,
+            ctx.maxRefDepth
         );
 
         // Placeholder is stored in the cache BEFORE recursing so that
