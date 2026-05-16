@@ -75,7 +75,7 @@ function renderSchema(
         }
     }
 
-    const walkOpts: import("../core/walker.ts").WalkOptions = {
+    const walkOpts: import("../core/walkBuilders.ts").WalkOptions = {
         componentMeta,
         rootMeta,
         fieldOverrides: toRecordOrUndefined(options.fields),

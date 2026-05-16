@@ -15,7 +15,8 @@
 
 import { normaliseSchema } from "../core/adapter.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
-import { walk, type WalkOptions } from "../core/walker.ts";
+import { walk } from "../core/walker.ts";
+import type { WalkOptions } from "../core/walkBuilders.ts";
 import { mergeHtmlResolvers } from "../core/renderer.ts";
 import type { HtmlResolver } from "../core/renderer.ts";
 import { defaultHtmlResolver } from "./renderers.ts";
