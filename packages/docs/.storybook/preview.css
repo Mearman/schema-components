@@ -422,6 +422,122 @@
 }
 
 /* =========================================================================
+   MDX & autodocs content elements
+
+   addon-docs renders MDX content with emotion-injected styles that hardcode
+   light-mode colours (dark grey text, white backgrounds, etc.). Specificity
+   of .sbdocs.sbdocs-content X (0-2-1) beats emotion's css-* class (0-1-0).
+   All colours flow through --sc-* variables which themselves switch via the
+   .dark-theme class and @media (prefers-color-scheme: dark) — so a single
+   rule covers light/dark/decorator/OS-preference modes.
+
+   Mermaid <pre class="mermaid"> and Highlight.js <code class="hljs"> render
+   their own theme-aware tokens and must not be reset here.
+   ========================================================================= */
+
+.sbdocs.sbdocs-content h2,
+.sbdocs.sbdocs-content h3,
+.sbdocs.sbdocs-content h4,
+.sbdocs.sbdocs-content h5,
+.sbdocs.sbdocs-content h6,
+.sbdocs.sbdocs-content .sbdocs-h2,
+.sbdocs.sbdocs-content .sbdocs-h3,
+.sbdocs.sbdocs-content .sbdocs-h4 {
+    color: var(--sc-text);
+}
+
+.sbdocs.sbdocs-content .sbdocs-subtitle {
+    color: var(--sc-text-secondary);
+}
+
+.sbdocs.sbdocs-content p,
+.sbdocs.sbdocs-content li {
+    color: var(--sc-text-secondary);
+}
+
+.sbdocs.sbdocs-content strong,
+.sbdocs.sbdocs-content em {
+    color: var(--sc-text);
+}
+
+.sbdocs.sbdocs-content a,
+.sbdocs.sbdocs-content .sbdocs-a {
+    color: var(--sc-link);
+}
+
+.sbdocs.sbdocs-content code:not(.hljs) {
+    color: var(--sc-code-text);
+    background: var(--sc-code-bg);
+}
+
+.sbdocs.sbdocs-content pre:not(.mermaid):not(.hljs) {
+    color: var(--sc-code-text);
+    background: var(--sc-code-bg);
+    border-color: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content pre:not(.mermaid) code {
+    color: inherit;
+    background: transparent;
+}
+
+.sbdocs.sbdocs-content blockquote {
+    color: var(--sc-text-secondary);
+    border-left-color: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content hr {
+    border-color: var(--sc-border);
+    background: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content table {
+    color: var(--sc-text);
+    border-color: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content th {
+    color: var(--sc-text);
+    background: var(--sc-bg-secondary);
+    border-color: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content td {
+    color: var(--sc-text);
+    background: transparent;
+    border-color: var(--sc-border);
+}
+
+/*
+ * <Controls /> and <ArgTypes /> render a .docblock-argstable with emotion
+ * styles whose selectors (.docblock-argstable td) have specificity matching
+ * the plain table rules above, so cascade order decides. Bump specificity
+ * with the .docblock-argstable class to win deterministically.
+ */
+.sbdocs.sbdocs-content .docblock-argstable,
+.sbdocs.sbdocs-content .docblock-argstable tr,
+.sbdocs.sbdocs-content .docblock-argstable th,
+.sbdocs.sbdocs-content .docblock-argstable td {
+    background: transparent;
+    color: var(--sc-text);
+    border-color: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content .docblock-argstable th {
+    color: var(--sc-text-secondary);
+    background: var(--sc-bg-secondary);
+}
+
+.sbdocs.sbdocs-content .docblock-argstable tr:nth-of-type(2n) td {
+    background: var(--sc-bg-secondary);
+}
+
+.sbdocs.sbdocs-content .docblock-argstable code {
+    color: var(--sc-code-text);
+    background: var(--sc-code-bg);
+}
+
+/* =========================================================================
    Base element resets & defaults
    ========================================================================= */
 
