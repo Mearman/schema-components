@@ -195,6 +195,8 @@ export interface ArrayConstraints {
     contains?: Record<string, unknown>;
     minContains?: number;
     maxContains?: number;
+    /** Constraint schema for unevaluated items. */
+    unevaluatedItems?: Record<string, unknown>;
 }
 
 /** Constraints that apply to object schemas. */
@@ -286,6 +288,16 @@ export interface ObjectField extends FieldBase {
     patternProperties?: Record<string, WalkedField>;
     /** Whether `additionalProperties` is explicitly `false` (closed). */
     additionalPropertiesClosed?: boolean;
+    /** Schema for additional properties when not `false` and not a Record. */
+    additionalPropertiesSchema?: WalkedField;
+    /** Property-presence-activated sub-schemas from `dependentSchemas`. */
+    dependentSchemas?: Record<string, WalkedField>;
+    /** Property-presence-conditional required fields from `dependentRequired`. */
+    dependentRequired?: Record<string, string[]>;
+    /** Constraint schema for unevaluated properties. */
+    unevaluatedProperties?: WalkedField;
+    /** Whether unevaluatedProperties is explicitly `false`. */
+    unevaluatedPropertiesClosed?: boolean;
 }
 
 export interface ArrayField extends FieldBase {

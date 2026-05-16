@@ -181,7 +181,7 @@ describe("prefixItems / tuples", () => {
 // ---------------------------------------------------------------------------
 
 describe("$dynamicRef / $dynamicAnchor", () => {
-    it("normalises $dynamicRef to $ref", () => {
+    it("normalises $dynamicRef to $ref with $anchor", () => {
         const schema = {
             $dynamicAnchor: "Tree",
             type: "object",
@@ -195,13 +195,16 @@ describe("$dynamicRef / $dynamicAnchor", () => {
         } as Record<string, unknown>;
 
         const normalised = normaliseJsonSchema(schema, "draft-2020-12");
+        // $dynamicAnchor → $anchor
+        expect(normalised.$anchor).toBe("Tree");
         expect("$dynamicAnchor" in normalised).toBe(false);
 
         const properties = normalised.properties as Record<string, unknown>;
         const children = properties.children as Record<string, unknown>;
         const items = children.items as Record<string, unknown>;
         expect("$dynamicRef" in items).toBe(false);
-        expect(items.$ref).toBe("#");
+        // $dynamicRef preserves the fragment for $anchor resolution
+        expect(items.$ref).toBe("#Tree");
     });
 
     it("walks a $dynamicRef schema after normalisation", () => {
