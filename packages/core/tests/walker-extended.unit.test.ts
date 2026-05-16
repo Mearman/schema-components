@@ -136,3 +136,264 @@ describe("circular ref resolution", () => {
         expect(result.type).toBe("object");
     });
 });
+
+// ---------------------------------------------------------------------------
+// propertyNames on ObjectField
+// ---------------------------------------------------------------------------
+
+describe("walk — propertyNames", () => {
+    it("walks propertyNames on an object with properties", () => {
+        const tree = walk({
+            type: "object",
+            properties: {
+                name: { type: "string" },
+            },
+            propertyNames: { pattern: "^[a-zA-Z]" },
+        });
+
+        expect(isObjectField(tree)).toBe(true);
+        if (!isObjectField(tree)) return;
+
+        expect(tree.propertyNames).toBeDefined();
+        expect(tree.propertyNames?.type).toBe("unknown");
+    });
+
+    it("omits propertyNames when not present", () => {
+        const tree = walk({
+            type: "object",
+            properties: {
+                name: { type: "string" },
+            },
+        });
+
+        expect(isObjectField(tree)).toBe(true);
+        if (!isObjectField(tree)) return;
+
+        expect(tree.propertyNames).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// unevaluatedItems on ArrayField
+// ---------------------------------------------------------------------------
+
+describe("walk — unevaluatedItems", () => {
+    it("walks unevaluatedItems on an array", () => {
+        const tree = walk({
+            type: "array",
+            items: { type: "string" },
+            unevaluatedItems: { type: "number" },
+        });
+
+        expect(isArrayField(tree)).toBe(true);
+        if (!isArrayField(tree)) return;
+
+        expect(tree.unevaluatedItems).toBeDefined();
+        expect(tree.unevaluatedItems?.type).toBe("number");
+    });
+
+    it("omits unevaluatedItems when not present", () => {
+        const tree = walk({
+            type: "array",
+            items: { type: "string" },
+        });
+
+        expect(isArrayField(tree)).toBe(true);
+        if (!isArrayField(tree)) return;
+
+        expect(tree.unevaluatedItems).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// examples extraction
+// ---------------------------------------------------------------------------
+
+describe("walk — examples", () => {
+    it("extracts examples from a string schema", () => {
+        const tree = walk({
+            type: "string",
+            examples: ["hello", "world"],
+        });
+
+        expect(tree.type).toBe("string");
+        expect(tree.examples).toEqual(["hello", "world"]);
+    });
+
+    it("extracts examples from an object with nested examples", () => {
+        const tree = walk({
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    examples: ["Ada", "Grace"],
+                },
+            },
+        });
+
+        expect(isObjectField(tree)).toBe(true);
+        if (!isObjectField(tree)) return;
+
+        const nameField = tree.fields.name;
+        expect(nameField).toBeDefined();
+        expect(nameField?.examples).toEqual(["Ada", "Grace"]);
+    });
+
+    it("omits examples when not present", () => {
+        const tree = walk({
+            type: "string",
+        });
+
+        expect(tree.examples).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// OpenAPI parser extensions
+// ---------------------------------------------------------------------------
+
+describe("OpenAPI parser extensions", () => {
+    it("extracts externalDocs from a schema", async () => {
+        const { getExternalDocs } = await import("../src/openapi/parser.ts");
+        const docs = getExternalDocs({
+            externalDocs: {
+                url: "https://example.com/docs",
+                description: "API docs",
+            },
+        });
+        expect(docs).toEqual({
+            url: "https://example.com/docs",
+            description: "API docs",
+        });
+    });
+
+    it("returns undefined for missing externalDocs", async () => {
+        const { getExternalDocs } = await import("../src/openapi/parser.ts");
+        const docs = getExternalDocs({});
+        expect(docs).toBeUndefined();
+    });
+
+    it("extracts XML info from a schema", async () => {
+        const { getXmlInfo } = await import("../src/openapi/parser.ts");
+        const xml = getXmlInfo({
+            xml: {
+                name: "Pet",
+                namespace: "https://example.com",
+                prefix: "pet",
+                attribute: true,
+                wrapped: false,
+            },
+        });
+        expect(xml).toEqual({
+            name: "Pet",
+            namespace: "https://example.com",
+            prefix: "pet",
+            attribute: true,
+            wrapped: false,
+        });
+    });
+
+    it("returns undefined for missing XML info", async () => {
+        const { getXmlInfo } = await import("../src/openapi/parser.ts");
+        const xml = getXmlInfo({});
+        expect(xml).toBeUndefined();
+    });
+
+    it("lists callbacks from an operation", async () => {
+        const { parseOpenApiDocument, listCallbacks } =
+            await import("../src/openapi/parser.ts");
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/subscribe": {
+                    post: {
+                        summary: "Subscribe",
+                        callbacks: {
+                            onEvent: {
+                                "{$request.body#/callbackUrl}": {
+                                    post: {
+                                        summary: "Event callback",
+                                        requestBody: {
+                                            content: {
+                                                "application/json": {
+                                                    schema: {
+                                                        type: "object",
+                                                    },
+                                                },
+                                            },
+                                        },
+                                        responses: {
+                                            "200": { description: "OK" },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        responses: { "200": { description: "Subscribed" } },
+                    },
+                },
+            },
+        };
+        const parsed = parseOpenApiDocument(doc);
+        const callbacks = listCallbacks(parsed, "/subscribe", "post");
+        expect(callbacks.length).toBe(1);
+        expect(callbacks[0]?.name).toBe("onEvent");
+        expect(callbacks[0]?.operations.length).toBe(1);
+    });
+
+    it("lists links from a response", async () => {
+        const { parseOpenApiDocument, getLinks } =
+            await import("../src/openapi/parser.ts");
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/users": {
+                    post: {
+                        summary: "Create user",
+                        responses: {
+                            "201": {
+                                description: "Created",
+                                links: {
+                                    GetUserById: {
+                                        operationId: "getUser",
+                                        parameters: {
+                                            userId: "$response.body#/id",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const parsed = parseOpenApiDocument(doc);
+        const links = getLinks(parsed, "/users", "post", "201");
+        expect(links.length).toBe(1);
+        expect(links[0]?.name).toBe("GetUserById");
+        expect(links[0]?.operationId).toBe("getUser");
+        expect(links[0]?.parameters.get("userId")).toBe("$response.body#/id");
+    });
+
+    it("returns empty arrays for missing callbacks and links", async () => {
+        const { parseOpenApiDocument, listCallbacks, getLinks } =
+            await import("../src/openapi/parser.ts");
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: {
+                        summary: "List items",
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+        };
+        const parsed = parseOpenApiDocument(doc);
+        expect(listCallbacks(parsed, "/items", "get")).toEqual([]);
+        expect(getLinks(parsed, "/items", "get", "200")).toEqual([]);
+    });
+});
