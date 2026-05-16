@@ -8,6 +8,7 @@
 
 import { isObject } from "../core/guards.ts";
 import type { NodeTransform } from "./normalise.ts";
+import { normaliseDraft04Node } from "./normalise.ts";
 
 // ---------------------------------------------------------------------------
 // Re-exported node transforms (used by normalise.ts entry points)
@@ -202,13 +203,18 @@ export function normaliseOpenApi30Discriminator(
 // ---------------------------------------------------------------------------
 
 /**
- * Combined OpenAPI 3.0.x node transform: nullable + discriminator.
+ * Combined OpenAPI 3.0.x node transform: Draft 04 + nullable + discriminator.
  * Applied to every schema node in an OpenAPI 3.0 document.
+ *
+ * Draft 04 normalisation is included because OpenAPI 3.0 inherits
+ * Draft 04/05 schema semantics including `exclusiveMinimum: boolean`.
  */
 export function normaliseOpenApi30Combined(
     node: Record<string, unknown>
 ): Record<string, unknown> {
-    return normaliseOpenApi30Discriminator(normaliseOpenApi30Node(node));
+    return normaliseOpenApi30Discriminator(
+        normaliseOpenApi30Node(normaliseDraft04Node(node))
+    );
 }
 
 // ---------------------------------------------------------------------------

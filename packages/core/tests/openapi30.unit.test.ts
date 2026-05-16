@@ -416,3 +416,196 @@ describe("deepNormaliseOpenApi30Doc", () => {
         expect(result.openapi).toBe("3.0.3");
     });
 });
+
+// ---------------------------------------------------------------------------
+// Draft 04 normalisation within OAS 3.0
+// ---------------------------------------------------------------------------
+
+describe("OAS 3.0 Draft 04 normalisation", () => {
+    it("normalises exclusiveMinimum: boolean in components/schemas", () => {
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            components: {
+                schemas: {
+                    Score: {
+                        type: "integer",
+                        minimum: 5,
+                        exclusiveMinimum: true,
+                    },
+                },
+            },
+            paths: {},
+        };
+
+        const result = deepNormaliseOpenApi30Doc(doc, deepNormalise);
+        const schemas = propVal(
+            prop(prop(result, "components"), "schemas"),
+            "Score"
+        );
+        expect(isObject(schemas) ? schemas.exclusiveMinimum : undefined).toBe(
+            5
+        );
+        expect(isObject(schemas) ? schemas.minimum : undefined).toBeUndefined();
+    });
+
+    it("normalises exclusiveMinimum: boolean in path parameter schema", () => {
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/search": {
+                    get: {
+                        parameters: [
+                            {
+                                name: "limit",
+                                in: "query",
+                                schema: {
+                                    type: "integer",
+                                    minimum: 1,
+                                    exclusiveMinimum: true,
+                                },
+                            },
+                        ],
+                        responses: {},
+                    },
+                },
+            },
+        };
+
+        const result = deepNormaliseOpenApi30Doc(doc, deepNormalise);
+        const params = propArr(
+            prop(prop(prop(result, "paths"), "/search"), "get"),
+            "parameters"
+        );
+        expect(params).toBeDefined();
+        if (params === undefined) return;
+        const paramSchema = isObject(params[0]) ? params[0].schema : undefined;
+        expect(
+            isObject(paramSchema) ? paramSchema.exclusiveMinimum : undefined
+        ).toBe(1);
+        expect(
+            isObject(paramSchema) ? paramSchema.minimum : undefined
+        ).toBeUndefined();
+    });
+
+    it("normalises exclusiveMinimum: boolean in request body schema", () => {
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/items": {
+                    post: {
+                        requestBody: {
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "integer",
+                                        minimum: 0,
+                                        exclusiveMinimum: true,
+                                    },
+                                },
+                            },
+                        },
+                        responses: {},
+                    },
+                },
+            },
+        };
+
+        const result = deepNormaliseOpenApi30Doc(doc, deepNormalise);
+        const bodySchema = prop(
+            prop(
+                prop(
+                    prop(
+                        prop(prop(prop(result, "paths"), "/items"), "post"),
+                        "requestBody"
+                    ),
+                    "content"
+                ),
+                "application/json"
+            ),
+            "schema"
+        );
+
+        expect(bodySchema).toBeDefined();
+        if (bodySchema === undefined) return;
+        expect(bodySchema.exclusiveMinimum).toBe(0);
+        expect(bodySchema.minimum).toBeUndefined();
+    });
+
+    it("normalises exclusiveMinimum: boolean in response schema", () => {
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/score": {
+                    get: {
+                        responses: {
+                            "200": {
+                                content: {
+                                    "application/json": {
+                                        schema: {
+                                            type: "integer",
+                                            minimum: 10,
+                                            exclusiveMinimum: true,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        const result = deepNormaliseOpenApi30Doc(doc, deepNormalise);
+        const schema = prop(
+            prop(
+                prop(
+                    prop(
+                        prop(
+                            prop(prop(prop(result, "paths"), "/score"), "get"),
+                            "responses"
+                        ),
+                        "200"
+                    ),
+                    "content"
+                ),
+                "application/json"
+            ),
+            "schema"
+        );
+
+        expect(schema).toBeDefined();
+        if (schema === undefined) return;
+        expect(schema.exclusiveMinimum).toBe(10);
+        expect(schema.minimum).toBeUndefined();
+    });
+
+    it("rewrites id to $id in OAS 3.0 schemas", () => {
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            components: {
+                schemas: {
+                    MySchema: {
+                        id: "my-schema-id",
+                        type: "string",
+                    },
+                },
+            },
+            paths: {},
+        };
+
+        const result = deepNormaliseOpenApi30Doc(doc, deepNormalise);
+        const mySchema = propVal(
+            prop(prop(result, "components"), "schemas"),
+            "MySchema"
+        );
+        expect(isObject(mySchema) ? mySchema.$id : undefined).toBe(
+            "my-schema-id"
+        );
+        expect(isObject(mySchema) ? mySchema.id : undefined).toBeUndefined();
+    });
+});
