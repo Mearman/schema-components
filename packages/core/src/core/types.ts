@@ -162,6 +162,7 @@ export type SchemaType =
     | "negation"
     | "recursive"
     | "file"
+    | "never"
     | "unknown";
 
 // ---------------------------------------------------------------------------
@@ -378,6 +379,12 @@ export interface RecursiveField extends FieldBase {
     refTarget: string;
 }
 
+/** Schema position where `false` appears — the field cannot have any value. */
+export interface NeverField extends FieldBase {
+    type: "never";
+    constraints: Record<string, never>;
+}
+
 export interface UnknownField extends FieldBase {
     type: "unknown";
     constraints: Record<string, never>;
@@ -403,6 +410,7 @@ export type WalkedField =
     | ConditionalField
     | NegationField
     | RecursiveField
+    | NeverField
     | FileField
     | UnknownField;
 
@@ -483,6 +491,10 @@ export function isFileField(field: WalkedField): field is FileField {
 
 export function isRecursiveField(field: WalkedField): field is RecursiveField {
     return isField(field, "recursive");
+}
+
+export function isNeverField(field: WalkedField): field is NeverField {
+    return isField(field, "never");
 }
 
 export function isUnknownField(field: WalkedField): field is UnknownField {

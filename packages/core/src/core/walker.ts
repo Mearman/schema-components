@@ -52,6 +52,52 @@ import type { WalkOptions, WalkContext } from "./walkBuilders.ts";
 import { emitDiagnostic, appendPointer } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
+// Boolean schema handling (true/false at sub-schema positions)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle JSON Schema boolean values (Draft 06+).
+ * - `true` → permissive (unknown, editable)
+ * - `false` → never (cannot hold any value)
+ */
+function walkBooleanSchema(value: boolean): WalkedField {
+    if (value) {
+        return {
+            type: "unknown",
+            editability: "editable",
+            meta: {},
+            constraints: {},
+        };
+    }
+    return {
+        type: "never",
+        editability: "presentation",
+        meta: { rejected: true },
+        constraints: {},
+    };
+}
+
+/**
+ * Walk a sub-schema that may be an object, a boolean, or neither.
+ * Dispatches to walkNode (object), walkBooleanSchema (boolean),
+ * or returns unknown with a diagnostic.
+ */
+function walkSubSchema(value: unknown, ctx: WalkContext): WalkedField {
+    if (isObject(value)) {
+        return walkNode(value, ctx);
+    }
+    if (typeof value === "boolean") {
+        return walkBooleanSchema(value);
+    }
+    return {
+        type: "unknown",
+        editability: "editable",
+        meta: {},
+        constraints: {},
+    };
+}
+
+// ---------------------------------------------------------------------------
 // Walker entry point
 // ---------------------------------------------------------------------------
 
@@ -63,6 +109,10 @@ export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
         rootDocument,
         diagnostics,
     } = options;
+
+    if (typeof schema === "boolean") {
+        return walkBooleanSchema(schema);
+    }
 
     if (!isObject(schema)) {
         return {
@@ -452,6 +502,8 @@ function walkObject(
 
         if (isObject(propSchema)) {
             fields[key] = walkNode(propSchema, childCtx);
+        } else if (typeof propSchema === "boolean") {
+            fields[key] = walkBooleanSchema(propSchema);
         } else {
             fields[key] = {
                 type: "unknown",
@@ -475,6 +527,13 @@ function walkObject(
     const additionalProps = schema.additionalProperties;
     if (additionalProps === false) {
         additionalPropertiesClosed = true;
+    } else if (additionalProps === true) {
+        additionalPropertiesSchema = {
+            type: "unknown",
+            editability: "editable",
+            meta: {},
+            constraints: {},
+        };
     } else if (isObject(additionalProps)) {
         additionalPropertiesSchema = walkNode(additionalProps, ctx);
     }
@@ -497,6 +556,13 @@ function walkObject(
     const unevalProps = schema.unevaluatedProperties;
     if (unevalProps === false) {
         unevaluatedPropertiesClosed = true;
+    } else if (unevalProps === true) {
+        unevaluatedProperties = {
+            type: "unknown",
+            editability: "editable",
+            meta: {},
+            constraints: {},
+        };
     } else if (isObject(unevalProps)) {
         unevaluatedProperties = walkNode(unevalProps, ctx);
     }
@@ -619,17 +685,12 @@ function walkArray(
 }
 
 function walkUnion(options: unknown[], ctx: WalkContext): UnionField {
-    const optionsArray = options.filter(isObject);
+    const walkedOptions = options.map((opt) => walkSubSchema(opt, ctx));
     return {
         ...buildBase({}, ctx),
         type: "union",
         constraints: {},
-        options: optionsArray.map((opt) =>
-            walkNode(opt, {
-                ...ctx,
-                fieldOverrides: undefined,
-            })
-        ),
+        options: walkedOptions,
     };
 }
 
