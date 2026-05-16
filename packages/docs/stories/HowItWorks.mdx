@@ -1,0 +1,88 @@
+import { Meta, Title, Subtitle, Canvas, Source } from "@storybook/addon-docs/blocks";
+import { MdxMermaid } from "../src/MdxMermaid.tsx";
+import * as IntroductionStories from "./Introduction.stories.tsx";
+import * as JsonSchemaStories from "./JsonSchema.stories.tsx";
+
+<Meta title="Getting Started/How it works" />
+
+<Title>How it works</Title>
+
+<Subtitle>
+    One walker, one input format. Every schema source — Zod, JSON Schema, OpenAPI —
+    is normalised to JSON Schema Draft 2020-12 before rendering.
+</Subtitle>
+
+## The pipeline
+
+The library accepts three sources and converges them onto a single internal
+representation before walking the tree and emitting React (or HTML) nodes:
+
+<MdxMermaid
+    chart={`flowchart LR
+  Zod["Zod schema"] -- "z.toJSONSchema()" --> JS["JSON Schema"]
+  JSON["JSON Schema"] --> JS
+  OAS["OpenAPI doc"] -- "extract schemas" --> JS
+  JS -- "walker" --> React["React"]`}
+/>
+
+- **Zod schemas** are converted with the canonical `z.toJSONSchema()` exporter.
+  The conversion is lossless: `readOnly`, `writeOnly`, custom `.meta()` properties,
+  numeric constraints, string formats, defaults, and descriptions all survive.
+- **JSON Schema** objects (Draft 04 through 2020-12) pass through directly. Older
+  drafts are normalised to Draft 2020-12 so the walker only ever sees one shape.
+- **OpenAPI documents** — Swagger 2.0, 3.0.x, and 3.1.x — are restructured into
+  Draft 2020-12 schemas. `nullable`, `discriminator`, `example`, and 3.1 webhooks
+  are translated into their JSON Schema equivalents.
+
+## Why JSON Schema is the lingua franca
+
+Walking a Zod schema directly would couple the renderer to Zod's internal AST,
+which is private and changes between versions. JSON Schema is a stable, public
+standard with the same keywords across every input format we care about. Decoupling
+the walker means:
+
+- The library never reaches into `zod/v4/core` internals.
+- A user can hand-write a JSON Schema object and get the same UI a Zod schema
+  produces.
+- An OpenAPI document parses to the same shape, so component-level rendering
+  (`ApiOperation`, `ApiRequestBody`) shares the same walker code path.
+
+## `z.toJSONSchema` vs `z.fromJSONSchema`
+
+These two helpers live at opposite ends of the pipeline:
+
+| Helper | Direction | Used for |
+| --- | --- | --- |
+| `z.toJSONSchema(schema)` | Zod → JSON Schema | Rendering. Always called for a Zod input. |
+| `z.fromJSONSchema(schema)` | JSON Schema → Zod | Validation only — and only when the input was not originally a Zod schema. |
+
+`z.fromJSONSchema()` is **never** used to drive rendering. It only runs when
+`validate` is `true` and the original input was a JSON Schema or OpenAPI document,
+to recover a Zod schema for `safeParse`. The rendering path always uses the JSON
+Schema directly.
+
+## The same UI from any input
+
+The two canvases below render an equivalent profile form. The left one starts from
+a Zod schema; the right one starts from a hand-written JSON Schema object. Both go
+through the same walker and produce structurally identical output:
+
+### From a Zod schema
+
+<Canvas of={IntroductionStories.Default} />
+
+### From a JSON Schema object
+
+<Canvas of={JsonSchemaStories.Editable} />
+
+## Where to look in the codebase
+
+- `packages/core/src/core/walker.ts` — the JSON Schema walker that drives every
+  renderer.
+- `packages/core/src/core/renderer.ts` — the `ComponentResolver` / `HtmlResolver`
+  contracts that theme adapters implement.
+- `packages/core/src/openapi/*` — the OpenAPI parser that lifts schemas, parameters,
+  and webhooks out of a document.
+
+For the full keyword matrix and documented fallbacks, see
+[`packages/core/README.md`](https://github.com/Mearman/schema-components/blob/main/packages/core/README.md#spec-support).
