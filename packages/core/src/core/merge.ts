@@ -36,6 +36,48 @@ function getObject(
 }
 
 // ---------------------------------------------------------------------------
+// $ref annotation sibling merging
+// ---------------------------------------------------------------------------
+
+/**
+ * Annotation keywords that can appear as siblings of `$ref` per
+ * Draft 2020-12 / OpenAPI 3.1. Structural keywords (type, properties,
+ * etc.) are NOT annotation siblings and should not be merged.
+ */
+export const ANNOTATION_SIBLINGS: ReadonlySet<string> = new Set([
+    "title",
+    "description",
+    "default",
+    "examples",
+    "deprecated",
+    "readOnly",
+    "writeOnly",
+    "$comment",
+]);
+
+/**
+ * Merge annotation siblings from the referencing node onto the
+ * resolved target's annotations. The referencer wins for annotations.
+ *
+ * Structural keywords on the referencer are NOT merged — per spec,
+ * `$ref` with structural siblings was invalid pre-2019-09.
+ *
+ * Returns a new meta object with the merged annotations.
+ */
+export function mergeRefSiblings(
+    referencer: Record<string, unknown>,
+    resolvedMeta: Record<string, unknown>
+): Record<string, unknown> {
+    const merged = { ...resolvedMeta };
+    for (const key of ANNOTATION_SIBLINGS) {
+        if (key in referencer) {
+            merged[key] = referencer[key];
+        }
+    }
+    return merged;
+}
+
+// ---------------------------------------------------------------------------
 // allOf merging
 // ---------------------------------------------------------------------------
 

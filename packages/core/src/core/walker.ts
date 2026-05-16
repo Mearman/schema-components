@@ -24,7 +24,13 @@ import type {
 } from "./types.ts";
 import { isObject } from "./guards.ts";
 import { resolveRef, countDistinctRefs } from "./ref.ts";
-import { mergeAllOf, normaliseAnyOf, detectDiscriminated } from "./merge.ts";
+import {
+    mergeAllOf,
+    normaliseAnyOf,
+    detectDiscriminated,
+    mergeRefSiblings,
+    ANNOTATION_SIBLINGS,
+} from "./merge.ts";
 import {
     extractArrayConstraints,
     extractObjectConstraints,
@@ -207,6 +213,11 @@ function walkNode(
         const cached = ctx.refResults.get(ref);
         if (cached !== undefined) return cached;
 
+        // Collect annotation siblings from the referencing node
+        // before resolving. These override the resolved target's
+        // annotations per Draft 2020-12.
+        const hasSiblings = [...ANNOTATION_SIBLINGS].some((k) => k in schema);
+
         const resolved = resolveRef(
             schema,
             ctx.rootDocument,
@@ -228,7 +239,19 @@ function walkNode(
         };
         ctx.refResults.set(ref, placeholder);
 
-        const result = walkNode(resolved, ctx);
+        let result = walkNode(resolved, ctx);
+
+        // Merge annotation siblings from the referencer over the
+        // resolved target's meta. Different referencers can have
+        // different annotations, so this is applied to the result
+        // (not cached in the placeholder).
+        if (hasSiblings) {
+            result = {
+                ...result,
+                meta: mergeRefSiblings(schema, result.meta),
+            };
+        }
+
         Object.assign(placeholder, result);
         return placeholder;
     }
