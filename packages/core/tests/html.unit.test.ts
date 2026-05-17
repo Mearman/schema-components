@@ -617,3 +617,53 @@ describe("fragment", () => {
         expect(serializeFragment(fragment("a", h("br", {})))).toBe("a<br>");
     });
 });
+
+// ---------------------------------------------------------------------------
+// Recursion limit and unhandled-type fallback
+// ---------------------------------------------------------------------------
+
+describe("renderToHtml — recursion limit", () => {
+    it("emits a recursive placeholder using the description when present", () => {
+        // 12 levels of self-reference; MAX_HTML_DEPTH is 10, so at least one
+        // descent must hit the recursion guard.
+        const inner: Record<string, unknown> = {
+            type: "object",
+            description: "Person",
+            properties: {},
+        };
+        let cursor: Record<string, unknown> = inner;
+        for (let i = 0; i < 12; i++) {
+            const next: Record<string, unknown> = {
+                type: "object",
+                description: "Person",
+                properties: {},
+            };
+            cursor.child = next;
+            (cursor.properties as Record<string, unknown>).child = next;
+            cursor = next;
+        }
+        const html = renderToHtml(inner, {});
+        expect(html).toMatch(/sc-recursive/);
+        expect(html).toMatch(/Person \(recursive\)/);
+    });
+
+    it('emits a recursive placeholder labelled "schema" when no description is set', () => {
+        const inner: Record<string, unknown> = {
+            type: "object",
+            properties: {},
+        };
+        let cursor: Record<string, unknown> = inner;
+        for (let i = 0; i < 12; i++) {
+            const next: Record<string, unknown> = {
+                type: "object",
+                properties: {},
+            };
+            cursor.child = next;
+            (cursor.properties as Record<string, unknown>).child = next;
+            cursor = next;
+        }
+        const html = renderToHtml(inner, {});
+        expect(html).toMatch(/sc-recursive/);
+        expect(html).toMatch(/schema \(recursive\)/);
+    });
+});

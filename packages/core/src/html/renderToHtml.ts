@@ -25,7 +25,6 @@ import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import { getHtmlRenderFn, mergeHtmlResolvers } from "../core/renderer.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
-import { h, serialize } from "./html.ts";
 import { defaultHtmlResolver } from "./renderers.ts";
 import { joinPath } from "./a11y.ts";
 
@@ -141,39 +140,32 @@ function renderFieldHtml(
 
     const effectiveValue = value ?? tree.defaultValue;
     const mergedResolver = mergeHtmlResolvers(resolver, defaultHtmlResolver);
+    // `mergeHtmlResolvers` fills every `RESOLVER_KEYS` entry from
+    // `defaultHtmlResolver`, and `typeToKey` maps every `WalkedField['type']`
+    // to one of those keys, so the lookup is total. The guard below exists to
+    // narrow the type for TypeScript and to fail loudly if the invariant ever
+    // breaks (e.g. a future `WalkedField` variant added without registering a
+    // default renderer).
     const renderFn = getHtmlRenderFn(tree.type, mergedResolver);
-
-    if (renderFn !== undefined) {
-        const props: HtmlRenderProps = {
-            value: effectiveValue,
-            readOnly: tree.editability === "presentation",
-            writeOnly: tree.editability === "input",
-            meta: tree.meta,
-            constraints: tree.constraints,
-            path,
-            tree,
-            renderChild,
-        };
-        if (tree.examples !== undefined) props.examples = tree.examples;
-
-        return renderFn(props);
-    }
-
-    // Fallback for unhandled types
-    if (effectiveValue === undefined || effectiveValue === null) {
-        return serialize(
-            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+    if (renderFn === undefined) {
+        throw new Error(
+            `renderToHtml: no HTML renderer registered for type "${tree.type}"`
         );
     }
-    return serialize(
-        h(
-            "span",
-            { class: "sc-value" },
-            typeof effectiveValue === "string"
-                ? effectiveValue
-                : JSON.stringify(effectiveValue)
-        )
-    );
+
+    const props: HtmlRenderProps = {
+        value: effectiveValue,
+        readOnly: tree.editability === "presentation",
+        writeOnly: tree.editability === "input",
+        meta: tree.meta,
+        constraints: tree.constraints,
+        path,
+        tree,
+        renderChild,
+    };
+    if (tree.examples !== undefined) props.examples = tree.examples;
+
+    return renderFn(props);
 }
 
 // Import types directly from core/renderer.ts
