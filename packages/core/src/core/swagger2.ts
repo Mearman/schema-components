@@ -89,9 +89,11 @@ export function normaliseSwagger2Document(
     const parameters = doc.parameters;
     const requestBodies: Record<string, unknown> = {};
     if (isObject(parameters)) {
-        const globalConsumes: unknown[] = Array.isArray(doc.consumes)
-            ? doc.consumes
-            : ["application/json"];
+        const consumesResolution = resolveSwaggerContentTypes(
+            undefined,
+            doc.consumes
+        );
+        const globalConsumes: unknown[] = consumesResolution.types;
         const convertedParameters: Record<string, unknown> = {};
         for (const [name, param] of Object.entries(parameters)) {
             if (!isObject(param)) {
@@ -101,6 +103,18 @@ export function normaliseSwagger2Document(
             const resolved = resolveSwaggerParameter(param, doc);
             const location = resolved.in;
             if (location === "body") {
+                if (consumesResolution.source === "synthesised") {
+                    emitDiagnostic(diagnostics, {
+                        code: "swagger-missing-consumes",
+                        message:
+                            "Global body parameter declared but document-level `consumes` is absent; defaulting to application/json",
+                        pointer: appendPointer(
+                            appendPointer("", "parameters"),
+                            name
+                        ),
+                        detail: { level: "document", name },
+                    });
+                }
                 requestBodies[name] = buildRequestBody(
                     resolved,
                     globalConsumes
@@ -132,15 +146,27 @@ export function normaliseSwagger2Document(
     //
     // Swagger 2.0 responses carry a top-level `schema` field that must be
     // wrapped in `content` keyed by produces media types for OpenAPI 3.x.
+    // Use the same resolveSwaggerContentTypes path as operations so the
+    // missing-produces diagnostic fires consistently for both locations.
     const responses = doc.responses;
     if (isObject(responses)) {
-        const globalProduces: unknown[] = Array.isArray(doc.produces)
-            ? doc.produces
-            : ["application/json"];
+        const producesResolution = resolveSwaggerContentTypes(
+            undefined,
+            doc.produces
+        );
         const convertedResponses: Record<string, unknown> = {};
         for (const [name, response] of Object.entries(responses)) {
             convertedResponses[name] = isObject(response)
-                ? normaliseSwaggerSingleResponse(response, doc, globalProduces)
+                ? normaliseSwaggerSingleResponse(
+                      response,
+                      doc,
+                      producesResolution.types,
+                      producesResolution.source,
+                      diagnostics,
+                      undefined,
+                      undefined,
+                      name
+                  )
                 : response;
         }
         components.responses = convertedResponses;
@@ -302,19 +328,27 @@ function normaliseSwaggerOperation(
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
-    // Resolve produces/consumes: operation-level overrides global
-    const globalProduces: unknown[] = Array.isArray(doc.produces)
-        ? doc.produces
-        : ["application/json"];
-    const globalConsumes: unknown[] = Array.isArray(doc.consumes)
-        ? doc.consumes
-        : ["application/json"];
-    const produces: unknown[] = Array.isArray(operation.produces)
-        ? operation.produces
-        : globalProduces;
-    const consumes: unknown[] = Array.isArray(operation.consumes)
-        ? operation.consumes
-        : globalConsumes;
+    // Resolve produces/consumes: operation-level overrides global.
+    //
+    // Per the Swagger 2.0 spec, absence of `consumes`/`produces` at
+    // BOTH the operation and document level means "no body is sent /
+    // returned" — NOT an implicit default of `application/json`. The
+    // historic normaliser synthesised `application/json` content even
+    // when no content type was declared, which silently invented
+    // payloads. Detect both-absent below and surface a
+    // `swagger-missing-consumes` diagnostic only when the operation
+    // actually carries a body parameter that requires a content type
+    // to be conveyed at all.
+    const consumesResolution = resolveSwaggerContentTypes(
+        operation.consumes,
+        doc.consumes
+    );
+    const producesResolution = resolveSwaggerContentTypes(
+        operation.produces,
+        doc.produces
+    );
+    const produces: unknown[] = producesResolution.types;
+    const consumes: unknown[] = consumesResolution.types;
 
     // Copy non-special fields
     for (const [key, value] of Object.entries(operation)) {
@@ -413,20 +447,89 @@ function normaliseSwaggerOperation(
         }
 
         if (bodyParam !== undefined) {
-            result.requestBody = buildRequestBody(
-                bodyParam,
-                usesFormData ? formDataContentTypes(consumes) : consumes
-            );
+            // formData operations always carry a content type
+            // (`multipart/form-data` or `application/x-www-form-urlencoded`),
+            // chosen by formDataContentTypes — no diagnostic is needed
+            // even when both consumes declarations are absent.
+            const bodyContentTypes = usesFormData
+                ? formDataContentTypes(consumes)
+                : consumes;
+            if (!usesFormData && consumesResolution.source === "synthesised") {
+                emitDiagnostic(diagnostics, {
+                    code: "swagger-missing-consumes",
+                    message:
+                        "Operation declares a body parameter but neither operation-level nor document-level `consumes` is set; defaulting to application/json",
+                    pointer: appendPointer(
+                        appendPointer(appendPointer("", "paths"), path),
+                        method
+                    ),
+                    detail: { level: "operation", method },
+                });
+            }
+            result.requestBody = buildRequestBody(bodyParam, bodyContentTypes);
         }
     }
 
-    // Responses: wrap schemas in content
+    // Responses: wrap schemas in content. When `produces` was absent
+    // at both levels the response normaliser must NOT synthesise an
+    // `application/json` content map for response bodies — only emit
+    // a diagnostic for responses that actually carry a `schema`.
     const responses = operation.responses;
     if (isObject(responses)) {
-        result.responses = normaliseSwaggerResponses(responses, doc, produces);
+        result.responses = normaliseSwaggerResponses(
+            responses,
+            doc,
+            produces,
+            producesResolution.source,
+            diagnostics,
+            path,
+            method
+        );
     }
 
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// consumes / produces resolution
+// ---------------------------------------------------------------------------
+
+interface ContentTypesResolution {
+    /**
+     * Content types to use for body/response normalisation. Synthesised
+     * `application/json` is included when the original source declared
+     * nothing — but the caller may choose not to emit any content when
+     * `source === "synthesised"` and no body is actually present.
+     */
+    types: unknown[];
+    /**
+     * `"operation"`: the operation-level array was present.
+     * `"document"`: the document-level array was present.
+     * `"synthesised"`: neither level declared a value — `types` carries
+     * the historic `application/json` fallback but the caller must
+     * decide whether to use it (only when a body is genuinely required)
+     * and emit `swagger-missing-consumes`/`swagger-missing-produces`.
+     */
+    source: "operation" | "document" | "synthesised";
+}
+
+/**
+ * Resolve a Swagger 2.0 `consumes` or `produces` array, recording
+ * where the value came from so callers can decide whether to emit a
+ * "missing content type" diagnostic. Per the Swagger 2.0 spec, absence
+ * at BOTH levels means no body — not an implicit `application/json`.
+ */
+function resolveSwaggerContentTypes(
+    operationLevel: unknown,
+    documentLevel: unknown
+): ContentTypesResolution {
+    if (Array.isArray(operationLevel)) {
+        return { types: operationLevel, source: "operation" };
+    }
+    if (Array.isArray(documentLevel)) {
+        return { types: documentLevel, source: "document" };
+    }
+    return { types: ["application/json"], source: "synthesised" };
 }
 
 // ---------------------------------------------------------------------------
@@ -779,7 +882,11 @@ function resolveSwaggerResponse(
 function normaliseSwaggerResponses(
     responses: Record<string, unknown>,
     doc: Record<string, unknown>,
-    produces: unknown[]
+    produces: unknown[],
+    producesSource: ContentTypesResolution["source"],
+    diagnostics?: DiagnosticsOptions,
+    path?: string,
+    method?: string
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
@@ -788,7 +895,16 @@ function normaliseSwaggerResponses(
             result[code] = response;
             continue;
         }
-        result[code] = normaliseSwaggerSingleResponse(response, doc, produces);
+        result[code] = normaliseSwaggerSingleResponse(
+            response,
+            doc,
+            produces,
+            producesSource,
+            diagnostics,
+            path,
+            method,
+            code
+        );
     }
 
     return result;
@@ -806,7 +922,12 @@ function normaliseSwaggerResponses(
 function normaliseSwaggerSingleResponse(
     response: Record<string, unknown>,
     doc: Record<string, unknown>,
-    produces: unknown[]
+    produces: unknown[],
+    producesSource: ContentTypesResolution["source"] = "synthesised",
+    diagnostics?: DiagnosticsOptions,
+    path?: string,
+    method?: string,
+    statusCode?: string
 ): Record<string, unknown> {
     // Resolve $ref to #/responses/Name
     const resolved = resolveSwaggerResponse(response, doc);
@@ -835,6 +956,34 @@ function normaliseSwaggerSingleResponse(
             }
         }
         normalised.content = content;
+        // The response carries a schema but `produces` was never set —
+        // we synthesised application/json. Surface the assumption.
+        if (producesSource === "synthesised") {
+            emitDiagnostic(diagnostics, {
+                code: "swagger-missing-consumes",
+                message:
+                    "Response declares a schema but neither operation-level nor document-level `produces` is set; defaulting to application/json",
+                pointer:
+                    path !== undefined &&
+                    method !== undefined &&
+                    statusCode !== undefined
+                        ? appendPointer(
+                              appendPointer(
+                                  appendPointer(
+                                      appendPointer(
+                                          appendPointer("", "paths"),
+                                          path
+                                      ),
+                                      method
+                                  ),
+                                  "responses"
+                              ),
+                              statusCode
+                          )
+                        : "",
+                detail: { level: "response", statusCode },
+            });
+        }
     }
 
     // Convert response headers from Swagger 2.0 shape to OpenAPI 3.x.
