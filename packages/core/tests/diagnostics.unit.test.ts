@@ -228,6 +228,146 @@ describe("adapter diagnostics propagation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Merge diagnostics — allOf conflicts and discriminator inconsistency
+// ---------------------------------------------------------------------------
+
+describe("allOf merge diagnostics", () => {
+    it("emits allof-conflict when branches define different minLength", () => {
+        const diags = collectDiagnostics((sink) => {
+            walk(
+                {
+                    allOf: [
+                        { type: "string", minLength: 3 },
+                        { type: "string", minLength: 5 },
+                    ],
+                },
+                { diagnostics: { diagnostics: sink } }
+            );
+        });
+        const conflicts = diags.filter((d) => d.code === "allof-conflict");
+        expect(conflicts.length).toBe(1);
+        const conflict = assertDefined(conflicts[0], "expected allof-conflict");
+        expect(conflict.detail?.key).toBe("minLength");
+        expect(conflict.detail?.kept).toBe(3);
+        expect(conflict.detail?.discarded).toBe(5);
+    });
+
+    it("does not emit allof-conflict when branches define the same minLength", () => {
+        const diags = collectDiagnostics((sink) => {
+            walk(
+                {
+                    allOf: [
+                        { type: "string", minLength: 3 },
+                        { type: "string", minLength: 3 },
+                    ],
+                },
+                { diagnostics: { diagnostics: sink } }
+            );
+        });
+        expect(diags.filter((d) => d.code === "allof-conflict").length).toBe(0);
+    });
+
+    it("emits allof-conflict for conflicting type values", () => {
+        const diags = collectDiagnostics((sink) => {
+            walk(
+                {
+                    allOf: [{ type: "string" }, { type: "number" }],
+                },
+                { diagnostics: { diagnostics: sink } }
+            );
+        });
+        const conflicts = diags.filter((d) => d.code === "allof-conflict");
+        expect(conflicts.length).toBe(1);
+        const conflict = assertDefined(conflicts[0], "expected allof-conflict");
+        expect(conflict.detail?.key).toBe("type");
+    });
+
+    it("does not emit allof-conflict for structurally equal object values", () => {
+        const diags = collectDiagnostics((sink) => {
+            walk(
+                {
+                    allOf: [
+                        {
+                            type: "object",
+                            examples: [{ a: 1, b: 2 }],
+                        },
+                        {
+                            type: "object",
+                            examples: [{ a: 1, b: 2 }],
+                        },
+                    ],
+                },
+                { diagnostics: { diagnostics: sink } }
+            );
+        });
+        expect(diags.filter((d) => d.code === "allof-conflict").length).toBe(0);
+    });
+});
+
+describe("discriminated union detection diagnostics", () => {
+    it("emits discriminator-inconsistent when options use different discriminator keys", () => {
+        const schema = {
+            oneOf: [
+                {
+                    type: "object",
+                    properties: {
+                        kind: { const: "a" },
+                        value: { type: "string" },
+                    },
+                },
+                {
+                    type: "object",
+                    properties: {
+                        type: { const: "b" },
+                        value: { type: "number" },
+                    },
+                },
+            ],
+        };
+        const diags = collectDiagnostics((sink) => {
+            walk(schema, { diagnostics: { diagnostics: sink } });
+        });
+        const inconsistent = diags.filter(
+            (d) => d.code === "discriminator-inconsistent"
+        );
+        expect(inconsistent.length).toBe(1);
+
+        // Result should NOT be a discriminated union
+        const result = walk(schema);
+        expect(result.type).toBe("union");
+    });
+
+    it("does not emit discriminator-inconsistent when options agree on the discriminator key", () => {
+        const diags = collectDiagnostics((sink) => {
+            walk(
+                {
+                    oneOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                kind: { const: "a" },
+                                value: { type: "string" },
+                            },
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                kind: { const: "b" },
+                                value: { type: "number" },
+                            },
+                        },
+                    ],
+                },
+                { diagnostics: { diagnostics: sink } }
+            );
+        });
+        expect(
+            diags.filter((d) => d.code === "discriminator-inconsistent").length
+        ).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Default behaviour unchanged
 // ---------------------------------------------------------------------------
 

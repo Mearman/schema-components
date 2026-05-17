@@ -6,6 +6,8 @@
  */
 
 import { isObject } from "./guards.ts";
+import type { DiagnosticsOptions } from "./diagnostics.ts";
+import { emitDiagnostic } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -33,6 +35,34 @@ function getObject(
 ): Record<string, unknown> | undefined {
     const value = obj[key];
     return isObject(value) ? value : undefined;
+}
+
+/**
+ * Structural equality for arbitrary JSON-like values. Used to decide
+ * whether a duplicated keyword across `allOf` branches genuinely
+ * conflicts (different values) or is benign (identical values).
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+    if (a === b) return true;
+    if (typeof a !== typeof b) return false;
+    if (Array.isArray(a)) {
+        if (!Array.isArray(b) || a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (!deepEqual(a[i], b[i])) return false;
+        }
+        return true;
+    }
+    if (isObject(a) && isObject(b)) {
+        const keysA = Object.keys(a);
+        const keysB = Object.keys(b);
+        if (keysA.length !== keysB.length) return false;
+        for (const key of keysA) {
+            if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+            if (!deepEqual(a[key], b[key])) return false;
+        }
+        return true;
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,8 +114,17 @@ export function mergeRefSiblings(
 /**
  * Merge multiple JSON Schema objects from allOf into one.
  * Merges: properties, required, meta fields, and constraints.
+ *
+ * Semantics are first-write-wins for meta and constraint keywords.
+ * When a later branch redefines a keyword with a non-equal value the
+ * later value is silently dropped — an `allof-conflict` diagnostic is
+ * emitted so the loss is visible to consumers.
  */
-export function mergeAllOf(schemas: unknown[]): Record<string, unknown> {
+export function mergeAllOf(
+    schemas: unknown[],
+    diagnostics?: DiagnosticsOptions,
+    pointer = ""
+): Record<string, unknown> {
     const merged: Record<string, unknown> = {};
     const properties: Record<string, unknown> = {};
     const required: string[] = [];
@@ -124,13 +163,37 @@ export function mergeAllOf(schemas: unknown[]): Record<string, unknown> {
             // First write wins for meta/constraints
             if (!(key in merged)) {
                 merged[key] = value;
+            } else if (!deepEqual(merged[key], value)) {
+                emitDiagnostic(diagnostics, {
+                    code: "allof-conflict",
+                    message: `allOf branches define conflicting values for "${key}"; keeping the first occurrence and discarding subsequent values`,
+                    pointer,
+                    detail: {
+                        key,
+                        kept: merged[key],
+                        discarded: value,
+                    },
+                });
             }
         }
 
         // Inherit type from first schema that has one
-        if (!("type" in merged)) {
-            const type = getString(entry, "type");
-            if (type !== undefined) merged.type = type;
+        const entryType = getString(entry, "type");
+        if (entryType !== undefined) {
+            if (!("type" in merged)) {
+                merged.type = entryType;
+            } else if (!deepEqual(merged.type, entryType)) {
+                emitDiagnostic(diagnostics, {
+                    code: "allof-conflict",
+                    message: `allOf branches define conflicting values for "type"; keeping the first occurrence and discarding subsequent values`,
+                    pointer,
+                    detail: {
+                        key: "type",
+                        kept: merged.type,
+                        discarded: entryType,
+                    },
+                });
+            }
         }
     }
 
@@ -190,14 +253,22 @@ export interface Discriminated {
 /**
  * Detect oneOf where every option is an object with a property
  * that has a `const` value → discriminated union.
+ *
+ * When options carry inconsistent discriminator candidates (e.g. one
+ * uses `kind` while another uses `type`) detection fails and a
+ * `discriminator-inconsistent` diagnostic is emitted so callers can
+ * see why the union falls back to a generic oneOf.
  */
 export function detectDiscriminated(
-    options: unknown[]
+    options: unknown[],
+    diagnostics?: DiagnosticsOptions,
+    pointer = ""
 ): Discriminated | undefined {
     if (options.length === 0) return undefined;
 
     // All options must be objects with properties
     let discriminator: string | undefined;
+    const perOptionKeys: (string | undefined)[] = [];
 
     for (const opt of options) {
         if (!isObject(opt)) return undefined;
@@ -205,23 +276,42 @@ export function detectDiscriminated(
         const props = getObject(opt, "properties");
         if (props === undefined) return undefined;
 
-        // Find a property with `const` in this option
-        let foundKey: string | undefined;
+        // Collect every property in this option that carries a `const`,
+        // so we can report a meaningful diagnostic when options disagree.
+        const constKeys: string[] = [];
         for (const [key, value] of Object.entries(props)) {
             if (isObject(value) && "const" in value) {
-                foundKey = key;
-                break;
+                constKeys.push(key);
             }
         }
 
-        if (foundKey === undefined) return undefined;
-
-        // All options must use the same discriminator key
-        if (discriminator === undefined) {
-            discriminator = foundKey;
-        } else if (discriminator !== foundKey) {
-            return undefined;
+        if (constKeys.length === 0) {
+            perOptionKeys.push(undefined);
+            continue;
         }
+
+        // First const property wins as this option's discriminator candidate
+        const foundKey = constKeys[0];
+        perOptionKeys.push(foundKey);
+
+        discriminator ??= foundKey;
+    }
+
+    // If any option lacked a const property, this is not a discriminated union
+    if (perOptionKeys.some((k) => k === undefined)) return undefined;
+
+    // All options must agree on the discriminator key
+    const uniqueKeys = new Set(perOptionKeys);
+    if (uniqueKeys.size > 1) {
+        emitDiagnostic(diagnostics, {
+            code: "discriminator-inconsistent",
+            message: `oneOf options use inconsistent discriminator keys (${[...uniqueKeys].map((k) => `"${k ?? ""}"`).join(", ")}); rendering as a generic union`,
+            pointer,
+            detail: {
+                candidates: perOptionKeys,
+            },
+        });
+        return undefined;
     }
 
     if (discriminator === undefined) return undefined;

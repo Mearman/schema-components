@@ -180,7 +180,7 @@ function walkNode(
     // --- Handle allOf ---
     const allOf = getArray(schema, "allOf");
     if (allOf !== undefined && allOf.length > 0) {
-        const merged = mergeAllOf(allOf);
+        const merged = mergeAllOf(allOf, ctx.diagnostics, ctx.pointer);
         return walkNode(merged, ctx);
     }
 
@@ -202,7 +202,11 @@ function walkNode(
     // --- Handle oneOf ---
     const oneOf = getArray(schema, "oneOf");
     if (oneOf !== undefined) {
-        const discriminated = detectDiscriminated(oneOf);
+        const discriminated = detectDiscriminated(
+            oneOf,
+            ctx.diagnostics,
+            ctx.pointer
+        );
         if (discriminated !== undefined) {
             return walkDiscriminatedUnion(discriminated, ctx);
         }

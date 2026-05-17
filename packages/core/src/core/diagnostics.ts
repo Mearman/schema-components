@@ -33,7 +33,9 @@ export type DiagnosticCode =
     | "type-negation-fallback"
     | "conditional-fallback"
     | "assumed-draft"
-    | "depth-exceeded";
+    | "depth-exceeded"
+    | "allof-conflict"
+    | "discriminator-inconsistent";
 
 // ---------------------------------------------------------------------------
 // Diagnostic structure
