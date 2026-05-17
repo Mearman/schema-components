@@ -610,20 +610,26 @@ type OperationOf<PathItem, Method extends string> =
             : unknown
         : unknown;
 
-/** Extract the schema from request body content (any media type). */
+/**
+ * Extract the schema from request body content (any media type).
+ *
+ * `Record<string, { schema: infer S }>` already subsumes the previous
+ * `application/json`-specific branch — if the JSON content matches the
+ * specific shape it also matches the general index-signature pattern.
+ * The narrower branch was therefore unreachable and has been removed.
+ */
 type RequestBodySchemaOf<Op> = Op extends {
     requestBody: { content: Record<string, { schema: infer S }> };
 }
     ? S
-    : Op extends {
-            requestBody: {
-                content: { "application/json": { schema: infer S } };
-            };
-        }
-      ? S
-      : unknown;
+    : unknown;
 
-/** Extract the schema from response content (any media type). */
+/**
+ * Extract the schema from response content (any media type).
+ *
+ * Same rationale as `RequestBodySchemaOf`: the index-signature branch
+ * subsumes the `application/json` branch, which was unreachable.
+ */
 type ResponseSchemaOf<Op, Status extends string> = Op extends {
     responses: Record<string, unknown>;
 }
@@ -632,11 +638,7 @@ type ResponseSchemaOf<Op, Status extends string> = Op extends {
               content: Record<string, { schema: infer S }>;
           }
             ? S
-            : Op["responses"][Status] extends {
-                    content: { "application/json": { schema: infer S } };
-                }
-              ? S
-              : unknown
+            : unknown
         : unknown
     : unknown;
 
@@ -725,48 +727,55 @@ export type OpenAPIResponseType<
       >;
 
 /**
+ * Convert a resolved request/response type into the corresponding
+ * `fields` prop type used by ApiRequestBody / ApiResponse:
+ *
+ * - `__SchemaInferenceFellBack` (Swagger 2.0, depth-exceeded refs) is
+ *   preserved verbatim so callers can detect the brand.
+ * - `unknown` (no schema found at the supplied path/status) falls back
+ *   to the loose `Record<string, FieldOverride>` shape so runtime
+ *   documents still typecheck.
+ * - Any other concrete type is mapped through `FieldOverrides`.
+ *
+ * The brand check intentionally precedes the `unknown` check. The brand
+ * is a structural object type and is therefore NOT assignable to
+ * `unknown extends T` — checking that first would always short-circuit
+ * to the loose `Record` fallback and the brand would never surface.
+ */
+type FieldsFromInferred<T> = [T] extends [__SchemaInferenceFellBack]
+    ? __SchemaInferenceFellBack
+    : unknown extends T
+      ? Record<string, FieldOverride>
+      : FieldOverrides<T>;
+
+/**
  * Infer the fields prop type for ApiRequestBody.
- * Surfaces `__SchemaInferenceFellBack` when the schema contains
- * recursive $ref chains that exceed type-level depth limits.
- * Falls back to `Record<string, FieldOverride>` for runtime documents.
+ *
+ * Surfaces `__SchemaInferenceFellBack` for Swagger 2.0 documents and
+ * for schemas whose $ref chains exceed type-level depth limits. Falls
+ * back to `Record<string, FieldOverride>` for runtime documents whose
+ * shape cannot be inferred at compile time.
  */
 export type InferRequestBodyFields<
     Doc,
     Path extends string,
     Method extends string,
-> =
-    unknown extends OpenAPIRequestBodyType<Doc, Path, Method>
-        ? OpenAPIRequestBodyType<
-              Doc,
-              Path,
-              Method
-          > extends __SchemaInferenceFellBack
-            ? __SchemaInferenceFellBack
-            : Record<string, FieldOverride>
-        : FieldOverrides<OpenAPIRequestBodyType<Doc, Path, Method>>;
+> = FieldsFromInferred<OpenAPIRequestBodyType<Doc, Path, Method>>;
 
 /**
  * Infer the fields prop type for ApiResponse.
- * Surfaces `__SchemaInferenceFellBack` when the schema contains
- * recursive $ref chains that exceed type-level depth limits.
- * Falls back to `Record<string, FieldOverride>` for runtime documents.
+ *
+ * Surfaces `__SchemaInferenceFellBack` for Swagger 2.0 documents and
+ * for schemas whose $ref chains exceed type-level depth limits. Falls
+ * back to `Record<string, FieldOverride>` for runtime documents whose
+ * shape cannot be inferred at compile time.
  */
 export type InferResponseFields<
     Doc,
     Path extends string,
     Method extends string,
     Status extends string,
-> =
-    unknown extends OpenAPIResponseType<Doc, Path, Method, Status>
-        ? OpenAPIResponseType<
-              Doc,
-              Path,
-              Method,
-              Status
-          > extends __SchemaInferenceFellBack
-            ? __SchemaInferenceFellBack
-            : Record<string, FieldOverride>
-        : FieldOverrides<OpenAPIResponseType<Doc, Path, Method, Status>>;
+> = FieldsFromInferred<OpenAPIResponseType<Doc, Path, Method, Status>>;
 
 /**
  * Infer the overrides prop type for ApiParameters.

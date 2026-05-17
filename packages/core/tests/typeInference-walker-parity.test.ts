@@ -27,11 +27,14 @@
 import { describe, it, expectTypeOf } from "vitest";
 import type {
     FromJSONSchema,
+    InferRequestBodyFields,
+    InferResponseFields,
     OpenAPIRequestBodyType,
     OpenAPIResponseType,
     ResolveOpenAPIRef,
     __SchemaInferenceFellBack,
 } from "../src/core/typeInference.ts";
+import type { FieldOverride } from "../src/core/types.ts";
 
 // ---------------------------------------------------------------------------
 // Discriminated union parity
@@ -498,5 +501,37 @@ describe("Swagger 2.0 documents: typeInference surfaces __SchemaInferenceFellBac
 
     it("OpenAPIResponseType returns __SchemaInferenceFellBack", () => {
         expectTypeOf<Resp>().toEqualTypeOf<__SchemaInferenceFellBack>();
+    });
+
+    // The previous detection order (`unknown extends T` then brand check)
+    // could never reach the brand branch because the brand is a concrete
+    // object type that is not assignable to `unknown extends ...`. The
+    // restructured `FieldsFromInferred` checks the brand first, so the
+    // Swagger 2.0 fallback surfaces through `InferRequestBodyFields` and
+    // `InferResponseFields` as well.
+    it("InferRequestBodyFields preserves the __SchemaInferenceFellBack brand", () => {
+        expectTypeOf<
+            InferRequestBodyFields<Swagger2Doc, "/pets", "post">
+        >().toEqualTypeOf<__SchemaInferenceFellBack>();
+    });
+
+    it("InferResponseFields preserves the __SchemaInferenceFellBack brand", () => {
+        expectTypeOf<
+            InferResponseFields<Swagger2Doc, "/pets", "get", "200">
+        >().toEqualTypeOf<__SchemaInferenceFellBack>();
+    });
+
+    // Runtime documents (typed as `Record<string, unknown>` only) produce
+    // `unknown` because nothing concrete is known about the request body
+    // shape. The fallback should be the loose `Record` map, not the brand.
+    it("InferRequestBodyFields falls back to Record for runtime documents", () => {
+        type RuntimeFields = InferRequestBodyFields<
+            Record<string, unknown>,
+            string,
+            string
+        >;
+        expectTypeOf<RuntimeFields>().toEqualTypeOf<
+            Record<string, FieldOverride>
+        >();
     });
 });
