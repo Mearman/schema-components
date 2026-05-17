@@ -845,9 +845,17 @@ function normaliseParameter(
         result.content = normaliseContentMap(content, normaliseSchema);
     }
 
-    // Normalise example → examples on the parameter itself
+    // Normalise example → examples on the parameter itself.
+    //
+    // OpenAPI 3.0/3.1 define a Parameter Object's `examples` as
+    // `Map[string, Example Object | Reference Object]` where each value
+    // carries `summary`/`description`/`value`/`externalValue`. The
+    // historic transform produced `[example]` (an array), which is not
+    // a valid Examples Map. Wrap under a synthetic `default` key so the
+    // resulting structure is a one-entry map of one Example Object —
+    // mirroring how the Media Type Object's `examples` is normalised.
     if ("example" in result && !("examples" in result)) {
-        result.examples = [result.example];
+        result.examples = { default: { value: result.example } };
         delete result.example;
     } else if ("example" in result) {
         delete result.example;
@@ -920,9 +928,10 @@ function normaliseHeader(
         result.content = normaliseContentMap(content, normaliseSchema);
     }
 
-    // Normalise example → examples on the header itself
+    // Normalise example → examples on the header itself — same Examples
+    // Map shape rule as the Parameter Object path above.
     if ("example" in result && !("examples" in result)) {
-        result.examples = [result.example];
+        result.examples = { default: { value: result.example } };
         delete result.example;
     } else if ("example" in result) {
         delete result.example;
