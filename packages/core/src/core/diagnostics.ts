@@ -35,7 +35,10 @@ export type DiagnosticCode =
     | "assumed-draft"
     | "depth-exceeded"
     | "allof-conflict"
-    | "discriminator-inconsistent";
+    | "discriminator-inconsistent"
+    | "divisible-by-conflict"
+    | "legacy-dependencies-split"
+    | "dependent-required-invalid";
 
 // ---------------------------------------------------------------------------
 // Diagnostic structure

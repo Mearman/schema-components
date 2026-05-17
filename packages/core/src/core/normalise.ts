@@ -20,6 +20,7 @@ import { isObject } from "./guards.ts";
 import { deepNormaliseOpenApi30Doc } from "./openapi30.ts";
 import { normaliseSwagger2Document } from "./swagger2.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
+import { appendPointer, emitDiagnostic } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Sub-schema location keys
@@ -158,8 +159,183 @@ export function deepNormalise(
 }
 
 // ---------------------------------------------------------------------------
+// Context-aware normalisation (JSON Schema path)
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-node context threaded through `deepNormaliseWithContext`.
+ *
+ * Carries the diagnostics sink and the JSON Pointer to the current
+ * node so per-node transforms can emit pointer-accurate diagnostics
+ * when they translate or reject legacy constructs.
+ */
+export interface NodeContext {
+    diagnostics: DiagnosticsOptions | undefined;
+    pointer: string;
+}
+
+export type NodeTransformWithContext = (
+    node: Record<string, unknown>,
+    ctx: NodeContext
+) => Record<string, unknown>;
+
+function normaliseArrayWithContext(
+    items: unknown[],
+    transform: NodeTransformWithContext,
+    ctx: NodeContext
+): unknown[] {
+    const result: unknown[] = [];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (isObject(item)) {
+            result.push(
+                deepNormaliseWithContext(item, transform, {
+                    diagnostics: ctx.diagnostics,
+                    pointer: appendPointer(ctx.pointer, String(i)),
+                })
+            );
+        } else {
+            result.push(item);
+        }
+    }
+    return result;
+}
+
+function normaliseSubSchemaMapWithContext(
+    map: Record<string, unknown>,
+    transform: NodeTransformWithContext,
+    ctx: NodeContext
+): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(map)) {
+        if (isObject(v)) {
+            result[k] = deepNormaliseWithContext(v, transform, {
+                diagnostics: ctx.diagnostics,
+                pointer: appendPointer(ctx.pointer, k),
+            });
+        } else {
+            result[k] = v;
+        }
+    }
+    return result;
+}
+
+/**
+ * Deep-normalise a JSON Schema object, threading a context (diagnostics
+ * sink + JSON Pointer) through each recursive call. Used by the JSON
+ * Schema normalisation path so per-node transforms can emit diagnostics
+ * with accurate pointers.
+ *
+ * Mirrors `deepNormalise` structurally — keep the two in sync when
+ * adding new sub-schema locations.
+ */
+export function deepNormaliseWithContext(
+    schema: Record<string, unknown>,
+    transform: NodeTransformWithContext,
+    ctx: NodeContext
+): Record<string, unknown> {
+    const node = transform({ ...schema }, ctx);
+
+    const result: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(node)) {
+        if (isObject(value) && OBJECT_SUBSCHEMA_KEYS.has(key)) {
+            result[key] = normaliseSubSchemaMapWithContext(value, transform, {
+                diagnostics: ctx.diagnostics,
+                pointer: appendPointer(ctx.pointer, key),
+            });
+        } else if (Array.isArray(value) && ARRAY_SUBSCHEMA_KEYS.has(key)) {
+            result[key] = normaliseArrayWithContext(value, transform, {
+                diagnostics: ctx.diagnostics,
+                pointer: appendPointer(ctx.pointer, key),
+            });
+        } else if (isObject(value) && SINGLE_SUBSCHEMA_KEYS.has(key)) {
+            result[key] = deepNormaliseWithContext(value, transform, {
+                diagnostics: ctx.diagnostics,
+                pointer: appendPointer(ctx.pointer, key),
+            });
+        } else if (key === "items") {
+            if (Array.isArray(value)) {
+                result[key] = normaliseArrayWithContext(value, transform, {
+                    diagnostics: ctx.diagnostics,
+                    pointer: appendPointer(ctx.pointer, key),
+                });
+            } else if (isObject(value)) {
+                result[key] = deepNormaliseWithContext(value, transform, {
+                    diagnostics: ctx.diagnostics,
+                    pointer: appendPointer(ctx.pointer, key),
+                });
+            } else {
+                result[key] = value;
+            }
+        } else if (key === "dependencies" && isObject(value)) {
+            // Schema-object dependency values still need recursive
+            // normalisation in case the parent transform left them in
+            // place (e.g. for the 2019-09 path which does not split).
+            const normalised: Record<string, unknown> = {};
+            const depsPointer = appendPointer(ctx.pointer, key);
+            for (const [dk, dv] of Object.entries(value)) {
+                if (isObject(dv)) {
+                    normalised[dk] = deepNormaliseWithContext(dv, transform, {
+                        diagnostics: ctx.diagnostics,
+                        pointer: appendPointer(depsPointer, dk),
+                    });
+                } else {
+                    normalised[dk] = dv;
+                }
+            }
+            result[key] = normalised;
+        } else {
+            result[key] = value;
+        }
+    }
+
+    return result;
+}
+
+// ---------------------------------------------------------------------------
 // Legacy `dependencies` splitting (Draft 04–07)
 // ---------------------------------------------------------------------------
+
+/**
+ * Walk an array of supposed required-property names. Each non-string
+ * element triggers a `dependent-required-invalid` diagnostic against
+ * the supplied context. Returns the collected string entries when
+ * every element validates, or `undefined` when at least one entry
+ * was invalid (signalling the caller should drop the property
+ * entirely rather than emit a partial rewrite).
+ *
+ * `keyword` distinguishes diagnostics that originate from the legacy
+ * `dependencies` keyword versus the modern `dependentRequired`.
+ */
+function collectDependencyStrings(
+    items: readonly unknown[],
+    property: string,
+    keyword: "dependencies" | "dependentRequired",
+    ctx: NodeContext | undefined
+): string[] | undefined {
+    const strings: string[] = [];
+    let sawInvalid = false;
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (typeof item === "string") {
+            strings.push(item);
+            continue;
+        }
+        sawInvalid = true;
+        if (ctx === undefined) continue;
+        emitDiagnostic(ctx.diagnostics, {
+            code: "dependent-required-invalid",
+            message: `\`${keyword}.${property}[${String(i)}]\` is not a string; only string property names are valid in a required-dependency array`,
+            pointer: appendPointer(
+                appendPointer(appendPointer(ctx.pointer, keyword), property),
+                String(i)
+            ),
+            detail: { property, index: i, value: item },
+        });
+    }
+    return sawInvalid ? undefined : strings;
+}
 
 /**
  * Split the legacy `dependencies` keyword into `dependentRequired` and
@@ -171,21 +347,48 @@ export function deepNormalise(
  *
  * Both forms can coexist within the same `dependencies` object.
  * After splitting, `dependencies` is removed from the node.
+ *
+ * When `ctx` is supplied, diagnostics are emitted for:
+ * - `legacy-dependencies-split` once per node that contained the
+ *   deprecated keyword (callers pass this only on draft paths where
+ *   the keyword is unexpected, e.g. 2020-12).
+ * - `dependent-required-invalid` for each array entry whose element is
+ *   not a string.
  */
-function splitDependencies(node: Record<string, unknown>): void {
+function splitDependencies(
+    node: Record<string, unknown>,
+    ctx: NodeContext | undefined,
+    emitLegacyDiagnostic: boolean
+): void {
     const deps = node.dependencies;
     if (!isObject(deps)) return;
+
+    if (emitLegacyDiagnostic && ctx !== undefined) {
+        emitDiagnostic(ctx.diagnostics, {
+            code: "legacy-dependencies-split",
+            message:
+                "Legacy `dependencies` keyword was split into `dependentRequired`/`dependentSchemas`; `dependencies` was deprecated in Draft 2019-09",
+            pointer: appendPointer(ctx.pointer, "dependencies"),
+            detail: { keys: Object.keys(deps) },
+        });
+    }
 
     const requiredEntries: Record<string, string[]> = {};
     const schemaEntries: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(deps)) {
         if (Array.isArray(value)) {
-            const strings = value.filter(
-                (v): v is string => typeof v === "string"
+            const accepted = collectDependencyStrings(
+                value,
+                key,
+                "dependencies",
+                ctx
             );
-            if (strings.length === value.length) {
-                requiredEntries[key] = strings;
+            // Drop the entry entirely when any element is invalid —
+            // partial-rewriting silently produces weaker constraints
+            // than the author specified, masking the bug.
+            if (accepted !== undefined) {
+                requiredEntries[key] = accepted;
             }
         } else if (isObject(value)) {
             schemaEntries[key] = value;
@@ -222,28 +425,50 @@ function splitDependencies(node: Record<string, unknown>): void {
     delete node.dependencies;
 }
 
+/**
+ * Emit diagnostics for any non-string entries inside a pre-existing
+ * `dependentRequired` keyword. Used on draft paths where the author may
+ * have already migrated to the Draft 2019-09 form but still produced
+ * invalid array entries. The keyword value is not rewritten — the
+ * walker is responsible for honouring (or rejecting) the constraint.
+ */
+function validateDependentRequired(
+    node: Record<string, unknown>,
+    ctx: NodeContext | undefined
+): void {
+    if (ctx === undefined) return;
+    const dr = node.dependentRequired;
+    if (!isObject(dr)) return;
+    for (const [key, value] of Object.entries(dr)) {
+        if (!Array.isArray(value)) continue;
+        // The return value is discarded — diagnostics fire via ctx and
+        // the original array is preserved on the node either way.
+        collectDependencyStrings(value, key, "dependentRequired", ctx);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Draft 04: exclusiveMinimum/exclusiveMaximum boolean → number
 // ---------------------------------------------------------------------------
 
 /**
- * Normalise Draft 04 `exclusiveMinimum`/`exclusiveMaximum` from boolean
- * to number form.
+ * Apply the version-agnostic Draft 04 keyword translations to a single
+ * node: boolean exclusive-min/max → number form, bare `id` → `$id`, and
+ * tuple-form `items` → `prefixItems`.
  *
- * In Draft 04:
- * - `exclusiveMinimum: true` + `minimum: 5` → value must be > 5
- * - `exclusiveMinimum: false` (or absent) + `minimum: 5` → value must be >= 5
+ * `divisibleBy` is also translated to `multipleOf` (a Draft 03 carryover
+ * that legitimately appears in legacy Draft 04 schemas). When `ctx` is
+ * supplied and both keywords are present with conflicting values, a
+ * `divisible-by-conflict` diagnostic is emitted.
  *
- * In Draft 06+:
- * - `exclusiveMinimum: 5` → value must be > 5 (no separate `minimum`)
- * - `minimum: 5` → value must be >= 5
- *
- * The transform converts boolean form to number form so the walker can
- * treat `exclusiveMinimum`/`exclusiveMaximum` uniformly as numbers.
+ * `dependencies` is split into `dependentRequired`/`dependentSchemas`
+ * via {@link splitDependencies}; passing `ctx` enables per-entry
+ * diagnostics for non-string array members.
  */
-export function normaliseDraft04Node(
-    node: Record<string, unknown>
-): Record<string, unknown> {
+function applyDraft04Translations(
+    node: Record<string, unknown>,
+    ctx: NodeContext | undefined
+): void {
     // exclusiveMinimum: true + minimum: N → exclusiveMinimum: N
     if (node.exclusiveMinimum === true && typeof node.minimum === "number") {
         node.exclusiveMinimum = node.minimum;
@@ -264,6 +489,29 @@ export function normaliseDraft04Node(
         delete node.exclusiveMaximum;
     }
 
+    // Draft 03 carryover: `divisibleBy` → `multipleOf`. Frequently appears
+    // in legacy Draft 04 schemas where authors copied from older specs.
+    const divisibleBy = node.divisibleBy;
+    if (typeof divisibleBy === "number") {
+        const multipleOf = node.multipleOf;
+        if (typeof multipleOf === "number") {
+            // Both present — keep the existing `multipleOf` (the modern
+            // keyword wins) but surface the conflict so callers can fix
+            // the source schema.
+            if (ctx !== undefined && divisibleBy !== multipleOf) {
+                emitDiagnostic(ctx.diagnostics, {
+                    code: "divisible-by-conflict",
+                    message: `Legacy \`divisibleBy\` (${String(divisibleBy)}) conflicts with \`multipleOf\` (${String(multipleOf)}); keeping \`multipleOf\``,
+                    pointer: ctx.pointer,
+                    detail: { divisibleBy, multipleOf },
+                });
+            }
+        } else {
+            node.multipleOf = divisibleBy;
+        }
+        delete node.divisibleBy;
+    }
+
     // Draft 04: `id` → `$id`
     if (typeof node.id === "string" && !("$id" in node)) {
         node.$id = node.id;
@@ -281,9 +529,55 @@ export function normaliseDraft04Node(
         }
     }
 
-    // Draft 04: dependencies → dependentRequired + dependentSchemas
-    splitDependencies(node);
+    // Draft 04: dependencies → dependentRequired + dependentSchemas.
+    // The legacy keyword is expected on this path, so we do not emit
+    // `legacy-dependencies-split` — but per-entry validation still runs.
+    splitDependencies(node, ctx, false);
 
+    // Validate any pre-existing dependentRequired entries the author
+    // may have already migrated to.
+    validateDependentRequired(node, ctx);
+}
+
+/**
+ * Normalise Draft 04 `exclusiveMinimum`/`exclusiveMaximum` from boolean
+ * to number form, plus the other Draft 04 translations applied to a
+ * single node.
+ *
+ * In Draft 04:
+ * - `exclusiveMinimum: true` + `minimum: 5` → value must be > 5
+ * - `exclusiveMinimum: false` (or absent) + `minimum: 5` → value must be >= 5
+ *
+ * In Draft 06+:
+ * - `exclusiveMinimum: 5` → value must be > 5 (no separate `minimum`)
+ * - `minimum: 5` → value must be >= 5
+ *
+ * The transform converts boolean form to number form so the walker can
+ * treat `exclusiveMinimum`/`exclusiveMaximum` uniformly as numbers.
+ *
+ * This function preserves the no-context signature for the OpenAPI 3.0
+ * and Swagger 2.0 normalisers that compose it directly. The JSON Schema
+ * normalisation path uses {@link normaliseDraft04NodeWithContext} via
+ * {@link deepNormaliseWithContext} to thread diagnostics.
+ */
+export function normaliseDraft04Node(
+    node: Record<string, unknown>
+): Record<string, unknown> {
+    applyDraft04Translations(node, undefined);
+    return node;
+}
+
+/**
+ * Context-aware Draft 04 per-node transform. Identical to
+ * {@link normaliseDraft04Node} but threads a {@link NodeContext} so
+ * `divisibleBy`/`multipleOf` conflicts and invalid dependency entries
+ * can be surfaced as diagnostics with accurate pointers.
+ */
+function normaliseDraft04NodeWithContext(
+    node: Record<string, unknown>,
+    ctx: NodeContext
+): Record<string, unknown> {
+    applyDraft04Translations(node, ctx);
     return node;
 }
 
@@ -299,10 +593,12 @@ export function normaliseDraft04Node(
  * legacy `dependencies` keyword. Split it into `dependentRequired` /
  * `dependentSchemas` so the walker can process them uniformly.
  */
-function normaliseDraft06Or07Node(
-    node: Record<string, unknown>
+function normaliseDraft06Or07NodeWithContext(
+    node: Record<string, unknown>,
+    ctx: NodeContext
 ): Record<string, unknown> {
-    splitDependencies(node);
+    splitDependencies(node, ctx, false);
+    validateDependentRequired(node, ctx);
     return node;
 }
 
@@ -324,8 +620,9 @@ function normaliseDraft06Or07Node(
  * corresponding `$recursiveAnchor` name. String-valued
  * `$recursiveAnchor` names are likewise preserved as `$anchor`.
  */
-function normaliseDraft201909Node(
-    node: Record<string, unknown>
+function normaliseDraft201909NodeWithContext(
+    node: Record<string, unknown>,
+    ctx: NodeContext
 ): Record<string, unknown> {
     if (typeof node.$recursiveRef === "string") {
         // Preserve the original ref string — anchored forms such as
@@ -347,6 +644,10 @@ function normaliseDraft201909Node(
         }
         delete node.$recursiveAnchor;
     }
+    // Draft 2019-09 introduced dependentRequired/dependentSchemas but
+    // still permits the legacy `dependencies` keyword. Validate any
+    // pre-existing dependentRequired entries the author migrated to.
+    validateDependentRequired(node, ctx);
     return node;
 }
 
@@ -354,8 +655,9 @@ function normaliseDraft201909Node(
 // Draft 2020-12: $dynamicRef → $ref
 // ---------------------------------------------------------------------------
 
-function normaliseDynamicRefNode(
-    node: Record<string, unknown>
+function normaliseDynamicRefNodeWithContext(
+    node: Record<string, unknown>,
+    ctx: NodeContext
 ): Record<string, unknown> {
     if (typeof node.$dynamicRef === "string") {
         // $dynamicRef resolves to the $dynamicAnchor in the dynamic scope.
@@ -374,6 +676,14 @@ function normaliseDynamicRefNode(
         }
         delete node.$dynamicAnchor;
     }
+    // Defensive translation of the legacy `dependencies` keyword on the
+    // 2020-12 path: schemas reaching this branch may have no `$schema`
+    // at all (the inference default), so authors who copy snippets from
+    // older drafts can still produce `dependencies`. The walker does not
+    // read it, so without translation the constraints would be silently
+    // lost. Surface the rewrite via a diagnostic.
+    splitDependencies(node, ctx, true);
+    validateDependentRequired(node, ctx);
     return node;
 }
 
@@ -384,21 +694,44 @@ function normaliseDynamicRefNode(
 /**
  * Normalise a JSON Schema to canonical Draft 2020-12 form.
  * Deep-clones the input — the original is never mutated.
+ *
+ * When `diagnostics` is supplied, per-node transforms emit diagnostics
+ * for legacy-keyword rewrites and invalid constructs (e.g. `divisibleBy`
+ * conflicts, non-string entries in a `dependentRequired` array, legacy
+ * `dependencies` reaching the 2020-12 path).
  */
 export function normaliseJsonSchema(
     schema: Record<string, unknown>,
-    draft: JsonSchemaDraft
+    draft: JsonSchemaDraft,
+    diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
+    const ctx: NodeContext = { diagnostics, pointer: "" };
     switch (draft) {
         case "draft-04":
-            return deepNormalise(schema, normaliseDraft04Node);
+            return deepNormaliseWithContext(
+                schema,
+                normaliseDraft04NodeWithContext,
+                ctx
+            );
         case "draft-2019-09":
-            return deepNormalise(schema, normaliseDraft201909Node);
+            return deepNormaliseWithContext(
+                schema,
+                normaliseDraft201909NodeWithContext,
+                ctx
+            );
         case "draft-2020-12":
-            return deepNormalise(schema, normaliseDynamicRefNode);
+            return deepNormaliseWithContext(
+                schema,
+                normaliseDynamicRefNodeWithContext,
+                ctx
+            );
         case "draft-06":
         case "draft-07":
-            return deepNormalise(schema, normaliseDraft06Or07Node);
+            return deepNormaliseWithContext(
+                schema,
+                normaliseDraft06Or07NodeWithContext,
+                ctx
+            );
     }
 }
 

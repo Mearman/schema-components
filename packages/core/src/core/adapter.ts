@@ -208,7 +208,7 @@ function normaliseJsonSchema(
         }
     }
 
-    const normalised = normaliseForDraft(jsonSchema, draft);
+    const normalised = normaliseForDraft(jsonSchema, draft, diagnostics);
     return {
         jsonSchema: normalised,
         rootMeta: extractRootMetaFromJson(normalised),

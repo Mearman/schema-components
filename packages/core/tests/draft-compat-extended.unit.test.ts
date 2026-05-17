@@ -224,6 +224,77 @@ describe("$dynamicRef / $dynamicAnchor", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Draft 04: divisibleBy → multipleOf (Draft 03 carryover)
+// ---------------------------------------------------------------------------
+
+describe("Draft 04 divisibleBy → multipleOf", () => {
+    it("translates divisibleBy to multipleOf when multipleOf is absent", () => {
+        const schema: Record<string, unknown> = {
+            $schema: "http://json-schema.org/draft-04/schema#",
+            type: "integer",
+            divisibleBy: 3,
+        };
+        const normalised = normaliseJsonSchema(schema, "draft-04");
+        expect(normalised.multipleOf).toBe(3);
+        expect("divisibleBy" in normalised).toBe(false);
+    });
+
+    it("emits divisible-by-conflict diagnostic when both are present and disagree", () => {
+        const schema: Record<string, unknown> = {
+            type: "integer",
+            divisibleBy: 3,
+            multipleOf: 4,
+        };
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        // multipleOf wins; divisibleBy is dropped
+        expect(normalised.multipleOf).toBe(4);
+        expect("divisibleBy" in normalised).toBe(false);
+        const conflict = diagnostics.find(
+            (d) => d.code === "divisible-by-conflict"
+        );
+        expect(conflict).toBeDefined();
+        expect(conflict?.detail?.divisibleBy).toBe(3);
+        expect(conflict?.detail?.multipleOf).toBe(4);
+    });
+
+    it("does not emit divisible-by-conflict when values agree", () => {
+        const schema: Record<string, unknown> = {
+            type: "integer",
+            divisibleBy: 3,
+            multipleOf: 3,
+        };
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        expect(normalised.multipleOf).toBe(3);
+        expect("divisibleBy" in normalised).toBe(false);
+        expect(
+            diagnostics.filter((d) => d.code === "divisible-by-conflict").length
+        ).toBe(0);
+    });
+
+    it("translates divisibleBy inside nested properties", () => {
+        const schema: Record<string, unknown> = {
+            type: "object",
+            properties: {
+                count: { type: "integer", divisibleBy: 5 },
+            },
+        };
+        const normalised = normaliseJsonSchema(schema, "draft-04");
+        const properties = normalised.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const count = properties.count;
+        if (!isObject(count)) throw new Error("expected count");
+        expect(count.multipleOf).toBe(5);
+        expect("divisibleBy" in count).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Draft 2019-09: $recursiveRef value preservation
 // ---------------------------------------------------------------------------
 
@@ -266,6 +337,59 @@ describe("Draft 2019-09 $recursiveRef value preservation", () => {
         expect(self.$ref).toBe("#");
         // Bare `true` $recursiveAnchor still becomes the canonical marker
         expect(normalised.$anchor).toBe("__recursive__");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Draft 2020-12 path: legacy `dependencies` splitting
+// ---------------------------------------------------------------------------
+
+describe("Draft 2020-12 legacy dependencies splitting", () => {
+    it("splits legacy `dependencies` reaching the 2020-12 path", () => {
+        const schema: Record<string, unknown> = {
+            type: "object",
+            properties: {
+                a: { type: "string" },
+                b: { type: "string" },
+            },
+            dependencies: { a: ["b"] },
+        };
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-2020-12", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        expect("dependencies" in normalised).toBe(false);
+        expect(normalised.dependentRequired).toStrictEqual({ a: ["b"] });
+        const split = diagnostics.find(
+            (d) => d.code === "legacy-dependencies-split"
+        );
+        expect(split).toBeDefined();
+    });
+
+    it("end-to-end via adapter: no $schema → 2020-12 → legacy dependencies split", () => {
+        const schema: Record<string, unknown> = {
+            type: "object",
+            properties: {
+                creditCard: { type: "string" },
+                billingAddress: { type: "string" },
+            },
+            dependencies: { creditCard: ["billingAddress"] },
+        };
+        const diagnostics: Diagnostic[] = [];
+        const result = normaliseSchema(schema, undefined, {
+            diagnostics: {
+                diagnostics: (d) => diagnostics.push(d),
+            },
+        });
+        const normalised = result.jsonSchema;
+        if (!isObject(normalised)) throw new Error("expected object");
+        expect("dependencies" in normalised).toBe(false);
+        expect(normalised.dependentRequired).toStrictEqual({
+            creditCard: ["billingAddress"],
+        });
+        expect(
+            diagnostics.some((d) => d.code === "legacy-dependencies-split")
+        ).toBe(true);
     });
 });
 
@@ -314,6 +438,58 @@ describe("unknown $schema URI assumed-draft diagnostic", () => {
         expect(
             diagnostics.filter((d) => d.code === "assumed-draft").length
         ).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// dependentRequired: non-string entries
+// ---------------------------------------------------------------------------
+
+describe("dependent-required-invalid diagnostic", () => {
+    it("emits a diagnostic for each non-string entry and drops the property", () => {
+        const schema: Record<string, unknown> = {
+            type: "object",
+            dependentRequired: {
+                a: ["b", 42],
+            },
+        };
+        const diagnostics: Diagnostic[] = [];
+        normaliseJsonSchema(schema, "draft-2020-12", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const invalid = diagnostics.filter(
+            (d) => d.code === "dependent-required-invalid"
+        );
+        expect(invalid.length).toBe(1);
+        const diag = invalid[0];
+        if (diag === undefined) throw new Error("expected diagnostic");
+        expect(diag.detail?.property).toBe("a");
+        expect(diag.detail?.index).toBe(1);
+        expect(diag.detail?.value).toBe(42);
+    });
+
+    it("emits dependent-required-invalid when legacy dependencies contains non-strings", () => {
+        const schema: Record<string, unknown> = {
+            type: "object",
+            dependencies: {
+                a: ["b", 42],
+            },
+        };
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const invalid = diagnostics.filter(
+            (d) => d.code === "dependent-required-invalid"
+        );
+        expect(invalid.length).toBe(1);
+        const diag = invalid[0];
+        if (diag === undefined) throw new Error("expected diagnostic");
+        expect(diag.detail?.property).toBe("a");
+        expect(diag.detail?.index).toBe(1);
+        // Property is dropped entirely so the rewrite does not produce a
+        // partial constraint silently.
+        expect(normalised.dependentRequired).toBeUndefined();
     });
 });
 
