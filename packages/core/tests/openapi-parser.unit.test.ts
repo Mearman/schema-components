@@ -689,6 +689,127 @@ describe("parser edge cases", () => {
         });
     });
 
+    it("prefers application/*+json variants over non-JSON content (RFC 6839)", () => {
+        // OAS frequently expresses errors with `application/problem+json`
+        // (RFC 7807). Without `+json` matching, `getResponses` would fall
+        // through to "first available" — which in this document is
+        // `application/xml`. Confirm the +json variant wins.
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: {
+                        responses: {
+                            "200": {
+                                description: "OK",
+                                content: {
+                                    "application/xml": {
+                                        schema: { type: "string" },
+                                    },
+                                    "application/problem+json": {
+                                        schema: {
+                                            type: "object",
+                                            properties: {
+                                                title: { type: "string" },
+                                                status: { type: "integer" },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+        const responses = getResponses(parsed, "/items", "get");
+        expect(responses.length).toBe(1);
+        expect(responses[0]?.schema).toEqual({
+            type: "object",
+            properties: {
+                title: { type: "string" },
+                status: { type: "integer" },
+            },
+        });
+    });
+
+    it("prefers literal application/json over application/*+json variants", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: {
+                        responses: {
+                            "200": {
+                                description: "OK",
+                                content: {
+                                    "application/vnd.api+json": {
+                                        schema: { type: "object" },
+                                    },
+                                    "application/json": {
+                                        schema: {
+                                            type: "object",
+                                            properties: {
+                                                ok: { type: "boolean" },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+        const responses = getResponses(parsed, "/items", "get");
+        expect(responses[0]?.schema).toEqual({
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+        });
+    });
+
+    it("matches application/*+json with charset parameter", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/items": {
+                    post: {
+                        requestBody: {
+                            content: {
+                                "application/xml": {
+                                    schema: { type: "string" },
+                                },
+                                "application/hal+json; charset=utf-8": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            _links: { type: "object" },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+        const body = getRequestBody(parsed, "/items", "post");
+        expect(body?.schema).toEqual({
+            type: "object",
+            properties: { _links: { type: "object" } },
+        });
+    });
+
     it("handles non-json content type", () => {
         const doc = {
             openapi: "3.1.0",

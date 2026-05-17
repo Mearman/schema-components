@@ -435,12 +435,30 @@ function resolveWrapperRef(
 // ---------------------------------------------------------------------------
 
 function extractSchemaFromContent(content: JsonObject): JsonObject | undefined {
-    // Try application/json first
+    // Prefer the literal `application/json` content type — the most common
+    // JSON representation in OAS documents.
     const json = getProperty(content, "application/json");
     const jsonSchema = getProperty(json, "schema");
     if (isObject(jsonSchema)) return jsonSchema;
 
-    // Fall back to first available content type
+    // Fall back to any `application/*+json` structured-syntax-suffix
+    // variant (RFC 6839): `application/vnd.api+json`,
+    // `application/problem+json`, `application/hal+json`, etc. These are
+    // all JSON-encoded payloads and the walker treats them identically
+    // to `application/json`. Iterating in declaration order keeps the
+    // choice stable for callers who declare a single `+json` content
+    // type alongside non-JSON alternatives.
+    for (const [mediaType, mediaObj] of Object.entries(content)) {
+        if (!isJsonSuffixMediaType(mediaType)) continue;
+        if (!isObject(mediaObj)) continue;
+        const schema = getProperty(mediaObj, "schema");
+        if (isObject(schema)) return schema;
+    }
+
+    // Last resort: the first content entry that carries a schema. This
+    // preserves the historical behaviour for `multipart/form-data`,
+    // `application/xml`, and other non-JSON content types — the walker
+    // renders the schema regardless of media type.
     for (const mediaType of Object.values(content)) {
         if (!isObject(mediaType)) continue;
         const schema = getProperty(mediaType, "schema");
@@ -448,6 +466,20 @@ function extractSchemaFromContent(content: JsonObject): JsonObject | undefined {
     }
 
     return undefined;
+}
+
+/**
+ * Detect RFC 6839 structured-syntax-suffix media types that encode JSON.
+ * Matches `application/<anything>+json`, optionally with parameters
+ * (`; charset=utf-8`). Excludes the literal `application/json`, which
+ * the caller checks separately to preserve preference order.
+ */
+function isJsonSuffixMediaType(mediaType: string): boolean {
+    const lower = mediaType.toLowerCase();
+    if (lower === "application/json") return false;
+    // Strip any media-type parameters (`; charset=...`, `; profile=...`).
+    const baseType = lower.split(";", 1)[0]?.trim() ?? "";
+    return baseType.startsWith("application/") && baseType.endsWith("+json");
 }
 
 // ---------------------------------------------------------------------------

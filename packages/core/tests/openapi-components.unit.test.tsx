@@ -523,6 +523,70 @@ describe("OpenAPI 3.0 request body normalisation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// application/*+json content negotiation (RFC 6839)
+// ---------------------------------------------------------------------------
+
+describe("application/*+json content negotiation", () => {
+    // OAS frequently uses `application/problem+json` (RFC 7807) for
+    // error responses. Without `+json` matching, the renderer falls
+    // through to "first content entry that carries a schema" — which in
+    // a real document is often `application/xml`. Confirm the component
+    // renders the JSON payload's schema instead.
+    const docWithProblemJson = {
+        openapi: "3.1.0",
+        info: { title: "Test API", version: "1.0" },
+        paths: {
+            "/items": {
+                get: {
+                    operationId: "listItems",
+                    responses: {
+                        "400": {
+                            description: "Bad request",
+                            content: {
+                                "application/xml": {
+                                    schema: { type: "string" },
+                                },
+                                "application/problem+json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            title: { type: "string" },
+                                            detail: { type: "string" },
+                                            status: { type: "integer" },
+                                        },
+                                        required: ["title", "status"],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    };
+
+    it("renders application/problem+json schema via <ApiResponse>", () => {
+        const html = renderToString(
+            createElement(ApiResponse, {
+                schema: docWithProblemJson,
+                path: "/items",
+                method: "get",
+                status: "400",
+                value: { title: "Bad", detail: "Nope", status: 400 },
+            })
+        );
+        // The JSON payload's fields must appear in the rendered output —
+        // not the bare `application/xml` `type: "string"` fallback that
+        // produces a single string input with no nested fields.
+        expect(html).toContain("title");
+        expect(html).toContain("detail");
+        expect(html).toContain("status");
+        expect(html).toContain("Bad");
+        expect(html).toContain("Nope");
+    });
+});
+
+// ---------------------------------------------------------------------------
 // ApiResponse
 // ---------------------------------------------------------------------------
 
