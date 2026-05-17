@@ -9,13 +9,6 @@ import {
 } from "schema-components/openapi/components";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
-const meta: Meta = {
-    title: "OpenAPI/Advanced Features",
-    tags: ["openapi", "composition"],
-};
-export default meta;
-type Story = StoryObj<typeof meta>;
-
 // ---------------------------------------------------------------------------
 // OpenAPI 3.0.x nullable
 // ---------------------------------------------------------------------------
@@ -66,33 +59,6 @@ const openApi30Spec = {
         },
     },
 } as const;
-
-export const OpenApi30Nullable: Story = {
-    name: "OpenAPI 3.0 nullable",
-    render: () => (
-        <SchemaComponent
-            schema={openApi30Spec}
-            ref="#/paths/~1users~1{id}/get/responses/200/content/application~1json/schema"
-            value={{ name: "Ada", nickname: null, deletedAt: null }}
-        />
-    ),
-};
-
-export const OpenApi30NullablePresent: Story = {
-    name: "OpenAPI 3.0 nullable (values present)",
-    render: () => (
-        <SchemaComponent
-            schema={openApi30Spec}
-            ref="#/paths/~1users~1{id}/get/responses/200/content/application~1json/schema"
-            value={{
-                name: "Grace",
-                nickname: "Amazing Grace",
-                deletedAt: "2024-01-15T10:30:00Z",
-            }}
-            readOnly
-        />
-    ),
-};
 
 // ---------------------------------------------------------------------------
 // OpenAPI 3.0 discriminator
@@ -147,27 +113,6 @@ const discriminatorSpec = {
         },
     },
 } as const;
-
-export const DiscriminatorDog: Story = {
-    render: () => (
-        <SchemaComponent
-            schema={discriminatorSpec}
-            ref="#/components/schemas/Dog"
-            value={{ petType: "dog", name: "Rex", breed: "labrador" }}
-        />
-    ),
-};
-
-export const DiscriminatorCat: Story = {
-    render: () => (
-        <SchemaComponent
-            schema={discriminatorSpec}
-            ref="#/components/schemas/Cat"
-            value={{ petType: "cat", name: "Whiskers", indoor: true }}
-            readOnly
-        />
-    ),
-};
 
 // ---------------------------------------------------------------------------
 // Swagger 2.0 legacy document
@@ -252,32 +197,6 @@ const swaggerSpec = {
     },
 } as const;
 
-export const Swagger2ListItems: Story = {
-    name: "Swagger 2.0 list items",
-    render: () => (
-        <ApiOperation schema={swaggerSpec} path="/items" method="get" />
-    ),
-};
-
-export const Swagger2CreateItem: Story = {
-    name: "Swagger 2.0 create item",
-    render: () => (
-        <ApiRequestBody schema={swaggerSpec} path="/items" method="post" />
-    ),
-};
-
-export const Swagger2Definition: Story = {
-    name: "Swagger 2.0 definition ref",
-    render: () => (
-        <SchemaComponent
-            schema={swaggerSpec}
-            ref="#/definitions/Error"
-            value={{ code: 404, message: "Not found" }}
-            readOnly
-        />
-    ),
-};
-
 // ---------------------------------------------------------------------------
 // OpenAPI 3.1 webhook
 // ---------------------------------------------------------------------------
@@ -316,7 +235,98 @@ const webhookSpec = {
     },
 } as const;
 
-export const Webhook: Story = {
+// ---------------------------------------------------------------------------
+// Story metadata
+// ---------------------------------------------------------------------------
+
+// SchemaComponent is the dominant component (5 of 8 stories). Stories that
+// render ApiOperation or ApiRequestBody keep their own `render` and are typed
+// against the component they render.
+const meta: Meta<typeof SchemaComponent> = {
+    title: "OpenAPI/Advanced Features",
+    component: SchemaComponent,
+    tags: ["openapi", "composition"],
+};
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+// ---------------------------------------------------------------------------
+// SchemaComponent stories (args-only)
+// ---------------------------------------------------------------------------
+
+export const OpenApi30Nullable: Story = {
+    name: "OpenAPI 3.0 nullable",
+    args: {
+        schema: openApi30Spec,
+        ref: "#/paths/~1users~1{id}/get/responses/200/content/application~1json/schema",
+        value: { name: "Ada", nickname: null, deletedAt: null },
+    },
+};
+
+export const OpenApi30NullablePresent: Story = {
+    name: "OpenAPI 3.0 nullable (values present)",
+    args: {
+        schema: openApi30Spec,
+        ref: "#/paths/~1users~1{id}/get/responses/200/content/application~1json/schema",
+        value: {
+            name: "Grace",
+            nickname: "Amazing Grace",
+            deletedAt: "2024-01-15T10:30:00Z",
+        },
+        readOnly: true,
+    },
+};
+
+export const DiscriminatorDog: Story = {
+    args: {
+        schema: discriminatorSpec,
+        ref: "#/components/schemas/Dog",
+        value: { petType: "dog", name: "Rex", breed: "labrador" },
+    },
+};
+
+export const DiscriminatorCat: Story = {
+    args: {
+        schema: discriminatorSpec,
+        ref: "#/components/schemas/Cat",
+        value: { petType: "cat", name: "Whiskers", indoor: true },
+        readOnly: true,
+    },
+};
+
+export const Swagger2Definition: Story = {
+    name: "Swagger 2.0 definition ref",
+    args: {
+        schema: swaggerSpec,
+        ref: "#/definitions/Error",
+        value: { code: 404, message: "Not found" },
+        readOnly: true,
+    },
+};
+
+// ---------------------------------------------------------------------------
+// ApiOperation / ApiRequestBody stories — kept on `render` because they
+// render a component other than the file's dominant `SchemaComponent`.
+// ---------------------------------------------------------------------------
+
+/** Renders ApiOperation; kept on `render` because meta.component is SchemaComponent. */
+export const Swagger2ListItems: StoryObj<typeof ApiOperation> = {
+    name: "Swagger 2.0 list items",
+    render: () => (
+        <ApiOperation schema={swaggerSpec} path="/items" method="get" />
+    ),
+};
+
+/** Renders ApiRequestBody; kept on `render` because meta.component is SchemaComponent. */
+export const Swagger2CreateItem: StoryObj<typeof ApiRequestBody> = {
+    name: "Swagger 2.0 create item",
+    render: () => (
+        <ApiRequestBody schema={swaggerSpec} path="/items" method="post" />
+    ),
+};
+
+/** Renders ApiRequestBody; kept on `render` because meta.component is SchemaComponent. */
+export const Webhook: StoryObj<typeof ApiRequestBody> = {
     name: "OpenAPI 3.1 webhook",
     render: () => (
         <ApiRequestBody
