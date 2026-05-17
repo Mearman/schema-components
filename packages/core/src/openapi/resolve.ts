@@ -104,13 +104,7 @@ function lookupPathItemNode(
     path: string
 ): Record<string, unknown> | undefined {
     const paths = getProperty(parsed.doc, "paths");
-    const direct = getProperty(paths, path);
-    const resolved = resolvePathItemNode(parsed, direct);
-    if (resolved !== undefined) return resolved;
-    // OpenAPI 3.1 webhook fallback — identifiers without a leading `/`
-    // can address `webhooks/<name>`. Mirrors the parser's behaviour.
-    const webhooks = getProperty(parsed.doc, "webhooks");
-    return resolvePathItemNode(parsed, getProperty(webhooks, path));
+    return resolvePathItemNode(parsed, getProperty(paths, path));
 }
 
 function resolvePathItemNode(
@@ -133,12 +127,7 @@ function resolvePathItemNode(
     return isObject(current) ? current : pathItem;
 }
 
-function extractPathItemInfo(
-    pathItem: Record<string, unknown> | undefined
-): PathItemInfo {
-    if (pathItem === undefined) {
-        return { summary: undefined, description: undefined };
-    }
+function extractPathItemInfo(pathItem: Record<string, unknown>): PathItemInfo {
     const summary = pathItem.summary;
     const description = pathItem.description;
     return {
@@ -166,9 +155,19 @@ export function resolveOperation(
         throw new Error(`Operation not found: ${method.toUpperCase()} ${path}`);
     }
 
+    const pathItemNode = lookupPathItemNode(parsed, path);
+    if (pathItemNode === undefined) {
+        // listOperations found the operation by iterating paths, so the
+        // path entry must exist and resolve to an object. Reaching this
+        // branch means an upstream invariant has broken.
+        throw new Error(
+            `Path item missing for ${method.toUpperCase()} ${path}`
+        );
+    }
+
     return {
         operation,
-        pathItem: extractPathItemInfo(lookupPathItemNode(parsed, path)),
+        pathItem: extractPathItemInfo(pathItemNode),
         parameters: getParameters(parsed, path, method),
         requestBody: getRequestBody(parsed, path, method),
         responses: getResponses(parsed, path, method),

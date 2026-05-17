@@ -46,9 +46,17 @@ export type FormatValidator = RegExp | ((value: string) => boolean);
  * Recognised JSON Schema formats with their validation patterns.
  * Unknown formats emit an `unknown-format` diagnostic and skip derivation.
  */
+/**
+ * Email format pattern, exported as a named const so callers that need a
+ * guaranteed `RegExp` (rather than the `RegExp | undefined` shape of
+ * `FORMAT_PATTERNS[name]` under `noUncheckedIndexedAccess`) can import it
+ * directly. Used by the URI safety helpers for mailto address checks.
+ */
+export const EMAIL_FORMAT_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const FORMAT_PATTERNS: Readonly<Record<string, RegExp>> = {
     uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    email: EMAIL_FORMAT_PATTERN,
     "date-time":
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/,
     date: /^\d{4}-\d{2}-\d{2}$/,

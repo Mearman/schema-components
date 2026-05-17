@@ -11,24 +11,7 @@
  * when deciding whether a string is safe to render as an `href`.
  */
 
-import { FORMAT_PATTERNS } from "./formats.ts";
-
-/**
- * The standard JSON Schema `email` format pattern. Captured once at
- * module load so the mailto safety check does not pay the lookup cost
- * on every call, and so a missing entry surfaces immediately as a
- * load-time error rather than a silent acceptance of unsafe values at
- * render time.
- */
-const EMAIL_FORMAT_PATTERN: RegExp = (() => {
-    const pattern = FORMAT_PATTERNS.email;
-    if (pattern === undefined) {
-        throw new Error(
-            "FORMAT_PATTERNS.email is missing — mailto safety check cannot operate without it."
-        );
-    }
-    return pattern;
-})();
+import { EMAIL_FORMAT_PATTERN } from "./formats.ts";
 
 // ---------------------------------------------------------------------------
 // Hyperlink scheme allow-list

@@ -201,6 +201,35 @@ describe("resolveOperation", () => {
             "Operation not found"
         );
     });
+
+    it("follows a path-item $ref into components.pathItems", () => {
+        // Exercises resolvePathItemNode's $ref branch.
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Refs", version: "1.0.0" },
+            paths: {
+                "/pets": { $ref: "#/components/pathItems/PetsPath" },
+            },
+            components: {
+                pathItems: {
+                    PetsPath: {
+                        summary: "Pets collection",
+                        description: "Manage pets",
+                        get: {
+                            operationId: "listPets",
+                            responses: {
+                                "200": { description: "OK" },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const resolved = resolveOperation(doc, "/pets", "get");
+        expect(resolved.operation.operationId).toBe("listPets");
+        expect(resolved.pathItem.summary).toBe("Pets collection");
+        expect(resolved.pathItem.description).toBe("Manage pets");
+    });
 });
 
 // ---------------------------------------------------------------------------

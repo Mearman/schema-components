@@ -245,4 +245,20 @@ describe("renderString — URI safety", () => {
         );
         expect(html).not.toMatch(/href="mailto:/i);
     });
+
+    it("emits href for a relative URI reference (no scheme)", () => {
+        // Covers isSafeHyperlink's no-scheme branch: relative refs are
+        // safe to render as href because they cannot escape the origin.
+        const schema = z.object({
+            url: z.string().meta({ format: "uri" }),
+        });
+        const html = renderToString(
+            <SchemaComponent
+                schema={schema}
+                value={{ url: "/docs/page" }}
+                readOnly
+            />
+        );
+        expect(html).toMatch(/href="\/docs\/page"/);
+    });
 });
