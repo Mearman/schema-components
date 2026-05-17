@@ -115,7 +115,9 @@ const cases: readonly ContractCase[] = [
     },
     {
         // Triggered by sharing a meta id between two distinct schemas.
-        // Source: zod/src/v4/core/to-json-schema.ts L235
+        // Source: zod/src/v4/core/to-json-schema.ts — the
+        // `Duplicate schema id "${id}" detected during JSON Schema
+        // conversion.` throw inside the registry collision branch.
         label: "Duplicate schema id",
         build: () => {
             const a = z.string().meta({ id: "shared-id-for-contract" });
@@ -170,7 +172,9 @@ describe("Zod 4 error message contract", () => {
         // is a static one against the Zod source string — if the source
         // template changes, this test fails and the classifier must be
         // updated to match.
-        // Source: node_modules/zod/src/v4/core/to-json-schema.ts L182
+        // Source: zod/src/v4/core/to-json-schema.ts — the
+        // `[toJSONSchema]: Non-representable type encountered: ${def.type}`
+        // throw at the bottom of the per-schema processor loop.
         const expectedMarker =
             "[toJSONSchema]: Non-representable type encountered:";
         // Confirm the marker string is what the adapter expects to match
@@ -181,12 +185,12 @@ describe("Zod 4 error message contract", () => {
     });
 
     it("Cycle detection wording is still emitted when cycles: 'throw'", () => {
-        // The adapter calls z.toJSONSchema without options, which defaults
-        // to `cycles: "ref"` — so cycles do NOT surface as errors through
-        // schema-components in normal use. This test asserts the wording
-        // is unchanged so the rule remains correct if Zod ever flips the
-        // default or a user-facing API exposes the option in future.
-        // Source: zod/src/v4/core/to-json-schema.ts L307
+        // The adapter calls z.toJSONSchema with an explicit `cycles: "ref"`,
+        // so cycles do NOT surface as errors through schema-components in
+        // normal use. This test asserts the wording is unchanged so the rule
+        // remains correct if a future user-facing API exposes the option.
+        // Source: zod/src/v4/core/to-json-schema.ts — the
+        // `Cycle detected: ` throw inside the cycle-handling branch.
         const lazyRef: { value: z.ZodType } = { value: z.never() };
         const lazy: z.ZodType = z.lazy(() => lazyRef.value);
         const obj = z.object({ self: lazy });
@@ -207,7 +211,9 @@ describe("Zod 4 error message contract", () => {
         // its own seen-map is incoherent. The static check is the same kind
         // of contract guard as the non-representable-type marker test
         // above.
-        // Source: zod/src/v4/core/to-json-schema.ts L225 + L364
+        // Source: zod/src/v4/core/to-json-schema.ts — the
+        // `Unprocessed schema. This is a bug in Zod.` throws inside the
+        // root-collection and registry passes.
         const expected = "Unprocessed schema. This is a bug in Zod.";
         expect(expected).toBe("Unprocessed schema. This is a bug in Zod.");
     });
@@ -215,7 +221,9 @@ describe("Zod 4 error message contract", () => {
     it("Error-converting wording is unchanged at source", () => {
         // Wrapped at the Standard Schema boundary by Zod. Same situation as
         // the unprocessed-schema guard above — checked structurally.
-        // Source: zod/src/v4/core/to-json-schema.ts L522
+        // Source: zod/src/v4/core/to-json-schema.ts — the
+        // `Error converting schema to JSON.` throw at the Standard
+        // Schema integration boundary.
         const expected = "Error converting schema to JSON.";
         expect(expected).toBe("Error converting schema to JSON.");
     });

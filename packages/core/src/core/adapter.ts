@@ -58,9 +58,8 @@ export type SchemaKind =
 /**
  * Classify the input schema by its structural markers.
  *
- * - `zod4` — has a `_zod` marker (further validation that `_zod` is an
- *   object and `_zod.def` is a non-null object happens inside
- *   `normaliseZod4`).
+ * - `zod4` — has a `_zod` marker (further validation that `_zod.def` is a
+ *   non-null object happens inside `normaliseZod4`).
  * - `zod3` — has `_def` and no `_zod`. The `typeName` field is no longer
  *   required: any `_def` without `_zod` is treated as a probable Zod 3
  *   schema. Third-party libraries that expose `_def` without `_zod` are
@@ -348,14 +347,27 @@ function unrepresentableMessage(typeName: string, fullMessage: string): string {
  * test suite asserts no two `prefix` values are prefixes of each other —
  * any future rule that breaks the invariant fails the build.
  *
- * Verbatim sources (kept aligned with `tests/zod-error-wording-contract.unit.test.ts`):
- * - zod/src/v4/core/json-schema-processors.ts L104 (bigint), L110 (symbol),
- *   L126 (undefined), L132 (void), L150 (date), L169 (literal-undefined),
- *   L175 (literal-bigint), L204 (NaN), L246 (custom), L252 (function),
- *   L258 (transforms), L264 (map), L270 (set), L521 (dynamic catch).
- * - zod/src/v4/core/to-json-schema.ts L182 (non-representable type fallback),
- *   L225 + L364 (unprocessed schema), L235 (duplicate id), L307 (cycle),
- *   L522 (error converting).
+ * Verbatim sources (kept aligned with `tests/zod-error-wording-contract.unit.test.ts`).
+ * Source files are referenced by message-content anchors rather than line
+ * numbers — line numbers drift across Zod patch releases but the message
+ * strings themselves are stable and protected by the contract test suite:
+ *
+ * - `zod/src/v4/core/json-schema-processors.ts` — emits `BigInt cannot be
+ *   represented`, `Symbols cannot be represented`, `Undefined cannot be
+ *   represented`, `Void cannot be represented`, `Date cannot be
+ *   represented`, `Literal \`undefined\` cannot be represented`,
+ *   `BigInt literals cannot be represented`, `NaN cannot be represented`,
+ *   `Custom types cannot be represented`, `Function types cannot be
+ *   represented`, `Transforms cannot be represented`, `Map cannot be
+ *   represented`, `Set cannot be represented`, `Dynamic catch values are
+ *   not supported`.
+ * - `zod/src/v4/core/to-json-schema.ts` — emits `[toJSONSchema]:
+ *   Non-representable type encountered: ${def.type}` (the catch-all
+ *   fallback), `Unprocessed schema. This is a bug in Zod.` (the
+ *   internal-bug branch), `Duplicate schema id "${id}" detected during
+ *   JSON Schema conversion.` (the duplicate-id branch), `Cycle detected:
+ *   ` (the cycle-throw branch), and `Error converting schema to JSON.`
+ *   (the Standard Schema boundary wrapper).
  */
 const CLASSIFIER_RULES: readonly ClassifierRule[] = [
     // Literal-only forms must precede their broader counterparts.
@@ -915,9 +927,7 @@ function normaliseZod4(
     // half-constructed sentinel (e.g. a test double of the form
     // `{ _zod: true }`). Require `_zod` to be a non-null object AND
     // `_zod.def` to be a non-null object — anything else is not a valid
-    // Zod 4 schema and is classified explicitly as `unsupported-schema`
-    // so the consumer is pointed at the Zod 4 contract rather than the
-    // older, less specific `invalid-zod`.
+    // Zod 4 schema and is classified explicitly.
     const zod = getProperty(input, "_zod");
     if (!isObject(zod)) {
         throw new SchemaNormalisationError(
