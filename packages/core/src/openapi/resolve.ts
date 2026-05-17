@@ -21,6 +21,7 @@ import { getProperty, isObject } from "../core/guards.ts";
 import { isPrototypePollutingKey } from "../core/uri.ts";
 import { detectOpenApiVersion } from "../core/version.ts";
 import { normaliseOpenApiSchemas } from "../core/normalise.ts";
+import type { DiagnosticsOptions } from "../core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Document caching
@@ -41,23 +42,50 @@ const docCache = new WeakMap<object, OpenApiDocument>();
  * same form `<SchemaComponent>` does, keeping the OpenAPI components on
  * the same pipeline as the top-level adapter.
  *
- * The cache is keyed by the caller-supplied document so subsequent calls
- * with the same input bypass both normalisation and parsing.
+ * When `diagnostics` is supplied, normalisation events
+ * (`duplicate-body-parameter`, `dropped-swagger-feature`,
+ * `unknown-json-schema-dialect`, `divisible-by-conflict`,
+ * `relative-ref-resolved`, etc.) are forwarded to the sink. Passing
+ * diagnostics also bypasses the cache so each call observes the
+ * normalisation pipeline running against the supplied sink — caching
+ * would silently swallow every emission after the first.
+ *
+ * The cache is keyed by the caller-supplied document so subsequent
+ * cache-eligible calls with the same input bypass both normalisation
+ * and parsing.
  */
-export function getParsed(doc: Record<string, unknown>): OpenApiDocument {
-    const cached = docCache.get(doc);
-    if (cached !== undefined) return cached;
+export function getParsed(
+    doc: Record<string, unknown>,
+    diagnostics?: DiagnosticsOptions
+): OpenApiDocument {
+    // The cache stores the result of a previous normalisation that did
+    // not observe a diagnostics sink. Re-running normalisation is the
+    // only way to surface diagnostics to a new sink, so callers that
+    // supply diagnostics opt out of the cache entirely.
+    if (diagnostics === undefined) {
+        const cached = docCache.get(doc);
+        if (cached !== undefined) return cached;
+    }
     const version = detectOpenApiVersion(doc);
     const normalisedDoc =
-        version !== undefined ? normaliseOpenApiSchemas(doc, version) : doc;
+        version !== undefined
+            ? normaliseOpenApiSchemas(doc, version, diagnostics)
+            : doc;
     const parsed = parseOpenApiDocument(normalisedDoc);
-    // Cache by both the caller-supplied input and the normalised document.
-    // Components expose `parsed.doc` (the normalised reference) as the
-    // resolution root passed back into `getParsed` by nested calls; a
-    // second lookup with that reference must hit the same parse result
-    // rather than re-running normalisation.
-    docCache.set(doc, parsed);
-    if (normalisedDoc !== doc) docCache.set(normalisedDoc, parsed);
+    // Only populate the cache for the no-diagnostics path. Caching a
+    // diagnostics-bearing parse would let later non-diagnostics callers
+    // pick up a parse that already emitted into an unrelated sink — the
+    // parse itself is fine, but the second cache lookup would skip
+    // running diagnostics entirely if that later caller did supply one.
+    if (diagnostics === undefined) {
+        // Cache by both the caller-supplied input and the normalised
+        // document. Components expose `parsed.doc` (the normalised
+        // reference) as the resolution root passed back into `getParsed`
+        // by nested calls; a second lookup with that reference must hit
+        // the same parse result rather than re-running normalisation.
+        docCache.set(doc, parsed);
+        if (normalisedDoc !== doc) docCache.set(normalisedDoc, parsed);
+    }
     return parsed;
 }
 
@@ -143,15 +171,20 @@ function extractPathItemInfo(pathItem: Record<string, unknown>): PathItemInfo {
 }
 
 /**
- * Resolve an operation from an OpenAPI document by path and method.
- * Throws if the operation is not found.
+ * Resolve an operation against an already-parsed document. Throws if
+ * the operation is not found.
+ *
+ * Used by callers that have already obtained a parsed document via
+ * {@link getParsed} — most importantly the React components, which
+ * supply `diagnostics` to `getParsed` and must avoid re-running the
+ * normalisation pipeline (every re-run would emit each diagnostic
+ * again into the sink).
  */
-export function resolveOperation(
-    doc: Record<string, unknown>,
+export function resolveOperationFromParsed(
+    parsed: OpenApiDocument,
     path: string,
     method: string
 ): ResolvedOperation {
-    const parsed = getParsed(doc);
     const operations = listOperations(parsed);
     const operation = operations.find(
         (op) => op.path === path && op.method === method
@@ -180,20 +213,56 @@ export function resolveOperation(
     };
 }
 
+/**
+ * Resolve an operation from an OpenAPI document by path and method.
+ * Throws if the operation is not found.
+ *
+ * `diagnostics` is forwarded to {@link getParsed} so normalisation
+ * events surface to the caller's sink.
+ */
+export function resolveOperation(
+    doc: Record<string, unknown>,
+    path: string,
+    method: string,
+    diagnostics?: DiagnosticsOptions
+): ResolvedOperation {
+    const parsed = getParsed(doc, diagnostics);
+    return resolveOperationFromParsed(parsed, path, method);
+}
+
 // ---------------------------------------------------------------------------
 // Parameter resolution
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolve parameters against an already-parsed document. See
+ * {@link resolveOperationFromParsed} for the rationale.
+ */
+export function resolveParametersFromParsed(
+    parsed: OpenApiDocument,
+    path: string,
+    method: string
+): ParameterInfo[] {
+    return getParameters(parsed, path, method);
+}
+
+/**
  * Resolve parameters for an operation. Returns empty array if none.
+ *
+ * `diagnostics` is forwarded to {@link getParsed} so normalisation
+ * events surface to the caller's sink.
  */
 export function resolveParameters(
     doc: Record<string, unknown>,
     path: string,
-    method: string
+    method: string,
+    diagnostics?: DiagnosticsOptions
 ): ParameterInfo[] {
-    const parsed = getParsed(doc);
-    return getParameters(parsed, path, method);
+    return resolveParametersFromParsed(
+        getParsed(doc, diagnostics),
+        path,
+        method
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -201,15 +270,34 @@ export function resolveParameters(
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolve a request body against an already-parsed document. See
+ * {@link resolveOperationFromParsed} for the rationale.
+ */
+export function resolveRequestBodyFromParsed(
+    parsed: OpenApiDocument,
+    path: string,
+    method: string
+): ReturnType<typeof getRequestBody> {
+    return getRequestBody(parsed, path, method);
+}
+
+/**
  * Resolve request body for an operation. Returns undefined if none.
+ *
+ * `diagnostics` is forwarded to {@link getParsed} so normalisation
+ * events surface to the caller's sink.
  */
 export function resolveRequestBody(
     doc: Record<string, unknown>,
     path: string,
-    method: string
+    method: string,
+    diagnostics?: DiagnosticsOptions
 ): ReturnType<typeof getRequestBody> {
-    const parsed = getParsed(doc);
-    return getRequestBody(parsed, path, method);
+    return resolveRequestBodyFromParsed(
+        getParsed(doc, diagnostics),
+        path,
+        method
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -217,15 +305,15 @@ export function resolveRequestBody(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve a specific response by status code. Throws if not found.
+ * Resolve a specific response against an already-parsed document. See
+ * {@link resolveOperationFromParsed} for the rationale.
  */
-export function resolveResponse(
-    doc: Record<string, unknown>,
+export function resolveResponseFromParsed(
+    parsed: OpenApiDocument,
     path: string,
     method: string,
     statusCode: string
 ): ResponseInfo {
-    const parsed = getParsed(doc);
     const responses = getResponses(parsed, path, method);
     const response = responses.find((r) => r.statusCode === statusCode);
 
@@ -237,13 +325,38 @@ export function resolveResponse(
 }
 
 /**
+ * Resolve a specific response by status code. Throws if not found.
+ *
+ * `diagnostics` is forwarded to {@link getParsed} so normalisation
+ * events surface to the caller's sink.
+ */
+export function resolveResponse(
+    doc: Record<string, unknown>,
+    path: string,
+    method: string,
+    statusCode: string,
+    diagnostics?: DiagnosticsOptions
+): ResponseInfo {
+    return resolveResponseFromParsed(
+        getParsed(doc, diagnostics),
+        path,
+        method,
+        statusCode
+    );
+}
+
+/**
  * Resolve all responses for an operation.
+ *
+ * `diagnostics` is forwarded to {@link getParsed} so normalisation
+ * events surface to the caller's sink.
  */
 export function resolveResponses(
     doc: Record<string, unknown>,
     path: string,
-    method: string
+    method: string,
+    diagnostics?: DiagnosticsOptions
 ): ResponseInfo[] {
-    const parsed = getParsed(doc);
+    const parsed = getParsed(doc, diagnostics);
     return getResponses(parsed, path, method);
 }

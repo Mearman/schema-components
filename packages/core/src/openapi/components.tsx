@@ -37,10 +37,10 @@ import type {
 import { isObject, toRecordOrUndefined } from "../core/guards.ts";
 import {
     toDoc,
-    resolveOperation,
-    resolveParameters,
-    resolveRequestBody,
-    resolveResponse,
+    resolveOperationFromParsed,
+    resolveParametersFromParsed,
+    resolveRequestBodyFromParsed,
+    resolveResponseFromParsed,
     getParsed,
 } from "./resolve.ts";
 import type { WidgetMap } from "../react/SchemaComponent.tsx";
@@ -48,6 +48,36 @@ import { ApiSecurity } from "./ApiSecurity.tsx";
 import { ApiCallbacks } from "./ApiCallbacks.tsx";
 import { ApiLinks } from "./ApiLinks.tsx";
 import { ApiResponseHeaders } from "./ApiResponseHeaders.tsx";
+import type { DiagnosticSink } from "../core/diagnostics.ts";
+
+// ---------------------------------------------------------------------------
+// Shared diagnostics props
+// ---------------------------------------------------------------------------
+
+/**
+ * Diagnostics props accepted by every top-level OpenAPI component.
+ *
+ * `onDiagnostic` is the sink invoked for each event surfaced by the
+ * normalisation pipeline (duplicate body parameter, dropped Swagger
+ * feature, divisible-by conflict, unknown JSON Schema dialect,
+ * relative-ref resolved, etc.). `strict` converts every emitted
+ * diagnostic into a thrown `SchemaNormalisationError`.
+ */
+interface ApiDiagnosticsProps {
+    onDiagnostic?: DiagnosticSink;
+    strict?: boolean;
+}
+
+function buildDiagnostics(
+    onDiagnostic: DiagnosticSink | undefined,
+    strict: boolean | undefined
+): import("../core/diagnostics.ts").DiagnosticsOptions | undefined {
+    if (onDiagnostic === undefined && strict !== true) return undefined;
+    const opts: import("../core/diagnostics.ts").DiagnosticsOptions = {};
+    if (onDiagnostic !== undefined) opts.diagnostics = onDiagnostic;
+    if (strict === true) opts.strict = true;
+    return opts;
+}
 
 // ---------------------------------------------------------------------------
 // Internal: render a JSON Schema directly (walker + renderField)
@@ -144,7 +174,7 @@ export interface ApiOperationProps<
     Doc = unknown,
     Path extends string = string,
     Method extends string = string,
-> {
+> extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
     method: Method;
@@ -178,10 +208,16 @@ export function ApiOperation<
     meta,
     requestBodyFields,
     widgets,
+    onDiagnostic,
+    strict,
 }: ApiOperationProps<Doc, Path, Method>): ReactNode {
     const rootDoc = toDoc(doc);
-    const resolved = resolveOperation(rootDoc, path, method);
-    const parsed = getParsed(rootDoc);
+    const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    // Run the normalisation pipeline once and reuse the parsed result.
+    // Diagnostics emit during normalisation, so a second `getParsed` with
+    // the same sink would double-fire every event.
+    const parsed = getParsed(rootDoc, diagnostics);
+    const resolved = resolveOperationFromParsed(parsed, path, method);
     const securityReqs = getSecurityRequirements(parsed, path, method);
     const securitySchemes = getSecuritySchemes(parsed);
     const callbacks = listCallbacks(parsed, path, method);
@@ -244,6 +280,7 @@ export function ApiOperation<
                             key={response.statusCode}
                             response={response}
                             rootDoc={rootDoc}
+                            parsed={parsed}
                             value={responseValue}
                             meta={meta}
                             widgets={widgets}
@@ -269,7 +306,7 @@ export interface ApiParametersProps<
     Doc = unknown,
     Path extends string = string,
     Method extends string = string,
-> {
+> extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
     method: Method;
@@ -292,9 +329,13 @@ export function ApiParameters<
     meta,
     overrides,
     widgets,
+    onDiagnostic,
+    strict,
 }: ApiParametersProps<Doc, Path, Method>): ReactNode {
     const rootDoc = toDoc(doc);
-    const params = resolveParameters(rootDoc, path, method);
+    const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    const parsed = getParsed(rootDoc, diagnostics);
+    const params = resolveParametersFromParsed(parsed, path, method);
     const instancePrefix = sanitisePrefix(useId());
 
     if (params.length === 0) return null;
@@ -322,7 +363,7 @@ export interface ApiRequestBodyProps<
     Doc = unknown,
     Path extends string = string,
     Method extends string = string,
-> {
+> extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
     method: Method;
@@ -349,9 +390,13 @@ export function ApiRequestBody<
     meta,
     fields,
     widgets,
+    onDiagnostic,
+    strict,
 }: ApiRequestBodyProps<Doc, Path, Method>): ReactNode {
     const rootDoc = toDoc(doc);
-    const requestBody = resolveRequestBody(rootDoc, path, method);
+    const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    const parsed = getParsed(rootDoc, diagnostics);
+    const requestBody = resolveRequestBodyFromParsed(parsed, path, method);
     const instancePrefix = sanitisePrefix(useId());
 
     if (requestBody?.schema === undefined) {
@@ -389,7 +434,7 @@ export interface ApiResponseProps<
     Path extends string = string,
     Method extends string = string,
     Status extends string = string,
-> {
+> extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
     method: Method;
@@ -417,9 +462,13 @@ export function ApiResponse<
     meta,
     fields,
     widgets,
+    onDiagnostic,
+    strict,
 }: ApiResponseProps<Doc, Path, Method, Status>): ReactNode {
     const rootDoc = toDoc(doc);
-    const response = resolveResponse(rootDoc, path, method, status);
+    const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    const parsed = getParsed(rootDoc, diagnostics);
+    const response = resolveResponseFromParsed(parsed, path, method, status);
     const instancePrefix = sanitisePrefix(useId());
 
     if (response.schema === undefined) {
@@ -438,6 +487,7 @@ export function ApiResponse<
         <ResponseCard
             response={response}
             rootDoc={rootDoc}
+            parsed={parsed}
             value={value}
             fields={fields}
             meta={meta}
@@ -530,6 +580,7 @@ function ParameterList({
 function ResponseCard({
     response,
     rootDoc,
+    parsed,
     value,
     fields,
     meta,
@@ -540,6 +591,13 @@ function ResponseCard({
 }: {
     response: ResponseInfo;
     rootDoc: Record<string, unknown>;
+    /**
+     * Already-parsed document, supplied by the enclosing component so
+     * link lookup reuses the same normalisation pass that produced
+     * `response`. Calling `getParsed` again would re-run normalisation
+     * and re-emit every diagnostic into the configured sink.
+     */
+    parsed: import("./parser.ts").OpenApiDocument;
     value?: unknown;
     fields?: unknown;
     meta?: SchemaMeta | undefined;
@@ -566,7 +624,6 @@ function ResponseCard({
     // propagate rather than silencing it with an empty array.
     let links: import("./parser.ts").LinkInfo[] = [];
     if (path !== undefined && method !== undefined) {
-        const parsed = getParsed(rootDoc);
         links = getLinks(parsed, path, method, response.statusCode);
     }
 

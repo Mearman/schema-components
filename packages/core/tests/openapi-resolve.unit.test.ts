@@ -12,6 +12,7 @@ import {
     resolveResponse,
     resolveResponses,
 } from "../src/openapi/resolve.ts";
+import type { Diagnostic, DiagnosticSink } from "../src/core/diagnostics.ts";
 
 const petStore = {
     openapi: "3.1.0",
@@ -440,5 +441,198 @@ describe("resolveResponses", () => {
         expect(header.required).toBe(true);
         expect(header.deprecated).toBe(false);
         expect(header.schema).toStrictEqual({ type: "integer", minimum: 0 });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Diagnostics propagation
+// ---------------------------------------------------------------------------
+
+function collectDiagnostics(fn: (sink: DiagnosticSink) => void): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+    fn((d) => diagnostics.push(d));
+    return diagnostics;
+}
+
+describe("diagnostics propagation", () => {
+    it("forwards unknown-json-schema-dialect from getParsed", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            jsonSchemaDialect: "https://example.com/custom-dialect",
+            paths: {
+                "/items": {
+                    get: { responses: { "200": { description: "OK" } } },
+                },
+            },
+        };
+
+        const diags = collectDiagnostics((sink) => {
+            getParsed(doc, { diagnostics: sink });
+        });
+        const dialect = diags.find(
+            (d) => d.code === "unknown-json-schema-dialect"
+        );
+        expect(dialect).toBeDefined();
+        expect(dialect?.pointer).toBe("/jsonSchemaDialect");
+    });
+
+    it("forwards unknown-json-schema-dialect through resolveOperation", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            jsonSchemaDialect: "https://example.com/custom-dialect",
+            paths: {
+                "/items": {
+                    get: { responses: { "200": { description: "OK" } } },
+                },
+            },
+        };
+
+        const diags = collectDiagnostics((sink) => {
+            resolveOperation(doc, "/items", "get", { diagnostics: sink });
+        });
+        expect(
+            diags.find((d) => d.code === "unknown-json-schema-dialect")
+        ).toBeDefined();
+    });
+
+    it("forwards diagnostics through resolveParameters", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            jsonSchemaDialect: "https://example.com/custom-dialect",
+            paths: {
+                "/items": {
+                    get: {
+                        parameters: [
+                            {
+                                name: "q",
+                                in: "query",
+                                schema: { type: "string" },
+                            },
+                        ],
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+        };
+
+        const diags = collectDiagnostics((sink) => {
+            resolveParameters(doc, "/items", "get", { diagnostics: sink });
+        });
+        expect(
+            diags.find((d) => d.code === "unknown-json-schema-dialect")
+        ).toBeDefined();
+    });
+
+    it("forwards diagnostics through resolveRequestBody", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            jsonSchemaDialect: "https://example.com/custom-dialect",
+            paths: {
+                "/items": {
+                    post: {
+                        requestBody: {
+                            content: {
+                                "application/json": {
+                                    schema: { type: "string" },
+                                },
+                            },
+                        },
+                        responses: { "201": { description: "Created" } },
+                    },
+                },
+            },
+        };
+
+        const diags = collectDiagnostics((sink) => {
+            resolveRequestBody(doc, "/items", "post", { diagnostics: sink });
+        });
+        expect(
+            diags.find((d) => d.code === "unknown-json-schema-dialect")
+        ).toBeDefined();
+    });
+
+    it("forwards diagnostics through resolveResponse and resolveResponses", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            jsonSchemaDialect: "https://example.com/custom-dialect",
+            paths: {
+                "/items": {
+                    get: {
+                        responses: {
+                            "200": {
+                                description: "OK",
+                                content: {
+                                    "application/json": {
+                                        schema: { type: "string" },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        const single = collectDiagnostics((sink) => {
+            resolveResponse(doc, "/items", "get", "200", {
+                diagnostics: sink,
+            });
+        });
+        expect(
+            single.find((d) => d.code === "unknown-json-schema-dialect")
+        ).toBeDefined();
+
+        const many = collectDiagnostics((sink) => {
+            resolveResponses(doc, "/items", "get", { diagnostics: sink });
+        });
+        expect(
+            many.find((d) => d.code === "unknown-json-schema-dialect")
+        ).toBeDefined();
+    });
+
+    it("bypasses cache when diagnostics are supplied", () => {
+        // The cache stores results from non-diagnostics calls. A
+        // subsequent diagnostics call must re-run normalisation against
+        // the supplied sink, otherwise events would be silently dropped.
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            jsonSchemaDialect: "https://example.com/custom-dialect",
+            paths: {
+                "/items": {
+                    get: { responses: { "200": { description: "OK" } } },
+                },
+            },
+        };
+        // First call without diagnostics — populates cache.
+        getParsed(doc);
+        // Second call with diagnostics — must still emit despite cache.
+        const diags = collectDiagnostics((sink) => {
+            getParsed(doc, { diagnostics: sink });
+        });
+        expect(
+            diags.find((d) => d.code === "unknown-json-schema-dialect")
+        ).toBeDefined();
+    });
+
+    it("propagates strict mode by throwing on first diagnostic", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            jsonSchemaDialect: "https://example.com/custom-dialect",
+            paths: {
+                "/items": {
+                    get: { responses: { "200": { description: "OK" } } },
+                },
+            },
+        };
+        expect(() =>
+            resolveOperation(doc, "/items", "get", { strict: true })
+        ).toThrow(/unknown-json-schema-dialect/);
     });
 });
