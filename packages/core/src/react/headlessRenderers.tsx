@@ -922,20 +922,6 @@ export function renderFile(props: RenderProps): ReactNode {
     );
 }
 
-export function renderRecursive(props: RenderProps): ReactNode {
-    const refTarget =
-        props.tree.type === "recursive" ? props.tree.refTarget : "";
-    const label =
-        typeof props.meta.description === "string"
-            ? props.meta.description
-            : refTarget;
-    return (
-        <fieldset>
-            <em>↻ {label} (recursive)</em>
-        </fieldset>
-    );
-}
-
 /**
  * Render a literal field — `z.literal("a")` or `{ const: 5 }`.
  *

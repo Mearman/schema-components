@@ -32,7 +32,6 @@ import {
     renderNegation,
     renderLiteral,
     renderFile,
-    renderRecursive,
     renderNever,
     renderUnknown,
 } from "./headlessRenderers.tsx";
@@ -68,7 +67,6 @@ export const headlessResolver: ComponentResolver = {
     negation: renderNegation,
     literal: renderLiteral,
     file: renderFile,
-    recursive: renderRecursive,
     never: renderNever,
     unknown: renderUnknown,
 };

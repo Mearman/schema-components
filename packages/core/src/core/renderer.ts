@@ -252,7 +252,6 @@ export const RESOLVER_KEYS = [
     "discriminatedUnion",
     "conditional",
     "negation",
-    "recursive",
     "literal",
     "file",
     "never",
@@ -282,7 +281,6 @@ export function typeToKey(type: WalkedField["type"]): ResolverKey {
         case "discriminatedUnion":
         case "conditional":
         case "negation":
-        case "recursive":
         case "literal":
         case "file":
         case "never":

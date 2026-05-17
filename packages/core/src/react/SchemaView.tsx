@@ -178,9 +178,7 @@ export function SchemaView({
                 const label =
                     typeof childTree.meta.description === "string"
                         ? childTree.meta.description
-                        : childTree.type === "recursive"
-                          ? childTree.refTarget
-                          : "schema";
+                        : "schema";
                 return createElement(
                     "fieldset",
                     null,

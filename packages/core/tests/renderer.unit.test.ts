@@ -36,7 +36,6 @@ describe("RESOLVER_KEYS", () => {
             "discriminatedUnion",
             "conditional",
             "negation",
-            "recursive",
             "literal",
             "file",
             "never",
@@ -48,7 +47,7 @@ describe("RESOLVER_KEYS", () => {
     it("has the same length as the expected key list", () => {
         // The total must match — any change here requires a matching
         // change in `typeToKey` and both resolver interfaces.
-        expect(RESOLVER_KEYS.length).toBe(18);
+        expect(RESOLVER_KEYS.length).toBe(17);
     });
 });
 
@@ -71,7 +70,6 @@ describe("typeToKey", () => {
         "discriminatedUnion",
         "conditional",
         "negation",
-        "recursive",
         "literal",
         "file",
         "never",

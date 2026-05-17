@@ -671,14 +671,13 @@ export function renderField(
     }
     // 0. Depth limit — prevent infinite recursion on circular schemas
     if (depth >= MAX_RENDER_DEPTH) {
-        const refTarget = tree.type === "recursive" ? tree.refTarget : "";
         const label =
             typeof tree.meta.description === "string"
                 ? tree.meta.description
-                : refTarget;
+                : "schema";
         return (
             <fieldset>
-                <em>↻ {label || "schema"} (recursive)</em>
+                <em>↻ {label} (recursive)</em>
             </fieldset>
         );
     }
