@@ -1,3 +1,46 @@
+## [1.20.0](https://github.com/Mearman/schema-components/compare/v1.19.0...v1.20.0) (2026-05-17)
+
+### Features
+
+* **core:** add format patterns for emoji, ulid, xid, ksuid, json-string, lowercase, uppercase, jwt ([597aa13](https://github.com/Mearman/schema-components/commit/597aa1304493e35d52d3be551bd259acd0408522))
+* **core:** classify additional Zod 4 unrepresentable type errors ([f498d8a](https://github.com/Mearman/schema-components/commit/f498d8a00dbbc536b402b3cbf779258c8383942f))
+* **core:** decode JSON Pointer escapes at the type level ([084ea74](https://github.com/Mearman/schema-components/commit/084ea74ce4e028262e51b433db41603de6f2c96e))
+* **core:** detect Swagger 2.0 input in typeInference and fall back explicitly ([702d0de](https://github.com/Mearman/schema-components/commit/702d0deb59aa26a22f44cc01b6f0c017f15348a0))
+* **core:** emit diagnostic for bare exclusiveMinimum/Maximum without sibling bound ([c399227](https://github.com/Mearman/schema-components/commit/c3992271bc331ecfe6cf5a85f587eeac67bd25eb))
+* **core:** emit diagnostic when enum or required entries are filtered for type ([bc4885b](https://github.com/Mearman/schema-components/commit/bc4885bad8a2c5895641232d21be3b0d2597f804))
+* **core:** handle Draft 04 tuple-form items in typeInference ([73ba147](https://github.com/Mearman/schema-components/commit/73ba1470b1bd9c7582185cc9f11e4b9cb24f73cd))
+* **core:** mirror $recursiveAnchor true normalisation in typeInference ([a431abf](https://github.com/Mearman/schema-components/commit/a431abf27b05fa06010ea680b32c05223a247db8))
+* **core:** preserve original Zod error as cause on SchemaNormalisationError ([ae6303f](https://github.com/Mearman/schema-components/commit/ae6303fbfa72925d8dc6f32197cc9097efa375b3))
+* **core:** resolve #/components/schemas/ refs in ResolveSchemaRef ([4be0518](https://github.com/Mearman/schema-components/commit/4be05188a7d9a93d5c48caac639d0e2db1bfa62e))
+* **core:** resolve nested \$ref against enclosing \$id base-URI ([b720f2d](https://github.com/Mearman/schema-components/commit/b720f2df8ef0e8cf0a0015bebdbf7fc8f5589bf9))
+* **core:** statically reject unrepresentable Zod 4 types at the SchemaComponent props boundary ([0a5cf9f](https://github.com/Mearman/schema-components/commit/0a5cf9fa0313341bc8c3ef115c233c4b3eb84d19))
+* **openapi:** detect and surface jsonSchemaDialect declarations ([8c20789](https://github.com/Mearman/schema-components/commit/8c20789d2bc37ba608ba66fd1e3fb91bd866f969))
+* **openapi:** emit diagnostic for duplicate in:body parameters in Swagger 2.0 ([1721d76](https://github.com/Mearman/schema-components/commit/1721d76615c3757a9d3177650b7574651bc3ce57))
+* **openapi:** render path-level summary and description above operation headers ([58bf403](https://github.com/Mearman/schema-components/commit/58bf403a3d58f9f7793fbc0061506545a5d690c9))
+
+### Bug Fixes
+
+* **core:** apply nullable at FromJSONSchema level in typeInference ([3031e6b](https://github.com/Mearman/schema-components/commit/3031e6b43f2ca2442bbfbe0ca9fd78a9bd5afc0d))
+* **core:** guard pattern compilation against ReDoS and malformed input ([b5e1123](https://github.com/Mearman/schema-components/commit/b5e1123057522d1beab9fdd6652eaa85de45f5f9))
+* **core:** skip prototype-polluting property names in walker ([35e9587](https://github.com/Mearman/schema-components/commit/35e95875413e49a3d5d06f79819f6b81bcd87b65))
+* **core:** walk prefixItems items as TupleField rest schema ([5285bca](https://github.com/Mearman/schema-components/commit/5285bcadf726fbdb870a8bce0db88d437f716057))
+* **html:** reject dangerous URI schemes in href and mailto outputs ([624ecaf](https://github.com/Mearman/schema-components/commit/624ecaff56e38ad6313f38ab7ae5bef8ef99cf3c))
+* **openapi:** block prototype-pollution JSON Pointer segments in ref resolution ([ff4bc11](https://github.com/Mearman/schema-components/commit/ff4bc11a87c99ad627a17343404c922e1ca2935e))
+* **openapi:** convert Media Type Object example to a single Example Object entry ([14fa5e5](https://github.com/Mearman/schema-components/commit/14fa5e5923a1b261ea6817a7c4eb3c5ee30cb820))
+* **openapi:** convert Swagger 2.0 response-level headers to OpenAPI 3.x shape ([665b407](https://github.com/Mearman/schema-components/commit/665b407613fd4cf281c8694ef8a3b974cad1471b))
+* **openapi:** include head, options, trace in resolveOpenApiRef regex ([c113869](https://github.com/Mearman/schema-components/commit/c113869619f72fb78c97748e5066279c4905e878))
+* **openapi:** propagate getLinks exceptions instead of silently swallowing them ([14cc4a8](https://github.com/Mearman/schema-components/commit/14cc4a86c28ebeea226d2f8aa9fc6fd395976282))
+* **openapi:** respect urlencoded consumes when mapping Swagger formData ([4ce3aab](https://github.com/Mearman/schema-components/commit/4ce3aab33902ddf8955f1503107cdd8acacba847))
+
+### Refactoring
+
+* **core:** cover unreachable branches by deletion and direct exports ([8233fdd](https://github.com/Mearman/schema-components/commit/8233fdd15412982681da487f55179361f92b4da9))
+* **core:** remove unreachable RequestBodySchemaOf branch and fix __SchemaInferenceFellBack detection ([c9607e4](https://github.com/Mearman/schema-components/commit/c9607e4fb044a136527ad01974b4f149eb4e4082))
+
+### Tests
+
+* **core:** assert Zod error message contract for classifier prefixes ([1c9a0f6](https://github.com/Mearman/schema-components/commit/1c9a0f639cb8df0d85793a3e87cc5ba747ea1607))
+
 ## [1.19.0](https://github.com/Mearman/schema-components/compare/v1.18.1...v1.19.0) (2026-05-17)
 
 ### Features
