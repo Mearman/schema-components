@@ -47,35 +47,23 @@ export function toReactNode(value: unknown): ReactNode {
 
 function formatDateTime(value: unknown): string | undefined {
     if (typeof value !== "string" || value.length === 0) return undefined;
-    try {
-        const date = new Date(value);
-        if (isNaN(date.getTime())) return undefined;
-        return date.toLocaleString();
-    } catch {
-        return undefined;
-    }
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return undefined;
+    return date.toLocaleString();
 }
 
 function formatDate(value: unknown): string | undefined {
     if (typeof value !== "string" || value.length === 0) return undefined;
-    try {
-        const date = new Date(value);
-        if (isNaN(date.getTime())) return undefined;
-        return date.toLocaleDateString();
-    } catch {
-        return undefined;
-    }
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return undefined;
+    return date.toLocaleDateString();
 }
 
 function formatTime(value: unknown): string | undefined {
     if (typeof value !== "string" || value.length === 0) return undefined;
-    try {
-        const date = new Date(value);
-        if (isNaN(date.getTime())) return undefined;
-        return date.toLocaleTimeString();
-    } catch {
-        return undefined;
-    }
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return undefined;
+    return date.toLocaleTimeString();
 }
 
 // ---------------------------------------------------------------------------
