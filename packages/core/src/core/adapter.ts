@@ -625,9 +625,19 @@ export function normaliseSchema(
     ref?: string,
     options?: NormaliseOptions
 ): NormalisedSchema {
-    // Cache lookup for object identity (Zod schemas, JSON Schema objects)
-    // Only cache when no ref is provided — refs produce different results
-    if (ref === undefined && isObject(input)) {
+    // Cache lookup for object identity (Zod schemas, JSON Schema objects).
+    // Only cache when no ref is provided — refs produce different results.
+    //
+    // When a `diagnostics` sink is supplied we bypass the cache entirely
+    // (mirroring `getParsed` in `openapi/resolve.ts`). The cached result
+    // captured a previous normalisation that did not observe the new sink;
+    // returning it would silently swallow every diagnostic the consumer
+    // expects to see. Re-running normalisation is the only way to surface
+    // diagnostics to a new sink.
+    const usesDiagnostics = options?.diagnostics !== undefined;
+    const cacheEligible =
+        ref === undefined && isObject(input) && !usesDiagnostics;
+    if (cacheEligible) {
         const cached = schemaCache.get(input);
         if (cached !== undefined) return cached;
     }
@@ -665,8 +675,11 @@ export function normaliseSchema(
             break;
     }
 
-    // Cache for future calls (same object identity, no ref)
-    if (ref === undefined && isObject(input)) {
+    // Cache for future calls (same object identity, no ref, no sink).
+    // Cache population deliberately mirrors the eligibility check above —
+    // diagnostics-bearing parses are never cached for the same reason
+    // they bypass the lookup.
+    if (cacheEligible) {
         schemaCache.set(input, result);
     }
 
