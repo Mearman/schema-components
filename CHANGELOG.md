@@ -1,3 +1,25 @@
+## [1.19.0](https://github.com/Mearman/schema-components/compare/v1.18.1...v1.19.0) (2026-05-17)
+
+### Features
+
+* **core:** add format patterns for cuid, cuid2, nanoid, cidrv4, cidrv6, base64, base64url, e164 ([e8294bb](https://github.com/Mearman/schema-components/commit/e8294bbfa54dea1fc72914701eaaab31ef483e19))
+* **core:** emit assumed-draft diagnostic for unknown $schema URIs ([cb09c19](https://github.com/Mearman/schema-components/commit/cb09c19b1599d3f0bc16e22c30b5906fdd1c0db1))
+* **core:** thread diagnostics for legacy normalisation rewrites ([4d849e2](https://github.com/Mearman/schema-components/commit/4d849e2357ab22827fc7c11c4721978db377e017))
+* **openapi:** emit diagnostic when Swagger XML metadata is dropped ([15a21f8](https://github.com/Mearman/schema-components/commit/15a21f8c1d7dad066cc2f08421cdab2e5d2eccb9))
+* **openapi:** render operation description in ApiOperation header ([1b67c9b](https://github.com/Mearman/schema-components/commit/1b67c9b5de7d1242f055a431f11ce5ca450a6604))
+* **react:** register renderers for conditional/negation/tuple/literal/null/never ([af61368](https://github.com/Mearman/schema-components/commit/af613685d5ae64ccc32262ce670b0b2b6e90c2e7))
+
+### Bug Fixes
+
+* **core:** classify Zod 4 conversion failures with SchemaNormalisationError ([653f1b5](https://github.com/Mearman/schema-components/commit/653f1b52c596cf0decdee962ad54e58100930602))
+* **core:** preserve $recursiveRef value when normalising to $ref ([ab72d49](https://github.com/Mearman/schema-components/commit/ab72d492744173ff47c583352e1f8b5f65ca2739))
+* **core:** throw SchemaNormalisationError directly from normaliseZod3 ([ec6f4e2](https://github.com/Mearman/schema-components/commit/ec6f4e267f9233914f087ad9feb031815d6566de))
+* **openapi:** apply discriminator normalisation to OpenAPI 3.1 documents ([3b476a5](https://github.com/Mearman/schema-components/commit/3b476a5d3d26ef960108d4672cfc52921292f669))
+* **openapi:** copy top-level security through Swagger 2.0 normalisation ([5359e03](https://github.com/Mearman/schema-components/commit/5359e031ef9dd387da1c725aabd655a198270080))
+* **openapi:** deep-normalise Swagger 2.0 components.parameters and components.responses ([6a2756b](https://github.com/Mearman/schema-components/commit/6a2756bce9328d2553288e417ca90fc5301ee72e))
+* **openapi:** include head, options, trace in parser METHODS ([351c5e7](https://github.com/Mearman/schema-components/commit/351c5e79f6ad449ac7eaee2e15cc77bf02e5b8e9))
+* **openapi:** normalise OpenAPI 3.0 keywords in callbacks, links, headers and components/* ([ffaf8b0](https://github.com/Mearman/schema-components/commit/ffaf8b06537987b31ca803c0107e7553a69d60da))
+
 ## [1.18.1](https://github.com/Mearman/schema-components/compare/v1.18.0...v1.18.1) (2026-05-17)
 
 ### Bug Fixes
