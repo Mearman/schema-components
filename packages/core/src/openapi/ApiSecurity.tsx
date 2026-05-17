@@ -45,7 +45,11 @@ export function ApiSecurity({
                         <span data-security-name>{req.name}</span>
                         {scheme !== undefined && (
                             <>
-                                <span data-security-type>{scheme.type}</span>
+                                {scheme.type !== undefined && (
+                                    <span data-security-type>
+                                        {scheme.type}
+                                    </span>
+                                )}
                                 {scheme.description && (
                                     <span data-security-description>
                                         {scheme.description}

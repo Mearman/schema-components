@@ -166,6 +166,26 @@ describe("security schemes", () => {
         const schemes = getSecuritySchemes(parsed);
         expect(schemes.size).toBe(0);
     });
+
+    it("surfaces a missing scheme type as undefined", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {},
+            components: {
+                securitySchemes: {
+                    untyped: {
+                        description: "Scheme with no type field",
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+        const parsed = parseOpenApiDocument(doc);
+        const schemes = getSecuritySchemes(parsed);
+        const untyped = schemes.get("untyped");
+        expect(untyped?.type).toBeUndefined();
+        expect(untyped?.description).toBe("Scheme with no type field");
+    });
 });
 
 // ---------------------------------------------------------------------------

@@ -72,7 +72,7 @@ export interface SecurityRequirement {
 }
 
 export interface SecurityScheme {
-    type: string;
+    type: string | undefined;
     description: string | undefined;
     name: string | undefined;
     location: string | undefined;
@@ -478,7 +478,7 @@ export function getSecuritySchemes(
         if (!isObject(scheme)) continue;
         const flowsProp = getProperty(scheme, "flows");
         result.set(name, {
-            type: getString(scheme, "type") ?? "",
+            type: getString(scheme, "type"),
             description: getString(scheme, "description"),
             name: getString(scheme, "name"),
             location: getString(scheme, "in"),
