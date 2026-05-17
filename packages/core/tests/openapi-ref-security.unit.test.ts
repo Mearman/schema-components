@@ -15,6 +15,7 @@ import { parseOpenApiDocument, getSchema } from "../src/openapi/parser.ts";
 import { bundleOpenApiDoc } from "../src/openapi/bundle.ts";
 import type { BundleResolver } from "../src/openapi/bundle.ts";
 import { dereference } from "../src/core/ref.ts";
+import { resolveOperation } from "../src/openapi/resolve.ts";
 import { isObject } from "../src/core/guards.ts";
 
 function getSchemasMap(doc: Record<string, unknown>): Record<string, unknown> {
@@ -154,5 +155,57 @@ describe("ref dereference — prototype pollution refusal", () => {
         const objectPrototype = Object.getPrototypeOf({}) as unknown;
         expect(resolved).not.toBe(objectPrototype);
         expect(resolved).toBe(undefined);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// resolve.ts — resolvePathItemNode (reached via resolveOperation)
+// ---------------------------------------------------------------------------
+
+describe("resolve resolvePathItemNode — prototype pollution refusal", () => {
+    it("does not return Object.prototype for a pathItems $ref at __proto__", () => {
+        // pathItem with a `$ref` targeting `__proto__`. The resolver must
+        // refuse traversal and never surface `Object.prototype` as the
+        // Path Item Object — instead, the operation lookup throws because
+        // no usable path item resolves.
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "t", version: "1" },
+            paths: {
+                "/pets": {
+                    $ref: "#/__proto__/polluted",
+                    get: { responses: { "200": { description: "ok" } } },
+                },
+            },
+        };
+        expect(() => resolveOperation(doc, "/pets", "get")).toThrow();
+    });
+
+    it("does not return Object.prototype for a pathItems $ref at constructor", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "t", version: "1" },
+            paths: {
+                "/pets": {
+                    $ref: "#/constructor/prototype",
+                    get: { responses: { "200": { description: "ok" } } },
+                },
+            },
+        };
+        expect(() => resolveOperation(doc, "/pets", "get")).toThrow();
+    });
+
+    it("does not return Object.prototype for a pathItems $ref at prototype", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "t", version: "1" },
+            paths: {
+                "/pets": {
+                    $ref: "#/prototype",
+                    get: { responses: { "200": { description: "ok" } } },
+                },
+            },
+        };
+        expect(() => resolveOperation(doc, "/pets", "get")).toThrow();
     });
 });

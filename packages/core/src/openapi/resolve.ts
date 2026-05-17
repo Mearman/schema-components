@@ -18,6 +18,7 @@ import {
     type ResponseInfo,
 } from "./parser.ts";
 import { getProperty, isObject } from "../core/guards.ts";
+import { isPrototypePollutingKey } from "../core/uri.ts";
 import { detectOpenApiVersion } from "../core/version.ts";
 import { normaliseOpenApiSchemas } from "../core/normalise.ts";
 
@@ -122,6 +123,11 @@ function resolvePathItemNode(
     for (const part of parts) {
         if (!isObject(current)) return undefined;
         const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
+        // Reject prototype-polluting segments (`__proto__`, `constructor`,
+        // `prototype`). Walking into any of these reads `Object.prototype`
+        // and lets a crafted pathItems `$ref` smuggle properties from the
+        // runtime prototype chain into the resolved Path Item Object.
+        if (isPrototypePollutingKey(decoded)) return undefined;
         current = current[decoded];
     }
     return isObject(current) ? current : pathItem;
