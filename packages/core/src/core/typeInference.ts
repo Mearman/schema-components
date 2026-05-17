@@ -193,18 +193,23 @@ type DetectRecursiveFallback<T> = unknown extends T
  *
  * The TypeScript type system imposes its own recursion limit; without an
  * explicit bound a cyclic schema graph would exhaust it and degrade to
- * `any`/`unknown` silently. Ten levels is the runtime walker's parallel
- * — see `countDistinctRefs` in `ref.ts` (lines 52-55), which derives its
- * bound from the number of distinct `$ref` strings in the document.
+ * `any`/`unknown` silently. This number is the runtime walker's parallel
+ * — see `resolveRef` in `packages/core/src/core/ref.ts` (line 119), whose
+ * default `maxDepth` is `64`. Matching the runtime bound here means a
+ * schema that the runtime resolves successfully is never silently dropped
+ * to `__SchemaInferenceFellBack` at compile time purely because the
+ * type-level limit was lower.
  *
  * A fixed bound is used here rather than a derived one because the type
  * system has no way to count distinct strings across a recursive `Defs`
  * map without itself recursing — which is the problem the bound exists
- * to solve. Ten covers every realistic schema graph encountered in
- * practice; deeper graphs surface as `__SchemaInferenceFellBack` so
- * consumers can detect the limit explicitly.
+ * to solve. Real-world OpenAPI documents (Stripe, GitHub, AWS) routinely
+ * contain 30-100+ distinct `$ref` strings, so a low ceiling would mask
+ * legitimate references. Deeper graphs surface as
+ * `__SchemaInferenceFellBack` so consumers can detect the limit
+ * explicitly.
  */
-export type DEFAULT_MAX_DEPTH = 10;
+export type DEFAULT_MAX_DEPTH = 64;
 
 /**
  * Resolve a $ref against the local definitions context.
