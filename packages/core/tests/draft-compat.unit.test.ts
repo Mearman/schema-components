@@ -509,6 +509,79 @@ describe("Draft 07", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Drafts 06 and 07 tuple form: items: [Schema, Schema] + additionalItems
+// ---------------------------------------------------------------------------
+
+describe("Draft 06 tuple form", () => {
+    it("translates items array to prefixItems with additionalItems → items", () => {
+        const schema = {
+            $schema: "http://json-schema.org/draft-06/schema#",
+            type: "array",
+            items: [{ type: "string" }, { type: "number" }],
+            additionalItems: { type: "boolean" },
+        } as Record<string, unknown>;
+        const normalised = normaliseJsonSchema(schema, "draft-06");
+        const tree = walk(normalised, {});
+        expect(tree.type).toBe("tuple");
+        if (tree.type !== "tuple") return;
+        expect(tree.prefixItems.length).toBe(2);
+        expect(tree.prefixItems[0]?.type).toBe("string");
+        expect(tree.prefixItems[1]?.type).toBe("number");
+        expect(tree.restItems?.type).toBe("boolean");
+    });
+
+    it("omits additionalItems when it is absent", () => {
+        const schema = {
+            $schema: "http://json-schema.org/draft-06/schema#",
+            type: "array",
+            items: [{ type: "string" }, { type: "number" }],
+        } as Record<string, unknown>;
+        const normalised = normaliseJsonSchema(schema, "draft-06");
+        const tree = walk(normalised, {});
+        expect(tree.type).toBe("tuple");
+        if (tree.type !== "tuple") return;
+        expect(tree.prefixItems.length).toBe(2);
+        expect(tree.restItems).toBe(undefined);
+    });
+});
+
+describe("Draft 07 tuple form", () => {
+    it("translates items array to prefixItems with additionalItems → items", () => {
+        const schema = {
+            $schema: "http://json-schema.org/draft-07/schema#",
+            type: "array",
+            items: [{ type: "string" }, { type: "number" }],
+            additionalItems: { type: "boolean" },
+        } as Record<string, unknown>;
+        const normalised = normaliseJsonSchema(schema, "draft-07");
+        const tree = walk(normalised, {});
+        expect(tree.type).toBe("tuple");
+        if (tree.type !== "tuple") return;
+        expect(tree.prefixItems.length).toBe(2);
+        expect(tree.prefixItems[0]?.type).toBe("string");
+        expect(tree.prefixItems[1]?.type).toBe("number");
+        expect(tree.restItems?.type).toBe("boolean");
+    });
+
+    it("preserves an existing prefixItems alongside legacy items", () => {
+        // Author already migrated — translation must not overwrite the
+        // explicit choice.
+        const schema = {
+            $schema: "http://json-schema.org/draft-07/schema#",
+            type: "array",
+            prefixItems: [{ type: "string" }],
+            items: [{ type: "number" }],
+        } as Record<string, unknown>;
+        const normalised = normaliseJsonSchema(schema, "draft-07");
+        const tree = walk(normalised, {});
+        expect(tree.type).toBe("tuple");
+        if (tree.type !== "tuple") return;
+        expect(tree.prefixItems.length).toBe(1);
+        expect(tree.prefixItems[0]?.type).toBe("string");
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Draft 2019-09: $recursiveRef → $ref
 // ---------------------------------------------------------------------------
 

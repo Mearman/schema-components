@@ -457,6 +457,31 @@ function validateDependentRequired(
 }
 
 // ---------------------------------------------------------------------------
+// Shared: tuple-form `items` → `prefixItems` (Draft 04/06/07)
+// ---------------------------------------------------------------------------
+
+/**
+ * Translate the legacy tuple-form `items: [Schema, Schema]` keyword to
+ * Draft 2020-12's `prefixItems`. `additionalItems` becomes the rest-element
+ * schema and is rewritten to `items`.
+ *
+ * Applies to Drafts 04, 06, and 07 — all of which used the tuple form
+ * before Draft 2020-12 split positional schemas into `prefixItems`.
+ *
+ * No-op when `items` is already a single sub-schema, or when `prefixItems`
+ * is already present (do not overwrite an explicit author choice).
+ */
+function translateTupleItems(node: Record<string, unknown>): void {
+    if (!Array.isArray(node.items) || "prefixItems" in node) return;
+    node.prefixItems = node.items;
+    delete node.items;
+    if ("additionalItems" in node) {
+        node.items = node.additionalItems;
+        delete node.additionalItems;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Draft 04: exclusiveMinimum/exclusiveMaximum boolean → number
 // ---------------------------------------------------------------------------
 
@@ -558,15 +583,7 @@ function applyDraft04Translations(
     }
 
     // Draft 04: items as array → prefixItems (tuple v1 syntax)
-    if (Array.isArray(node.items) && !("prefixItems" in node)) {
-        node.prefixItems = node.items;
-        delete node.items;
-        // Draft 04 tuple: additionalItems → items for the rest
-        if ("additionalItems" in node) {
-            node.items = node.additionalItems;
-            delete node.additionalItems;
-        }
-    }
+    translateTupleItems(node);
 
     // Draft 04: dependencies → dependentRequired + dependentSchemas.
     // The legacy keyword is expected on this path, so we do not emit
@@ -631,11 +648,17 @@ function normaliseDraft04NodeWithContext(
  * (already in final form) and `const`/`examples`, but still use the
  * legacy `dependencies` keyword. Split it into `dependentRequired` /
  * `dependentSchemas` so the walker can process them uniformly.
+ *
+ * Drafts 06 and 07 also use the tuple form
+ * `items: [Schema, Schema], additionalItems: Schema` — translate that to
+ * Draft 2020-12's `prefixItems` + rest-`items` so the walker produces a
+ * `TupleField` rather than silently dropping the positional schemas.
  */
 function normaliseDraft06Or07NodeWithContext(
     node: Record<string, unknown>,
     ctx: NodeContext
 ): Record<string, unknown> {
+    translateTupleItems(node);
     splitDependencies(node, ctx, false);
     validateDependentRequired(node, ctx);
     return node;
