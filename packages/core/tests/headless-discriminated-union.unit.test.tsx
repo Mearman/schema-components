@@ -1,17 +1,27 @@
 /**
+ * @vitest-environment happy-dom
+ *
  * Tests for the headless discriminated union renderer (`renderDiscriminatedUnion`).
  *
  * `renderDiscriminatedUnion` (packages/core/src/react/headlessRenderers.tsx,
  * lines ~511-566) renders an editable WAI-ARIA tabs control:
  * - `role="tablist"`, `role="tab"`, `role="tabpanel"`
  * - active tab has `aria-selected="true"`
- * - ArrowLeft / ArrowRight / Home / End move focus between tabs
+ * - ArrowLeft / ArrowRight / Home / End move focus and selection between tabs
+ *   (automatic-activation pattern), wrapping at the extremes
  * - Clicking a tab calls `onChange({ [discriminator]: label })`
  * - Read-only mode renders the active branch without tab buttons
+ *
+ * A DOM environment (happy-dom) is required for the keyboard-navigation
+ * tests at the bottom of the file — they observe focus movement and
+ * mutations to `aria-selected` / `tabindex` after key presses. The
+ * structural SSR tests above use `renderToString` and do not depend on
+ * the DOM, but happy-dom is harmless for them.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderToString } from "react-dom/server";
-import { isValidElement, type ReactElement } from "react";
+import { isValidElement, useState, type ReactElement } from "react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { z } from "zod";
 import { SchemaComponent } from "../src/react/SchemaComponent.tsx";
 import {
@@ -249,10 +259,10 @@ describe("renderDiscriminatedUnion — tab change contract", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Keyboard navigation
+// Keyboard navigation (requires a DOM — see file-level @vitest-environment)
 // ---------------------------------------------------------------------------
 
-describe("renderDiscriminatedUnion — keyboard navigation", () => {
+describe("renderDiscriminatedUnion — keyboard navigation (SSR markup)", () => {
     it("renders the tablist element so a keydown handler can intercept arrows", () => {
         // The keyboard handler is attached to the tablist element via
         // onKeyDown. SSR does not expose handlers, but the markup proves
@@ -266,15 +276,140 @@ describe("renderDiscriminatedUnion — keyboard navigation", () => {
         expect(html).toMatch(/tabindex="0"[^>]*>a</);
         expect(html).toMatch(/tabindex="-1"[^>]*>b</);
     });
+});
 
-    it("keyboard focus movement requires a DOM and is exercised in browser tests", () => {
-        // Keyboard handlers call element.focus() through React refs. Without
-        // a DOM environment we cannot observe focus movement. The pure
-        // handlers themselves (ArrowRight / ArrowLeft / Home / End) are
-        // covered by the Storybook a11y tests in packages/docs.
-        //
-        // This is a deliberate gap in the SSR test suite — focus management
-        // cannot be validated without jsdom or a real browser.
-        expect(true).toBe(true);
+/**
+ * Controlled wrapper used by the keyboard tests. Holds the discriminated
+ * union value in local state so the component is fully controlled by
+ * React in the same way it would be in a real app — this is required
+ * because automatic-activation tabs change selection via `onChange` and
+ * focus follows the resulting re-render.
+ */
+function ControlledKindSchema({
+    initial,
+}: {
+    initial: { kind: string; [k: string]: unknown };
+}): ReactElement {
+    const [value, setValue] = useState<unknown>(initial);
+    return (
+        <SchemaComponent
+            schema={kindSchema}
+            value={value}
+            onChange={(v) => {
+                setValue(v);
+            }}
+        />
+    );
+}
+
+describe("renderDiscriminatedUnion — keyboard navigation (DOM)", () => {
+    afterEach(() => {
+        cleanup();
+    });
+
+    /** Read tabs in document order. */
+    function getTabs(): HTMLButtonElement[] {
+        const tabs = screen.getAllByRole("tab");
+        return tabs.filter(
+            (el): el is HTMLButtonElement => el instanceof HTMLButtonElement
+        );
+    }
+
+    /** Active tab as defined by the WAI-ARIA roving tabindex pattern. */
+    function activeTab(): HTMLButtonElement {
+        const tab = getTabs().find(
+            (t) => t.getAttribute("aria-selected") === "true"
+        );
+        if (tab === undefined) {
+            throw new Error("No tab has aria-selected=true");
+        }
+        return tab;
+    }
+
+    it("ArrowRight moves focus and selection to the next tab, wrapping at the end", () => {
+        render(<ControlledKindSchema initial={{ kind: "a", a: "" }} />);
+        const tabs = getTabs();
+        const [first, second] = tabs;
+        if (first === undefined || second === undefined) {
+            throw new Error("Expected two tabs");
+        }
+
+        // Seed focus on the active tab so the keydown originates there.
+        first.focus();
+        expect(document.activeElement).toBe(first);
+
+        fireEvent.keyDown(first, { key: "ArrowRight" });
+        expect(activeTab()).toBe(second);
+        expect(document.activeElement).toBe(second);
+        expect(second.getAttribute("tabindex")).toBe("0");
+        expect(first.getAttribute("tabindex")).toBe("-1");
+
+        // Wrap: ArrowRight on the last tab returns to the first.
+        fireEvent.keyDown(second, { key: "ArrowRight" });
+        const [firstAgain] = getTabs();
+        if (firstAgain === undefined) throw new Error("Expected first tab");
+        expect(activeTab()).toBe(firstAgain);
+        expect(document.activeElement).toBe(firstAgain);
+    });
+
+    it("ArrowLeft moves focus and selection to the previous tab, wrapping at the start", () => {
+        render(<ControlledKindSchema initial={{ kind: "a", a: "" }} />);
+        const tabs = getTabs();
+        const [first] = tabs;
+        if (first === undefined) throw new Error("Expected at least one tab");
+
+        first.focus();
+
+        // From first tab, ArrowLeft wraps to the last tab.
+        fireEvent.keyDown(first, { key: "ArrowLeft" });
+        const after = getTabs();
+        const last = after[after.length - 1];
+        if (last === undefined) throw new Error("Expected last tab");
+        expect(activeTab()).toBe(last);
+        expect(document.activeElement).toBe(last);
+        expect(last.getAttribute("tabindex")).toBe("0");
+
+        // From last tab, ArrowLeft moves back to the previous tab.
+        fireEvent.keyDown(last, { key: "ArrowLeft" });
+        const afterTwo = getTabs();
+        const previous = afterTwo[afterTwo.length - 2];
+        if (previous === undefined) {
+            throw new Error("Expected previous tab");
+        }
+        expect(activeTab()).toBe(previous);
+        expect(document.activeElement).toBe(previous);
+    });
+
+    it("Home moves focus and selection to the first tab", () => {
+        // Start on the second tab so Home has somewhere to move from.
+        render(<ControlledKindSchema initial={{ kind: "b", b: 0 }} />);
+        const tabs = getTabs();
+        const last = tabs[tabs.length - 1];
+        if (last === undefined) throw new Error("Expected last tab");
+        last.focus();
+        expect(document.activeElement).toBe(last);
+
+        fireEvent.keyDown(last, { key: "Home" });
+        const [first] = getTabs();
+        if (first === undefined) throw new Error("Expected first tab");
+        expect(activeTab()).toBe(first);
+        expect(document.activeElement).toBe(first);
+        expect(first.getAttribute("tabindex")).toBe("0");
+    });
+
+    it("End moves focus and selection to the last tab", () => {
+        render(<ControlledKindSchema initial={{ kind: "a", a: "" }} />);
+        const tabs = getTabs();
+        const [first] = tabs;
+        if (first === undefined) throw new Error("Expected first tab");
+        first.focus();
+
+        fireEvent.keyDown(first, { key: "End" });
+        const after = getTabs();
+        const last = after[after.length - 1];
+        if (last === undefined) throw new Error("Expected last tab");
+        expect(activeTab()).toBe(last);
+        expect(document.activeElement).toBe(last);
+        expect(last.getAttribute("tabindex")).toBe("0");
     });
 });
