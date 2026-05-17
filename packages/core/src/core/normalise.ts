@@ -1003,6 +1003,32 @@ function stripFragment(url: URL): string {
 }
 
 /**
+ * Emit an `invalid-id-fragment` diagnostic when an `$id` value carries
+ * a fragment that will be stripped during base-URI resolution. Per
+ * JSON Schema 2020-12 §8.2.1, the URI in `$id` MUST NOT contain a
+ * non-empty fragment (an empty `#` fragment is permitted for historical
+ * reasons but conveys nothing). Stripping it silently loses authoring
+ * intent — the caller almost certainly meant to declare an `$anchor`
+ * or sibling identifier instead.
+ */
+function reportFragmentInId(
+    value: unknown,
+    url: URL,
+    pointer: string,
+    diagnostics: DiagnosticsOptions | undefined
+): void {
+    if (diagnostics === undefined) return;
+    if (typeof value !== "string") return;
+    if (url.hash.length === 0) return;
+    emitDiagnostic(diagnostics, {
+        code: "invalid-id-fragment",
+        message: `\`$id\` URI "${value}" includes the fragment "${url.hash}", which is not permitted by JSON Schema §8.2.1; the fragment is stripped before use`,
+        pointer: appendPointer(pointer, "$id"),
+        detail: { id: value, fragment: url.hash },
+    });
+}
+
+/**
  * Recursively rewrite relative `$ref`s in a schema so they resolve
  * correctly under the JSON Schema base-URI rules (RFC 3986 + JSON
  * Schema §8.2). Refs that resolve to the document's own `$id` are
@@ -1019,6 +1045,9 @@ function resolveRelativeRefs(
 ): Record<string, unknown> {
     const docBaseUrl = parseAbsoluteUri(schema.$id);
     if (docBaseUrl === undefined) return schema;
+    // Fragment reporting happens inside `rewriteRelativeRefsNode` when
+    // it visits the document root — emitting here as well would double-
+    // count the same `$id`.
     const docBase = stripFragment(docBaseUrl);
     return rewriteRelativeRefsNode(
         schema,
@@ -1057,6 +1086,7 @@ function rewriteRelativeRefsNode(
     if (typeof nodeId === "string" && nodeId.length > 0) {
         const resolved = resolveAgainst(nodeId, currentBase);
         if (resolved !== undefined) {
+            reportFragmentInId(nodeId, resolved, pointer, diagnostics);
             nextBase = stripFragment(resolved);
         }
     }
