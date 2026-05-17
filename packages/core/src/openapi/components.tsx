@@ -20,6 +20,10 @@ import {
     getSecuritySchemes,
     getLinks,
     listWebhooks,
+    getExternalDocs,
+    getXmlInfo,
+    type ExternalDocs,
+    type XmlInfo,
 } from "./parser.ts";
 import type { PathItemInfo } from "./resolve.ts";
 import { walk } from "../core/walker.ts";
@@ -195,6 +199,55 @@ function renderSchema(
 }
 
 // ---------------------------------------------------------------------------
+// externalDocs / xml surface
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a Schema Object or Operation Object's `externalDocs` as a
+ * simple anchor with optional descriptive text. Returns `null` when no
+ * externalDocs are attached so callers can drop it into JSX without an
+ * extra guard.
+ */
+function ExternalDocsLink({
+    externalDocs,
+}: {
+    externalDocs: ExternalDocs | undefined;
+}): ReactNode {
+    if (externalDocs === undefined) return null;
+    return (
+        <p data-external-docs>
+            <a href={externalDocs.url}>
+                {externalDocs.description ?? externalDocs.url}
+            </a>
+        </p>
+    );
+}
+
+/**
+ * Render a Schema Object's `xml` metadata as a footnote. The library
+ * does not render XML payloads natively, but the metadata still
+ * carries author intent (namespaces, element names, wrapping rules).
+ * Surface it so consumers can audit the dropped feature without
+ * losing the underlying information.
+ */
+function SchemaXmlFootnote({ xml }: { xml: XmlInfo | undefined }): ReactNode {
+    if (xml === undefined) return null;
+    return (
+        <aside data-schema-xml>
+            <small>
+                XML representation
+                {xml.name !== undefined && ` — name: ${xml.name}`}
+                {xml.namespace !== undefined &&
+                    ` — namespace: ${xml.namespace}`}
+                {xml.prefix !== undefined && ` — prefix: ${xml.prefix}`}
+                {xml.attribute && " — attribute"}
+                {xml.wrapped && " — wrapped"}
+            </small>
+        </aside>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // <ApiOperation>
 // ---------------------------------------------------------------------------
 
@@ -252,12 +305,19 @@ export function ApiOperation<
     const securitySchemes = getSecuritySchemes(parsed);
     const callbacks = listCallbacks(parsed, path, method);
 
+    const operationExternalDocs = getExternalDocs(resolved.operation.operation);
+    const requestBodyXml =
+        resolved.requestBody?.schema !== undefined
+            ? getXmlInfo(resolved.requestBody.schema)
+            : undefined;
+
     return (
         <section data-operation={`${method.toUpperCase()} ${path}`}>
             <OperationHeader
                 operation={resolved.operation}
                 pathItem={resolved.pathItem}
             />
+            <ExternalDocsLink externalDocs={operationExternalDocs} />
             <ApiSecurity
                 requirements={securityReqs}
                 schemes={securitySchemes}
@@ -299,6 +359,7 @@ export function ApiOperation<
                         widgets,
                         rootPath: joinPath(instancePrefix, "requestBody"),
                     })}
+                    <SchemaXmlFootnote xml={requestBodyXml} />
                 </section>
             )}
             {resolved.responses.length > 0 && (
@@ -434,6 +495,8 @@ export function ApiRequestBody<
         return null;
     }
 
+    const requestBodyXml = getXmlInfo(requestBody.schema);
+
     return (
         <section data-request-body>
             <h4>
@@ -452,6 +515,7 @@ export function ApiRequestBody<
                 widgets,
                 rootPath: instancePrefix,
             })}
+            <SchemaXmlFootnote xml={requestBodyXml} />
         </section>
     );
 }
