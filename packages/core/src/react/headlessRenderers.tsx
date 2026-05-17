@@ -784,7 +784,7 @@ function DiscriminatedUnionTabs({
             if (next === undefined) return;
             props.onChange(next);
         },
-        [optionLabels, discKey, props]
+        [optionLabels, discKey, props.onChange]
     );
 
     // Wrap any signed index into a valid tab index using floored modulo.
@@ -842,6 +842,7 @@ function DiscriminatedUnionTabs({
                         }}
                         type="button"
                         role="tab"
+                        id={`${panelId}-tab-${String(i)}`}
                         aria-selected={i === activeIndex ? "true" : undefined}
                         aria-controls={`${panelId}-panel`}
                         tabIndex={i === activeIndex ? 0 : -1}

@@ -326,6 +326,43 @@ describe("renderDiscriminatedUnion — keyboard navigation (DOM)", () => {
         return tab;
     }
 
+    /** Tabpanel as defined by role=tabpanel. */
+    function tabpanel(): HTMLElement {
+        const panel = screen.getByRole("tabpanel");
+        if (!(panel instanceof HTMLElement)) {
+            throw new Error("Expected tabpanel to be an HTMLElement");
+        }
+        return panel;
+    }
+
+    it("each tab button has an id matching the tabpanel's aria-labelledby when active", () => {
+        render(<ControlledKindSchema initial={{ kind: "a", a: "" }} />);
+        const tabs = getTabs();
+
+        // Every tab must carry a stable id so aria-labelledby can resolve.
+        for (const tab of tabs) {
+            expect(tab.id).not.toBe("");
+        }
+        // Ids must be unique within the document.
+        const ids = tabs.map((t) => t.id);
+        expect(new Set(ids).size).toBe(ids.length);
+
+        // The active tab's id is the one referenced by aria-labelledby.
+        const initialLabelledBy = tabpanel().getAttribute("aria-labelledby");
+        expect(initialLabelledBy).toBe(activeTab().id);
+
+        // After an ArrowRight, aria-labelledby tracks the new active tab.
+        const [first, second] = tabs;
+        if (first === undefined || second === undefined) {
+            throw new Error("Expected two tabs");
+        }
+        first.focus();
+        fireEvent.keyDown(first, { key: "ArrowRight" });
+
+        expect(activeTab()).toBe(second);
+        expect(tabpanel().getAttribute("aria-labelledby")).toBe(second.id);
+    });
+
     it("ArrowRight moves focus and selection to the next tab, wrapping at the end", () => {
         render(<ControlledKindSchema initial={{ kind: "a", a: "" }} />);
         const tabs = getTabs();
