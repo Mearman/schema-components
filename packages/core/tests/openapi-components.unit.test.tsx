@@ -14,6 +14,7 @@ import { ApiSecurity } from "../src/openapi/ApiSecurity.tsx";
 import { ApiCallbacks } from "../src/openapi/ApiCallbacks.tsx";
 import { ApiLinks } from "../src/openapi/ApiLinks.tsx";
 import { ApiResponseHeaders } from "../src/openapi/ApiResponseHeaders.tsx";
+import { SchemaComponent } from "../src/react/SchemaComponent.tsx";
 
 const doc = {
     openapi: "3.1.0",
@@ -216,6 +217,185 @@ describe("ApiRequestBody", () => {
             })
         );
         expect(html).toBe("");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// OpenAPI 3.0 normalisation parity
+//
+// Regression guard: `<ApiRequestBody>` and `<ApiOperation>` must run the
+// same 3.0 → 3.1 normalisation pipeline as `<SchemaComponent>` so that
+// schema-level `nullable`, `discriminator`, and `example` keywords inside
+// request bodies are honoured rather than silently passed through.
+// ---------------------------------------------------------------------------
+
+describe("OpenAPI 3.0 request body normalisation", () => {
+    // The Dog/Cat options omit the discriminator `const` deliberately —
+    // they rely on the OpenAPI 3.0 `discriminator.mapping` to inject the
+    // const values during normalisation. Without 3.0 normalisation, the
+    // walker's discriminated-union detection cannot find a per-option
+    // const and falls back to a plain union (no tablist).
+    //
+    // The options are inline (not $ref) so the injected const stays on
+    // the option and is visible to the walker.
+    const oas30Doc = {
+        openapi: "3.0.3",
+        info: { title: "Animals", version: "1.0" },
+        paths: {
+            "/animals": {
+                post: {
+                    operationId: "createAnimal",
+                    requestBody: {
+                        required: true,
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    discriminator: {
+                                        propertyName: "kind",
+                                        mapping: {
+                                            Dog: "#/components/schemas/Dog",
+                                            Cat: "#/components/schemas/Cat",
+                                        },
+                                    },
+                                    oneOf: [
+                                        {
+                                            type: "object",
+                                            properties: {
+                                                kind: { type: "string" },
+                                                name: { type: "string" },
+                                                nickname: {
+                                                    type: "string",
+                                                    nullable: true,
+                                                    example: "Rex",
+                                                },
+                                            },
+                                            required: ["kind", "name"],
+                                        },
+                                        {
+                                            type: "object",
+                                            properties: {
+                                                kind: { type: "string" },
+                                                name: { type: "string" },
+                                            },
+                                            required: ["kind", "name"],
+                                        },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                    responses: {
+                        "201": { description: "Created" },
+                    },
+                },
+            },
+        },
+        components: {
+            schemas: {
+                Dog: { type: "object" },
+                Cat: { type: "object" },
+            },
+        },
+    };
+
+    it("renders the discriminator as WAI-ARIA tabs via <ApiRequestBody>", () => {
+        const html = renderToString(
+            createElement(ApiRequestBody, {
+                schema: oas30Doc,
+                path: "/animals",
+                method: "post",
+                value: { kind: "Dog", name: "Fido" },
+            })
+        );
+        // Discriminator normalisation should have produced a discriminated
+        // union in the walker output, which the headless renderer turns
+        // into a WAI-ARIA tablist with one tab per option.
+        expect(html).toContain('role="tablist"');
+        const tabMatches = html.match(/role="tab"/g) ?? [];
+        expect(tabMatches.length).toBe(2);
+        // Tab labels are derived from the discriminator const on each option.
+        expect(html).toContain(">Dog<");
+        expect(html).toContain(">Cat<");
+    });
+
+    it("matches <SchemaComponent> output for the same schema", () => {
+        // Both paths must run the identical 3.0 → 3.1 normalisation pipeline.
+        // Render the schema directly via <SchemaComponent> with a ref into
+        // the request body, then assert <ApiRequestBody> produces the same
+        // tablist + tab structure.
+        const viaSchemaComponent = renderToString(
+            createElement(SchemaComponent, {
+                schema: oas30Doc,
+                ref: "/animals/post",
+                value: { kind: "Dog", name: "Fido" },
+            })
+        );
+        const viaRequestBody = renderToString(
+            createElement(ApiRequestBody, {
+                schema: oas30Doc,
+                path: "/animals",
+                method: "post",
+                value: { kind: "Dog", name: "Fido" },
+            })
+        );
+
+        // Both must produce a tablist with the same tab count, proving
+        // discriminator normalisation ran on both paths.
+        expect(viaSchemaComponent).toContain('role="tablist"');
+        expect(viaRequestBody).toContain('role="tablist"');
+        const schemaTabs = viaSchemaComponent.match(/role="tab"/g) ?? [];
+        const bodyTabs = viaRequestBody.match(/role="tab"/g) ?? [];
+        expect(bodyTabs.length).toBe(schemaTabs.length);
+        expect(viaRequestBody).toContain(">Dog<");
+        expect(viaRequestBody).toContain(">Cat<");
+        expect(viaSchemaComponent).toContain(">Dog<");
+        expect(viaSchemaComponent).toContain(">Cat<");
+    });
+
+    it("matches <SchemaComponent> structurally for nullable + example fields", () => {
+        // The `nickname` field is `nullable: true` with `example: "Rex"`.
+        // After 3.0 normalisation, `nullable` becomes `anyOf [T, null]`
+        // and `example` becomes `examples: [...]`. Asserting the two
+        // pipelines produce identical structural output (modulo
+        // per-instance React `useId` values) proves that both ran the
+        // same normalisation pipeline. If <ApiRequestBody> skipped the
+        // 3.0 normalisation, its walker output would differ — `nullable`
+        // would surface as an unknown keyword, no anyOf branch would
+        // exist, and the structure of the nickname input would diverge.
+        const value = { kind: "Dog", name: "Fido", nickname: "Buddy" };
+        const stripVariableIds = (html: string): string =>
+            html
+                .replace(/id="[^"]*"/g, 'id=""')
+                .replace(/aria-controls="[^"]*"/g, 'aria-controls=""')
+                .replace(/aria-labelledby="[^"]*"/g, 'aria-labelledby=""')
+                .replace(/for="[^"]*"/g, 'for=""');
+
+        const viaRequestBody = renderToString(
+            createElement(ApiRequestBody, {
+                schema: oas30Doc,
+                path: "/animals",
+                method: "post",
+                value,
+            })
+        );
+        const viaSchemaComponent = renderToString(
+            createElement(SchemaComponent, {
+                schema: oas30Doc,
+                ref: "/animals/post",
+                value,
+            })
+        );
+
+        // <SchemaComponent>'s output is the inner schema rendering;
+        // <ApiRequestBody> wraps it in a <section data-request-body>.
+        // The inner schema portion must match structurally.
+        const innerSchema = stripVariableIds(viaSchemaComponent);
+        const wrapped = stripVariableIds(viaRequestBody);
+        expect(wrapped).toContain(innerSchema);
+        // The user-supplied value must be present in both renderings.
+        expect(viaRequestBody).toContain("Buddy");
+        expect(viaSchemaComponent).toContain("Buddy");
     });
 });
 

@@ -18,6 +18,8 @@ import {
     type ResponseInfo,
 } from "./parser.ts";
 import { isObject } from "../core/guards.ts";
+import { detectOpenApiVersion } from "../core/version.ts";
+import { normaliseOpenApiSchemas } from "../core/normalise.ts";
 
 // ---------------------------------------------------------------------------
 // Document caching
@@ -26,14 +28,34 @@ import { isObject } from "../core/guards.ts";
 const docCache = new WeakMap<object, OpenApiDocument>();
 
 /**
- * Parse and cache an OpenAPI document. Returns cached version if
- * the same object identity has been seen before.
+ * Parse and cache an OpenAPI document. Returns the cached parse for the
+ * same object identity.
+ *
+ * Before parsing, the document is run through the version-aware
+ * normalisation pipeline (`normaliseOpenApiSchemas`) so OpenAPI 3.0.x
+ * keywords (`nullable`, `discriminator`, `example`) and Swagger 2.0
+ * documents are converted to canonical Draft 2020-12 form. The parser
+ * and downstream extractors (`getRequestBody`, `getResponses`, etc.) then
+ * observe schemas in the same form `<SchemaComponent>` does, keeping the
+ * OpenAPI components on the same pipeline as the top-level adapter.
+ *
+ * The cache is keyed by the caller-supplied document so subsequent calls
+ * with the same input bypass both normalisation and parsing.
  */
 export function getParsed(doc: Record<string, unknown>): OpenApiDocument {
     const cached = docCache.get(doc);
     if (cached !== undefined) return cached;
-    const parsed = parseOpenApiDocument(doc);
+    const version = detectOpenApiVersion(doc);
+    const normalisedDoc =
+        version !== undefined ? normaliseOpenApiSchemas(doc, version) : doc;
+    const parsed = parseOpenApiDocument(normalisedDoc);
+    // Cache by both the caller-supplied input and the normalised document.
+    // Components expose `parsed.doc` (the normalised reference) as the
+    // resolution root passed back into `getParsed` by nested calls; a
+    // second lookup with that reference must hit the same parse result
+    // rather than re-running normalisation.
     docCache.set(doc, parsed);
+    if (normalisedDoc !== doc) docCache.set(normalisedDoc, parsed);
     return parsed;
 }
 

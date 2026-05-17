@@ -20,7 +20,7 @@ import {
     getSecuritySchemes,
     getLinks,
 } from "./parser.ts";
-import { normaliseSchema } from "../core/adapter.ts";
+import { walk } from "../core/walker.ts";
 import {
     joinPath,
     renderField,
@@ -33,8 +33,7 @@ import type {
     InferResponseFields,
     UnsafeFields,
 } from "../core/typeInference.ts";
-import { toRecordOrUndefined } from "../core/guards.ts";
-import { SchemaNormalisationError } from "../core/errors.ts";
+import { isObject, toRecordOrUndefined } from "../core/guards.ts";
 import {
     toDoc,
     resolveOperation,
@@ -75,19 +74,18 @@ function renderSchema(
         rootPath: string;
     }
 ): ReactNode {
-    let jsonSchema: Record<string, unknown>;
-    let rootMeta: SchemaMeta | undefined;
-    try {
-        const normalised = normaliseSchema(schema);
-        jsonSchema = normalised.jsonSchema;
-        rootMeta = normalised.rootMeta;
-    } catch (err: unknown) {
-        throw new SchemaNormalisationError(
-            err instanceof Error ? err.message : "Failed to normalise schema",
-            schema,
-            "unknown"
+    // The schema arrives already normalised — `getParsed` in resolve.ts
+    // runs the input document through `normaliseOpenApiSchemas` before
+    // parsing, so OpenAPI 3.0 keywords (nullable, discriminator, example)
+    // and Swagger 2.0 structure have already been converted to canonical
+    // Draft 2020-12 form. Extract the schema and root meta directly.
+    if (!isObject(schema)) {
+        throw new Error(
+            "renderSchema received a non-object schema from the resolver."
         );
     }
+
+    const rootMeta = extractRootMetaFromSchema(schema);
 
     const componentMeta: SchemaMeta = {};
     if (options.readOnly === true) componentMeta.readOnly = true;
@@ -104,7 +102,7 @@ function renderSchema(
         rootDocument,
     };
 
-    const tree = walk(jsonSchema, walkOpts);
+    const tree = walk(schema, walkOpts);
 
     const makeRenderChild =
         (parentPath: string) =>
@@ -593,5 +591,22 @@ function buildParamMeta(
     return Object.keys(result).length > 0 ? result : undefined;
 }
 
-// Need walk imported for renderSchema
-import { walk } from "../core/walker.ts";
+/**
+ * Extract root-level meta (title, description, readOnly, etc.) from a
+ * JSON Schema node. Mirrors `extractRootMetaFromJson` in the adapter so
+ * pre-normalised schemas (extracted from `getParsed`) still surface root
+ * meta to the walker without an extra adapter round-trip.
+ */
+function extractRootMetaFromSchema(
+    jsonSchema: Record<string, unknown>
+): SchemaMeta | undefined {
+    const meta: SchemaMeta = {};
+    if (jsonSchema.readOnly === true) meta.readOnly = true;
+    if (jsonSchema.writeOnly === true) meta.writeOnly = true;
+    if (typeof jsonSchema.description === "string")
+        meta.description = jsonSchema.description;
+    if (typeof jsonSchema.title === "string") meta.title = jsonSchema.title;
+    if (typeof jsonSchema.deprecated === "boolean")
+        meta.deprecated = jsonSchema.deprecated;
+    return Object.keys(meta).length > 0 ? meta : undefined;
+}
