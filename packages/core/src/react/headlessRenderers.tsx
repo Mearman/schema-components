@@ -566,6 +566,23 @@ export function renderDiscriminatedUnion(props: RenderProps): ReactNode {
 }
 
 /**
+ * Pure helper: convert a tab index into the new value the discriminated
+ * union should emit. Returns `undefined` when the index is out of bounds.
+ *
+ * Extracted from `DiscriminatedUnionTabs` so the contract is unit-testable
+ * without rendering the tabs component (which relies on React hooks).
+ */
+export function discriminatedUnionValueForTab(
+    optionLabels: readonly string[],
+    discKey: string,
+    newIndex: number
+): Record<string, string> | undefined {
+    const label = optionLabels[newIndex];
+    if (label === undefined) return undefined;
+    return { [discKey]: label };
+}
+
+/**
  * WAI-ARIA tabs component for discriminated unions.
  * Implements the full tabs keyboard pattern:
  * - Left/Right arrow keys move between tabs
@@ -592,9 +609,13 @@ function DiscriminatedUnionTabs({
 
     const handleTabChange = useCallback(
         (newIndex: number) => {
-            const label = optionLabels[newIndex];
-            if (label === undefined) return;
-            props.onChange({ [discKey]: label });
+            const next = discriminatedUnionValueForTab(
+                optionLabels,
+                discKey,
+                newIndex
+            );
+            if (next === undefined) return;
+            props.onChange(next);
         },
         [optionLabels, discKey, props]
     );
