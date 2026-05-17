@@ -1,3 +1,29 @@
+## [1.17.0](https://github.com/Mearman/schema-components/compare/v1.16.3...v1.17.0) (2026-05-17)
+
+### Features
+
+* **react:** activate WAI-ARIA tabs automatically on arrow key ([f1422f0](https://github.com/Mearman/schema-components/commit/f1422f03e06e18c27444fb2a44964aa129d00a59))
+* **react:** unique per-instance id prefixes via useId ([5aa9d4a](https://github.com/Mearman/schema-components/commit/5aa9d4adf9dbc9c8e9cb84eaa486b89b52d1653b))
+
+### Bug Fixes
+
+* **react:** scope SchemaView and OpenAPI ids per instance via useId ([0edee2e](https://github.com/Mearman/schema-components/commit/0edee2e1ef1a6db4f9c8eb12679e79f92fe4bef1))
+* **react:** thread unique path-derived ids through every field ([1b7a492](https://github.com/Mearman/schema-components/commit/1b7a49239e2049ea43d8f5089c718c24e8dc3270))
+* **themes:** pair labels with inputs in MUI/Radix/shadcn adapters ([d891634](https://github.com/Mearman/schema-components/commit/d891634ebf7733e6d6477baa7d9a859969c16b69))
+* **themes:** pair Mantine labels and render read-only scalars as Text ([1ed8f92](https://github.com/Mearman/schema-components/commit/1ed8f9270bb5ba78719c38359a92c3f19c60c167))
+
+### Tests
+
+* **docs:** assert Mantine read-only scalars render as Text ([f42868b](https://github.com/Mearman/schema-components/commit/f42868bf404f5372beaf91f4e093a129466b75d6))
+* **docs:** upgrade adapter play functions to use label queries ([32a3147](https://github.com/Mearman/schema-components/commit/32a31471b6d63b7b17af09b27dc19895d0a57016))
+* **react:** cover discriminated union tabs keyboard navigation in the DOM ([058b238](https://github.com/Mearman/schema-components/commit/058b23805ad9ed180c3ca692dba047552c395700))
+
+### Chores
+
+* **deps:** add happy-dom and testing-library for DOM-based React tests ([a54f681](https://github.com/Mearman/schema-components/commit/a54f681b275fbe15e82831dc64b491429c00be0a))
+* **deps:** bump dependencies to latest age-window-compliant versions ([4f90f43](https://github.com/Mearman/schema-components/commit/4f90f435d7024b5ff2355dc1b2374654ed805c1e))
+* **docs:** register Mantine Text with the adapter ([5361cae](https://github.com/Mearman/schema-components/commit/5361cae4853a59b344da6bc25651c1eb2f1b16f6))
+
 ## [1.16.3](https://github.com/Mearman/schema-components/compare/v1.16.2...v1.16.3) (2026-05-17)
 
 ### Bug Fixes
