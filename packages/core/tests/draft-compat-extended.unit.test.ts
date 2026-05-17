@@ -15,6 +15,7 @@ import { assertDefined } from "./helpers.ts";
 import { walk } from "../src/core/walker.ts";
 import { normaliseSchema } from "../src/core/adapter.ts";
 import { normaliseJsonSchema } from "../src/core/normalise.ts";
+import { isObject } from "../src/core/guards.ts";
 
 // ---------------------------------------------------------------------------
 // type as array
@@ -218,6 +219,52 @@ describe("$dynamicRef / $dynamicAnchor", () => {
         );
         // $dynamicRef was converted to $ref — walker resolves it
         expect(next.type).toBe("object");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Draft 2019-09: $recursiveRef value preservation
+// ---------------------------------------------------------------------------
+
+describe("Draft 2019-09 $recursiveRef value preservation", () => {
+    it("preserves anchored $recursiveRef value when rewriting to $ref", () => {
+        const schema: Record<string, unknown> = {
+            $schema: "https://json-schema.org/draft/2019-09/schema",
+            $recursiveAnchor: "meta",
+            type: "object",
+            properties: {
+                next: { $recursiveRef: "#meta" },
+            },
+        };
+        const normalised = normaliseJsonSchema(schema, "draft-2019-09");
+        const properties = normalised.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const next = properties.next;
+        if (!isObject(next)) throw new Error("expected next");
+        // Original value "#meta" must survive — not be collapsed to "#"
+        expect(next.$ref).toBe("#meta");
+        expect("$recursiveRef" in next).toBe(false);
+        // String-valued $recursiveAnchor is preserved as the $anchor name
+        expect(normalised.$anchor).toBe("meta");
+        expect("$recursiveAnchor" in normalised).toBe(false);
+    });
+
+    it("still rewrites bare $recursiveRef: '#' to $ref: '#'", () => {
+        const schema: Record<string, unknown> = {
+            $recursiveAnchor: true,
+            type: "object",
+            properties: {
+                self: { $recursiveRef: "#" },
+            },
+        };
+        const normalised = normaliseJsonSchema(schema, "draft-2019-09");
+        const properties = normalised.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const self = properties.self;
+        if (!isObject(self)) throw new Error("expected self");
+        expect(self.$ref).toBe("#");
+        // Bare `true` $recursiveAnchor still becomes the canonical marker
+        expect(normalised.$anchor).toBe("__recursive__");
     });
 });
 

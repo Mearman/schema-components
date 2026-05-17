@@ -318,24 +318,32 @@ function normaliseDraft06Or07Node(
  * `$recursiveAnchor: true` — the normaliser converts
  * `$recursiveRef: "#"` to `$ref: "#"` pointing to the root.
  *
- * If a `$recursiveAnchor` name is given (non-empty string), the ref
- * is converted to `$ref: "#<anchor>"` so the existing $anchor
- * resolution in ref.ts can find it.
+ * The original `$recursiveRef` value is preserved (rather than
+ * collapsed to `"#"`) so that anchored variants such as
+ * `$recursiveRef: "#meta"` resolve correctly against the
+ * corresponding `$recursiveAnchor` name. String-valued
+ * `$recursiveAnchor` names are likewise preserved as `$anchor`.
  */
 function normaliseDraft201909Node(
     node: Record<string, unknown>
 ): Record<string, unknown> {
     if (typeof node.$recursiveRef === "string") {
-        // $recursiveRef resolves to the nearest $recursiveAnchor.
-        // Convert to a standard $ref that the walker can resolve.
-        node.$ref = "#";
+        // Preserve the original ref string — anchored forms such as
+        // "#meta" must round-trip into `$ref` unchanged so $anchor
+        // resolution can find the matching `$recursiveAnchor`.
+        node.$ref = node.$recursiveRef;
         delete node.$recursiveRef;
     }
-    // $recursiveAnchor: true → add as $anchor for proper resolution
     if (node.$recursiveAnchor === true) {
-        // If there's already an $anchor, keep it
+        // Bare `true` — add the canonical recursive marker as `$anchor`.
         if (typeof node.$anchor !== "string") {
             node.$anchor = "__recursive__";
+        }
+        delete node.$recursiveAnchor;
+    } else if (typeof node.$recursiveAnchor === "string") {
+        // String-valued `$recursiveAnchor` preserves the authored name.
+        if (typeof node.$anchor !== "string") {
+            node.$anchor = node.$recursiveAnchor;
         }
         delete node.$recursiveAnchor;
     }
