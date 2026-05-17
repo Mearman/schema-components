@@ -13,6 +13,11 @@ import { walk } from "../src/core/walker.ts";
 import { normaliseSchema } from "../src/core/adapter.ts";
 import { normaliseOpenApiSchemas } from "../src/core/normalise.ts";
 import { detectOpenApiVersion } from "../src/core/version.ts";
+import {
+    parseOpenApiDocument,
+    getSecurityRequirements,
+} from "../src/openapi/parser.ts";
+import type { JsonObject } from "../src/core/types.ts";
 
 describe("OpenAPI 3.0.x discriminator", () => {
     const doc = {
@@ -587,5 +592,100 @@ describe("Swagger 2.0 collectionFormat", () => {
 
         expect(q.style).toBe(undefined);
         expect(q.explode).toBe(undefined);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Swagger 2.0: top-level security inheritance
+// ---------------------------------------------------------------------------
+
+describe("Swagger 2.0 top-level security", () => {
+    it("propagates document-level security to operations without their own", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            security: [{ apiKey: [] }],
+            securityDefinitions: {
+                apiKey: { type: "apiKey", name: "X-API-Key", in: "header" },
+            },
+            paths: {
+                "/items": {
+                    get: {
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+
+        // The normalised document should retain top-level security so the
+        // parser can fall back to it when an operation omits its own.
+        expect(normalised.security).toStrictEqual([{ apiKey: [] }]);
+
+        const parsed = parseOpenApiDocument(normalised);
+        const requirements = getSecurityRequirements(parsed, "/items", "get");
+
+        expect(requirements).toStrictEqual([{ name: "apiKey", scopes: [] }]);
+    });
+
+    it("operation-level security still overrides top-level", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            security: [{ apiKey: [] }],
+            securityDefinitions: {
+                apiKey: { type: "apiKey", name: "X-API-Key", in: "header" },
+                oauth: {
+                    type: "oauth2",
+                    flow: "implicit",
+                    authorizationUrl: "https://example.com/oauth",
+                    scopes: { read: "Read access" },
+                },
+            },
+            paths: {
+                "/secret": {
+                    get: {
+                        security: [{ oauth: ["read"] }],
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+        const parsed = parseOpenApiDocument(normalised);
+        const requirements = getSecurityRequirements(parsed, "/secret", "get");
+
+        expect(requirements).toStrictEqual([
+            { name: "oauth", scopes: ["read"] },
+        ]);
+    });
+
+    it("omits security when document has none", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            paths: {
+                "/open": {
+                    get: { responses: { "200": { description: "OK" } } },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+
+        expect("security" in normalised).toBe(false);
+
+        const parsed = parseOpenApiDocument(normalised);
+        expect(getSecurityRequirements(parsed, "/open", "get")).toStrictEqual(
+            []
+        );
     });
 });

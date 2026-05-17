@@ -110,6 +110,13 @@ export function normaliseSwagger2Document(
         result.externalDocs = doc.externalDocs;
     }
 
+    // Top-level security: Swagger 2.0 uses the same shape as OpenAPI 3.x
+    // (`Array<Record<string, string[]>>`) and operations without their own
+    // `security` field inherit the document-level requirements.
+    if (Array.isArray(doc.security)) {
+        result.security = doc.security;
+    }
+
     // Rewrite $ref strings from Swagger 2.0 locations to OpenAPI 3.x
     // locations: #/definitions/X → #/components/schemas/X, etc.
     rewriteSwaggerRefs(result);
