@@ -149,9 +149,28 @@ export function normaliseSwagger2Document(
     }
 
     // securityDefinitions → components/securitySchemes
+    //
+    // Swagger 2.0 uses a different shape per scheme type than OpenAPI 3.x:
+    //
+    // - `basic` → `{ type: "http", scheme: "basic" }` (the bare `basic`
+    //   type does not exist in OAS 3.x).
+    // - `oauth2` carries `flow` (singular) plus top-level `authorizationUrl`,
+    //   `tokenUrl`, `scopes`. OAS 3.x nests these under `flows.<name>` where
+    //   `application` becomes `clientCredentials` and `accessCode` becomes
+    //   `authorizationCode`.
+    // - `apiKey` is structurally compatible — pass through as-is.
+    //
+    // Translate each entry so downstream <ApiSecurity> sees an OAS 3.x
+    // shape regardless of the source document version.
     const securityDefinitions = doc.securityDefinitions;
     if (isObject(securityDefinitions)) {
-        components.securitySchemes = { ...securityDefinitions };
+        const translated: Record<string, unknown> = {};
+        for (const [name, scheme] of Object.entries(securityDefinitions)) {
+            translated[name] = isObject(scheme)
+                ? translateSwaggerSecurityScheme(scheme)
+                : scheme;
+        }
+        components.securitySchemes = translated;
     }
 
     if (Object.keys(components).length > 0) {
@@ -809,6 +828,92 @@ function rewriteSwaggerRefs(node: unknown): void {
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Security scheme translation
+// ---------------------------------------------------------------------------
+
+/**
+ * Map from Swagger 2.0 `oauth2.flow` (singular) to the OAS 3.x flow key
+ * under `flows.<key>`. `application` and `accessCode` were renamed in
+ * OAS 3.x to align with RFC 6749 grant-type names.
+ */
+const SWAGGER_OAUTH_FLOW_RENAME: Readonly<Record<string, string>> = {
+    implicit: "implicit",
+    password: "password",
+    application: "clientCredentials",
+    accessCode: "authorizationCode",
+};
+
+/**
+ * Translate a Swagger 2.0 Security Scheme Object into an OpenAPI 3.x
+ * Security Scheme Object. The Swagger 2.0 spec defines three types:
+ *
+ * - `basic` — has no other fields; OAS 3.x represents this as
+ *   `{ type: "http", scheme: "basic" }`.
+ * - `apiKey` — carries `name`/`in`; OAS 3.x uses the same shape.
+ * - `oauth2` — carries `flow`/`authorizationUrl`/`tokenUrl`/`scopes` at
+ *   the root. OAS 3.x nests these under `flows.<name>` where the flow
+ *   name maps via {@link SWAGGER_OAUTH_FLOW_RENAME}.
+ *
+ * Unknown `type` values pass through verbatim — downstream validation
+ * (`unknown-security-scheme-type` diagnostic in the parser) handles
+ * those cases.
+ */
+function translateSwaggerSecurityScheme(
+    scheme: Record<string, unknown>
+): Record<string, unknown> {
+    const type = scheme.type;
+    if (type === "basic") {
+        const result: Record<string, unknown> = {
+            type: "http",
+            scheme: "basic",
+        };
+        if (typeof scheme.description === "string") {
+            result.description = scheme.description;
+        }
+        return result;
+    }
+
+    if (type === "oauth2") {
+        const flowName = scheme.flow;
+        if (typeof flowName !== "string") {
+            // Malformed but real — preserve the type and copy any extras
+            // so callers can see the broken shape rather than silently
+            // dropping the scheme.
+            return { ...scheme, type: "oauth2" };
+        }
+        const renamedFlow = SWAGGER_OAUTH_FLOW_RENAME[flowName] ?? flowName;
+        const flowBody: Record<string, unknown> = {};
+        // `implicit` and `authorizationCode` carry `authorizationUrl`;
+        // `password`, `clientCredentials`, and `authorizationCode` carry
+        // `tokenUrl`. Copy every URL that is present rather than
+        // gate-keeping by flow — the source document is the authority.
+        if (typeof scheme.authorizationUrl === "string") {
+            flowBody.authorizationUrl = scheme.authorizationUrl;
+        }
+        if (typeof scheme.tokenUrl === "string") {
+            flowBody.tokenUrl = scheme.tokenUrl;
+        }
+        if (typeof scheme.refreshUrl === "string") {
+            flowBody.refreshUrl = scheme.refreshUrl;
+        }
+        const scopes = scheme.scopes;
+        flowBody.scopes = isObject(scopes) ? { ...scopes } : {};
+
+        const result: Record<string, unknown> = {
+            type: "oauth2",
+            flows: { [renamedFlow]: flowBody },
+        };
+        if (typeof scheme.description === "string") {
+            result.description = scheme.description;
+        }
+        return result;
+    }
+
+    // apiKey or other — already structurally compatible.
+    return { ...scheme };
 }
 
 // ---------------------------------------------------------------------------
