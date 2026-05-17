@@ -57,6 +57,165 @@ import type { DiagnosticSink } from "../core/diagnostics.ts";
 import { emitDiagnostic } from "../core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
+// Path / Method / Status / ContentType narrowing helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * The canonical set of HTTP method strings recognised by OpenAPI 3.x.
+ * Used to constrain `Method` generics so autocomplete on typed
+ * documents only suggests methods the path item actually declares,
+ * not arbitrary string keys.
+ */
+type HttpMethod =
+    | "get"
+    | "put"
+    | "post"
+    | "delete"
+    | "options"
+    | "head"
+    | "patch"
+    | "trace";
+
+/**
+ * Extract the literal path keys from a document type, or the broad
+ * `string` fallback when the document is untyped at compile time.
+ *
+ * The `string extends keyof D["paths"]` guard distinguishes a typed
+ * `as const` document (whose `paths` map has literal keys) from a
+ * runtime `Record<string, unknown>` document (whose `keyof` collapses
+ * to `string`). For the runtime case we surface `string` so callers
+ * pass arbitrary path values without losing the existing freedom.
+ */
+type PathKeysOf<D> = D extends { paths: infer P }
+    ? P extends Record<string, unknown>
+        ? string extends keyof P
+            ? string
+            : Extract<keyof P, string>
+        : string
+    : string;
+
+/**
+ * Extract the methods declared on a specific path item, restricted to
+ * the OpenAPI-recognised method set so non-method extension keys
+ * (e.g. `summary`, `description`, `parameters`) do not pollute the
+ * autocomplete.
+ *
+ * Runtime documents (typed `Record<string, unknown>`) widen back to
+ * `string` so callers retain the freedom to pass arbitrary method
+ * strings without surfacing an `HttpMethod` constraint at runtime
+ * call sites.
+ */
+type MethodKeysOf<D, P extends string> =
+    IsRuntimeDoc<D> extends true
+        ? string
+        : D extends { paths: infer Paths }
+          ? Paths extends Record<string, unknown>
+              ? P extends keyof Paths
+                  ? Extract<keyof Paths[P], HttpMethod>
+                  : HttpMethod
+              : HttpMethod
+          : HttpMethod;
+
+/**
+ * True for the runtime-document sentinel — a `Record<string, unknown>`
+ * (or wider) where `keyof` collapses to `string`. Used to drop
+ * narrow-constraint defaults so runtime callers retain the prior
+ * freedom to pass arbitrary path/method/status values.
+ */
+type IsRuntimeDoc<D> =
+    D extends Record<string, unknown>
+        ? string extends keyof D
+            ? true
+            : false
+        : false;
+
+/**
+ * Extract the status-code keys declared by an operation's `responses`
+ * map. Includes class wildcards (`2XX`, etc.) and the `default`
+ * sentinel; runtime documents widen to `string`.
+ */
+type StatusKeysOf<D, P extends string, M extends string> = D extends {
+    paths: infer Paths;
+}
+    ? Paths extends Record<string, unknown>
+        ? P extends keyof Paths
+            ? Paths[P] extends Record<string, unknown>
+                ? M extends keyof Paths[P]
+                    ? Paths[P][M] extends { responses: infer R }
+                        ? R extends Record<string, unknown>
+                            ? string extends keyof R
+                                ? string
+                                : Extract<keyof R, string>
+                            : string
+                        : string
+                    : string
+                : string
+            : string
+        : string
+    : string;
+
+/**
+ * Extract the content-type keys declared on a request body's
+ * `content` map for the given path and method. Runtime documents
+ * widen to `string`.
+ */
+type RequestContentTypesOf<D, P extends string, M extends string> = D extends {
+    paths: infer Paths;
+}
+    ? Paths extends Record<string, unknown>
+        ? P extends keyof Paths
+            ? Paths[P] extends Record<string, unknown>
+                ? M extends keyof Paths[P]
+                    ? Paths[P][M] extends {
+                          requestBody: { content: infer C };
+                      }
+                        ? C extends Record<string, unknown>
+                            ? string extends keyof C
+                                ? string
+                                : Extract<keyof C, string>
+                            : string
+                        : string
+                    : string
+                : string
+            : string
+        : string
+    : string;
+
+/**
+ * Extract the content-type keys declared on a response entry's
+ * `content` map for the given path, method, and status. Runtime
+ * documents widen to `string`.
+ */
+type ResponseContentTypesOf<
+    D,
+    P extends string,
+    M extends string,
+    S extends string,
+> = D extends { paths: infer Paths }
+    ? Paths extends Record<string, unknown>
+        ? P extends keyof Paths
+            ? Paths[P] extends Record<string, unknown>
+                ? M extends keyof Paths[P]
+                    ? Paths[P][M] extends { responses: infer R }
+                        ? R extends Record<string, unknown>
+                            ? S extends keyof R
+                                ? R[S] extends { content: infer C }
+                                    ? C extends Record<string, unknown>
+                                        ? string extends keyof C
+                                            ? string
+                                            : Extract<keyof C, string>
+                                        : string
+                                    : string
+                                : string
+                            : string
+                        : string
+                    : string
+                : string
+            : string
+        : string
+    : string;
+
+// ---------------------------------------------------------------------------
 // Shared diagnostics props
 // ---------------------------------------------------------------------------
 
@@ -253,8 +412,8 @@ function SchemaXmlFootnote({ xml }: { xml: XmlInfo | undefined }): ReactNode {
 
 export interface ApiOperationProps<
     Doc = unknown,
-    Path extends string = string,
-    Method extends string = string,
+    Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
+    Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
 > extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
@@ -264,7 +423,7 @@ export interface ApiOperationProps<
     responseValue?: unknown;
     meta?: SchemaMeta;
     requestBodyFields?: Doc extends Record<string, unknown>
-        ? InferRequestBodyFields<Doc, Path, Method>
+        ? InferRequestBodyFields<Doc, Path & string, Method & string>
         : Record<string, FieldOverride>;
     /** Escape hatch for recursive schemas where type-level inference fails.
      * Typed as Record<string, FieldOverride> — use when the schema contains
@@ -277,8 +436,8 @@ export interface ApiOperationProps<
 
 export function ApiOperation<
     Doc = unknown,
-    Path extends string = string,
-    Method extends string = string,
+    Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
+    Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
 >({
     schema: doc,
     path,
@@ -399,15 +558,15 @@ export function ApiOperation<
 
 export interface ApiParametersProps<
     Doc = unknown,
-    Path extends string = string,
-    Method extends string = string,
+    Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
+    Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
 > extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
     method: Method;
     meta?: SchemaMeta;
     overrides?: Doc extends Record<string, unknown>
-        ? InferParameterOverrides<Doc, Path, Method>
+        ? InferParameterOverrides<Doc, Path & string, Method & string>
         : Record<string, FieldOverride>;
     /** Instance-scoped widgets. */
     widgets?: WidgetMap;
@@ -415,8 +574,8 @@ export interface ApiParametersProps<
 
 export function ApiParameters<
     Doc = unknown,
-    Path extends string = string,
-    Method extends string = string,
+    Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
+    Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
 >({
     schema: doc,
     path,
@@ -457,17 +616,31 @@ export function ApiParameters<
 
 export interface ApiRequestBodyProps<
     Doc = unknown,
-    Path extends string = string,
-    Method extends string = string,
+    Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
+    Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
+    ContentType extends RequestContentTypesOf<Doc, Path, Method> =
+        RequestContentTypesOf<Doc, Path, Method>,
 > extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
     method: Method;
+    /**
+     * Media type whose schema should be rendered for the request body.
+     * Defaults to the union of declared content types so callers can
+     * omit it; supply explicitly to narrow `fields` inference to a
+     * specific media type via {@link InferRequestBodyFields}.
+     */
+    contentType?: ContentType;
     value?: unknown;
     onChange?: (value: unknown) => void;
     meta?: SchemaMeta;
     fields?: Doc extends Record<string, unknown>
-        ? InferRequestBodyFields<Doc, Path, Method>
+        ? InferRequestBodyFields<
+              Doc,
+              Path & string,
+              Method & string,
+              ContentType & string
+          >
         : Record<string, FieldOverride>;
     /** Instance-scoped widgets. */
     widgets?: WidgetMap;
@@ -475,8 +648,10 @@ export interface ApiRequestBodyProps<
 
 export function ApiRequestBody<
     Doc = unknown,
-    Path extends string = string,
-    Method extends string = string,
+    Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
+    Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
+    ContentType extends RequestContentTypesOf<Doc, Path, Method> =
+        RequestContentTypesOf<Doc, Path, Method>,
 >({
     schema: doc,
     path,
@@ -488,7 +663,7 @@ export function ApiRequestBody<
     widgets,
     onDiagnostic,
     strict,
-}: ApiRequestBodyProps<Doc, Path, Method>): ReactNode {
+}: ApiRequestBodyProps<Doc, Path, Method, ContentType>): ReactNode {
     const diagnostics = buildDiagnostics(onDiagnostic, strict);
     const instancePrefix = sanitisePrefix(useId());
     const rootDoc = resolveRootDoc(doc, diagnostics);
@@ -531,18 +706,37 @@ export function ApiRequestBody<
 
 export interface ApiResponseProps<
     Doc = unknown,
-    Path extends string = string,
-    Method extends string = string,
-    Status extends string = string,
+    Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
+    Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
+    Status extends StatusKeysOf<Doc, Path, Method> = StatusKeysOf<
+        Doc,
+        Path,
+        Method
+    >,
+    ContentType extends ResponseContentTypesOf<Doc, Path, Method, Status> =
+        ResponseContentTypesOf<Doc, Path, Method, Status>,
 > extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
     method: Method;
     status: Status;
+    /**
+     * Media type whose schema should be rendered. Defaults to the
+     * union of declared content types so callers can omit it;
+     * supply explicitly to narrow `fields` inference via
+     * {@link InferResponseFields}.
+     */
+    contentType?: ContentType;
     value?: unknown;
     meta?: SchemaMeta;
     fields?: Doc extends Record<string, unknown>
-        ? InferResponseFields<Doc, Path, Method, Status>
+        ? InferResponseFields<
+              Doc,
+              Path & string,
+              Method & string,
+              Status & string,
+              ContentType & string
+          >
         : Record<string, FieldOverride>;
     /** Instance-scoped widgets. */
     widgets?: WidgetMap;
@@ -550,9 +744,15 @@ export interface ApiResponseProps<
 
 export function ApiResponse<
     Doc = unknown,
-    Path extends string = string,
-    Method extends string = string,
-    Status extends string = string,
+    Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
+    Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
+    Status extends StatusKeysOf<Doc, Path, Method> = StatusKeysOf<
+        Doc,
+        Path,
+        Method
+    >,
+    ContentType extends ResponseContentTypesOf<Doc, Path, Method, Status> =
+        ResponseContentTypesOf<Doc, Path, Method, Status>,
 >({
     schema: doc,
     path,
@@ -564,7 +764,7 @@ export function ApiResponse<
     widgets,
     onDiagnostic,
     strict,
-}: ApiResponseProps<Doc, Path, Method, Status>): ReactNode {
+}: ApiResponseProps<Doc, Path, Method, Status, ContentType>): ReactNode {
     const diagnostics = buildDiagnostics(onDiagnostic, strict);
     const instancePrefix = sanitisePrefix(useId());
     const rootDoc = resolveRootDoc(doc, diagnostics);

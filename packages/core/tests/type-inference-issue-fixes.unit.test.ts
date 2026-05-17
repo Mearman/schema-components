@@ -1008,6 +1008,148 @@ describe("Issue 7: SchemaComponentProps accepts a typed path generic", () => {
 // Issue 20 — SchemaFieldProps function default for P matches the interface
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Issue 11 — Api* components narrow path/method/status/contentType
+// ---------------------------------------------------------------------------
+
+describe("Issue 11: Api* components narrow path/method/status/contentType", () => {
+    const doc = {
+        openapi: "3.1.0" as const,
+        paths: {
+            "/pets": {
+                get: {
+                    responses: {
+                        "200": {
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object" as const,
+                                        properties: {
+                                            ok: { type: "boolean" as const },
+                                        },
+                                        required: ["ok"] as const,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                post: {
+                    requestBody: {
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object" as const,
+                                    properties: {
+                                        name: { type: "string" as const },
+                                    },
+                                    required: ["name"] as const,
+                                },
+                            },
+                        },
+                    },
+                    responses: {
+                        "201": {
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object" as const,
+                                        properties: {
+                                            id: { type: "string" as const },
+                                        },
+                                        required: ["id"] as const,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    } as const;
+    void doc;
+
+    it("ApiOperationProps restricts path/method to declared keys", () => {
+        type Op = import("../src/openapi/components.tsx").ApiOperationProps<
+            typeof doc,
+            "/pets",
+            "post"
+        >;
+        const op: Op = {
+            schema: doc,
+            path: "/pets",
+            method: "post",
+        };
+        void op;
+        // @ts-expect-error — `/dogs` is not a declared path
+        const opPath: Op = { schema: doc, path: "/dogs", method: "post" };
+        void opPath;
+    });
+
+    it("ApiOperationProps rejects unknown methods on a typed doc", () => {
+        type Op = import("../src/openapi/components.tsx").ApiOperationProps<
+            typeof doc,
+            "/pets",
+            // @ts-expect-error — `patch` is not declared on /pets
+            "patch"
+        >;
+        type _Op = Op;
+        void (undefined as unknown as _Op);
+    });
+
+    it("ApiResponseProps narrows status to declared codes", () => {
+        type R = import("../src/openapi/components.tsx").ApiResponseProps<
+            typeof doc,
+            "/pets",
+            "get",
+            "200"
+        >;
+        const r: R = {
+            schema: doc,
+            path: "/pets",
+            method: "get",
+            status: "200",
+        };
+        void r;
+    });
+
+    it("ApiRequestBodyProps accepts a typed contentType", () => {
+        type R = import("../src/openapi/components.tsx").ApiRequestBodyProps<
+            typeof doc,
+            "/pets",
+            "post",
+            "application/json"
+        >;
+        const r: R = {
+            schema: doc,
+            path: "/pets",
+            method: "post",
+            contentType: "application/json",
+        };
+        void r;
+    });
+
+    it("runtime documents widen back to string for both path and method", () => {
+        const runtime: Record<string, unknown> = { openapi: "3.1.0" };
+        void runtime;
+        type Op = import("../src/openapi/components.tsx").ApiOperationProps<
+            typeof runtime,
+            string,
+            string
+        >;
+        const op: Op = {
+            schema: runtime,
+            path: "/anything",
+            method: "whatever",
+        };
+        void op;
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue 20 — SchemaFieldProps function default for P matches the interface
+// ---------------------------------------------------------------------------
+
 describe("Issue 20: SchemaFieldProps['P'] default propagates path autocomplete", () => {
     it("typed schemas accept only valid dot-paths", () => {
         const schema = z.object({
