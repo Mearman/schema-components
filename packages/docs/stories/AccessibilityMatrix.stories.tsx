@@ -88,15 +88,13 @@ function AccessibilityMatrix() {
     );
 }
 
-const meta: Meta<typeof AccessibilityMatrix> = {
+const meta = {
     title: "Accessibility/Matrix",
     component: AccessibilityMatrix,
     tags: ["accessibility", "editable", "readonly"],
-};
+} satisfies Meta<typeof AccessibilityMatrix>;
 
 export default meta;
-type Story = StoryObj<typeof AccessibilityMatrix>;
+type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-    render: () => <AccessibilityMatrix />,
-};
+export const Default: Story = {};

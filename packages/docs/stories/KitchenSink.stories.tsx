@@ -57,15 +57,13 @@ function KitchenSink() {
     );
 }
 
-const meta: Meta<typeof KitchenSink> = {
+const meta = {
     title: "Getting Started/Kitchen Sink",
     component: KitchenSink,
     tags: ["editable", "readonly", "union"],
-};
+} satisfies Meta<typeof KitchenSink>;
 
 export default meta;
-type Story = StoryObj<typeof KitchenSink>;
+type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-    render: () => <KitchenSink />,
-};
+export const Default: Story = {};

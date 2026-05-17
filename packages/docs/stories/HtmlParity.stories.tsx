@@ -92,15 +92,13 @@ function HtmlParity() {
     );
 }
 
-const meta: Meta<typeof HtmlParity> = {
+const meta = {
     title: "HTML Rendering/Parity",
     component: HtmlParity,
     tags: ["html"],
-};
+} satisfies Meta<typeof HtmlParity>;
 
 export default meta;
-type Story = StoryObj<typeof HtmlParity>;
+type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-    render: () => <HtmlParity />,
-};
+export const Default: Story = {};

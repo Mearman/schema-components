@@ -95,15 +95,13 @@ function AdapterSetup() {
     );
 }
 
-const meta: Meta<typeof AdapterSetup> = {
+const meta = {
     title: "Theme Adapters/Setup",
     component: AdapterSetup,
     tags: ["theme-adapter"],
-};
+} satisfies Meta<typeof AdapterSetup>;
 
 export default meta;
-type Story = StoryObj<typeof AdapterSetup>;
+type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-    render: () => <AdapterSetup />,
-};
+export const Default: Story = {};

@@ -49,15 +49,13 @@ function OpenApiCompleteness() {
     );
 }
 
-const meta: Meta<typeof OpenApiCompleteness> = {
+const meta = {
     title: "OpenAPI/Completeness",
     component: OpenApiCompleteness,
     tags: ["openapi"],
-};
+} satisfies Meta<typeof OpenApiCompleteness>;
 
 export default meta;
-type Story = StoryObj<typeof OpenApiCompleteness>;
+type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-    render: () => <OpenApiCompleteness />,
-};
+export const Default: Story = {};
