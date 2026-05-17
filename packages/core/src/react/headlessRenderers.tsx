@@ -8,7 +8,13 @@
  * ID generation, union matching, and the discriminated union tabs component.
  */
 
-import { isValidElement, useCallback, useRef, type ReactNode } from "react";
+import {
+    isValidElement,
+    useCallback,
+    useEffect,
+    useRef,
+    type ReactNode,
+} from "react";
 import type { RenderProps } from "../core/renderer.ts";
 import { isObject } from "../core/guards.ts";
 import type { WalkedField } from "../core/types.ts";
@@ -735,11 +741,16 @@ export function discriminatedUnionValueForTab(
 
 /**
  * WAI-ARIA tabs component for discriminated unions.
- * Implements the full tabs keyboard pattern:
- * - Left/Right arrow keys move between tabs
- * - Home/End move to first/last tab
- * - Tab moves focus into the active panel
- * - aria-selected, aria-controls, role="tablist"/"tab"/"tabpanel"
+ *
+ * Implements the WAI-ARIA "Tabs with Automatic Activation" pattern
+ * (https://www.w3.org/WAI/ARIA/apg/patterns/tabs/):
+ * - ArrowRight / ArrowLeft move between tabs, wrapping at the extremes
+ * - Home / End jump to the first / last tab
+ * - aria-selected, aria-controls, role="tablist" / "tab" / "tabpanel"
+ * - Roving tabindex: the active tab has tabindex=0, the rest tabindex=-1
+ *
+ * "Automatic activation" means each arrow key both moves focus and
+ * activates the new tab in one step — selection and focus stay aligned.
  */
 function DiscriminatedUnionTabs({
     options,
@@ -757,6 +768,11 @@ function DiscriminatedUnionTabs({
     props: RenderProps;
 }): ReactNode {
     const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+    // Set whenever a keyboard event triggers a tab change. The effect
+    // below reads and clears this flag so focus only follows selection
+    // when the change originated from the keyboard — never on initial
+    // mount and never after a click (the click already moved focus).
+    const pendingFocusRef = useRef(false);
 
     const handleTabChange = useCallback(
         (newIndex: number) => {
@@ -771,33 +787,38 @@ function DiscriminatedUnionTabs({
         [optionLabels, discKey, props]
     );
 
-    const focusTab = useCallback(
-        (index: number) => {
-            const clamped =
-                ((index % options.length) + options.length) % options.length;
-            tabRefs.current[clamped]?.focus();
-        },
+    // Wrap any signed index into a valid tab index using floored modulo.
+    const wrapIndex = useCallback(
+        (index: number): number =>
+            ((index % options.length) + options.length) % options.length,
         [options.length]
     );
 
     const handleKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
-            if (e.key === "ArrowRight") {
-                e.preventDefault();
-                focusTab(activeIndex + 1);
-            } else if (e.key === "ArrowLeft") {
-                e.preventDefault();
-                focusTab(activeIndex - 1);
-            } else if (e.key === "Home") {
-                e.preventDefault();
-                focusTab(0);
-            } else if (e.key === "End") {
-                e.preventDefault();
-                focusTab(options.length - 1);
-            }
+            let target: number | undefined;
+            if (e.key === "ArrowRight") target = wrapIndex(activeIndex + 1);
+            else if (e.key === "ArrowLeft") target = wrapIndex(activeIndex - 1);
+            else if (e.key === "Home") target = 0;
+            else if (e.key === "End") target = options.length - 1;
+            if (target === undefined) return;
+            e.preventDefault();
+            // Same tab — nothing to do.
+            if (target === activeIndex) return;
+            pendingFocusRef.current = true;
+            handleTabChange(target);
         },
-        [activeIndex, focusTab, options.length]
+        [activeIndex, handleTabChange, options.length, wrapIndex]
     );
+
+    // After a keyboard-driven activeIndex change, move focus to the
+    // newly active tab. Skipped on initial mount and after clicks
+    // because pendingFocusRef is only set inside handleKeyDown.
+    useEffect(() => {
+        if (!pendingFocusRef.current) return;
+        pendingFocusRef.current = false;
+        tabRefs.current[activeIndex]?.focus();
+    }, [activeIndex]);
 
     const activeOption = options[activeIndex];
 
