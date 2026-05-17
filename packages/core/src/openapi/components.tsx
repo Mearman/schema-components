@@ -20,6 +20,7 @@ import {
     getSecuritySchemes,
     getLinks,
 } from "./parser.ts";
+import type { PathItemInfo } from "./resolve.ts";
 import { walk } from "../core/walker.ts";
 import {
     joinPath,
@@ -188,7 +189,10 @@ export function ApiOperation<
 
     return (
         <section data-operation={`${method.toUpperCase()} ${path}`}>
-            <OperationHeader operation={resolved.operation} />
+            <OperationHeader
+                operation={resolved.operation}
+                pathItem={resolved.pathItem}
+            />
             <ApiSecurity
                 requirements={securityReqs}
                 schemes={securitySchemes}
@@ -451,11 +455,29 @@ export function ApiResponse<
 
 function OperationHeader({
     operation,
+    pathItem,
 }: {
     operation: OperationInfo;
+    pathItem: PathItemInfo;
 }): ReactNode {
+    // OpenAPI 3.1 added optional `summary` and `description` to Path Item
+    // Objects (in addition to the existing operation-level fields). When
+    // present, render them as a preamble above the operation header so the
+    // path-wide narrative is visible without obscuring the operation's own
+    // metadata. Both are plain text per the spec — no Markdown rendering.
     return (
         <header>
+            {(pathItem.summary !== undefined ||
+                pathItem.description !== undefined) && (
+                <div data-path-info>
+                    {pathItem.summary !== undefined && (
+                        <p data-path-summary>{pathItem.summary}</p>
+                    )}
+                    {pathItem.description !== undefined && (
+                        <p data-path-description>{pathItem.description}</p>
+                    )}
+                </div>
+            )}
             <h3>
                 {operation.method.toUpperCase()} {operation.path}
             </h3>

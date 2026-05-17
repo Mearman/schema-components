@@ -104,6 +104,95 @@ describe("ApiOperation", () => {
         expect(html).toContain("404");
     });
 
+    it("renders path-level summary and description above the operation header", () => {
+        // OpenAPI 3.1 added optional `summary` and `description` at the
+        // path-item level (in addition to operation-level). Both must
+        // appear in the rendered header, distinguishable from the
+        // operation-level fields by their `data-path-*` attributes.
+        const docWithPathInfo = {
+            openapi: "3.1.0",
+            info: { title: "Test API", version: "1.0" },
+            paths: {
+                "/widgets": {
+                    summary: "Widget collection",
+                    description:
+                        "Operations that read or mutate the shared widget pool.",
+                    get: {
+                        operationId: "listWidgets",
+                        summary: "List widgets",
+                        description: "Returns a paginated list of widgets.",
+                        responses: {
+                            "200": { description: "OK" },
+                        },
+                    },
+                },
+            },
+        };
+
+        const html = renderToString(
+            createElement(ApiOperation, {
+                schema: docWithPathInfo,
+                path: "/widgets",
+                method: "get",
+            })
+        );
+
+        expect(html).toContain("data-path-summary");
+        expect(html).toContain("Widget collection");
+        expect(html).toContain("data-path-description");
+        expect(html).toContain(
+            "Operations that read or mutate the shared widget pool."
+        );
+        // Operation-level fields still render alongside the path-level ones.
+        expect(html).toContain("List widgets");
+        expect(html).toContain("Returns a paginated list of widgets.");
+        // Path-level preamble appears before the operation heading.
+        const summaryIndex = html.indexOf("Widget collection");
+        const opHeadingIndex = html.indexOf("List widgets");
+        expect(summaryIndex).toBeGreaterThan(-1);
+        expect(opHeadingIndex).toBeGreaterThan(-1);
+        expect(summaryIndex).toBeLessThan(opHeadingIndex);
+    });
+
+    it("omits the path-level preamble when neither field is present", () => {
+        const html = renderToString(
+            createElement(ApiOperation, {
+                schema: doc,
+                path: "/pets",
+                method: "get",
+            })
+        );
+        expect(html).not.toContain("data-path-info");
+        expect(html).not.toContain("data-path-summary");
+        expect(html).not.toContain("data-path-description");
+    });
+
+    it("renders only path-level summary when description is absent", () => {
+        const docSummaryOnly = {
+            openapi: "3.1.0",
+            info: { title: "Test API", version: "1.0" },
+            paths: {
+                "/widgets": {
+                    summary: "Widget collection",
+                    get: {
+                        operationId: "listWidgets",
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+        };
+        const html = renderToString(
+            createElement(ApiOperation, {
+                schema: docSummaryOnly,
+                path: "/widgets",
+                method: "get",
+            })
+        );
+        expect(html).toContain("data-path-summary");
+        expect(html).toContain("Widget collection");
+        expect(html).not.toContain("data-path-description");
+    });
+
     it("renders operation.description in the header", () => {
         const docWithDescription = {
             openapi: "3.1.0",

@@ -17,7 +17,7 @@ import {
     type ParameterInfo,
     type ResponseInfo,
 } from "./parser.ts";
-import { isObject } from "../core/guards.ts";
+import { getProperty, isObject } from "../core/guards.ts";
 import { detectOpenApiVersion } from "../core/version.ts";
 import { normaliseOpenApiSchemas } from "../core/normalise.ts";
 
@@ -72,11 +72,79 @@ export function toDoc(value: unknown): Record<string, unknown> {
 // Operation resolution
 // ---------------------------------------------------------------------------
 
+/**
+ * Path-Item-level metadata. OpenAPI 3.1 added `summary` and `description`
+ * to Path Item Objects alongside the existing operation-level fields.
+ * Both are plain strings (no Markdown rendering at this layer).
+ */
+export interface PathItemInfo {
+    summary: string | undefined;
+    description: string | undefined;
+}
+
 export interface ResolvedOperation {
     operation: OperationInfo;
+    pathItem: PathItemInfo;
     parameters: ParameterInfo[];
     requestBody: ReturnType<typeof getRequestBody>;
     responses: ResponseInfo[];
+}
+
+/**
+ * Look up a Path Item Object on the (already-normalised) parsed document,
+ * following a single `$ref` hop into `components/pathItems` (OpenAPI 3.1)
+ * if present. Returns `undefined` when the path is not present or the
+ * value is not an object.
+ *
+ * Implemented inside `resolve.ts` to avoid touching `parser.ts` while
+ * still surfacing path-item-level metadata to the React layer.
+ */
+function lookupPathItemNode(
+    parsed: OpenApiDocument,
+    path: string
+): Record<string, unknown> | undefined {
+    const paths = getProperty(parsed.doc, "paths");
+    const direct = getProperty(paths, path);
+    const resolved = resolvePathItemNode(parsed, direct);
+    if (resolved !== undefined) return resolved;
+    // OpenAPI 3.1 webhook fallback — identifiers without a leading `/`
+    // can address `webhooks/<name>`. Mirrors the parser's behaviour.
+    const webhooks = getProperty(parsed.doc, "webhooks");
+    return resolvePathItemNode(parsed, getProperty(webhooks, path));
+}
+
+function resolvePathItemNode(
+    parsed: OpenApiDocument,
+    pathItem: unknown
+): Record<string, unknown> | undefined {
+    if (!isObject(pathItem)) return undefined;
+    const ref = getProperty(pathItem, "$ref");
+    if (typeof ref !== "string") return pathItem;
+    // Single hop into `components/pathItems/<Name>` — multi-step
+    // resolution is the parser's responsibility for schemas.
+    if (!ref.startsWith("#/")) return pathItem;
+    const parts = ref.slice(2).split("/");
+    let current: unknown = parsed.doc;
+    for (const part of parts) {
+        if (!isObject(current)) return undefined;
+        const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
+        current = current[decoded];
+    }
+    return isObject(current) ? current : pathItem;
+}
+
+function extractPathItemInfo(
+    pathItem: Record<string, unknown> | undefined
+): PathItemInfo {
+    if (pathItem === undefined) {
+        return { summary: undefined, description: undefined };
+    }
+    const summary = pathItem.summary;
+    const description = pathItem.description;
+    return {
+        summary: typeof summary === "string" ? summary : undefined,
+        description: typeof description === "string" ? description : undefined,
+    };
 }
 
 /**
@@ -100,6 +168,7 @@ export function resolveOperation(
 
     return {
         operation,
+        pathItem: extractPathItemInfo(lookupPathItemNode(parsed, path)),
         parameters: getParameters(parsed, path, method),
         requestBody: getRequestBody(parsed, path, method),
         responses: getResponses(parsed, path, method),
