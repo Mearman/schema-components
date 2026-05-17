@@ -56,6 +56,20 @@ export const FORMAT_PATTERNS: Readonly<Record<string, RegExp>> = {
     "idn-email": /^[^\s@]+@[^\s@]+\.[^\s@]+$/u,
     "idn-hostname":
         /^[a-z0-9\u00a1-\uffff]([a-z0-9\u00a1-\uffff-]{0,61}[a-z0-9\u00a1-\uffff])?(\.[a-z0-9\u00a1-\uffff]([a-z0-9\u00a1-\uffff-]{0,61}[a-z0-9\u00a1-\uffff])?)*$/iu,
+    // --- Zod 4 emitted formats ---
+    // Patterns copied verbatim from Zod 4's canonical regex registry to stay
+    // in lockstep with the values z.toJSONSchema() emits.
+    // Source: node_modules/zod/src/v4/core/regexes.ts
+    // https://github.com/colinhacks/zod/blob/v4/src/v4/core/regexes.ts
+    cuid: /^[cC][0-9a-z]{6,}$/,
+    cuid2: /^[0-9a-z]+$/,
+    nanoid: /^[a-zA-Z0-9_-]{21}$/,
+    cidrv4: /^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\/([0-9]|[1-2][0-9]|3[0-2])$/,
+    cidrv6: /^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|::|([0-9a-fA-F]{1,4})?::([0-9a-fA-F]{1,4}:?){0,6})\/(12[0-8]|1[01][0-9]|[1-9]?[0-9])$/,
+    base64: /^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$/,
+    base64url: /^[A-Za-z0-9_-]*$/,
+    // E.164: leading "+", country digit 1-9, 6-14 more digits (total 7-15)
+    e164: /^\+[1-9]\d{6,14}$/,
 };
 
 // ---------------------------------------------------------------------------

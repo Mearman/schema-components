@@ -7,7 +7,9 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { z } from "zod";
 import { FORMAT_PATTERNS, validateFormat } from "../src/core/formats.ts";
+import { normaliseSchema } from "../src/core/adapter.ts";
 import { walk } from "../src/core/walker.ts";
 import type { Diagnostic } from "../src/core/diagnostics.ts";
 
@@ -190,6 +192,85 @@ describe("FORMAT_PATTERNS", () => {
         expect(idn.test("例え.jp")).toBe(true);
         expect(idn.test("example.com")).toBe(true);
     });
+
+    // --- Zod 4 emitted formats ---
+
+    it("cuid accepts canonical cuids and rejects non-cuids", () => {
+        const cuid = patternFor("cuid");
+        expect(cuid.test("ckopqwooh000001la8mbi2im9")).toBe(true);
+        expect(cuid.test("Cabc123")).toBe(true);
+        expect(cuid.test("not-a-cuid")).toBe(false);
+        expect(cuid.test("c")).toBe(false);
+    });
+
+    it("cuid2 accepts cuid2 strings and rejects mixed case", () => {
+        const cuid2 = patternFor("cuid2");
+        expect(cuid2.test("tz4a98xxat96iws9zmbrgj3a")).toBe(true);
+        expect(cuid2.test("abc123")).toBe(true);
+        expect(cuid2.test("ABC123")).toBe(false);
+        expect(cuid2.test("with-dash")).toBe(false);
+    });
+
+    it("nanoid accepts 21-char nanoid strings", () => {
+        const nanoid = patternFor("nanoid");
+        expect(nanoid.test("V1StGXR8_Z5jdHi6B-myT")).toBe(true);
+        expect(nanoid.test("too-short")).toBe(false);
+        expect(nanoid.test("V1StGXR8_Z5jdHi6B-myT!")).toBe(false);
+    });
+
+    it("cidrv4 accepts valid IPv4 CIDR blocks", () => {
+        const cidrv4 = patternFor("cidrv4");
+        expect(cidrv4.test("10.0.0.0/8")).toBe(true);
+        expect(cidrv4.test("192.168.1.0/24")).toBe(true);
+        expect(cidrv4.test("0.0.0.0/0")).toBe(true);
+        expect(cidrv4.test("10.0.0.0")).toBe(false);
+        expect(cidrv4.test("10.0.0.0/33")).toBe(false);
+    });
+
+    it("cidrv6 accepts valid IPv6 CIDR blocks", () => {
+        // Zod's cidrv6 regex is intentionally a syntactic prefilter — full
+        // address validation is delegated to URL parsing at runtime. The
+        // regex therefore accepts simple cases (full 8-group notation,
+        // `::`, and `[group]?::groups`) but rejects general compressed
+        // forms like `2001:db8::/32`. We test only what the regex itself
+        // accepts; the pattern matches what Zod emits as JSON Schema.
+        const cidrv6 = patternFor("cidrv6");
+        expect(cidrv6.test("::/0")).toBe(true);
+        expect(cidrv6.test("::1/128")).toBe(true);
+        expect(cidrv6.test("fe80::1/64")).toBe(true);
+        expect(cidrv6.test("2001:0db8:85a3:0000:0000:8a2e:0370:7334/128")).toBe(
+            true
+        );
+        expect(cidrv6.test("2001:db8::")).toBe(false);
+        expect(cidrv6.test("::/129")).toBe(false);
+    });
+
+    it("base64 accepts valid base64 strings", () => {
+        const b64 = patternFor("base64");
+        expect(b64.test("")).toBe(true);
+        expect(b64.test("SGVsbG8=")).toBe(true);
+        expect(b64.test("SGVsbG8gV29ybGQ=")).toBe(true);
+        expect(b64.test("SGVsbG8gV29ybGRz")).toBe(true);
+        expect(b64.test("not_base64!")).toBe(false);
+    });
+
+    it("base64url accepts base64url strings", () => {
+        const b64u = patternFor("base64url");
+        expect(b64u.test("")).toBe(true);
+        expect(b64u.test("SGVsbG8gV29ybGQ")).toBe(true);
+        expect(b64u.test("abc-_DEF")).toBe(true);
+        expect(b64u.test("abc/DEF")).toBe(false);
+        expect(b64u.test("abc+DEF")).toBe(false);
+    });
+
+    it("e164 accepts E.164 phone numbers", () => {
+        const e164 = patternFor("e164");
+        expect(e164.test("+14155552671")).toBe(true);
+        expect(e164.test("+442071838750")).toBe(true);
+        expect(e164.test("14155552671")).toBe(false);
+        expect(e164.test("+0123456")).toBe(false);
+        expect(e164.test("+12")).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -298,4 +379,63 @@ describe("walker formatPattern integration", () => {
         // iri has no regex pattern — only a predicate validator
         expect(tree.constraints.formatPattern).toBeUndefined();
     });
+});
+
+// ---------------------------------------------------------------------------
+// Zod 4 emitted formats — round-trip through the library
+// ---------------------------------------------------------------------------
+
+describe("Zod 4 emitted format round-trip", () => {
+    /**
+     * Builders for the formats that previously triggered `unknown-format`
+     * diagnostics. Most use the canonical Zod 4 constructor; `cuid` is
+     * constructed manually because z.cuid() is deprecated by Zod itself
+     * (CUID v1 leaks timestamps via embedded timestamps) — yet Zod 4 still
+     * emits `format: "cuid"` for legacy schemas, so the library must
+     * handle it gracefully.
+     */
+    const cases: readonly (readonly [string, () => z.ZodType])[] = [
+        // z.cuid() is @deprecated — we construct an equivalent schema by
+        // calling .regex() with format metadata to avoid the deprecated API
+        // while still producing { type: "string", format: "cuid", ... }.
+        [
+            "cuid",
+            () =>
+                z
+                    .string()
+                    .regex(/^[cC][0-9a-z]{6,}$/)
+                    .meta({ format: "cuid" }),
+        ],
+        ["cuid2", () => z.cuid2()],
+        ["nanoid", () => z.nanoid()],
+        ["cidrv4", () => z.cidrv4()],
+        ["cidrv6", () => z.cidrv6()],
+        ["base64", () => z.base64()],
+        ["base64url", () => z.base64url()],
+        ["e164", () => z.e164()],
+    ];
+
+    it.each(cases)(
+        "%s round-trips with derived formatPattern",
+        (name, build) => {
+            const { jsonSchema } = normaliseSchema(build());
+            const diags: Diagnostic[] = [];
+            const tree = walk(jsonSchema, {
+                diagnostics: {
+                    diagnostics: (d: Diagnostic) => {
+                        diags.push(d);
+                    },
+                },
+            });
+            if (tree.type !== "string") {
+                expect.unreachable(`Expected string field for ${name}`);
+                return;
+            }
+            expect(tree.constraints.format).toBe(name);
+            expect(tree.constraints.formatPattern).toBeInstanceOf(RegExp);
+            expect(diags.some((d) => d.code === "unknown-format")).toBe(false);
+            // The derived pattern matches the one in the FORMAT_PATTERNS registry.
+            expect(tree.constraints.formatPattern).toBe(FORMAT_PATTERNS[name]);
+        }
+    );
 });
