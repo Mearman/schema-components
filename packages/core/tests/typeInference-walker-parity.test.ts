@@ -538,6 +538,87 @@ describe("Swagger 2.0 documents: typeInference surfaces __SchemaInferenceFellBac
             Record<string, FieldOverride>
         >();
     });
+
+    // The runtime detector (`isSwagger2` in `version.ts`) is permissive —
+    // any `swagger` value parsed to major version `2` qualifies, including
+    // the dotted patch form `"2.0.0"`. The type-level mirror must accept
+    // the same shapes or the runtime would normalise a document that the
+    // compile-time path silently treats as OpenAPI 3.x.
+    it("detects Swagger 2.0.0 (dotted patch form) as Swagger 2.0", () => {
+        interface Swagger200DocBase {
+            readonly swagger: "2.0.0";
+            readonly paths: {
+                readonly "/pets": {
+                    readonly post: {
+                        readonly parameters: readonly [
+                            {
+                                readonly name: "body";
+                                readonly in: "body";
+                                readonly schema: { readonly type: "string" };
+                            },
+                        ];
+                    };
+                };
+            };
+        }
+        type Swagger200Doc = Swagger200DocBase & Record<string, unknown>;
+        expectTypeOf<
+            OpenAPIRequestBodyType<Swagger200Doc, "/pets", "post">
+        >().toEqualTypeOf<__SchemaInferenceFellBack>();
+    });
+
+    // A `2.x` document is still Swagger 2 from the runtime's perspective
+    // (major version match wins). `swagger: "2.1"` therefore must surface
+    // the same fallback as `"2.0"`.
+    it("detects swagger: '2.1' as Swagger 2.x", () => {
+        interface Swagger21DocBase {
+            readonly swagger: "2.1";
+            readonly paths: {
+                readonly "/pets": {
+                    readonly post: {
+                        readonly parameters: readonly [
+                            {
+                                readonly name: "body";
+                                readonly in: "body";
+                                readonly schema: { readonly type: "string" };
+                            },
+                        ];
+                    };
+                };
+            };
+        }
+        type Swagger21Doc = Swagger21DocBase & Record<string, unknown>;
+        expectTypeOf<
+            OpenAPIRequestBodyType<Swagger21Doc, "/pets", "post">
+        >().toEqualTypeOf<__SchemaInferenceFellBack>();
+    });
+
+    // OpenAPI 3.x must NOT trigger the Swagger 2 fallback — its `openapi`
+    // field starts with `3.` and the document has no `swagger` field.
+    it("does not treat OpenAPI 3.x as Swagger 2.0", () => {
+        interface OpenApi31DocBase {
+            readonly openapi: "3.1.0";
+            readonly paths: {
+                readonly "/pets": {
+                    readonly post: {
+                        readonly requestBody: {
+                            readonly content: {
+                                readonly "application/json": {
+                                    readonly schema: {
+                                        readonly type: "string";
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        }
+        type OpenApi31Doc = OpenApi31DocBase & Record<string, unknown>;
+        expectTypeOf<
+            OpenAPIRequestBodyType<OpenApi31Doc, "/pets", "post">
+        >().not.toEqualTypeOf<__SchemaInferenceFellBack>();
+    });
 });
 
 // ---------------------------------------------------------------------------

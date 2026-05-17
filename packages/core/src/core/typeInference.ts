@@ -737,9 +737,11 @@ type ParameterNamesOf<Doc, Path extends string, Method extends string> =
  * Detect whether a document is Swagger 2.0 (OpenAPI 2.0).
  *
  * SOURCE-OF-TRUTH: mirrors runtime `isSwagger2` in
- * `packages/core/src/core/version.ts`, which checks for `swagger: "2.0"`.
- * The runtime path also recognises top-level `definitions` / parameters in
- * the body location, but `swagger: "2.0"` is the canonical marker.
+ * `packages/core/src/core/version.ts` (line 305), which parses the
+ * `swagger` field via `detectOpenApiVersion` (line 264) and returns true
+ * for any document whose major version is `2`. Runtime therefore accepts
+ * `"2.0"`, `"2.0.0"`, `"2.1"`, and any other `2.x` form — so the
+ * type-level detector must too.
  *
  * Type-level Swagger 2.0 documents cannot be fully normalised at compile
  * time — the rewrite reorders the document tree (definitions →
@@ -747,8 +749,18 @@ type ParameterNamesOf<Doc, Path extends string, Method extends string> =
  * TypeScript's mapped-type machinery cannot express. Detecting the
  * version is tractable, so we surface `__SchemaInferenceFellBack`
  * deliberately rather than silently producing `unknown`.
+ *
+ * Two shapes are accepted:
+ * - `{ swagger: "2.<anything>" }` — the on-the-wire string form
+ * - `{ swagger: { major: 2, ... } }` — the parsed `OpenApiVersionInfo`
+ *   object form, mirroring the runtime's tolerance for pre-parsed
+ *   version metadata
  */
-type IsSwagger2Doc<Doc> = Doc extends { swagger: "2.0" } ? true : false;
+type IsSwagger2Doc<Doc> = Doc extends { swagger: `2.${string}` }
+    ? true
+    : Doc extends { swagger: { major: 2 } }
+      ? true
+      : false;
 
 /**
  * Infer the TypeScript type of an OpenAPI operation's request body.
