@@ -1071,6 +1071,41 @@ export function normaliseOpenApiSchemas(
         return deepNormaliseOpenApi30Doc(hoisted, deepNormalise);
     }
 
+    // Unknown major/minor — Swagger 1.x, OpenAPI 3.2+, OpenAPI 4.x and
+    // anything else that survives `detectOpenApiVersion` without matching
+    // `isSwagger2`/`isOpenApi30`/`isOpenApi31`. We have no per-version
+    // pipeline for these, and silently routing through the OpenAPI 3.1
+    // path can produce wrong walker input (e.g. OAS 4 may redefine
+    // `discriminator` semantics). Surface the unsupported version so
+    // consumers can audit before continuing with the 3.1 fallback. The
+    // raw version string is reported when it can be reconstructed from
+    // either `openapi` or `swagger`, otherwise the parsed components.
+    if (!isOpenApi31(version)) {
+        const rawOpenApi =
+            typeof doc.openapi === "string" ? doc.openapi : undefined;
+        const rawSwagger =
+            typeof doc.swagger === "string" ? doc.swagger : undefined;
+        const rawVersion = rawOpenApi ?? rawSwagger;
+        const versionLabel =
+            rawVersion ??
+            `${String(version.major)}.${String(version.minor)}.${String(version.patch)}`;
+        const pointer = rawOpenApi !== undefined ? "/openapi" : "/swagger";
+        emitDiagnostic(diagnostics, {
+            code: "unknown-openapi-version",
+            message: `Unsupported OpenAPI/Swagger version "${versionLabel}"; falling back to the OpenAPI 3.1 pipeline`,
+            pointer,
+            detail: {
+                version: versionLabel,
+                major: version.major,
+                minor: version.minor,
+                patch: version.patch,
+            },
+        });
+        // Fall through to the 3.1 pipeline below as a best-effort
+        // attempt. The diagnostic flags that the result may not be
+        // accurate for the declared version.
+    }
+
     // OpenAPI 3.1.x — already Draft 2020-12 compatible, but the
     // `discriminator` keyword (carried over from 3.0) still uses
     // `propertyName` + `mapping` rather than per-option `const`s. The
