@@ -134,20 +134,24 @@ describe("deepNormalise cycle safety", () => {
 
 describe("rewriteRelativeRefsNode cycle safety", () => {
     it("terminates on a self-referential schema with a base $id", () => {
+        // Introduce a structural cycle that the normaliser must traverse.
+        const cyclic: Record<string, unknown> = {};
+        cyclic.self = cyclic;
+
+        // Build properties before the schema so the cycle is part of the
+        // declared shape — avoids casting `schema.properties` back to a
+        // mutable record after construction.
+        const properties: Record<string, unknown> = {
+            x: { $ref: "#/$defs/Bar" },
+            cycle: cyclic,
+        };
         const schema: Record<string, unknown> = {
             $schema: "https://json-schema.org/draft/2020-12/schema",
             $id: "http://example.com/foo",
             type: "object",
-            properties: {
-                x: { $ref: "#/$defs/Bar" },
-            },
+            properties,
             $defs: { Bar: { type: "string" } },
         };
-        // Introduce a structural cycle that the normaliser must traverse.
-        const cyclic: Record<string, unknown> = {};
-        cyclic.self = cyclic;
-        const props = schema.properties as Record<string, unknown>;
-        props.cycle = cyclic;
 
         expect(() =>
             normaliseJsonSchema(schema, "draft-2020-12")
