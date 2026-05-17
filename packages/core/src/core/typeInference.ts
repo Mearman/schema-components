@@ -17,7 +17,63 @@
  * - OpenAPI path-based refs -> uses existing path traversal types where possible
  */
 
+import type { z } from "zod";
 import type { FieldOverride, FieldOverrides } from "./types.ts";
+
+// ---------------------------------------------------------------------------
+// Static rejection of unrepresentable Zod 4 types
+// ---------------------------------------------------------------------------
+
+/**
+ * Zod 4 types that `z.toJSONSchema()` rejects at runtime because they
+ * have no JSON Schema representation. The runtime adapter
+ * (`packages/core/src/core/adapter.ts` lines 106-116) catches the
+ * thrown error and surfaces it as a `SchemaNormalisationError` with
+ * kind `zod-type-unrepresentable` — but the failure only happens on
+ * first render. Statically rejecting these types at the props boundary
+ * gives the same diagnostic at compile time.
+ *
+ * SOURCE-OF-TRUTH: list mirrors `UNREPRESENTABLE_ZOD_TYPES` in
+ * `adapter.ts`. Add or remove entries here whenever the runtime list
+ * changes.
+ */
+export type UnrepresentableZodType =
+    | z.ZodBigInt
+    | z.ZodDate
+    | z.ZodMap
+    | z.ZodSet
+    | z.ZodSymbol
+    | z.ZodFunction
+    | z.ZodUndefined
+    | z.ZodVoid
+    | z.ZodNaN
+    | z.ZodCodec;
+
+/**
+ * Brand returned in place of a rejected Zod input. The descriptive
+ * literal is what TypeScript displays when the rejection fires, so
+ * developers see why their schema is incompatible.
+ */
+export interface UnrepresentableZodSchemaError {
+    readonly __schemaComponentsError: "Zod 4 type has no JSON Schema representation. See SchemaNormalisationError code 'zod-type-unrepresentable'.";
+}
+
+/**
+ * Reject Zod 4 inputs whose runtime conversion is known to throw.
+ *
+ * - When `T` is one of the {@link UnrepresentableZodType} variants, the
+ *   resolved type is {@link UnrepresentableZodSchemaError}, which is
+ *   not assignable from any legitimate Zod / JSON Schema / OpenAPI
+ *   input — so the prop fails to typecheck.
+ * - Anything else (Zod 4 schemas that DO convert, JSON Schema literals,
+ *   OpenAPI documents, `unknown` for runtime inputs) passes through
+ *   unchanged.
+ *
+ * Wrapped in a tuple to suppress distribution over union types.
+ */
+export type RejectUnrepresentableZod<T> = [T] extends [UnrepresentableZodType]
+    ? UnrepresentableZodSchemaError
+    : T;
 
 // ---------------------------------------------------------------------------
 // Type-level JSON Schema parser (for `as const` literals)
@@ -700,12 +756,13 @@ export type OpenAPIRequestBodyType<
     Doc,
     Path extends string,
     Method extends string,
-> = IsSwagger2Doc<Doc> extends true
-    ? __SchemaInferenceFellBack
-    : ResolveMaybeRef<
-          Doc,
-          RequestBodySchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>>
-      >;
+> =
+    IsSwagger2Doc<Doc> extends true
+        ? __SchemaInferenceFellBack
+        : ResolveMaybeRef<
+              Doc,
+              RequestBodySchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>>
+          >;
 
 /**
  * Infer the TypeScript type of an OpenAPI operation's response.
@@ -719,12 +776,16 @@ export type OpenAPIResponseType<
     Path extends string,
     Method extends string,
     Status extends string,
-> = IsSwagger2Doc<Doc> extends true
-    ? __SchemaInferenceFellBack
-    : ResolveMaybeRef<
-          Doc,
-          ResponseSchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>, Status>
-      >;
+> =
+    IsSwagger2Doc<Doc> extends true
+        ? __SchemaInferenceFellBack
+        : ResolveMaybeRef<
+              Doc,
+              ResponseSchemaOf<
+                  OperationOf<PathItemOf<Doc, Path>, Method>,
+                  Status
+              >
+          >;
 
 /**
  * Convert a resolved request/response type into the corresponding

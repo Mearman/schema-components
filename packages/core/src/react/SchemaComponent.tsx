@@ -42,6 +42,7 @@ import type {
 import type {
     FromJSONSchema,
     PathOfType,
+    RejectUnrepresentableZod,
     ResolveOpenAPIRef,
 } from "../core/typeInference.ts";
 import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
@@ -136,8 +137,17 @@ export interface SchemaComponentProps<
     T = unknown,
     Ref extends string | undefined = undefined,
 > {
-    /** Zod schema, JSON Schema object, or OpenAPI document. */
-    schema: T;
+    /**
+     * Zod schema, JSON Schema object, or OpenAPI document.
+     *
+     * Zod 4 types that cannot round-trip through `z.toJSONSchema()`
+     * (bigint, date, map, set, symbol, function, undefined, void, nan,
+     * codec) are rejected at the type level via
+     * {@link RejectUnrepresentableZod}. Runtime conversion would throw
+     * `SchemaNormalisationError` with kind `zod-type-unrepresentable`
+     * — the static rejection surfaces the same failure at compile time.
+     */
+    schema: RejectUnrepresentableZod<T>;
     /** For OpenAPI: a ref string like "#/components/schemas/User" or "/users/post". */
     ref?: Ref;
     /** Current value to render. */
@@ -545,8 +555,11 @@ export interface SchemaFieldProps<
      * paths are accepted. Falls back to `string` for runtime schemas.
      */
     path: P;
-    /** The schema to extract the field from. */
-    schema: T;
+    /**
+     * The schema to extract the field from. Subject to the same
+     * unrepresentable-Zod rejection as {@link SchemaComponentProps.schema}.
+     */
+    schema: RejectUnrepresentableZod<T>;
     /** For OpenAPI: a ref string. */
     ref?: Ref;
     /** Current value of the field at the given path. */

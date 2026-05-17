@@ -25,16 +25,20 @@
  */
 
 import { describe, it, expectTypeOf } from "vitest";
+import { z } from "zod";
 import type {
     FromJSONSchema,
     InferRequestBodyFields,
     InferResponseFields,
     OpenAPIRequestBodyType,
     OpenAPIResponseType,
+    RejectUnrepresentableZod,
     ResolveOpenAPIRef,
+    UnrepresentableZodSchemaError,
     __SchemaInferenceFellBack,
 } from "../src/core/typeInference.ts";
 import type { FieldOverride } from "../src/core/types.ts";
+import type { SchemaComponentProps } from "../src/react/SchemaComponent.tsx";
 
 // ---------------------------------------------------------------------------
 // Discriminated union parity
@@ -533,5 +537,94 @@ describe("Swagger 2.0 documents: typeInference surfaces __SchemaInferenceFellBac
         expectTypeOf<RuntimeFields>().toEqualTypeOf<
             Record<string, FieldOverride>
         >();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Static rejection of unrepresentable Zod 4 types
+// ---------------------------------------------------------------------------
+//
+// `z.toJSONSchema()` throws for bigint, date, map, set, symbol, function,
+// undefined, void, nan, and codec — see `UNREPRESENTABLE_ZOD_TYPES` in
+// `adapter.ts`. `RejectUnrepresentableZod` mirrors that list at the
+// props boundary so the failure surfaces at compile time rather than
+// only at first render.
+// ---------------------------------------------------------------------------
+
+describe("RejectUnrepresentableZod: static rejection of Zod 4 types without JSON Schema representation", () => {
+    it("ZodBigInt resolves to the error brand", () => {
+        type Rejected = RejectUnrepresentableZod<z.ZodBigInt>;
+        expectTypeOf<Rejected>().toEqualTypeOf<UnrepresentableZodSchemaError>();
+    });
+
+    it("ZodDate resolves to the error brand", () => {
+        type Rejected = RejectUnrepresentableZod<z.ZodDate>;
+        expectTypeOf<Rejected>().toEqualTypeOf<UnrepresentableZodSchemaError>();
+    });
+
+    it("ZodCodec resolves to the error brand", () => {
+        type Rejected = RejectUnrepresentableZod<z.ZodCodec>;
+        expectTypeOf<Rejected>().toEqualTypeOf<UnrepresentableZodSchemaError>();
+    });
+
+    it("Representable Zod types pass through unchanged", () => {
+        expectTypeOf<
+            RejectUnrepresentableZod<z.ZodString>
+        >().toEqualTypeOf<z.ZodString>();
+        expectTypeOf<
+            RejectUnrepresentableZod<z.ZodNumber>
+        >().toEqualTypeOf<z.ZodNumber>();
+    });
+
+    it("Plain JSON Schema objects pass through unchanged", () => {
+        interface PlainSchema {
+            readonly type: "object";
+            readonly properties: { readonly id: { readonly type: "string" } };
+            readonly required: readonly ["id"];
+        }
+        expectTypeOf<
+            RejectUnrepresentableZod<PlainSchema>
+        >().toEqualTypeOf<PlainSchema>();
+    });
+
+    // The props boundary is the load-bearing assertion. When a caller
+    // writes `<SchemaComponent schema={z.bigint()} />` the inferred
+    // `T = z.ZodBigInt` causes the `schema` field to demand the error
+    // brand, which the bigint instance does not satisfy. Asserting via
+    // `expectTypeOf(...).toExtend<...>()` is equivalent to letting JSX
+    // catch the mismatch — and avoids depending on a React runtime here.
+    it("SchemaComponentProps['schema'] rejects unrepresentable Zod types", () => {
+        type BigIntProps = SchemaComponentProps<z.ZodBigInt>;
+        expectTypeOf<
+            BigIntProps["schema"]
+        >().toEqualTypeOf<UnrepresentableZodSchemaError>();
+
+        // A live `z.bigint()` value is `ZodBigInt`, which is not
+        // assignable to the rejection brand. The expect-error directive
+        // confirms the rejection actually triggers — TypeScript reports
+        // the mismatch on the `schema:` line, so the suppressor is
+        // placed immediately above it.
+        const bigintSchema = z.bigint();
+        const _bigintProps: BigIntProps = {
+            // @ts-expect-error — ZodBigInt is rejected by RejectUnrepresentableZod
+            schema: bigintSchema,
+        };
+        void _bigintProps;
+
+        // ZodDate is similarly rejected.
+        type DateProps = SchemaComponentProps<z.ZodDate>;
+        const dateSchema = z.date();
+        const _dateProps: DateProps = {
+            // @ts-expect-error — ZodDate is rejected by RejectUnrepresentableZod
+            schema: dateSchema,
+        };
+        void _dateProps;
+    });
+
+    it("Representable Zod schemas are still accepted by SchemaComponentProps", () => {
+        type StringProps = SchemaComponentProps<z.ZodString>;
+        const stringSchema = z.string();
+        const _stringProps: StringProps = { schema: stringSchema };
+        void _stringProps;
     });
 });
