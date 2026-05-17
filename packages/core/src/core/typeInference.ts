@@ -161,6 +161,7 @@ type ArrayToUnion<A> = A extends readonly unknown[] ? A[number] : never;
 export type FromJSONSchema<
     S,
     Defs extends Record<string, unknown> = Record<string, never>,
+    Depth extends readonly unknown[] = [],
 > = S extends { nullable: true }
     ? /**
        * OpenAPI 3.0 `nullable: true` — surface the keyword wherever it
@@ -170,23 +171,23 @@ export type FromJSONSchema<
        * `FromJSONSchema` level means nested fields inside refs preserve
        * nullability when resolved.
        */
-      FromJSONSchema<Omit<S, "nullable">, Defs> | null
+      FromJSONSchema<Omit<S, "nullable">, Defs, Depth> | null
     : S extends { $ref: infer R extends string }
-      ? ResolveSchemaRef<R, Defs>
+      ? ResolveSchemaRef<R, Defs, Depth>
       : S extends { $recursiveRef: string }
         ? /** $recursiveRef: TypeScript cannot express recursive types. */
           unknown
         : S extends { $dynamicRef: infer R extends string }
-          ? ResolveSchemaRef<R, Defs>
+          ? ResolveSchemaRef<R, Defs, Depth>
           : S extends { allOf: infer A }
-            ? AllOfToType<A, Defs>
+            ? AllOfToType<A, Defs, Depth>
             : S extends { anyOf: infer A }
-              ? UnionOfMembers<A, Defs>
+              ? UnionOfMembers<A, Defs, Depth>
               : S extends { oneOf: infer A }
-                ? UnionOfMembers<A, Defs>
+                ? UnionOfMembers<A, Defs, Depth>
                 : S extends { if: unknown }
                   ? /** if/then/else: infer base schema without conditionals. */
-                    FromJSONSchema<Omit<S, "if" | "then" | "else">, Defs>
+                    FromJSONSchema<Omit<S, "if" | "then" | "else">, Defs, Depth>
                   : S extends { not: unknown }
                     ? /** not: TypeScript cannot negate types. */
                       unknown
@@ -195,7 +196,7 @@ export type FromJSONSchema<
                       : S extends { enum: infer E }
                         ? ArrayToUnion<E>
                         : S extends { type: infer T }
-                          ? TypeToTs<T, S, Defs>
+                          ? TypeToTs<T, S, Defs, Depth>
                           : S extends readonly (infer E)[]
                             ? E
                             : unknown;
@@ -285,27 +286,37 @@ export type DEFAULT_MAX_DEPTH = 64;
 type ResolveSchemaRef<
     R extends string,
     Defs extends Record<string, unknown>,
-    Depth extends number = 0,
-> = Depth extends DEFAULT_MAX_DEPTH
+    Depth extends readonly unknown[] = [],
+> = Depth["length"] extends DEFAULT_MAX_DEPTH
     ? __SchemaInferenceFellBack
     : R extends "#"
       ? unknown
       : R extends `#/$defs/${infer Name}`
         ? Name extends keyof Defs
-            ? DetectRecursiveFallback<FromJSONSchema<Defs[Name], Defs>>
+            ? DetectRecursiveFallback<
+                  FromJSONSchema<Defs[Name], Defs, [unknown, ...Depth]>
+              >
             : unknown
         : R extends `#/definitions/${infer Name}`
           ? Name extends keyof Defs
-              ? DetectRecursiveFallback<FromJSONSchema<Defs[Name], Defs>>
+              ? DetectRecursiveFallback<
+                    FromJSONSchema<Defs[Name], Defs, [unknown, ...Depth]>
+                >
               : unknown
           : R extends `#/components/schemas/${infer Name}`
             ? Name extends keyof Defs
-                ? DetectRecursiveFallback<FromJSONSchema<Defs[Name], Defs>>
+                ? DetectRecursiveFallback<
+                      FromJSONSchema<Defs[Name], Defs, [unknown, ...Depth]>
+                  >
                 : unknown
             : R extends `#${infer AnchorName}`
               ? AnchorName extends keyof Defs
                   ? DetectRecursiveFallback<
-                        FromJSONSchema<Defs[AnchorName], Defs>
+                        FromJSONSchema<
+                            Defs[AnchorName],
+                            Defs,
+                            [unknown, ...Depth]
+                        >
                     >
                   : unknown
               : unknown;
@@ -316,8 +327,9 @@ type ResolveSchemaRef<
 type AllOfToType<
     A,
     Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[] = [],
 > = A extends readonly unknown[]
-    ? UnionToIntersection<FromJSONSchema<A[number], Defs>>
+    ? UnionToIntersection<FromJSONSchema<A[number], Defs, Depth>>
     : unknown;
 
 /**
@@ -343,10 +355,11 @@ type AllOfToType<
 type UnionOfMembers<
     A,
     Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[] = [],
 > = A extends readonly unknown[]
     ? HasNullMember<A> extends true
-        ? Exclude<FromJSONSchema<A[number], Defs>, null> | null
-        : FromJSONSchema<A[number], Defs>
+        ? Exclude<FromJSONSchema<A[number], Defs, Depth>, null> | null
+        : FromJSONSchema<A[number], Defs, Depth>
     : unknown;
 
 /**
@@ -370,7 +383,12 @@ type HasNullMember<A> = A extends readonly unknown[]
  * Dispatch on a `type` value -- handles single types, type arrays,
  * and delegates to the appropriate type-specific resolver.
  */
-type TypeToTs<T, S, Defs extends Record<string, unknown>> = T extends "string"
+type TypeToTs<
+    T,
+    S,
+    Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[] = [],
+> = T extends "string"
     ? string
     : T extends "number" | "integer"
       ? number
@@ -379,11 +397,11 @@ type TypeToTs<T, S, Defs extends Record<string, unknown>> = T extends "string"
         : T extends "null"
           ? null
           : T extends "array"
-            ? ArraySchemaToTs<S, Defs>
+            ? ArraySchemaToTs<S, Defs, Depth>
             : T extends "object"
-              ? ObjectSchemaToTs<S, Defs>
+              ? ObjectSchemaToTs<S, Defs, Depth>
               : T extends readonly (infer E)[]
-                ? TypeArrayToTs<E, S, Defs>
+                ? TypeArrayToTs<E, S, Defs, Depth>
                 : unknown;
 
 /**
@@ -394,6 +412,7 @@ type TypeArrayToTs<
     E,
     S,
     Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[] = [],
 > = E extends "null"
     ? null
     : E extends "string"
@@ -403,9 +422,15 @@ type TypeArrayToTs<
         : E extends "boolean"
           ? NullableResult<boolean, S>
           : E extends "array"
-            ? NullableResult<ArraySchemaToTs<OmitArrayHelpers<S>, Defs>, S>
+            ? NullableResult<
+                  ArraySchemaToTs<OmitArrayHelpers<S>, Defs, Depth>,
+                  S
+              >
             : E extends "object"
-              ? NullableResult<ObjectSchemaToTs<OmitArrayHelpers<S>, Defs>, S>
+              ? NullableResult<
+                    ObjectSchemaToTs<OmitArrayHelpers<S>, Defs, Depth>,
+                    S
+                >
               : unknown;
 
 /**
@@ -440,15 +465,19 @@ type OmitArrayHelpers<S> = Omit<
  * `contains` / `minContains` / `maxContains` constrain elements at runtime
  * but don't change the compile-time array element type.
  */
-type ArraySchemaToTs<S, Defs extends Record<string, unknown>> = S extends {
+type ArraySchemaToTs<
+    S,
+    Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[] = [],
+> = S extends {
     prefixItems: infer P;
 }
-    ? PrefixItemsToTuple<P, Defs>
+    ? PrefixItemsToTuple<P, Defs, Depth>
     : S extends { items: infer I extends readonly unknown[] }
       ? /** Draft 04 tuple-form items: rewrite to a tuple at the type level. */
-        PrefixItemsToTuple<I, Defs>
+        PrefixItemsToTuple<I, Defs, Depth>
       : S extends { items: infer I }
-        ? FromJSONSchema<I, Defs>[]
+        ? FromJSONSchema<I, Defs, Depth>[]
         : unknown[];
 
 /**
@@ -457,8 +486,12 @@ type ArraySchemaToTs<S, Defs extends Record<string, unknown>> = S extends {
 type PrefixItemsToTuple<
     P,
     Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[] = [],
 > = P extends readonly [infer First, ...infer Rest]
-    ? [FromJSONSchema<First, Defs>, ...PrefixItemsToTuple<Rest, Defs>]
+    ? [
+          FromJSONSchema<First, Defs, Depth>,
+          ...PrefixItemsToTuple<Rest, Defs, Depth>,
+      ]
     : [];
 
 /**
@@ -474,7 +507,11 @@ type PrefixItemsToTuple<
  * - `dependentSchemas` / `dependentRequired` -> ignored (runtime-only conditionals)
  * - `unevaluatedProperties` -> ignored (runtime-only)
  */
-type ObjectSchemaToTs<S, Defs extends Record<string, unknown>> = S extends {
+type ObjectSchemaToTs<
+    S,
+    Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[] = [],
+> = S extends {
     type: "object";
     properties: infer P;
 }
@@ -483,18 +520,19 @@ type ObjectSchemaToTs<S, Defs extends Record<string, unknown>> = S extends {
               {
                   [K in keyof P as K extends RequiredKeysOf<S>
                       ? K
-                      : never]: FromJSONSchema<P[K], D>;
+                      : never]: FromJSONSchema<P[K], D, Depth>;
               } & {
                   [K in keyof P as K extends RequiredKeysOf<S>
                       ? never
-                      : K]?: FromJSONSchema<P[K], D>;
+                      : K]?: FromJSONSchema<P[K], D, Depth>;
               },
               S,
-              D
+              D,
+              Depth
           >
         : never
     : S extends { additionalProperties: infer V }
-      ? Record<string, FromJSONSchema<V, Defs>>
+      ? Record<string, FromJSONSchema<V, Defs, Depth>>
       : Record<string, unknown>;
 
 /**
@@ -506,9 +544,10 @@ type MergePatternProps<
     Base,
     S,
     Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[] = [],
 > = S extends { patternProperties: infer PP }
     ? PP extends Record<string, unknown>
-        ? Base & Record<string, UnionOfPatternValues<PP, Defs>>
+        ? Base & Record<string, UnionOfPatternValues<PP, Defs, Depth>>
         : Base
     : Base;
 
@@ -518,7 +557,8 @@ type MergePatternProps<
 type UnionOfPatternValues<
     PP extends Record<string, unknown>,
     Defs extends Record<string, unknown>,
-> = { [K in keyof PP]: FromJSONSchema<PP[K], Defs> }[keyof PP];
+    Depth extends readonly unknown[] = [],
+> = { [K in keyof PP]: FromJSONSchema<PP[K], Defs, Depth> }[keyof PP];
 
 /**
  * Extract the `required` array from a schema as a union of string literals.

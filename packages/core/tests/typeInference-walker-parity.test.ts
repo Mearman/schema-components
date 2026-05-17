@@ -384,6 +384,57 @@ describe("ResolveSchemaRef resolves #/components/schemas/<Name> when defs hold t
 });
 
 // ---------------------------------------------------------------------------
+// ResolveSchemaRef depth-bound parity
+// ---------------------------------------------------------------------------
+//
+// `ResolveSchemaRef` carries a `Depth` tuple that grows by one element on
+// every recursive resolution. When the tuple length reaches
+// `DEFAULT_MAX_DEPTH`, the helper surfaces `__SchemaInferenceFellBack`
+// rather than continuing — matching the runtime walker's behaviour when
+// `resolveRef` hits its `maxDepth` cap (see `ref.ts` line 119). Without
+// the threaded tuple the bound was unreachable: the parameter defaulted
+// to `0` on every recursive call site and never incremented, so cyclic
+// schemas would silently exhaust the TypeScript instantiation budget.
+//
+// The fixture below declares a self-referential `Loop` definition whose
+// value is `{ $ref: "#/$defs/Loop" }`. Each resolution increments the
+// `Depth` tuple by one, so the brand must surface once depth reaches the
+// bound. `DetectRecursiveFallback` catches the same case via the
+// `unknown` short-circuit when the cycle stabilises — either path
+// produces the brand, which is what consumers detect.
+// ---------------------------------------------------------------------------
+
+describe("ResolveSchemaRef depth threading: cyclic ref chain surfaces __SchemaInferenceFellBack", () => {
+    // Object root so `ObjectSchemaToTs` extracts the sibling `$defs` into
+    // the resolution context. The `Loop` definition refers back to itself
+    // — each resolution increments the `Depth` tuple inside
+    // `ResolveSchemaRef`. Without depth threading the recursion would
+    // never terminate at the brand, because the parameter was being
+    // re-defaulted to `0` at every call site.
+    interface CyclicSchema {
+        readonly type: "object";
+        readonly $defs: {
+            readonly Loop: { readonly $ref: "#/$defs/Loop" };
+        };
+        readonly properties: {
+            readonly head: { readonly $ref: "#/$defs/Loop" };
+        };
+        readonly required: readonly ["head"];
+    }
+
+    type Resolved = FromJSONSchema<CyclicSchema>;
+
+    interface ExpectedRoot {
+        head: __SchemaInferenceFellBack;
+    }
+
+    it("self-referential $ref nested under properties surfaces the fallback brand", () => {
+        expectTypeOf<ExpectedRoot>().toExtend<Resolved>();
+        expectTypeOf<Resolved>().toExtend<ExpectedRoot>();
+    });
+});
+
+// ---------------------------------------------------------------------------
 // JSON Pointer escape decoding parity
 // ---------------------------------------------------------------------------
 //
