@@ -59,10 +59,9 @@ function HtmlPreview({ html }: { html: string }) {
     return (
         <div
             style={{
-                border: "1px solid #e2e8f0",
+                border: "1px solid var(--sc-object-border)",
                 borderRadius: "0.375rem",
                 padding: "1rem",
-                background: "#fff",
             }}
             dangerouslySetInnerHTML={{ __html: html }}
         />

@@ -40,18 +40,23 @@ function ValidationDemo({
 
     return (
         <div style={{ display: "grid", gap: "1rem", maxWidth: "32rem" }}>
-            <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>
+            <p
+                style={{
+                    color: "var(--sc-text-secondary)",
+                    fontSize: "0.875rem",
+                }}
+            >
                 Edit the fields below to see validation feedback.
             </p>
             {message !== undefined && (
                 <div
                     data-testid="validation-message"
                     style={{
-                        border: "1px solid #fecaca",
+                        border: "1px solid var(--sc-danger)",
                         borderRadius: "0.5rem",
                         padding: "0.75rem",
-                        background: "#fef2f2",
-                        color: "#991b1b",
+                        background: "transparent",
+                        color: "var(--sc-danger)",
                         whiteSpace: "pre-wrap",
                         fontSize: "0.875rem",
                     }}

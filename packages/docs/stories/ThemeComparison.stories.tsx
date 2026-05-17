@@ -34,9 +34,9 @@ function ThemeComparison({ readOnly }: { readOnly: boolean }) {
                     type="button"
                     onClick={linkTo("Theme Adapters/Setup", "Default")}
                     style={{
-                        border: "1px solid #94a3b8",
-                        background: "#fff",
-                        color: "#0f172a",
+                        border: "1px solid var(--sc-border-input)",
+                        background: "var(--sc-bg-secondary)",
+                        color: "var(--sc-text)",
                         borderRadius: "0.375rem",
                         padding: "0.5rem 0.875rem",
                         cursor: "pointer",
@@ -49,9 +49,9 @@ function ThemeComparison({ readOnly }: { readOnly: boolean }) {
                     type="button"
                     onClick={linkTo("Theme Adapters/Headless", "Editable")}
                     style={{
-                        border: "1px solid #94a3b8",
-                        background: "#fff",
-                        color: "#0f172a",
+                        border: "1px solid var(--sc-border-input)",
+                        background: "var(--sc-bg-secondary)",
+                        color: "var(--sc-text)",
                         borderRadius: "0.375rem",
                         padding: "0.5rem 0.875rem",
                         cursor: "pointer",

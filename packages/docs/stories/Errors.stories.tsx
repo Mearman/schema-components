@@ -35,11 +35,11 @@ function ErrorBoundaryPreview() {
                     <div
                         data-testid="boundary-fallback"
                         style={{
-                            border: "1px solid #fecaca",
+                            border: "1px solid var(--sc-danger)",
                             borderRadius: "0.5rem",
                             padding: "1rem",
-                            background: "#fef2f2",
-                            color: "#991b1b",
+                            background: "transparent",
+                            color: "var(--sc-danger)",
                         }}
                     >
                         <strong>Boundary caught:</strong> {error.message}
@@ -55,9 +55,9 @@ function ErrorBoundaryPreview() {
                 onClick={linkTo("Validation/Overview", "Default")}
                 style={{
                     alignSelf: "flex-start",
-                    border: "1px solid #94a3b8",
-                    background: "#fff",
-                    color: "#0f172a",
+                    border: "1px solid var(--sc-border-input)",
+                    background: "var(--sc-bg-secondary)",
+                    color: "var(--sc-text)",
                     borderRadius: "0.375rem",
                     padding: "0.5rem 0.875rem",
                     cursor: "pointer",
@@ -78,11 +78,11 @@ function OnErrorPreview() {
             <div
                 data-testid="on-error-message"
                 style={{
-                    border: "1px solid #fbbf24",
+                    border: "1px solid var(--sc-deprecated-text)",
                     borderRadius: "0.5rem",
                     padding: "1rem",
-                    background: "#fffbeb",
-                    color: "#92400e",
+                    background: "var(--sc-deprecated-bg)",
+                    color: "var(--sc-deprecated-text)",
                 }}
             >
                 <strong>onError:</strong> {message}

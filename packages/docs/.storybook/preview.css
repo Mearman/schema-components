@@ -496,6 +496,14 @@
     border-color: var(--sc-border);
 }
 
+.sbdocs.sbdocs-content table tr {
+    background: transparent;
+}
+
+.sbdocs.sbdocs-content table tr:nth-of-type(2n) {
+    background: var(--sc-bg-secondary);
+}
+
 .sbdocs.sbdocs-content th {
     color: var(--sc-text);
     background: var(--sc-bg-secondary);
@@ -535,6 +543,172 @@
 .sbdocs.sbdocs-content .docblock-argstable code {
     color: var(--sc-code-text);
     background: var(--sc-code-bg);
+}
+
+/*
+ * addon-controls interactive widgets render inside .docblock-argstable cells:
+ * react-editable-json-tree (.rejt-*), per-type "Set ..." action buttons,
+ * text/number inputs, and inline "object" / "-" placeholders. All ship with
+ * light-theme emotion styles, so target the addon's stable class hooks plus
+ * the generic descendants we know live there.
+ */
+.sbdocs.sbdocs-content .docblock-argstable td > div,
+.sbdocs.sbdocs-content .docblock-argstable td span:not(.token) {
+    color: var(--sc-text);
+}
+
+/*
+ * Nuke every emotion-injected background inside argstable cells (toggle
+ * group pills, segmented controls, deep wrappers like span > div). Form
+ * controls keep their own background from the input/select/textarea rule
+ * below.
+ */
+.sbdocs.sbdocs-content
+    .docblock-argstable
+    td
+    *:not(input):not(select):not(textarea):not(button):not(option) {
+    background-color: transparent;
+}
+
+.sbdocs.sbdocs-content .docblock-argstable .rejt-tree,
+.sbdocs.sbdocs-content .docblock-argstable .rejt-object-node,
+.sbdocs.sbdocs-content .docblock-argstable .rejt-array-node,
+.sbdocs.sbdocs-content .docblock-argstable .rejt-collapsed,
+.sbdocs.sbdocs-content .docblock-argstable .rejt-collapsed-value,
+.sbdocs.sbdocs-content .docblock-argstable .rejt-not-collapsed-value,
+.sbdocs.sbdocs-content .docblock-argstable .rejt-value {
+    color: var(--sc-text);
+    background: transparent;
+}
+
+.sbdocs.sbdocs-content .docblock-argstable .rejt-name,
+.sbdocs.sbdocs-content .docblock-argstable .rejt-accordion-button {
+    color: var(--sc-link);
+    background: transparent;
+}
+
+.sbdocs.sbdocs-content .docblock-argstable button {
+    background: var(--sc-bg-secondary);
+    color: var(--sc-text);
+    border-color: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content .docblock-argstable button:hover {
+    background: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content .docblock-argstable input,
+.sbdocs.sbdocs-content .docblock-argstable select,
+.sbdocs.sbdocs-content .docblock-argstable textarea {
+    background: var(--sc-bg);
+    color: var(--sc-text);
+    border-color: var(--sc-border-input);
+}
+
+/*
+ * Canvas action bar — "Show code" / "Copy code" buttons live in
+ * .sbdocs-preview-actions and use addon-docs's default grey #5c6570 which
+ * is barely visible on a dark background.
+ */
+.sbdocs.sbdocs-content .sbdocs-preview-actions,
+.sbdocs.sbdocs-content .sbdocs-preview-actions button,
+.sbdocs.sbdocs-content .docblock-code-toggle {
+    color: var(--sc-text-secondary);
+}
+
+.sbdocs.sbdocs-content .sbdocs-preview-actions button:hover,
+.sbdocs.sbdocs-content .docblock-code-toggle:hover {
+    color: var(--sc-text);
+}
+
+/*
+ * Source-code blocks ("Show code" output) render with addon-docs's emotion
+ * styles: white background, dark text, light-theme Prism tokens. Reskin the
+ * container and remap every Prism token class to the matching --hljs-*
+ * variable so syntax highlighting stays legible in both themes.
+ */
+.sbdocs.sbdocs-content .docblock-source {
+    background: var(--sc-code-bg);
+    border-color: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content .docblock-source > div {
+    background: transparent;
+    color: var(--sc-code-text);
+}
+
+.sbdocs.sbdocs-content .docblock-source button {
+    background: var(--sc-bg-secondary);
+    color: var(--sc-text);
+    border-color: var(--sc-border);
+}
+
+.sbdocs.sbdocs-content .docblock-source button:hover {
+    background: var(--sc-border);
+    color: var(--sc-text);
+}
+
+/* Prism tokens — match --hljs-* palette so light & dark stay consistent */
+.sbdocs.sbdocs-content .docblock-source .token {
+    color: var(--hljs-base);
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.keyword,
+.sbdocs.sbdocs-content .docblock-source .token.operator.arrow,
+.sbdocs.sbdocs-content .docblock-source .token.null,
+.sbdocs.sbdocs-content .docblock-source .token.nil,
+.sbdocs.sbdocs-content .docblock-source .token.boolean,
+.sbdocs.sbdocs-content .docblock-source .token.control-flow {
+    color: var(--hljs-keyword);
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.string,
+.sbdocs.sbdocs-content .docblock-source .token.attr-value,
+.sbdocs.sbdocs-content .docblock-source .token.regex {
+    color: var(--hljs-string);
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.comment,
+.sbdocs.sbdocs-content .docblock-source .token.prolog,
+.sbdocs.sbdocs-content .docblock-source .token.doctype,
+.sbdocs.sbdocs-content .docblock-source .token.cdata {
+    color: var(--hljs-comment);
+    font-style: italic;
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.number {
+    color: var(--hljs-number);
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.class-name,
+.sbdocs.sbdocs-content .docblock-source .token.maybe-class-name,
+.sbdocs.sbdocs-content .docblock-source .token.known-class-name {
+    color: var(--hljs-title);
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.tag,
+.sbdocs.sbdocs-content .docblock-source .token.tag.class-name {
+    color: var(--hljs-tag);
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.attr-name {
+    color: var(--hljs-attr);
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.function,
+.sbdocs.sbdocs-content .docblock-source .token.function-variable {
+    color: var(--hljs-title);
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.builtin,
+.sbdocs.sbdocs-content .docblock-source .token.property-access {
+    color: var(--hljs-builtin);
+}
+
+.sbdocs.sbdocs-content .docblock-source .token.punctuation,
+.sbdocs.sbdocs-content .docblock-source .token.operator,
+.sbdocs.sbdocs-content .docblock-source .token.imports {
+    color: var(--hljs-base);
 }
 
 /* =========================================================================

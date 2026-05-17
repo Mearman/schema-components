@@ -169,11 +169,17 @@ export const SeeAlsoOperations: StoryObj = {
                 gap: "0.75rem",
                 maxWidth: "32rem",
                 padding: "1rem",
-                border: "1px solid #e5e7eb",
+                border: "1px solid var(--sc-border)",
                 borderRadius: "0.5rem",
             }}
         >
-            <p style={{ margin: 0, color: "#475569", fontSize: "0.875rem" }}>
+            <p
+                style={{
+                    margin: 0,
+                    color: "var(--sc-text-secondary)",
+                    fontSize: "0.875rem",
+                }}
+            >
                 Move from rendering the underlying Pet schema to rendering a
                 full operation, or focused parameter or webhook stories.
             </p>
@@ -197,9 +203,9 @@ export const SeeAlsoOperations: StoryObj = {
                     type="button"
                     onClick={linkTo("OpenAPI/Operations", "ParametersOnly")}
                     style={{
-                        border: "1px solid #94a3b8",
-                        background: "#fff",
-                        color: "#0f172a",
+                        border: "1px solid var(--sc-border-input)",
+                        background: "var(--sc-bg-secondary)",
+                        color: "var(--sc-text)",
                         borderRadius: "0.375rem",
                         padding: "0.5rem 0.875rem",
                         cursor: "pointer",
@@ -212,9 +218,9 @@ export const SeeAlsoOperations: StoryObj = {
                     type="button"
                     onClick={linkTo("OpenAPI/Webhooks", "PetStoreWebhooks")}
                     style={{
-                        border: "1px solid #94a3b8",
-                        background: "#fff",
-                        color: "#0f172a",
+                        border: "1px solid var(--sc-border-input)",
+                        background: "var(--sc-bg-secondary)",
+                        color: "var(--sc-text)",
                         borderRadius: "0.375rem",
                         padding: "0.5rem 0.875rem",
                         cursor: "pointer",

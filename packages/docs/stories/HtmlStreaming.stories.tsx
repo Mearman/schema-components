@@ -61,7 +61,7 @@ function StreamingPreview({ chunks }: { chunks: string[] }) {
                 style={{
                     fontFamily: "monospace",
                     fontSize: "0.75rem",
-                    color: "#6b7280",
+                    color: "var(--sc-hint-text)",
                     marginBottom: "0.5rem",
                 }}
             >
@@ -70,10 +70,9 @@ function StreamingPreview({ chunks }: { chunks: string[] }) {
             </div>
             <div
                 style={{
-                    border: "1px solid #e2e8f0",
+                    border: "1px solid var(--sc-object-border)",
                     borderRadius: "0.375rem",
                     padding: "1rem",
-                    background: "#fff",
                 }}
                 dangerouslySetInnerHTML={{
                     __html: chunks.join(""),
