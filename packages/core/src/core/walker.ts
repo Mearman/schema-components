@@ -105,6 +105,72 @@ function walkSubSchema(value: unknown, ctx: WalkContext): WalkedField {
 }
 
 // ---------------------------------------------------------------------------
+// allOf: unevaluated-keyword strictness selection
+// ---------------------------------------------------------------------------
+
+/**
+ * Rank an `unevaluatedProperties`/`unevaluatedItems` value by how
+ * restrictive it is. Higher is stricter. The ordering reflects
+ * JSON Schema 2020-12 §11.2/§11.3 semantics:
+ *
+ *   false (forbid all extras)
+ *     > schema-object (extras must match the schema)
+ *     > true (extras explicitly permitted)
+ *     > absent (extras implicitly permitted)
+ *
+ * Unknown shapes (numbers, arrays, strings) sort below absent — we
+ * cannot reason about them, so do not let them override anything.
+ */
+function unevaluatedRank(value: unknown): number {
+    if (value === false) return 3;
+    if (isObject(value)) return 2;
+    if (value === true) return 1;
+    if (value === undefined) return 0;
+    return -1;
+}
+
+/**
+ * Pick the strictest `unevaluatedProperties` / `unevaluatedItems` across
+ * a set of `allOf` branches (including the parent prepended as a
+ * branch) and apply it to the merged node. `mergeAllOf` already collects
+ * properties from every branch into the merged result; surfacing the
+ * strictest unevaluated keyword closes the loop so the walker's object
+ * builder sees the spec-correct value.
+ *
+ * The merged node is mutated in place — that is consistent with the
+ * surrounding walker code, which treats the merge output as a fresh
+ * working node.
+ */
+function applyStrictestUnevaluated(
+    merged: Record<string, unknown>,
+    branches: readonly unknown[]
+): void {
+    let strictestProps: unknown = merged.unevaluatedProperties;
+    let strictestItems: unknown = merged.unevaluatedItems;
+    for (const branch of branches) {
+        if (!isObject(branch)) continue;
+        if ("unevaluatedProperties" in branch) {
+            const candidate = branch.unevaluatedProperties;
+            if (unevaluatedRank(candidate) > unevaluatedRank(strictestProps)) {
+                strictestProps = candidate;
+            }
+        }
+        if ("unevaluatedItems" in branch) {
+            const candidate = branch.unevaluatedItems;
+            if (unevaluatedRank(candidate) > unevaluatedRank(strictestItems)) {
+                strictestItems = candidate;
+            }
+        }
+    }
+    if (strictestProps !== undefined) {
+        merged.unevaluatedProperties = strictestProps;
+    }
+    if (strictestItems !== undefined) {
+        merged.unevaluatedItems = strictestItems;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Walker entry point
 // ---------------------------------------------------------------------------
 
@@ -181,13 +247,29 @@ function walkNode(
     // --- Handle allOf ---
     const allOf = getArray(schema, "allOf");
     if (allOf !== undefined && allOf.length > 0) {
-        const merged = mergeAllOf(allOf, ctx.diagnostics, ctx.pointer);
+        // Include the parent's own keys (minus `allOf`) as the first
+        // branch so `mergeAllOf`'s first-write-wins behaviour preserves
+        // sibling constraints (`type`, `properties`, `required` and the
+        // unevaluated keywords) instead of silently dropping them.
+        const parentBranch = withoutKeys(schema, ["allOf"]);
+        const branches: unknown[] = [parentBranch, ...allOf];
+        const merged = mergeAllOf(branches, ctx.diagnostics, ctx.pointer);
         // `false` signals an unsatisfiable composite — a `false` branch
         // collapses the whole conjunction. Render as a never field, the
         // same shape a top-level `false` schema produces.
         if (merged === false) {
             return walkBooleanSchema(false);
         }
+        // Per JSON Schema 2020-12 §11.2/§11.3, the unevaluated keywords
+        // on a parent must consider properties (or array items) declared
+        // in any sibling `allOf` branch as "evaluated". With every
+        // branch's properties merged above, we now also need to pick the
+        // strictest `unevaluatedProperties` / `unevaluatedItems` across
+        // parent and branches — first-write-wins inside `mergeAllOf`
+        // would pick whichever value appeared first, dropping a stricter
+        // `false` from a later branch. Strictness order:
+        //   false > schema-object > true > absent.
+        applyStrictestUnevaluated(merged, branches);
         return walkNode(merged, ctx);
     }
 
