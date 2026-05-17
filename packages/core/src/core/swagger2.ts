@@ -39,14 +39,33 @@ export function normaliseSwagger2Document(
             : { title: "API", version: "0.0.0" },
     };
 
-    // Servers: host + basePath + schemes → servers
-    if (
-        typeof doc.host === "string" ||
-        typeof doc.basePath === "string" ||
-        Array.isArray(doc.schemes)
-    ) {
-        const host = typeof doc.host === "string" ? doc.host : "localhost";
-        const basePath = typeof doc.basePath === "string" ? doc.basePath : "/";
+    // Servers: host + basePath + schemes → servers.
+    //
+    // Synthesise a server URL only when the document declares a host.
+    // Per the Swagger 2.0 spec, host is required to form a complete
+    // server URL; absence means "no fixed host" and the historic
+    // localhost fallback silently invented one. Likewise, basePath is
+    // optional — absence is "no base path", not "/".
+    //
+    // When only schemes is declared without host, we cannot construct
+    // a meaningful URL; emit swagger-missing-host so consumers can
+    // notice the omission and supply the host themselves.
+    if (typeof doc.host !== "string") {
+        if (Array.isArray(doc.schemes) || typeof doc.basePath === "string") {
+            emitDiagnostic(diagnostics, {
+                code: "swagger-missing-host",
+                message:
+                    "Swagger 2.0 document declares schemes or basePath without host; skipping server URL synthesis",
+                pointer: "",
+                detail: {
+                    hasSchemes: Array.isArray(doc.schemes),
+                    hasBasePath: typeof doc.basePath === "string",
+                },
+            });
+        }
+    } else {
+        const host = doc.host;
+        const basePath = typeof doc.basePath === "string" ? doc.basePath : "";
         const schemes: unknown[] = Array.isArray(doc.schemes)
             ? doc.schemes
             : ["https"];
