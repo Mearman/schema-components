@@ -19,6 +19,7 @@ import type { RenderProps } from "../core/renderer.ts";
 import { isObject } from "../core/guards.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import type { WalkedField } from "../core/types.ts";
+import { isSafeHyperlink, isSafeMailtoAddress } from "../core/uri.ts";
 
 // ---------------------------------------------------------------------------
 // Utility
@@ -132,18 +133,22 @@ export function renderString(props: RenderProps): ReactNode {
                 </span>
             );
         const format = props.constraints.format;
-        if (format === "email")
+        if (format === "email" && isSafeMailtoAddress(strValue))
             return (
                 <a href={`mailto:${strValue}`} id={id} aria-readonly="true">
                     {strValue}
                 </a>
             );
-        if (format === "uri" || format === "url")
+        if ((format === "uri" || format === "url") && isSafeHyperlink(strValue))
             return (
                 <a href={strValue} id={id} aria-readonly="true">
                     {strValue}
                 </a>
             );
+        // Either the format is plain text, the URI scheme is unsafe
+        // (e.g. `javascript:`), or the email contains characters that
+        // could inject mailto header lines. Fall through to text
+        // rendering so the value is never interpreted as a navigable URI.
         if (format === "date") {
             const formatted = formatDate(strValue);
             return (

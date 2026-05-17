@@ -181,3 +181,68 @@ describe("renderNegation", () => {
         expect(html).toContain("Must NOT match:");
     });
 });
+
+// ---------------------------------------------------------------------------
+// URI safety — React headless renderer must reject dangerous schemes
+// ---------------------------------------------------------------------------
+
+describe("renderString — URI safety", () => {
+    it("does not emit href for a javascript: URI when format is uri", () => {
+        const schema = z.object({
+            url: z.string().meta({ format: "uri" }),
+        });
+        const html = renderToString(
+            <SchemaComponent
+                schema={schema}
+                value={{ url: "javascript:alert(1)" }}
+                readOnly
+            />
+        );
+        expect(html).not.toMatch(/href="javascript:/i);
+        expect(html).toContain("javascript:alert(1)");
+    });
+
+    it("does not emit href for a javascript: URI when format is url", () => {
+        const schema = z.object({
+            url: z.string().meta({ format: "url" }),
+        });
+        const html = renderToString(
+            <SchemaComponent
+                schema={schema}
+                value={{ url: "javascript:alert(1)" }}
+                readOnly
+            />
+        );
+        expect(html).not.toMatch(/href="javascript:/i);
+    });
+
+    it("does not emit href for a data: URI when format is uri", () => {
+        const schema = z.object({
+            url: z.string().meta({ format: "uri" }),
+        });
+        const html = renderToString(
+            <SchemaComponent
+                schema={schema}
+                value={{ url: "data:text/html,<script>alert(1)</script>" }}
+                readOnly
+            />
+        );
+        expect(html).not.toMatch(/href="data:/i);
+    });
+
+    it("does not emit mailto: href when the address embeds CRLF", () => {
+        const schema = z.object({
+            email: z.email(),
+        });
+        const html = renderToString(
+            <SchemaComponent
+                schema={schema}
+                value={{
+                    email: "ada@example.com\r\nBcc: attacker@example.com",
+                }}
+                readOnly
+            />
+        );
+        expect(html).not.toMatch(/href="mailto:/i);
+    });
+});

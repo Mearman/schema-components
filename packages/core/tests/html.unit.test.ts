@@ -63,6 +63,53 @@ describe("renderToHtml — string", () => {
         });
         expect(html).toMatch(/href="https:\/\/example.com"/);
     });
+
+    it("does not emit href for a javascript: URI when format is uri", () => {
+        const schema = z.object({
+            url: z.string().meta({ format: "uri" }),
+        });
+        const html = renderToHtml(schema, {
+            value: { url: "javascript:alert(1)" },
+            readOnly: true,
+        });
+        expect(html).not.toMatch(/href="javascript:/i);
+        // The value still appears as plain text (escaped) so the user
+        // can see what was supplied.
+        expect(html).toMatch(/javascript:alert\(1\)/);
+    });
+
+    it("does not emit href for a javascript: URI when format is url", () => {
+        const schema = z.object({
+            url: z.string().meta({ format: "url" }),
+        });
+        const html = renderToHtml(schema, {
+            value: { url: "javascript:alert(1)" },
+            readOnly: true,
+        });
+        expect(html).not.toMatch(/href="javascript:/i);
+    });
+
+    it("does not emit href for a data: URI when format is uri", () => {
+        const schema = z.object({
+            url: z.string().meta({ format: "uri" }),
+        });
+        const html = renderToHtml(schema, {
+            value: { url: "data:text/html,<script>alert(1)</script>" },
+            readOnly: true,
+        });
+        expect(html).not.toMatch(/href="data:/i);
+    });
+
+    it("does not emit mailto: href when the address embeds CRLF", () => {
+        const schema = z.object({
+            email: z.email(),
+        });
+        const html = renderToHtml(schema, {
+            value: { email: "ada@example.com\r\nBcc: attacker@example.com" },
+            readOnly: true,
+        });
+        expect(html).not.toMatch(/href="mailto:/i);
+    });
 });
 
 describe("renderToHtml — number", () => {
