@@ -7,11 +7,13 @@ import { expect, within } from "storybook/test";
 import { z } from "zod";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
-const meta: Meta = {
+const meta = {
     title: "Inputs/Records",
+    component: SchemaComponent,
     tags: ["record", "json-schema"],
-};
+} satisfies Meta<typeof SchemaComponent>;
 export default meta;
+type Story = StoryObj<typeof meta>;
 
 // ---------------------------------------------------------------------------
 // JSON Schema record (additionalProperties)
@@ -22,16 +24,14 @@ const stringRecordSchema = {
     additionalProperties: { type: "string" as const },
 } as const;
 
-export const StringValues: StoryObj = {
+export const StringValues: Story = {
     name: "String record (read-only)",
     tags: ["record", "readonly"],
-    render: () => (
-        <SchemaComponent
-            schema={stringRecordSchema}
-            value={{ name: "Ada", city: "London", role: "Engineer" }}
-            readOnly
-        />
-    ),
+    args: {
+        schema: stringRecordSchema,
+        value: { name: "Ada", city: "London", role: "Engineer" },
+        readOnly: true,
+    },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         await expect(canvas.getByText("Ada")).toBeInTheDocument();
@@ -40,15 +40,13 @@ export const StringValues: StoryObj = {
     },
 };
 
-export const StringValuesEditable: StoryObj = {
+export const StringValuesEditable: Story = {
     name: "String record (editable)",
     tags: ["record", "editable"],
-    render: () => (
-        <SchemaComponent
-            schema={stringRecordSchema}
-            value={{ name: "Ada", city: "London", role: "Engineer" }}
-        />
-    ),
+    args: {
+        schema: stringRecordSchema,
+        value: { name: "Ada", city: "London", role: "Engineer" },
+    },
     play: async ({ canvasElement, step }) => {
         const canvas = within(canvasElement);
         await step(
@@ -87,38 +85,41 @@ const numberRecordSchema = {
     additionalProperties: { type: "number" as const },
 } as const;
 
-export const NumberValues: StoryObj = {
+export const NumberValues: Story = {
     name: "Number record",
     tags: ["record", "readonly"],
-    render: () => (
-        <SchemaComponent
-            schema={numberRecordSchema}
-            value={{ react: 92, typescript: 88, python: 75, rust: 60 }}
-            readOnly
-        />
-    ),
+    args: {
+        schema: numberRecordSchema,
+        value: { react: 92, typescript: 88, python: 75, rust: 60 },
+        readOnly: true,
+    },
 };
 
 // ---------------------------------------------------------------------------
 // Empty record
 // ---------------------------------------------------------------------------
 
-export const EmptyRecord: StoryObj = {
+export const EmptyRecord: Story = {
     name: "Empty record",
     tags: ["record", "readonly"],
-    render: () => (
-        <SchemaComponent schema={stringRecordSchema} value={{}} readOnly />
-    ),
+    args: {
+        schema: stringRecordSchema,
+        value: {},
+        readOnly: true,
+    },
 };
 
 // ---------------------------------------------------------------------------
 // No value
 // ---------------------------------------------------------------------------
 
-export const NoValue: StoryObj = {
+export const NoValue: Story = {
     name: "No value",
     tags: ["record", "readonly"],
-    render: () => <SchemaComponent schema={stringRecordSchema} readOnly />,
+    args: {
+        schema: stringRecordSchema,
+        readOnly: true,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -138,23 +139,21 @@ const objectWithRecordSchema = {
     required: ["name"],
 } as const;
 
-export const RecordWithinObject: StoryObj = {
+export const RecordWithinObject: Story = {
     name: "Record field within object",
     tags: ["record", "readonly"],
-    render: () => (
-        <SchemaComponent
-            schema={objectWithRecordSchema}
-            value={{
-                name: "Ada",
-                metadata: {
-                    department: "Engineering",
-                    level: "Senior",
-                    location: "London",
-                },
-            }}
-            readOnly
-        />
-    ),
+    args: {
+        schema: objectWithRecordSchema,
+        value: {
+            name: "Ada",
+            metadata: {
+                department: "Engineering",
+                level: "Senior",
+                location: "London",
+            },
+        },
+        readOnly: true,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -165,14 +164,12 @@ const zodRecordSchema = z.object({
     scores: z.record(z.string(), z.number()),
 });
 
-export const ZodRecord: StoryObj = {
+export const ZodRecord: Story = {
     name: "Zod record",
     tags: ["record", "zod", "readonly"],
-    render: () => (
-        <SchemaComponent
-            schema={zodRecordSchema}
-            value={{ scores: { math: 95, science: 88, english: 72 } }}
-            readOnly
-        />
-    ),
+    args: {
+        schema: zodRecordSchema,
+        value: { scores: { math: 95, science: 88, english: 72 } },
+        readOnly: true,
+    },
 };
