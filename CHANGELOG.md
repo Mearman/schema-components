@@ -1,3 +1,29 @@
+## [1.18.0](https://github.com/Mearman/schema-components/compare/v1.17.0...v1.18.0) (2026-05-17)
+
+### Features
+
+* **core:** emit diagnostics for conflicting allOf merges and inconsistent discriminators ([87bdb90](https://github.com/Mearman/schema-components/commit/87bdb905b0758e2229e991f39c85c97ac0cf2daa))
+
+### Bug Fixes
+
+* **html:** derive child paths structurally and render array children once ([76caa1f](https://github.com/Mearman/schema-components/commit/76caa1f0c372036d818d7cd91c8e14492db8b109))
+* **openapi:** inline external refs into components.schemas with de-duplication ([1f60b90](https://github.com/Mearman/schema-components/commit/1f60b90d69fbc387193131f695c6441ba04af892))
+* **openapi:** normalise OpenAPI 3.0 schemas in ApiOperation pipeline ([2959d23](https://github.com/Mearman/schema-components/commit/2959d23633428474b368ed9584c6573d416afd65))
+* **openapi:** resolve $ref parameters against document root ([59d189f](https://github.com/Mearman/schema-components/commit/59d189f82ed725b7eddb329f20daa71b672d0ab7))
+* **react:** wire ids on discriminated union tabs and stabilise handlers ([b91ee14](https://github.com/Mearman/schema-components/commit/b91ee140d0d1bfb938a733bd15c7d55f383aa66e))
+
+### Refactoring
+
+* **react:** extract shared buildRenderProps and read field data from tree ([f85a652](https://github.com/Mearman/schema-components/commit/f85a6524ca4acc101f249e17155e538199997e2d))
+
+### Tests
+
+* **core:** add typeInference walker parity tests and document depth bound ([9e6dca3](https://github.com/Mearman/schema-components/commit/9e6dca36ccdddf4c26f8eb03612c47f7391cf38a))
+
+### Chores
+
+* add pre-merge-commit hook to enforce linear history on main ([52410c9](https://github.com/Mearman/schema-components/commit/52410c9611d81024d121b0dd0b3650607f6570bf))
+
 ## [1.17.0](https://github.com/Mearman/schema-components/compare/v1.16.3...v1.17.0) (2026-05-17)
 
 ### Features
