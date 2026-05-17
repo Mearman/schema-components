@@ -51,6 +51,7 @@ export type DiagnosticCode =
     | "pattern-invalid"
     | "duplicate-body-parameter"
     | "prototype-polluting-property"
+    | "type-mismatch"
     | "zod-codec-output-only";
 
 // ---------------------------------------------------------------------------
