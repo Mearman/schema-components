@@ -97,9 +97,20 @@ describe("bundleOpenApiDoc", () => {
 
         expect(schema).toBeDefined();
         if (schema === undefined) return;
-        expect("$ref" in schema).toBe(false);
-        expect(schema.type).toBe("object");
-        expect(schema.properties).toBeDefined();
+        // External ref is rewritten to an internal ref into components.schemas.
+        expect(typeof schema.$ref).toBe("string");
+        expect(schema.$ref).toMatch(/^#\/components\/schemas\//);
+
+        // The resolved target lives in components.schemas under a synthesised name.
+        const schemas = navigate(bundled, "components", "schemas");
+        expect(schemas).toBeDefined();
+        if (schemas === undefined) return;
+        const pet = schemas.Pet;
+        expect(isObject(pet)).toBe(true);
+        if (!isObject(pet)) return;
+        expect(pet.type).toBe("object");
+        expect(pet.properties).toBeDefined();
+        expect(schema.$ref).toBe("#/components/schemas/Pet");
     });
 
     it("handles multiple external refs to the same document", async () => {
@@ -191,10 +202,21 @@ describe("bundleOpenApiDoc", () => {
         expect(petSchema).toBeDefined();
         expect(ownerSchema).toBeDefined();
         if (petSchema === undefined || ownerSchema === undefined) return;
-        expect(petSchema.type).toBe("object");
-        expect(petSchema.properties).toBeDefined();
-        expect(ownerSchema.type).toBe("object");
-        expect(ownerSchema.properties).toBeDefined();
+        expect(petSchema.$ref).toBe("#/components/schemas/Pet");
+        expect(ownerSchema.$ref).toBe("#/components/schemas/Owner");
+
+        const schemas = navigate(bundled, "components", "schemas");
+        expect(schemas).toBeDefined();
+        if (schemas === undefined) return;
+        const pet = schemas.Pet;
+        const owner = schemas.Owner;
+        expect(isObject(pet)).toBe(true);
+        expect(isObject(owner)).toBe(true);
+        if (!isObject(pet) || !isObject(owner)) return;
+        expect(pet.type).toBe("object");
+        expect(pet.properties).toBeDefined();
+        expect(owner.type).toBe("object");
+        expect(owner.properties).toBeDefined();
     });
 
     it("does not mutate the original document", async () => {
@@ -301,6 +323,96 @@ describe("bundleOpenApiDoc", () => {
 
         await bundleOpenApiDoc(doc, resolver);
         expect(callCount).toBe(1);
+    });
+
+    it("de-duplicates identical external refs into a single components entry", async () => {
+        const resolver = createMemoryResolver({
+            "https://api.example.com/schemas/Pet.json": {
+                type: "object",
+                properties: {
+                    name: { type: "string" },
+                },
+            },
+        });
+
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/pets": {
+                    get: {
+                        responses: {
+                            "200": {
+                                content: {
+                                    "application/json": {
+                                        schema: {
+                                            $ref: "https://api.example.com/schemas/Pet.json#",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                "/pets/{id}": {
+                    get: {
+                        responses: {
+                            "200": {
+                                content: {
+                                    "application/json": {
+                                        schema: {
+                                            $ref: "https://api.example.com/schemas/Pet.json#",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        const bundled = await bundleOpenApiDoc(doc, resolver);
+
+        const firstSchema = navigate(
+            bundled,
+            "paths",
+            "/pets",
+            "get",
+            "responses",
+            "200",
+            "content",
+            "application/json",
+            "schema"
+        );
+        const secondSchema = navigate(
+            bundled,
+            "paths",
+            "/pets/{id}",
+            "get",
+            "responses",
+            "200",
+            "content",
+            "application/json",
+            "schema"
+        );
+
+        expect(firstSchema).toBeDefined();
+        expect(secondSchema).toBeDefined();
+        if (firstSchema === undefined || secondSchema === undefined) return;
+
+        // Both call sites point to the same internal ref.
+        expect(firstSchema.$ref).toBe("#/components/schemas/Pet");
+        expect(secondSchema.$ref).toBe("#/components/schemas/Pet");
+
+        // Only one entry was created in components.schemas for this ref.
+        const schemas = navigate(bundled, "components", "schemas");
+        expect(schemas).toBeDefined();
+        if (schemas === undefined) return;
+        const petEntries = Object.keys(schemas).filter((key) =>
+            key.startsWith("Pet")
+        );
+        expect(petEntries).toEqual(["Pet"]);
     });
 
     it("preserves internal $ref strings", async () => {
