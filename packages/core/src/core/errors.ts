@@ -18,13 +18,18 @@
 /**
  * Base class for all schema-components errors.
  * Catch this to handle any library error uniformly.
+ *
+ * Forwards the optional `cause` to the native ES2022 `Error` constructor so
+ * `error.cause` is wired up by the runtime and rendered correctly by
+ * `util.inspect` ("Caused by: ..."). Subclasses that need a typed `cause`
+ * field still get it via the platform's own `Error.cause` getter.
  */
 export class SchemaError extends Error {
     /** The schema input that caused the error. */
     readonly schema: unknown;
 
-    constructor(message: string, schema: unknown) {
-        super(message);
+    constructor(message: string, schema: unknown, cause?: unknown) {
+        super(message, cause !== undefined ? { cause } : undefined);
         this.name = "SchemaError";
         this.schema = schema;
     }
@@ -47,6 +52,9 @@ export class SchemaNormalisationError extends SchemaError {
         | "zod-transform-unsupported"
         | "zod-type-unrepresentable"
         | "zod-conversion-failed"
+        | "zod-conversion-bug"
+        | "zod-cycle-detected"
+        | "zod-duplicate-id"
         | "invalid-json-schema"
         | "openapi-missing-ref"
         | "openapi-invalid"
@@ -58,14 +66,6 @@ export class SchemaNormalisationError extends SchemaError {
      */
     readonly zodType: string | undefined;
 
-    /**
-     * The original underlying error, when this normalisation error wraps
-     * another exception (typically the error thrown by `z.toJSONSchema()`).
-     * Preserves the source stack trace so the root cause is not lost when
-     * the classifier translates the message.
-     */
-    readonly cause: unknown;
-
     constructor(
         message: string,
         schema: unknown,
@@ -73,11 +73,15 @@ export class SchemaNormalisationError extends SchemaError {
         zodType?: string,
         cause?: unknown
     ) {
-        super(message, schema);
+        // Forward `cause` to the native Error constructor so
+        // `error.cause` is wired by the runtime (ES2022) and rendered by
+        // `util.inspect` as a "Caused by" chain. No own field needed —
+        // the platform-provided getter on the Error instance is the source
+        // of truth.
+        super(message, schema, cause);
         this.name = "SchemaNormalisationError";
         this.kind = kind;
         this.zodType = zodType;
-        this.cause = cause;
     }
 }
 
@@ -93,8 +97,6 @@ export class SchemaNormalisationError extends SchemaError {
 export class SchemaRenderError extends SchemaError {
     /** The schema type being rendered when the error occurred. */
     readonly schemaType: string;
-    /** The original error from the render function. */
-    readonly cause: unknown;
 
     constructor(
         message: string,
@@ -102,10 +104,12 @@ export class SchemaRenderError extends SchemaError {
         schemaType: string,
         cause: unknown
     ) {
-        super(message, schema);
+        // `cause` is forwarded to the native Error constructor so
+        // `error.cause` is wired by the runtime and rendered by
+        // `util.inspect`. The base class threads it through.
+        super(message, schema, cause);
         this.name = "SchemaRenderError";
         this.schemaType = schemaType;
-        this.cause = cause;
     }
 }
 
