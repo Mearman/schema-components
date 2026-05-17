@@ -305,3 +305,46 @@ export function isOpenApi31(version: OpenApiVersionInfo): boolean {
 export function isSwagger2(version: OpenApiVersionInfo): boolean {
     return version.major === 2;
 }
+
+// ---------------------------------------------------------------------------
+// OpenAPI 3.1 jsonSchemaDialect
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of inspecting a document for the OpenAPI 3.1 `jsonSchemaDialect`
+ * keyword.
+ *
+ * - `kind: "absent"`: the keyword is not declared. The walker assumes
+ *   Draft 2020-12, which is the spec-defined default.
+ * - `kind: "known"`: the declared dialect URI matches one of the
+ *   supported drafts. The corresponding `JsonSchemaDraft` is returned so
+ *   the normaliser can route to the matching per-node transforms.
+ * - `kind: "unknown"`: the keyword is present but its URI does not
+ *   match any supported draft. The caller should emit an
+ *   `unknown-json-schema-dialect` diagnostic and fall back to
+ *   Draft 2020-12.
+ */
+export type JsonSchemaDialectInfo =
+    | { kind: "absent" }
+    | { kind: "known"; uri: string; draft: JsonSchemaDraft }
+    | { kind: "unknown"; uri: string };
+
+/**
+ * Inspect an OpenAPI 3.1 document for a `jsonSchemaDialect` declaration.
+ *
+ * Per the OpenAPI 3.1 spec, an OpenAPI document may declare the default
+ * JSON Schema dialect for its Schema Objects via the top-level
+ * `jsonSchemaDialect` URI. Real-world 3.1 documents overwhelmingly omit
+ * the keyword and rely on the spec-defined Draft 2020-12 default — this
+ * helper surfaces the declaration so the normaliser can either honour a
+ * known dialect or emit a diagnostic for an unknown one.
+ */
+export function readJsonSchemaDialect(
+    doc: Record<string, unknown>
+): JsonSchemaDialectInfo {
+    const value = doc.jsonSchemaDialect;
+    if (typeof value !== "string") return { kind: "absent" };
+    const draft = matchJsonSchemaDraftUri(value);
+    if (draft === undefined) return { kind: "unknown", uri: value };
+    return { kind: "known", uri: value, draft };
+}

@@ -10,9 +10,11 @@ import {
     isOpenApi30,
     isOpenApi31,
     isSwagger2,
+    readJsonSchemaDialect,
 } from "../src/core/version.ts";
 import { walk } from "../src/core/walker.ts";
 import { normaliseSchema } from "../src/core/adapter.ts";
+import { normaliseOpenApiSchemas } from "../src/core/normalise.ts";
 import type { Diagnostic } from "../src/core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
@@ -324,6 +326,158 @@ describe("detectOpenApiVersion", () => {
 // ---------------------------------------------------------------------------
 // Version type guards
 // ---------------------------------------------------------------------------
+
+describe("readJsonSchemaDialect", () => {
+    it("returns absent when the keyword is missing", () => {
+        const result = readJsonSchemaDialect({
+            openapi: "3.1.0",
+            info: { title: "T", version: "1" },
+            paths: {},
+        });
+        expect(result.kind).toBe("absent");
+    });
+
+    it("returns absent when the keyword is not a string", () => {
+        const result = readJsonSchemaDialect({
+            openapi: "3.1.0",
+            jsonSchemaDialect: 42,
+        });
+        expect(result.kind).toBe("absent");
+    });
+
+    it("returns known for the Draft 2020-12 dialect URI", () => {
+        const uri = "https://json-schema.org/draft/2020-12/schema";
+        const result = readJsonSchemaDialect({
+            openapi: "3.1.0",
+            jsonSchemaDialect: uri,
+        });
+        if (result.kind !== "known") {
+            expect.unreachable(`expected known dialect, got ${result.kind}`);
+            return;
+        }
+        expect(result.draft).toBe("draft-2020-12");
+        expect(result.uri).toBe(uri);
+    });
+
+    it("returns known for the Draft 2019-09 dialect URI", () => {
+        const uri = "https://json-schema.org/draft/2019-09/schema";
+        const result = readJsonSchemaDialect({
+            openapi: "3.1.0",
+            jsonSchemaDialect: uri,
+        });
+        if (result.kind !== "known") {
+            expect.unreachable(`expected known dialect, got ${result.kind}`);
+            return;
+        }
+        expect(result.draft).toBe("draft-2019-09");
+    });
+
+    it("returns unknown for a URI that does not match any supported draft", () => {
+        const uri = "https://example.com/dialects/custom";
+        const result = readJsonSchemaDialect({
+            openapi: "3.1.0",
+            jsonSchemaDialect: uri,
+        });
+        if (result.kind !== "unknown") {
+            expect.unreachable(`expected unknown dialect, got ${result.kind}`);
+            return;
+        }
+        expect(result.uri).toBe(uri);
+    });
+});
+
+describe("unknown-json-schema-dialect diagnostic", () => {
+    it("emits the diagnostic for an unknown jsonSchemaDialect URI in OAS 3.1", () => {
+        const diags: Diagnostic[] = [];
+        normaliseOpenApiSchemas(
+            {
+                openapi: "3.1.0",
+                jsonSchemaDialect: "https://example.com/dialects/custom",
+                info: { title: "T", version: "1" },
+                paths: {},
+            },
+            { major: 3, minor: 1, patch: 0 },
+            {
+                diagnostics: (d: Diagnostic) => {
+                    diags.push(d);
+                },
+            }
+        );
+        const dialect = diags.filter(
+            (d) => d.code === "unknown-json-schema-dialect"
+        );
+        expect(dialect.length).toBe(1);
+        const diag = dialect[0];
+        if (diag === undefined) throw new Error("expected diagnostic");
+        expect(diag.pointer).toBe("/jsonSchemaDialect");
+        expect(diag.detail?.uri).toBe("https://example.com/dialects/custom");
+    });
+
+    it("does not emit the diagnostic when jsonSchemaDialect is absent", () => {
+        const diags: Diagnostic[] = [];
+        normaliseOpenApiSchemas(
+            {
+                openapi: "3.1.0",
+                info: { title: "T", version: "1" },
+                paths: {},
+            },
+            { major: 3, minor: 1, patch: 0 },
+            {
+                diagnostics: (d: Diagnostic) => {
+                    diags.push(d);
+                },
+            }
+        );
+        expect(
+            diags.filter((d) => d.code === "unknown-json-schema-dialect").length
+        ).toBe(0);
+    });
+
+    it("does not emit the diagnostic for a known jsonSchemaDialect URI", () => {
+        const diags: Diagnostic[] = [];
+        normaliseOpenApiSchemas(
+            {
+                openapi: "3.1.0",
+                jsonSchemaDialect:
+                    "https://json-schema.org/draft/2020-12/schema",
+                info: { title: "T", version: "1" },
+                paths: {},
+            },
+            { major: 3, minor: 1, patch: 0 },
+            {
+                diagnostics: (d: Diagnostic) => {
+                    diags.push(d);
+                },
+            }
+        );
+        expect(
+            diags.filter((d) => d.code === "unknown-json-schema-dialect").length
+        ).toBe(0);
+    });
+
+    it("does not emit the diagnostic for OpenAPI 3.0 documents", () => {
+        const diags: Diagnostic[] = [];
+        // 3.0 doesn't define jsonSchemaDialect — if present, it's a
+        // foreign keyword and the 3.0 normaliser should ignore it.
+        normaliseOpenApiSchemas(
+            {
+                openapi: "3.0.3",
+                jsonSchemaDialect: "https://example.com/dialects/custom",
+                info: { title: "T", version: "1" },
+                paths: {},
+            },
+            { major: 3, minor: 0, patch: 3 },
+            {
+                diagnostics: (d: Diagnostic) => {
+                    diags.push(d);
+                },
+            }
+        );
+        expect(
+            diags.filter((d) => d.code === "unknown-json-schema-dialect").length
+        ).toBe(0);
+    });
+});
 
 describe("version type guards", () => {
     it("isOpenApi30 identifies 3.0.x", () => {

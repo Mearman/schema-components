@@ -15,7 +15,12 @@
  */
 
 import type { JsonSchemaDraft, OpenApiVersionInfo } from "./version.ts";
-import { isOpenApi30, isSwagger2 } from "./version.ts";
+import {
+    isOpenApi30,
+    isOpenApi31,
+    isSwagger2,
+    readJsonSchemaDialect,
+} from "./version.ts";
 import { isObject } from "./guards.ts";
 import {
     deepNormaliseOpenApi30Doc,
@@ -777,6 +782,33 @@ export function normaliseOpenApiSchemas(
     // 3.0 producing identical walker input for the same logical
     // discriminated union — and 3.1 does not have boolean `nullable`,
     // so the rest of the 3.0 combined transform must not run here.
+    if (isOpenApi31(version)) {
+        // OpenAPI 3.1 added the top-level `jsonSchemaDialect` keyword
+        // that may declare a non-default JSON Schema dialect for the
+        // document's Schema Objects. Most real-world 3.1 documents omit
+        // it and inherit the spec-defined Draft 2020-12 default — the
+        // walker assumes 2020-12 unconditionally. When the keyword
+        // declares an unknown URI, surface that via a diagnostic so
+        // consumers can audit whether the assumption holds.
+        //
+        // Routing to a different per-node transform based on a known
+        // dialect is intentionally not implemented here: the OpenAPI
+        // 3.1 spec scopes `jsonSchemaDialect` to be the default for the
+        // whole document, and the published meta-schema for 3.1 already
+        // requires Draft 2020-12 semantics. Cases where authors set the
+        // keyword to an older draft URI are pathological — flag them
+        // and continue with the 2020-12 pipeline.
+        const dialect = readJsonSchemaDialect(doc);
+        if (dialect.kind === "unknown") {
+            emitDiagnostic(diagnostics, {
+                code: "unknown-json-schema-dialect",
+                message: `OpenAPI 3.1 \`jsonSchemaDialect\` URI "${dialect.uri}" does not match a supported JSON Schema draft; falling back to Draft 2020-12`,
+                pointer: "/jsonSchemaDialect",
+                detail: { uri: dialect.uri },
+            });
+        }
+    }
+
     return deepNormaliseOpenApiDoc(doc, (schema) =>
         deepNormalise(schema, normaliseOpenApi30Discriminator)
     );

@@ -38,7 +38,8 @@ export type DiagnosticCode =
     | "discriminator-inconsistent"
     | "divisible-by-conflict"
     | "legacy-dependencies-split"
-    | "dependent-required-invalid";
+    | "dependent-required-invalid"
+    | "unknown-json-schema-dialect";
 
 // ---------------------------------------------------------------------------
 // Diagnostic structure
