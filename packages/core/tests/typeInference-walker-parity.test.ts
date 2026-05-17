@@ -404,6 +404,60 @@ describe("ResolveSchemaRef resolves #/components/schemas/<Name> when defs hold t
 // produces the brand, which is what consumers detect.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Root-level $ref with sibling definitions
+// ---------------------------------------------------------------------------
+//
+// The runtime walker resolves any `$ref` against `rootDocument` (see
+// `resolveRef` in `ref.ts` line 91), so a root schema like
+// `{ $ref: "#/definitions/Foo", definitions: { Foo: {...} } }` resolves
+// the ref against its own sibling definitions. The type-level mirror
+// previously dispatched to the `$ref` branch before `ExtractDefs`
+// extracted the sibling map (extraction only ran inside `ObjectSchemaToTs`),
+// so the root ref resolved with an empty Defs map and silently fell back
+// to `unknown`. `MergeRootDefs` now extracts sibling defs at every
+// `FromJSONSchema` entry so root-sibling refs resolve correctly.
+// ---------------------------------------------------------------------------
+
+describe("Root-level $ref resolves against sibling definitions", () => {
+    interface RootRefWithDefinitions {
+        readonly $ref: "#/definitions/Foo";
+        readonly definitions: {
+            readonly Foo: { readonly type: "string" };
+        };
+    }
+
+    type Resolved = FromJSONSchema<RootRefWithDefinitions>;
+
+    it("root $ref into sibling definitions resolves to the target type", () => {
+        expectTypeOf<Resolved>().toEqualTypeOf<string>();
+    });
+
+    interface RootRefWithDollarDefs {
+        readonly $ref: "#/$defs/Bar";
+        readonly $defs: {
+            readonly Bar: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly id: { readonly type: "string" };
+                };
+                readonly required: readonly ["id"];
+            };
+        };
+    }
+
+    type ResolvedDefs = FromJSONSchema<RootRefWithDollarDefs>;
+
+    interface ExpectedDefs {
+        id: string;
+    }
+
+    it("root $ref into sibling $defs resolves to the target object", () => {
+        expectTypeOf<ExpectedDefs>().toExtend<ResolvedDefs>();
+        expectTypeOf<ResolvedDefs>().toExtend<ExpectedDefs>();
+    });
+});
+
 describe("ResolveSchemaRef depth threading: cyclic ref chain surfaces __SchemaInferenceFellBack", () => {
     // Object root so `ObjectSchemaToTs` extracts the sibling `$defs` into
     // the resolution context. The `Loop` definition refers back to itself

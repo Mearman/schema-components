@@ -162,44 +162,145 @@ export type FromJSONSchema<
     S,
     Defs extends Record<string, unknown> = Record<string, never>,
     Depth extends readonly unknown[] = [],
-> = S extends { nullable: true }
-    ? /**
-       * OpenAPI 3.0 `nullable: true` — surface the keyword wherever it
-       * appears (not just inside `ResolveMaybeRef`). The runtime path
-       * rewrites this to `anyOf: [T, { type: "null" }]` via
-       * `normaliseOpenApi30Node` (`openapi30.ts`). Mirroring at the
-       * `FromJSONSchema` level means nested fields inside refs preserve
-       * nullability when resolved.
-       */
-      FromJSONSchema<Omit<S, "nullable">, Defs, Depth> | null
-    : S extends { $ref: infer R extends string }
-      ? ResolveSchemaRef<R, Defs, Depth>
-      : S extends { $recursiveRef: string }
-        ? /** $recursiveRef: TypeScript cannot express recursive types. */
-          unknown
-        : S extends { $dynamicRef: infer R extends string }
-          ? ResolveSchemaRef<R, Defs, Depth>
-          : S extends { allOf: infer A }
-            ? AllOfToType<A, Defs, Depth>
-            : S extends { anyOf: infer A }
-              ? UnionOfMembers<A, Defs, Depth>
-              : S extends { oneOf: infer A }
-                ? UnionOfMembers<A, Defs, Depth>
-                : S extends { if: unknown }
-                  ? /** if/then/else: infer base schema without conditionals. */
-                    FromJSONSchema<Omit<S, "if" | "then" | "else">, Defs, Depth>
-                  : S extends { not: unknown }
-                    ? /** not: TypeScript cannot negate types. */
-                      unknown
-                    : S extends { const: infer V }
-                      ? V
-                      : S extends { enum: infer E }
-                        ? ArrayToUnion<E>
-                        : S extends { type: infer T }
-                          ? TypeToTs<T, S, Defs, Depth>
-                          : S extends readonly (infer E)[]
-                            ? E
-                            : unknown;
+> =
+    MergeRootDefs<S, Defs> extends infer MergedDefs extends Record<
+        string,
+        unknown
+    >
+        ? S extends { nullable: true }
+            ? /**
+               * OpenAPI 3.0 `nullable: true` — surface the keyword wherever it
+               * appears (not just inside `ResolveMaybeRef`). The runtime path
+               * rewrites this to `anyOf: [T, { type: "null" }]` via
+               * `normaliseOpenApi30Node` (`openapi30.ts`). Mirroring at the
+               * `FromJSONSchema` level means nested fields inside refs preserve
+               * nullability when resolved.
+               */
+              FromJSONSchema<Omit<S, "nullable">, MergedDefs, Depth> | null
+            : S extends { $ref: infer R extends string }
+              ? ResolveSchemaRef<R, MergedDefs, Depth>
+              : S extends { $recursiveRef: string }
+                ? /** $recursiveRef: TypeScript cannot express recursive types. */
+                  unknown
+                : S extends { $dynamicRef: infer R extends string }
+                  ? ResolveSchemaRef<R, MergedDefs, Depth>
+                  : S extends { allOf: infer A }
+                    ? AllOfToType<A, MergedDefs, Depth>
+                    : S extends { anyOf: infer A }
+                      ? UnionOfMembers<A, MergedDefs, Depth>
+                      : S extends { oneOf: infer A }
+                        ? UnionOfMembers<A, MergedDefs, Depth>
+                        : S extends { if: unknown }
+                          ? /** if/then/else: infer base schema without conditionals. */
+                            FromJSONSchema<
+                                Omit<S, "if" | "then" | "else">,
+                                MergedDefs,
+                                Depth
+                            >
+                          : S extends { not: unknown }
+                            ? /** not: TypeScript cannot negate types. */
+                              unknown
+                            : S extends { const: infer V }
+                              ? V
+                              : S extends { enum: infer E }
+                                ? ArrayToUnion<E>
+                                : S extends { type: infer T }
+                                  ? TypeToTs<T, S, MergedDefs, Depth>
+                                  : S extends readonly (infer E)[]
+                                    ? E
+                                    : unknown
+        : unknown;
+
+/**
+ * Merge `$defs` / `definitions` declared at the current schema position with
+ * the caller-supplied `Defs` map BEFORE the ref/allOf/anyOf/oneOf dispatch.
+ *
+ * SOURCE-OF-TRUTH: parity with the runtime walker, which uses `rootDocument`
+ * (see `packages/core/src/core/ref.ts` line 91) to resolve any `$ref` against
+ * the full document — including sibling definitions colocated with the
+ * reference. Without this merge, a legal schema like
+ * `{ $ref: "#/definitions/Foo", definitions: { Foo: {...} } }` would lose
+ * its sibling defs because the ref branch fires before `ExtractDefs` runs
+ * inside `ObjectSchemaToTs`.
+ *
+ * Merge semantics (per-key resolution via {@link CollisionSafeMerge}):
+ * - Parent-only keys: parent value wins
+ * - Local-only keys: local value wins
+ * - Shared keys: parent value wins (caller / inherited context takes
+ *   precedence over a deeper redeclaration)
+ *
+ * When the current schema declares no local defs (`HasLocalDefs<S>` is
+ * `false`), `ParentDefs` is returned unchanged so the inherited context
+ * is never poisoned by the empty index-signature sentinel.
+ */
+type MergeRootDefs<S, ParentDefs extends Record<string, unknown>> =
+    HasLocalDefs<S> extends true
+        ? ExtractRawDefs<S> extends infer RawDefs extends Record<
+              string,
+              unknown
+          >
+            ? CollisionSafeMerge<
+                  CollisionSafeMerge<RawDefs, ExtractAnchors<RawDefs>>,
+                  ParentDefs
+              >
+            : ParentDefs
+        : ParentDefs;
+
+/**
+ * Merge two record-shaped types where keys present in `B` always take
+ * precedence over the same key in `A`.
+ *
+ * The empty default `Record<string, never>` is detected explicitly via
+ * {@link IsEmptyDefs}: when either side is the sentinel, the other side
+ * is returned unchanged. This avoids two pitfalls of the naive
+ * `Omit<A, keyof B> & B` approach:
+ *
+ * 1. `keyof Record<string, never>` is the entire `string` type, so
+ *    `Omit<A, string>` would strip every key from `A`.
+ * 2. Iterating a mapped type over `keyof A | keyof B` where either side
+ *    contributes `string` collapses every entry to the index-signature
+ *    value (`never` in the sentinel), wiping the literal keys from the
+ *    other side.
+ *
+ * Only when both sides hold concrete literal keys does the per-key
+ * mapped merge run.
+ */
+type CollisionSafeMerge<A, B> =
+    IsEmptyDefs<A> extends true
+        ? B
+        : IsEmptyDefs<B> extends true
+          ? A
+          : {
+                [K in keyof A | keyof B]: K extends keyof B
+                    ? B[K]
+                    : K extends keyof A
+                      ? A[K]
+                      : never;
+            };
+
+/**
+ * True for the empty-default `Record<string, never>` sentinel used as the
+ * initial `Defs` map — i.e. an open index signature `[string]: never`
+ * with no literal keys. Distinguished from a record with at least one
+ * literal key by checking that `string extends keyof T`.
+ */
+type IsEmptyDefs<T> = [keyof T] extends [never]
+    ? true
+    : string extends keyof T
+      ? true
+      : false;
+
+/**
+ * True when the schema declares `$defs` or `definitions` as an object,
+ * false otherwise. Used by {@link MergeRootDefs} and {@link ExtractDefs}
+ * to avoid intersecting the parent context with an empty
+ * index-signature sentinel.
+ */
+type HasLocalDefs<S> = S extends { $defs: Record<string, unknown> }
+    ? true
+    : S extends { definitions: Record<string, unknown> }
+      ? true
+      : false;
 
 /**
  * Marker type emitted when OpenAPI $ref resolution hits the type-level
@@ -572,13 +673,26 @@ type RequiredKeysOf<S> = S extends { required: infer R }
 
 /**
  * Extract $defs / definitions from a schema for $ref resolution context.
- * Also indexes schemas with `$anchor` or `$dynamicAnchor` by their anchor name,
- * enabling `#SomeName` ref resolution.
- * Merges with the existing Defs context from parent schemas.
+ * Also indexes schemas with `$anchor` or `$dynamicAnchor` by their anchor
+ * name, enabling `#SomeName` ref resolution.
+ *
+ * Shares merge semantics with {@link MergeRootDefs}: caller-supplied
+ * (`ParentDefs`) entries win on key collision, the empty-default
+ * sentinel is detected so it does not poison the parent context, and the
+ * `HasLocalDefs` guard short-circuits when the current node declares no
+ * defs of its own.
  */
 type ExtractDefs<S, ParentDefs extends Record<string, unknown>> =
-    ExtractRawDefs<S> extends infer RawDefs extends Record<string, unknown>
-        ? RawDefs & ParentDefs & ExtractAnchors<RawDefs>
+    HasLocalDefs<S> extends true
+        ? ExtractRawDefs<S> extends infer RawDefs extends Record<
+              string,
+              unknown
+          >
+            ? CollisionSafeMerge<
+                  CollisionSafeMerge<RawDefs, ExtractAnchors<RawDefs>>,
+                  ParentDefs
+              >
+            : ParentDefs
         : ParentDefs;
 
 /** Extract raw $defs / definitions maps. */
