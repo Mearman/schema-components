@@ -409,43 +409,173 @@ export function renderObject(props: RenderProps): ReactNode {
     );
 }
 
+/**
+ * Compute the default value for a freshly added record entry based on the
+ * record's value-type schema. Mirrors the read of `defaultValue` used
+ * elsewhere in the renderer, falling back to a type-appropriate empty value.
+ */
+export function defaultRecordValue(valueType: WalkedField): unknown {
+    if (valueType.defaultValue !== undefined) return valueType.defaultValue;
+    switch (valueType.type) {
+        case "string":
+            return "";
+        case "number":
+            return 0;
+        case "boolean":
+            return false;
+        case "array":
+            return [];
+        case "object":
+        case "record":
+            return {};
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * Generate a unique, currently-unused key for a new record entry.
+ * Picks the first of `key`, `key-1`, `key-2`, … that is not in `existing`.
+ */
+export function nextRecordKey(
+    existing: readonly string[],
+    base = "key"
+): string {
+    if (!existing.includes(base)) return base;
+    let i = 1;
+    while (existing.includes(`${base}-${String(i)}`)) i += 1;
+    return `${base}-${String(i)}`;
+}
+
+/**
+ * Rename a key in an object while preserving insertion order. Returns the
+ * original object reference when the rename is a no-op (oldKey === newKey)
+ * or when newKey collides with an existing key.
+ */
+export function renameRecordKey(
+    obj: Record<string, unknown>,
+    oldKey: string,
+    newKey: string
+): Record<string, unknown> {
+    if (oldKey === newKey) return obj;
+    if (newKey in obj && newKey !== oldKey) return obj;
+    const renamed: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+        renamed[k === oldKey ? newKey : k] = v;
+    }
+    return renamed;
+}
+
 export function renderRecord(props: RenderProps): ReactNode {
     const obj = isObject(props.value) ? props.value : {};
     const valueType = props.valueType;
     if (valueType === undefined) return null;
 
     const entries = Object.entries(obj);
-    if (entries.length === 0) {
+
+    // Read-only mode: simple labelled entries, no controls. An empty record
+    // renders the em-dash placeholder to indicate no data.
+    if (props.readOnly) {
+        if (entries.length === 0) {
+            return <span aria-readonly="true">{"—"}</span>;
+        }
         return (
-            <span aria-readonly={props.readOnly ? "true" : undefined}>
-                {"—"}
-            </span>
+            <div role="group" aria-label={props.meta.description ?? "Record"}>
+                {entries.map(([key, value]) => {
+                    const childPath = props.path ? `${props.path}.${key}` : key;
+                    const childId = inputId(childPath);
+                    return (
+                        <div key={key}>
+                            <label htmlFor={childId}>{key}</label>
+                            {toReactNode(
+                                props.renderChild(valueType, value, () => {
+                                    /* read-only: noop */
+                                })
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
         );
     }
+
+    // Editable mode: every key is renameable, every row has a Remove
+    // button, and an Add button appends a new entry. Empty records still
+    // expose the Add button so the user can populate the record.
+    const handleRename = (oldKey: string, newKey: string) => {
+        // Trim trailing whitespace but allow intermediate edits — empty
+        // and duplicate names are simply rejected by renameRecordKey.
+        const renamed = renameRecordKey(obj, oldKey, newKey);
+        if (renamed === obj) return;
+        props.onChange(renamed);
+    };
+
+    const handleValueChange = (key: string, nextValue: unknown) => {
+        const updated: Record<string, unknown> = {};
+        for (const [k, val] of Object.entries(obj)) {
+            updated[k] = val;
+        }
+        updated[key] = nextValue;
+        props.onChange(updated);
+    };
+
+    const handleRemove = (key: string) => {
+        const next: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(obj)) {
+            if (k === key) continue;
+            next[k] = v;
+        }
+        props.onChange(next);
+    };
+
+    const handleAdd = () => {
+        const newKey = nextRecordKey(Object.keys(obj));
+        const next: Record<string, unknown> = { ...obj };
+        next[newKey] = defaultRecordValue(valueType);
+        props.onChange(next);
+    };
 
     return (
         <div role="group" aria-label={props.meta.description ?? "Record"}>
             {entries.map(([key, value]) => {
                 const childPath = props.path ? `${props.path}.${key}` : key;
                 const childId = inputId(childPath);
-                const childOnChange = (nextValue: unknown) => {
-                    const updated: Record<string, unknown> = {};
-                    for (const [k, val] of Object.entries(obj)) {
-                        updated[k] = val;
-                    }
-                    updated[key] = nextValue;
-                    props.onChange(updated);
-                };
-
+                const keyId = `${childId}-key`;
                 return (
                     <div key={key}>
-                        <label htmlFor={childId}>{key}</label>
+                        <input
+                            id={keyId}
+                            type="text"
+                            aria-label="Entry key"
+                            defaultValue={key}
+                            onBlur={(e) => {
+                                handleRename(key, e.target.value);
+                            }}
+                        />
                         {toReactNode(
-                            props.renderChild(valueType, value, childOnChange)
+                            props.renderChild(
+                                valueType,
+                                value,
+                                (nextValue: unknown) => {
+                                    handleValueChange(key, nextValue);
+                                }
+                            )
                         )}
+                        <button
+                            type="button"
+                            aria-label={`Remove entry ${key}`}
+                            onClick={() => {
+                                handleRemove(key);
+                            }}
+                        >
+                            Remove
+                        </button>
                     </div>
                 );
             })}
+            <button type="button" aria-label="Add entry" onClick={handleAdd}>
+                Add
+            </button>
         </div>
     );
 }
