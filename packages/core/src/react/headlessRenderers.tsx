@@ -87,12 +87,25 @@ function dateInputType(format: string | undefined): string | undefined {
 // ---------------------------------------------------------------------------
 
 /**
- * Build a stable, unique-ish input ID from the path.
+ * Build a stable, unique input ID from the path.
  * Used for `htmlFor`/`id` association between labels and inputs.
+ *
+ * Throws on an empty path: the previous "sc-field" fallback caused every
+ * input across a form to share the same id, breaking label-input pairing
+ * and screen reader navigation. Callers must thread a non-empty path
+ * (see `ROOT_PATH` and `joinPath` in `SchemaComponent.tsx`).
+ *
+ * Dots and bracket indices in paths are converted to hyphens to keep the
+ * id valid as a CSS selector and predictable in test queries.
  */
-function inputId(path: string): string {
-    if (path.length === 0) return "sc-field";
-    return `sc-${path}`;
+export function inputId(path: string): string {
+    if (path.length === 0) {
+        throw new Error(
+            "inputId requires a non-empty path. Pass ROOT_PATH for the root field and use renderChild's pathSuffix to derive child paths."
+        );
+    }
+    const normalised = path.replace(/[.[\]]+/g, "-").replace(/-+$/g, "");
+    return `sc-${normalised}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -369,8 +382,7 @@ export function renderObject(props: RenderProps): ReactNode {
                 .filter(([, field]) => field.meta.visible !== false)
                 .map(([key, field]) => {
                     const childValue = obj[key];
-                    const childPath = props.path ? `${props.path}.${key}` : key;
-                    const childId = inputId(childPath);
+                    const childId = inputId(`${props.path}.${key}`);
                     const childOnChange = (v: unknown) => {
                         const updated: Record<string, unknown> = {};
                         for (const [k, val] of Object.entries(obj)) {
@@ -380,7 +392,7 @@ export function renderObject(props: RenderProps): ReactNode {
                         props.onChange(updated);
                     };
                     const child = toReactNode(
-                        props.renderChild(field, childValue, childOnChange)
+                        props.renderChild(field, childValue, childOnChange, key)
                     );
                     // Suppress the label when the child renders nothing
                     // (e.g. empty array in read-only mode)
@@ -482,15 +494,19 @@ export function renderRecord(props: RenderProps): ReactNode {
         return (
             <div role="group" aria-label={props.meta.description ?? "Record"}>
                 {entries.map(([key, value]) => {
-                    const childPath = props.path ? `${props.path}.${key}` : key;
-                    const childId = inputId(childPath);
+                    const childId = inputId(`${props.path}.${key}`);
                     return (
                         <div key={key}>
                             <label htmlFor={childId}>{key}</label>
                             {toReactNode(
-                                props.renderChild(valueType, value, () => {
-                                    /* read-only: noop */
-                                })
+                                props.renderChild(
+                                    valueType,
+                                    value,
+                                    () => {
+                                        /* read-only: noop */
+                                    },
+                                    key
+                                )
                             )}
                         </div>
                     );
@@ -538,8 +554,7 @@ export function renderRecord(props: RenderProps): ReactNode {
     return (
         <div role="group" aria-label={props.meta.description ?? "Record"}>
             {entries.map(([key, value]) => {
-                const childPath = props.path ? `${props.path}.${key}` : key;
-                const childId = inputId(childPath);
+                const childId = inputId(`${props.path}.${key}`);
                 const keyId = `${childId}-key`;
                 return (
                     <div key={key}>
@@ -558,7 +573,8 @@ export function renderRecord(props: RenderProps): ReactNode {
                                 value,
                                 (nextValue: unknown) => {
                                     handleValueChange(key, nextValue);
-                                }
+                                },
+                                key
                             )
                         )}
                         <button
@@ -600,7 +616,12 @@ export function renderArray(props: RenderProps): ReactNode {
                 return (
                     <div key={String(i)}>
                         {toReactNode(
-                            props.renderChild(element, item, childOnChange)
+                            props.renderChild(
+                                element,
+                                item,
+                                childOnChange,
+                                `[${String(i)}]`
+                            )
                         )}
                     </div>
                 );

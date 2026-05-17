@@ -26,7 +26,7 @@
 import { createElement, isValidElement, type ReactNode } from "react";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { mergeResolvers, getRenderFunction } from "../core/renderer.ts";
-import type { WidgetMap } from "./SchemaComponent.tsx";
+import { ROOT_PATH, joinPath, type WidgetMap } from "./SchemaComponent.tsx";
 import { headlessResolver } from "./headless.tsx";
 import { normaliseSchema } from "../core/adapter.ts";
 import { walk } from "../core/walker.ts";
@@ -147,8 +147,13 @@ export function SchemaView({
     // infinite recursion on circular schema references.
     const MAX_SERVER_DEPTH = 10;
     const makeRenderChild =
-        (currentDepth: number) =>
-        (childTree: WalkedField, childValue: unknown): ReactNode => {
+        (currentDepth: number, parentPath: string) =>
+        (
+            childTree: WalkedField,
+            childValue: unknown,
+            pathSuffix?: string
+        ): ReactNode => {
+            const childPath = joinPath(parentPath, pathSuffix);
             if (currentDepth >= MAX_SERVER_DEPTH) {
                 const label =
                     typeof childTree.meta.description === "string"
@@ -166,18 +171,20 @@ export function SchemaView({
                 childTree,
                 childValue,
                 userResolver,
-                makeRenderChild(currentDepth + 1),
+                makeRenderChild(currentDepth + 1, childPath),
+                childPath,
                 widgets
             );
         };
 
-    const renderChild = makeRenderChild(0);
+    const renderChild = makeRenderChild(0, ROOT_PATH);
 
     return renderFieldServer(
         tree,
         value ?? tree.defaultValue,
         userResolver,
         renderChild,
+        ROOT_PATH,
         widgets
     );
 }
@@ -191,14 +198,30 @@ function renderFieldServer(
     tree: WalkedField,
     value: unknown,
     resolver: ComponentResolver,
-    renderChild: (tree: WalkedField, value: unknown) => ReactNode,
+    renderChild: (
+        tree: WalkedField,
+        value: unknown,
+        pathSuffix?: string
+    ) => ReactNode,
+    path: string,
     widgets?: WidgetMap
 ): ReactNode {
+    if (path.length === 0) {
+        throw new Error(
+            "renderFieldServer requires a non-empty path. Pass ROOT_PATH at the root and join children via joinPath()."
+        );
+    }
     // Check widgets before resolver — instance widgets take priority
     const componentHint = tree.meta.component;
     if (typeof componentHint === "string") {
         const widget = widgets?.get(componentHint);
         if (widget !== undefined) {
+            const wrapRenderChild: RenderProps["renderChild"] = (
+                childTree,
+                childValue,
+                _childOnChange,
+                pathSuffix
+            ) => renderChild(childTree, childValue, pathSuffix);
             const props: RenderProps = {
                 value,
                 onChange: noop,
@@ -206,10 +229,9 @@ function renderFieldServer(
                 writeOnly: false,
                 meta: tree.meta,
                 constraints: tree.constraints,
-                path: "",
+                path,
                 tree,
-                renderChild: (childTree: WalkedField, childValue: unknown) =>
-                    renderChild(childTree, childValue),
+                renderChild: wrapRenderChild,
             };
             const result: unknown = widget(props);
             if (result !== undefined && result !== null) {
@@ -230,10 +252,14 @@ function renderFieldServer(
             writeOnly: false,
             meta: tree.meta,
             constraints: tree.constraints,
-            path: "",
+            path,
             tree,
-            renderChild: (childTree: WalkedField, childValue: unknown) =>
-                renderChild(childTree, childValue),
+            renderChild: (
+                childTree: WalkedField,
+                childValue: unknown,
+                _childOnChange: (v: unknown) => void,
+                pathSuffix?: string
+            ) => renderChild(childTree, childValue, pathSuffix),
         };
         if (tree.type === "enum") props.enumValues = tree.enumValues;
         if (tree.type === "array" && tree.element !== undefined)

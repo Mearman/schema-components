@@ -101,11 +101,21 @@ export interface RenderProps extends BaseFieldProps {
      * Render a child field. Theme adapters call this to recursively render
      * nested structures (object fields, array elements, union options).
      * The resolver and rendering context are already wired in.
+     *
+     * @param tree - The walked field tree for the child
+     * @param value - The child's current value
+     * @param onChange - Callback receiving the child's next value
+     * @param pathSuffix - Path segment from the parent (e.g. "city",
+     *   "[0]"). Joined to the parent's path with a dot, or substituted
+     *   when the parent acts as a transparent wrapper (union options).
+     *   Required for every container — without it children inherit no
+     *   path and `inputId()` will throw.
      */
     renderChild: (
         tree: WalkedField,
         value: unknown,
-        onChange: (v: unknown) => void
+        onChange: (v: unknown) => void,
+        pathSuffix?: string
     ) => unknown;
 }
 

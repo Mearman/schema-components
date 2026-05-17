@@ -21,7 +21,7 @@ import {
     getLinks,
 } from "./parser.ts";
 import { normaliseSchema } from "../core/adapter.ts";
-import { renderField } from "../react/SchemaComponent.tsx";
+import { ROOT_PATH, joinPath, renderField } from "../react/SchemaComponent.tsx";
 import type { FieldOverride, SchemaMeta, WalkedField } from "../core/types.ts";
 import type {
     InferParameterOverrides,
@@ -96,26 +96,33 @@ function renderSchema(
 
     const tree = walk(jsonSchema, walkOpts);
 
-    const renderChild = (
-        childTree: WalkedField,
-        childValue: unknown,
-        childOnChange: (v: unknown) => void
-    ): ReactNode =>
-        renderField(
-            childTree,
-            childValue,
-            childOnChange,
-            undefined,
-            renderChild,
-            options.widgets
-        );
+    const makeRenderChild =
+        (parentPath: string) =>
+        (
+            childTree: WalkedField,
+            childValue: unknown,
+            childOnChange: (v: unknown) => void,
+            pathSuffix?: string
+        ): ReactNode => {
+            const childPath = joinPath(parentPath, pathSuffix);
+            return renderField(
+                childTree,
+                childValue,
+                childOnChange,
+                undefined,
+                makeRenderChild(childPath),
+                childPath,
+                options.widgets
+            );
+        };
 
     return renderField(
         tree,
         options.value,
         options.onChange ?? noop,
         undefined,
-        renderChild,
+        makeRenderChild(ROOT_PATH),
+        ROOT_PATH,
         options.widgets
     );
 }

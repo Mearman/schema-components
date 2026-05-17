@@ -264,25 +264,28 @@ export function SchemaComponent<
     const tree = walk(jsonSchema, walkOptions);
 
     const makeRenderChild =
-        (currentDepth: number) =>
+        (currentDepth: number, parentPath: string) =>
         (
             childTree: WalkedField,
             childValue: unknown,
-            childOnChange: (v: unknown) => void
+            childOnChange: (v: unknown) => void,
+            pathSuffix?: string
         ): ReactNode => {
+            const childPath = joinPath(parentPath, pathSuffix);
             return renderField(
                 childTree,
                 childValue,
                 childOnChange,
                 userResolver,
-                makeRenderChild(currentDepth + 1),
+                makeRenderChild(currentDepth + 1, childPath),
+                childPath,
                 instanceWidgets,
                 contextWidgets,
                 currentDepth + 1
             );
         };
 
-    const renderChild = makeRenderChild(0);
+    const renderChild = makeRenderChild(0, ROOT_PATH);
 
     const effectiveValue = value ?? tree.defaultValue;
     return renderField(
@@ -291,10 +294,33 @@ export function SchemaComponent<
         handleChange,
         userResolver,
         renderChild,
+        ROOT_PATH,
         instanceWidgets,
         contextWidgets,
         0
     );
+}
+
+// ---------------------------------------------------------------------------
+// Path threading
+// ---------------------------------------------------------------------------
+
+/**
+ * Sentinel path for the root field. Every rendered field's path is derived
+ * from this by appending dot-separated suffixes via `joinPath`. Kept short
+ * so generated DOM ids stay readable (e.g. `sc-root-address-city`).
+ */
+export const ROOT_PATH = "root";
+
+/**
+ * Append a child path suffix to a parent path. When the suffix is omitted
+ * (e.g. transparent wrappers like union options), the parent path is
+ * returned unchanged so the child inherits the parent's id.
+ */
+export function joinPath(parent: string, suffix: string | undefined): string {
+    if (suffix === undefined || suffix.length === 0) return parent;
+    if (parent.length === 0) return suffix;
+    return `${parent}.${suffix}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -356,12 +382,19 @@ export function renderField(
     renderChild: (
         tree: WalkedField,
         value: unknown,
-        onChange: (v: unknown) => void
+        onChange: (v: unknown) => void,
+        pathSuffix?: string
     ) => ReactNode,
+    path: string,
     instanceWidgets?: WidgetMap,
     contextWidgets?: WidgetMap,
     depth = 0
 ): ReactNode {
+    if (path.length === 0) {
+        throw new Error(
+            "renderField requires a non-empty path. Pass ROOT_PATH for the root field and use renderChild's pathSuffix to derive child paths."
+        );
+    }
     // 0. Depth limit — prevent infinite recursion on circular schemas
     if (depth >= MAX_RENDER_DEPTH) {
         const refTarget = tree.type === "recursive" ? tree.refTarget : "";
@@ -385,7 +418,13 @@ export function renderField(
             contextWidgets?.get(componentHint) ??
             globalWidgets.get(componentHint);
         if (widget !== undefined) {
-            const props = buildRenderProps(tree, value, onChange, renderChild);
+            const props = buildRenderProps(
+                tree,
+                value,
+                onChange,
+                renderChild,
+                path
+            );
             const result: unknown = widget(props);
             if (result !== undefined && result !== null) {
                 if (isValidElement(result)) return result;
@@ -408,7 +447,7 @@ export function renderField(
         let result: unknown;
         try {
             result = renderFn(
-                buildRenderProps(tree, value, onChange, renderChild)
+                buildRenderProps(tree, value, onChange, renderChild, path)
             );
         } catch (err: unknown) {
             throw new SchemaRenderError(
@@ -442,8 +481,10 @@ function buildRenderProps(
     renderChild: (
         tree: WalkedField,
         value: unknown,
-        onChange: (v: unknown) => void
-    ) => ReactNode
+        onChange: (v: unknown) => void,
+        pathSuffix?: string
+    ) => ReactNode,
+    path: string
 ): RenderProps {
     const props: RenderProps = {
         value,
@@ -452,7 +493,7 @@ function buildRenderProps(
         writeOnly: tree.editability === "input",
         meta: tree.meta,
         constraints: tree.constraints,
-        path: "",
+        path,
         tree,
         renderChild,
     };
@@ -610,25 +651,31 @@ export function SchemaField<
     );
 
     const makeRenderChild =
-        (currentDepth: number) =>
+        (currentDepth: number, parentPath: string) =>
         (
             childTree: WalkedField,
             childValue: unknown,
-            childOnChange: (v: unknown) => void
+            childOnChange: (v: unknown) => void,
+            pathSuffix?: string
         ): ReactNode => {
+            const childPath = joinPath(parentPath, pathSuffix);
             return renderField(
                 childTree,
                 childValue,
                 childOnChange,
                 userResolver,
-                makeRenderChild(currentDepth + 1),
+                makeRenderChild(currentDepth + 1, childPath),
+                childPath,
                 undefined,
                 contextWidgets,
                 currentDepth + 1
             );
         };
 
-    const renderChild = makeRenderChild(0);
+    // SchemaField always renders a specific path within the schema. Use
+    // it as the root path so generated ids reflect the field's location.
+    const rootPath = joinPath(ROOT_PATH, path);
+    const renderChild = makeRenderChild(0, rootPath);
 
     return renderField(
         fieldTree,
@@ -636,6 +683,7 @@ export function SchemaField<
         handleChange,
         userResolver,
         renderChild,
+        rootPath,
         undefined,
         contextWidgets,
         0
