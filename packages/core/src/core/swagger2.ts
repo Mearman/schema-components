@@ -422,6 +422,81 @@ function formDataContentTypes(consumes: unknown[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Parameter / Header schema synthesis
+// ---------------------------------------------------------------------------
+
+/**
+ * Every JSON-Schema-compatible constraint keyword Swagger 2.0 allows on
+ * a Parameter Object or Header Object alongside `type`/`format`. These
+ * lift into the synthesised `schema` so consumers see the original
+ * validation semantics under OAS 3.x's parameter shape.
+ *
+ * `allowEmptyValue` is included even though it is a Swagger 2.0
+ * parameter-level keyword in the source (not a schema keyword) — OAS
+ * 3.x defines it at the Parameter Object root, so the calling function
+ * keeps it at the parameter root rather than copying it into `schema`.
+ */
+const SWAGGER_PARAM_SCHEMA_KEYWORDS = [
+    "enum",
+    "default",
+    "minimum",
+    "maximum",
+    "exclusiveMinimum",
+    "exclusiveMaximum",
+    "multipleOf",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "minItems",
+    "maxItems",
+    "uniqueItems",
+] as const;
+
+/**
+ * Set of every Swagger 2.0 parameter-root keyword that must be lifted
+ * into the synthesised `schema` rather than copied onto the OAS 3.x
+ * parameter root. Includes `type`, `format`, `items` (Swagger 2.0
+ * parameter-shaped array element descriptor), `collectionFormat`
+ * (handled separately by the caller as `style`/`explode`), and every
+ * entry from {@link SWAGGER_PARAM_SCHEMA_KEYWORDS}.
+ */
+const PARAM_KEYWORDS_LIFTED_INTO_SCHEMA = new Set<string>([
+    "type",
+    "format",
+    "items",
+    "collectionFormat",
+    ...SWAGGER_PARAM_SCHEMA_KEYWORDS,
+]);
+
+/**
+ * Synthesise an OpenAPI 3.x `schema` object from a Swagger 2.0
+ * parameter-shaped node (parameter or header). Copies `type`,
+ * `format`, and every JSON-Schema-compatible constraint that Swagger
+ * 2.0 places at the parameter root. Nested `items` is recursively
+ * synthesised the same way so array element constraints survive.
+ */
+function buildSchemaFromSwaggerParameterShape(
+    node: Record<string, unknown>
+): Record<string, unknown> {
+    const schema: Record<string, unknown> = { type: node.type };
+    if (typeof node.format === "string") {
+        schema.format = node.format;
+    }
+    for (const keyword of SWAGGER_PARAM_SCHEMA_KEYWORDS) {
+        if (node[keyword] !== undefined) {
+            schema[keyword] = node[keyword];
+        }
+    }
+    // `items` is itself a Swagger 2.0 parameter-shaped node when `type`
+    // is `array`. Recurse so nested constraints (pattern, minLength,
+    // etc.) survive into the synthesised array's element schema.
+    if (isObject(node.items)) {
+        schema.items = buildSchemaFromSwaggerParameterShape(node.items);
+    }
+    return schema;
+}
+
+// ---------------------------------------------------------------------------
 // Parameter normalisation
 // ---------------------------------------------------------------------------
 
@@ -478,10 +553,12 @@ function normaliseSwaggerParameter(
     const result: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(param)) {
-        if (key === "type" || key === "format" || key === "collectionFormat") {
-            // Swagger parameters can have type/format directly —
-            // wrap in schema for OpenAPI 3.x.
-            // collectionFormat is handled separately below.
+        if (PARAM_KEYWORDS_LIFTED_INTO_SCHEMA.has(key)) {
+            // Swagger 2.0 places `type`, `format`, and every JSON-Schema
+            // constraint at the parameter root. OAS 3.x requires those
+            // under `schema`. `collectionFormat` is handled separately
+            // below. All these keys are intentionally dropped here and
+            // re-emitted via buildSchemaFromSwaggerParameterShape.
             continue;
         }
         result[key] = value;
@@ -489,15 +566,7 @@ function normaliseSwaggerParameter(
 
     // Build schema from type/format
     if (typeof param.type === "string") {
-        const schema: Record<string, unknown> = { type: param.type };
-        if (typeof param.format === "string") {
-            schema.format = param.format;
-        }
-        // Copy schema-level keywords
-        if (param.enum !== undefined) schema.enum = param.enum;
-        if (param.default !== undefined) schema.default = param.default;
-        if (param.minimum !== undefined) schema.minimum = param.minimum;
-        if (param.maximum !== undefined) schema.maximum = param.maximum;
+        const schema = buildSchemaFromSwaggerParameterShape(param);
         result.schema = schema;
     }
 
@@ -743,22 +812,14 @@ function normaliseSwaggerHeader(
     const result: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(header)) {
-        if (key === "type" || key === "format" || key === "collectionFormat") {
+        if (PARAM_KEYWORDS_LIFTED_INTO_SCHEMA.has(key)) {
             continue;
         }
         result[key] = value;
     }
 
     if (typeof header.type === "string") {
-        const schema: Record<string, unknown> = { type: header.type };
-        if (typeof header.format === "string") {
-            schema.format = header.format;
-        }
-        if (header.enum !== undefined) schema.enum = header.enum;
-        if (header.default !== undefined) schema.default = header.default;
-        if (header.minimum !== undefined) schema.minimum = header.minimum;
-        if (header.maximum !== undefined) schema.maximum = header.maximum;
-        result.schema = schema;
+        result.schema = buildSchemaFromSwaggerParameterShape(header);
     }
 
     const cf = header.collectionFormat;
