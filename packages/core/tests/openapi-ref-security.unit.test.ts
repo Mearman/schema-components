@@ -14,6 +14,7 @@ import { describe, it, expect } from "vitest";
 import { parseOpenApiDocument, getSchema } from "../src/openapi/parser.ts";
 import { bundleOpenApiDoc } from "../src/openapi/bundle.ts";
 import type { BundleResolver } from "../src/openapi/bundle.ts";
+import { dereference } from "../src/core/ref.ts";
 import { isObject } from "../src/core/guards.ts";
 
 function getSchemasMap(doc: Record<string, unknown>): Record<string, unknown> {
@@ -118,5 +119,40 @@ describe("bundle resolveFragment — prototype pollution refusal", () => {
         expect(getRefString(schemas.Polluted)).toBe(
             "https://example.com/x.json#/__proto__"
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// ref.ts — dereference (canonical JSON Pointer resolver used by adapter.ts)
+// ---------------------------------------------------------------------------
+
+describe("ref dereference — prototype pollution refusal", () => {
+    it("returns undefined for a $ref pointing at __proto__", () => {
+        const root = { components: { schemas: {} } };
+        const resolved = dereference("#/__proto__/polluted", root);
+        expect(resolved).toBe(undefined);
+    });
+
+    it("returns undefined for a $ref pointing at constructor", () => {
+        const root = { components: { schemas: {} } };
+        const resolved = dereference("#/constructor/prototype", root);
+        expect(resolved).toBe(undefined);
+    });
+
+    it("returns undefined for a $ref pointing at prototype", () => {
+        const root = { components: { schemas: {} } };
+        const resolved = dereference("#/prototype", root);
+        expect(resolved).toBe(undefined);
+    });
+
+    it("does not return Object.prototype for a __proto__ ref", () => {
+        const root = { components: { schemas: {} } };
+        const resolved = dereference("#/__proto__", root);
+        // The result must not be the global Object prototype object — a
+        // truthy return here would let an attacker mutate every plain
+        // object reachable from the resolved schema.
+        const objectPrototype = Object.getPrototypeOf({}) as unknown;
+        expect(resolved).not.toBe(objectPrototype);
+        expect(resolved).toBe(undefined);
     });
 });

@@ -6,6 +6,7 @@
  */
 
 import { isObject } from "./guards.ts";
+import { isPrototypePollutingKey } from "./uri.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { emitDiagnostic } from "./diagnostics.ts";
 
@@ -224,6 +225,11 @@ export function dereference(
             if (!isObject(current)) return undefined;
             // JSON Pointer: ~1 → /, ~0 → ~
             const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
+            // Reject prototype-polluting segments (`__proto__`, `constructor`,
+            // `prototype`). Walking into any of these reads `Object.prototype`
+            // and lets a crafted `$ref` smuggle properties from the runtime
+            // prototype chain into the resolved schema.
+            if (isPrototypePollutingKey(decoded)) return undefined;
             current = current[decoded];
         }
 
