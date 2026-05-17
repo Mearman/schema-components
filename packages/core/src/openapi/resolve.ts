@@ -23,6 +23,7 @@ import { isPrototypePollutingKey } from "../core/uri.ts";
 import { detectOpenApiVersion } from "../core/version.ts";
 import { normaliseOpenApiSchemas } from "../core/normalise.ts";
 import type { DiagnosticsOptions } from "../core/diagnostics.ts";
+import { emitDiagnostic } from "../core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Document caching
@@ -68,6 +69,23 @@ export function getParsed(
         if (cached !== undefined) return cached;
     }
     const version = detectOpenApiVersion(doc);
+    // Detect OAS 3.0/3.1 `xml` Schema Object metadata before normalisation.
+    // Swagger 2.0 already surfaces this from `swagger2.ts`; OAS 3.0 and 3.1
+    // share the same Schema Object that includes the same `xml` keyword
+    // and have no renderer surface for it. Emit a single diagnostic per
+    // document so consumers can audit silent feature drops without spam.
+    if (
+        diagnostics !== undefined &&
+        version?.major === 3 &&
+        docHasXmlAnywhere(doc)
+    ) {
+        emitDiagnostic(diagnostics, {
+            code: "dropped-swagger-feature",
+            message: `OpenAPI ${String(version.major)}.${String(version.minor)} xml Schema Object metadata is not rendered and will be ignored`,
+            pointer: "",
+            detail: { feature: "xml", source: "openapi-3.x" },
+        });
+    }
     const normalisedDoc =
         version !== undefined
             ? normaliseOpenApiSchemas(doc, version, diagnostics)
@@ -103,6 +121,30 @@ export function getParsed(
  */
 export function toDoc(value: unknown): Record<string, unknown> | undefined {
     return isObject(value) ? value : undefined;
+}
+
+/**
+ * Recursively check whether any node in an OpenAPI document carries an
+ * `xml` annotation. Walks both objects and arrays so the check works
+ * for schemas in `components/schemas`, inline `paths`/`webhooks`
+ * schemas, request bodies, responses, headers, and parameters. Used
+ * by `getParsed` to surface the dropped-feature diagnostic for OAS
+ * 3.0/3.1 — the Swagger 2.0 path has its own detection in
+ * `swagger2.ts`.
+ */
+function docHasXmlAnywhere(node: unknown): boolean {
+    if (Array.isArray(node)) {
+        for (const item of node) {
+            if (docHasXmlAnywhere(item)) return true;
+        }
+        return false;
+    }
+    if (!isObject(node)) return false;
+    if ("xml" in node && isObject(node.xml)) return true;
+    for (const value of Object.values(node)) {
+        if (docHasXmlAnywhere(value)) return true;
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
