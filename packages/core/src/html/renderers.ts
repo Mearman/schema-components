@@ -698,6 +698,7 @@ function renderTupleHtml(props: HtmlRenderProps): string {
     if (props.tree.type !== "tuple") return renderUnknownHtml(props);
     const arr = Array.isArray(props.value) ? props.value : [];
     const prefixItems = props.tree.prefixItems;
+    const restItems = props.tree.restItems;
 
     const children: HtmlNode[] = [];
     for (let i = 0; i < prefixItems.length; i++) {
@@ -717,6 +718,27 @@ function renderTupleHtml(props: HtmlRenderProps): string {
                 raw(childHtml)
             )
         );
+    }
+
+    // Render rest items (entries beyond the prefix length) when a rest
+    // schema is supplied — Draft 2020-12 `items` adjacent to `prefixItems`.
+    if (restItems !== undefined) {
+        for (let i = prefixItems.length; i < arr.length; i++) {
+            const itemValue: unknown = arr[i];
+            const childHtml = props.renderChild(
+                restItems,
+                itemValue,
+                `[${String(i)}]`
+            );
+            children.push(
+                h(
+                    "div",
+                    { class: "sc-tuple-item sc-tuple-rest" },
+                    h("span", { class: "sc-tuple-index" }, String(i)),
+                    raw(childHtml)
+                )
+            );
+        }
     }
 
     return serialize(h("div", { class: "sc-tuple" }, ...children));

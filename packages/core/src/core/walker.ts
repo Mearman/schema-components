@@ -682,11 +682,17 @@ function walkArray(
         const walkedItems = prefixItems
             .filter(isObject)
             .map((item) => walkNode(item, ctx));
+        // In Draft 2020-12, `items` alongside `prefixItems` describes
+        // the rest element — applied to entries beyond the prefix length.
+        const restSchema = getObject(schema, "items");
+        const restItems: WalkedField | undefined =
+            restSchema !== undefined ? walkNode(restSchema, ctx) : undefined;
         return {
             ...buildBase(schema, ctx),
             type: "tuple",
             constraints: extractArrayConstraints(schema),
             prefixItems: walkedItems,
+            ...(restItems !== undefined ? { restItems } : {}),
         };
     }
 

@@ -322,6 +322,12 @@ export interface TupleField extends FieldBase {
     constraints: ArrayConstraints;
     /** Positional element schemas from `prefixItems`. */
     prefixItems: WalkedField[];
+    /**
+     * Schema for items beyond the `prefixItems` length. In Draft 2020-12,
+     * `items` adjacent to `prefixItems` describes the rest element. When
+     * absent, additional items are permitted but unconstrained.
+     */
+    restItems?: WalkedField;
 }
 
 export interface RecordField extends FieldBase {

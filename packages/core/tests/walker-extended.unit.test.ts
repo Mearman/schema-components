@@ -7,7 +7,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { isObjectField, isArrayField } from "../src/core/types.ts";
+import {
+    isObjectField,
+    isArrayField,
+    isTupleField,
+} from "../src/core/types.ts";
 import { walk } from "../src/core/walker.ts";
 import { assertDefined, valueTypeOf } from "./helpers.ts";
 
@@ -395,5 +399,63 @@ describe("OpenAPI parser extensions", () => {
         const parsed = parseOpenApiDocument(doc);
         expect(listCallbacks(parsed, "/items", "get")).toEqual([]);
         expect(getLinks(parsed, "/items", "get", "200")).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// prefixItems + items rest schema (Draft 2020-12)
+// ---------------------------------------------------------------------------
+
+describe("walk — prefixItems + items rest schema", () => {
+    it("walks `items` alongside `prefixItems` as the tuple rest schema", () => {
+        const tree = walk(
+            {
+                type: "array",
+                prefixItems: [{ type: "string" }, { type: "number" }],
+                items: { type: "boolean" },
+            },
+            {}
+        );
+        expect(isTupleField(tree)).toBe(true);
+        if (!isTupleField(tree)) return;
+        expect(tree.prefixItems.length).toBe(2);
+        expect(tree.prefixItems[0]?.type).toBe("string");
+        expect(tree.prefixItems[1]?.type).toBe("number");
+        const rest = assertDefined(tree.restItems, "expected restItems");
+        expect(rest.type).toBe("boolean");
+    });
+
+    it("omits `restItems` when only `prefixItems` is supplied", () => {
+        const tree = walk(
+            {
+                type: "array",
+                prefixItems: [{ type: "string" }],
+            },
+            {}
+        );
+        expect(isTupleField(tree)).toBe(true);
+        if (!isTupleField(tree)) return;
+        expect(tree.restItems).toBe(undefined);
+    });
+
+    it("walks complex rest schemas (object) alongside prefix entries", () => {
+        const tree = walk(
+            {
+                type: "array",
+                prefixItems: [{ type: "string" }],
+                items: {
+                    type: "object",
+                    properties: { tag: { type: "string" } },
+                    required: ["tag"],
+                },
+            },
+            {}
+        );
+        if (!isTupleField(tree)) throw new Error("expected tuple");
+        const rest = assertDefined(tree.restItems, "expected restItems");
+        expect(rest.type).toBe("object");
+        if (!isObjectField(rest)) return;
+        expect(rest.fields.tag?.type).toBe("string");
+        expect(rest.requiredFields).toEqual(["tag"]);
     });
 });

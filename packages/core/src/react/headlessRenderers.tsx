@@ -1015,8 +1015,23 @@ export function renderNever(props: RenderProps): ReactNode {
 export function renderTuple(props: RenderProps): ReactNode {
     if (props.tree.type !== "tuple") return null;
     const prefixItems = props.tree.prefixItems;
-    if (prefixItems.length === 0) return null;
+    const restItems = props.tree.restItems;
     const arr = Array.isArray(props.value) ? props.value : [];
+    // Render whenever there's at least one prefix slot, a rest schema
+    // describing extra entries, or already-present extra entries to
+    // surface. Empty tuple with no values and no rest schema → nothing.
+    if (
+        prefixItems.length === 0 &&
+        restItems === undefined &&
+        arr.length === 0
+    ) {
+        return null;
+    }
+
+    const restCount =
+        restItems !== undefined
+            ? Math.max(arr.length - prefixItems.length, 0)
+            : 0;
 
     return (
         <div role="group" aria-label={props.meta.description ?? undefined}>
@@ -1040,6 +1055,28 @@ export function renderTuple(props: RenderProps): ReactNode {
                     </div>
                 );
             })}
+            {restItems !== undefined &&
+                Array.from({ length: restCount }, (_, j) => {
+                    const i = prefixItems.length + j;
+                    const itemValue: unknown = arr[i];
+                    const childOnChange = (v: unknown) => {
+                        const next = arr.slice();
+                        next[i] = v;
+                        props.onChange(next);
+                    };
+                    return (
+                        <div key={`rest-${String(i)}`}>
+                            {toReactNode(
+                                props.renderChild(
+                                    restItems,
+                                    itemValue,
+                                    childOnChange,
+                                    `[${String(i)}]`
+                                )
+                            )}
+                        </div>
+                    );
+                })}
         </div>
     );
 }
