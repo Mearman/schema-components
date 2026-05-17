@@ -100,7 +100,20 @@ export function normaliseSwagger2Document(
                 convertedParameters[name] = param;
                 continue;
             }
-            const resolved = resolveSwaggerParameter(param, doc);
+            const resolution = resolveSwaggerParameter(param, doc);
+            if (resolution.kind === "cycle") {
+                emitDiagnostic(diagnostics, {
+                    code: "swagger-cyclic-parameter-ref",
+                    message: `Cyclic Swagger 2.0 parameter $ref "${resolution.ref}"; skipping entry`,
+                    pointer: appendPointer(
+                        appendPointer("", "parameters"),
+                        name
+                    ),
+                    detail: { ref: resolution.ref, name },
+                });
+                continue;
+            }
+            const resolved = resolution.param;
             const location = resolved.in;
             if (location === "body") {
                 if (consumesResolution.source === "synthesised") {
@@ -129,12 +142,15 @@ export function normaliseSwagger2Document(
                     formDataContentTypes(globalConsumes)
                 );
             } else {
-                convertedParameters[name] = normaliseSwaggerParameter(
+                const normalised = normaliseSwaggerParameter(
                     resolved,
                     doc,
                     diagnostics,
                     appendPointer(appendPointer("", "parameters"), name)
                 );
+                if (normalised !== undefined) {
+                    convertedParameters[name] = normalised;
+                }
             }
         }
         if (Object.keys(convertedParameters).length > 0) {
@@ -293,24 +309,32 @@ function normaliseSwaggerPaths(
             );
         }
 
-        // Path-level parameters
+        // Path-level parameters. `normaliseSwaggerParameter` returns
+        // `undefined` for cycle-broken `$ref`s; those entries are dropped
+        // from the output rather than carrying a junk `{ $ref }` shape
+        // downstream — the diagnostic was already emitted by the
+        // resolver.
         const pathParams = pathItem.parameters;
         if (Array.isArray(pathParams)) {
             const paramsPointer = appendPointer(
                 appendPointer(appendPointer("", "paths"), path),
                 "parameters"
             );
-            normalisedPath.parameters = pathParams.map(
-                (p: unknown, index: number) =>
-                    isObject(p)
-                        ? normaliseSwaggerParameter(
-                              p,
-                              doc,
-                              diagnostics,
-                              appendPointer(paramsPointer, String(index))
-                          )
-                        : p
-            );
+            const out: unknown[] = [];
+            for (const [index, p] of pathParams.entries()) {
+                if (!isObject(p)) {
+                    out.push(p);
+                    continue;
+                }
+                const normalised = normaliseSwaggerParameter(
+                    p,
+                    doc,
+                    diagnostics,
+                    appendPointer(paramsPointer, String(index))
+                );
+                if (normalised !== undefined) out.push(normalised);
+            }
+            normalisedPath.parameters = out;
         }
 
         result[path] = normalisedPath;
@@ -376,7 +400,26 @@ function normaliseSwaggerOperation(
                 continue;
             }
 
-            const resolvedParam = resolveSwaggerParameter(param, doc);
+            const paramResolution = resolveSwaggerParameter(param, doc);
+            if (paramResolution.kind === "cycle") {
+                emitDiagnostic(diagnostics, {
+                    code: "swagger-cyclic-parameter-ref",
+                    message: `Cyclic Swagger 2.0 parameter $ref "${paramResolution.ref}"; skipping entry`,
+                    pointer: appendPointer(
+                        appendPointer(
+                            appendPointer(
+                                appendPointer(appendPointer("", "paths"), path),
+                                method
+                            ),
+                            "parameters"
+                        ),
+                        String(index)
+                    ),
+                    detail: { ref: paramResolution.ref },
+                });
+                continue;
+            }
+            const resolvedParam = paramResolution.param;
             const location = resolvedParam.in;
 
             if (location === "body") {
@@ -431,14 +474,15 @@ function normaliseSwaggerOperation(
                     ),
                     String(index)
                 );
-                nonBodyParams.push(
-                    normaliseSwaggerParameter(
-                        resolvedParam,
-                        doc,
-                        diagnostics,
-                        paramPointer
-                    )
+                const normalised = normaliseSwaggerParameter(
+                    resolvedParam,
+                    doc,
+                    diagnostics,
+                    paramPointer
                 );
+                if (normalised !== undefined) {
+                    nonBodyParams.push(normalised);
+                }
             }
         }
 
@@ -633,20 +677,35 @@ function buildSchemaFromSwaggerParameterShape(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve a Swagger parameter that may be a `$ref`.
+ * Outcome of resolving a Swagger 2.0 parameter `$ref`. Cycles surface
+ * a distinct `kind: "cycle"` so callers can emit a diagnostic and skip
+ * the entry rather than returning a junk `{ $ref }` envelope that has
+ * no `in`/`name` and would silently drop the parameter downstream.
+ */
+type ResolvedParam =
+    | { kind: "ok"; param: Record<string, unknown> }
+    | { kind: "cycle"; ref: string };
+
+/**
+ * Resolve a Swagger parameter that may be a `$ref`. Returns the
+ * resolved parameter object, or a cycle marker so the caller can
+ * decide how to surface the failure. Non-ref parameters resolve to
+ * themselves; ref targets that don't exist also resolve to the input
+ * (the caller treats unknown refs the same as bare parameters).
  */
 function resolveSwaggerParameter(
     param: Record<string, unknown>,
     doc: Record<string, unknown>,
     visited: Set<string> = new Set<string>()
-): Record<string, unknown> {
+): ResolvedParam {
     const ref = param.$ref;
     if (typeof ref !== "string" || !ref.startsWith("#/parameters/")) {
-        return param;
+        return { kind: "ok", param };
     }
 
-    // Cycle detection
-    if (visited.has(ref)) return param;
+    // Cycle detection — surface the offending ref so the caller can
+    // emit `swagger-cyclic-parameter-ref` and skip the parameter.
+    if (visited.has(ref)) return { kind: "cycle", ref };
     const nextVisited = new Set(visited);
     nextVisited.add(ref);
 
@@ -659,11 +718,11 @@ function resolveSwaggerParameter(
             if (typeof resolved.$ref === "string") {
                 return resolveSwaggerParameter(resolved, doc, nextVisited);
             }
-            return resolved;
+            return { kind: "ok", param: resolved };
         }
     }
 
-    return param;
+    return { kind: "ok", param };
 }
 
 /**
@@ -674,10 +733,20 @@ function normaliseSwaggerParameter(
     doc: Record<string, unknown>,
     diagnostics?: DiagnosticsOptions,
     pointer = ""
-): Record<string, unknown> {
+): Record<string, unknown> | undefined {
     // Resolve $ref before processing
     if (typeof param.$ref === "string") {
-        const resolved = resolveSwaggerParameter(param, doc);
+        const resolution = resolveSwaggerParameter(param, doc);
+        if (resolution.kind === "cycle") {
+            emitDiagnostic(diagnostics, {
+                code: "swagger-cyclic-parameter-ref",
+                message: `Cyclic Swagger 2.0 parameter $ref "${resolution.ref}"; skipping entry`,
+                pointer,
+                detail: { ref: resolution.ref },
+            });
+            return undefined;
+        }
+        const resolved = resolution.param;
         // Avoid infinite recursion if the ref resolved to the same object
         if (resolved !== param) {
             return normaliseSwaggerParameter(
