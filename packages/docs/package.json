@@ -44,13 +44,13 @@
     },
     "dependencies": {
         "@emotion/react": "11.14.0",
-        "@emotion/styled": "11.14.0",
-        "@mantine/core": "7.17.8",
-        "@mantine/hooks": "7.17.8",
+        "@emotion/styled": "11.14.1",
+        "@mantine/core": "9.1.1",
+        "@mantine/hooks": "9.1.1",
         "@mui/material": "9.0.1",
         "@radix-ui/themes": "3.3.0",
-        "autoprefixer": "10.4.21",
-        "postcss": "8.5.6",
-        "tailwindcss": "4.2.4"
+        "autoprefixer": "10.5.0",
+        "postcss": "8.5.14",
+        "tailwindcss": "4.3.0"
     }
 }
