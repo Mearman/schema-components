@@ -1012,3 +1012,105 @@ describe("Swagger 2.0 xml markup diagnostic", () => {
         expect(xmlDiagnostic).toBeUndefined();
     });
 });
+
+// ---------------------------------------------------------------------------
+// Swagger 2.0: duplicate `in: body` parameter detection
+// ---------------------------------------------------------------------------
+
+describe("Swagger 2.0 duplicate body parameter", () => {
+    it("keeps the first in:body parameter and emits a diagnostic for the second", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            consumes: ["application/json"],
+            paths: {
+                "/items": {
+                    post: {
+                        parameters: [
+                            {
+                                name: "first",
+                                in: "body",
+                                schema: {
+                                    type: "object",
+                                    properties: { a: { type: "string" } },
+                                },
+                            },
+                            {
+                                name: "second",
+                                in: "body",
+                                schema: {
+                                    type: "object",
+                                    properties: { b: { type: "string" } },
+                                },
+                            },
+                        ],
+                        responses: { "201": { description: "Created" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const events: Diagnostic[] = [];
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version, {
+            diagnostics: (d) => {
+                events.push(d);
+            },
+        });
+
+        const duplicateDiagnostic = events.find(
+            (d) => d.code === "duplicate-body-parameter"
+        );
+        expect(duplicateDiagnostic).toBeDefined();
+        expect(duplicateDiagnostic?.detail?.kept).toBe("first");
+        expect(duplicateDiagnostic?.detail?.discarded).toBe("second");
+
+        const paths = normalised.paths as Record<string, unknown>;
+        const items = paths["/items"] as Record<string, unknown>;
+        const post = items.post as Record<string, unknown>;
+        const requestBody = post.requestBody as Record<string, unknown>;
+        const content = requestBody.content as Record<string, unknown>;
+        const json = content["application/json"] as Record<string, unknown>;
+        const schema = json.schema as Record<string, unknown>;
+        const properties = schema.properties as Record<string, unknown>;
+
+        // First-write-wins: only the first body parameter's schema survives.
+        expect("a" in properties).toBe(true);
+        expect("b" in properties).toBe(false);
+    });
+
+    it("does not emit the diagnostic for a single body parameter", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            paths: {
+                "/items": {
+                    post: {
+                        parameters: [
+                            {
+                                name: "body",
+                                in: "body",
+                                schema: { type: "object" },
+                            },
+                        ],
+                        responses: { "201": { description: "Created" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const events: Diagnostic[] = [];
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        normaliseOpenApiSchemas(doc, version, {
+            diagnostics: (d) => {
+                events.push(d);
+            },
+        });
+
+        expect(
+            events.find((d) => d.code === "duplicate-body-parameter")
+        ).toBeUndefined();
+    });
+});

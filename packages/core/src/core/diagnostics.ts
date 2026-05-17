@@ -44,7 +44,8 @@ export type DiagnosticCode =
     | "bare-exclusive-bound"
     | "enum-value-filtered"
     | "required-non-string"
-    | "pattern-invalid";
+    | "pattern-invalid"
+    | "duplicate-body-parameter";
 
 // ---------------------------------------------------------------------------
 // Diagnostic structure

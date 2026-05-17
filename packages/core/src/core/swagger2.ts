@@ -13,7 +13,7 @@ import { isObject } from "../core/guards.ts";
 import type { NodeTransform } from "./normalise.ts";
 import { normaliseOpenApi30Combined } from "./openapi30.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
-import { emitDiagnostic } from "./diagnostics.ts";
+import { appendPointer, emitDiagnostic } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Document-level transformation
@@ -58,7 +58,7 @@ export function normaliseSwagger2Document(
     // Paths: transform operations
     const paths = doc.paths;
     if (isObject(paths)) {
-        result.paths = normaliseSwaggerPaths(paths, doc);
+        result.paths = normaliseSwaggerPaths(paths, doc, diagnostics);
     }
 
     // Components
@@ -209,7 +209,8 @@ export function normaliseSwagger2Document(
 
 function normaliseSwaggerPaths(
     paths: Record<string, unknown>,
-    doc: Record<string, unknown>
+    doc: Record<string, unknown>,
+    diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     const METHODS = [
@@ -234,7 +235,13 @@ function normaliseSwaggerPaths(
             const operation = pathItem[method];
             if (!isObject(operation)) continue;
 
-            normalisedPath[method] = normaliseSwaggerOperation(operation, doc);
+            normalisedPath[method] = normaliseSwaggerOperation(
+                operation,
+                doc,
+                path,
+                method,
+                diagnostics
+            );
         }
 
         // Path-level parameters
@@ -253,7 +260,10 @@ function normaliseSwaggerPaths(
 
 function normaliseSwaggerOperation(
     operation: Record<string, unknown>,
-    doc: Record<string, unknown>
+    doc: Record<string, unknown>,
+    path: string,
+    method: string,
+    diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
@@ -288,9 +298,10 @@ function normaliseSwaggerOperation(
     if (Array.isArray(params)) {
         const nonBodyParams: unknown[] = [];
         let bodyParam: Record<string, unknown> | undefined;
+        let firstBodyName: string | undefined;
         let usesFormData = false;
 
-        for (const param of params) {
+        for (const [index, param] of params.entries()) {
             if (!isObject(param)) {
                 nonBodyParams.push(param);
                 continue;
@@ -300,7 +311,38 @@ function normaliseSwaggerOperation(
             const location = resolvedParam.in;
 
             if (location === "body") {
+                if (bodyParam !== undefined) {
+                    // OpenAPI Specification 2.0 forbids more than one `in: body`
+                    // parameter per operation. Apply first-write-wins (mirroring
+                    // the mergeAllOf precedent) and surface the loss as a
+                    // diagnostic so the discard is visible to consumers.
+                    const duplicateName =
+                        typeof resolvedParam.name === "string"
+                            ? resolvedParam.name
+                            : `parameters[${String(index)}]`;
+                    emitDiagnostic(diagnostics, {
+                        code: "duplicate-body-parameter",
+                        message: `Operation defines more than one "in: body" parameter; keeping the first ("${firstBodyName ?? "(unnamed)"}") and discarding "${duplicateName}"`,
+                        pointer: appendPointer(
+                            appendPointer(
+                                appendPointer(appendPointer("", "paths"), path),
+                                method
+                            ),
+                            "parameters"
+                        ),
+                        detail: {
+                            kept: firstBodyName,
+                            discarded: duplicateName,
+                            location: "operation",
+                        },
+                    });
+                    continue;
+                }
                 bodyParam = resolvedParam;
+                firstBodyName =
+                    typeof resolvedParam.name === "string"
+                        ? resolvedParam.name
+                        : undefined;
             } else if (location === "formData") {
                 // Convert formData to request body with multipart
                 bodyParam = buildFormDataBody(resolvedParam, params);
