@@ -24,8 +24,12 @@ import type {
     UnsafeFields,
     __SchemaInferenceFellBack,
 } from "../src/core/typeInference.ts";
-import type { SchemaComponentProps } from "../src/react/SchemaComponent.tsx";
-import type { FieldOverride } from "../src/core/types.ts";
+import type {
+    InferredInputValue,
+    InferredOutputValue,
+    SchemaComponentProps,
+    SchemaFieldProps,
+} from "../src/react/SchemaComponent.tsx";
 
 // ---------------------------------------------------------------------------
 // Issue 1 — additionalProperties value type preserved alongside properties
@@ -835,13 +839,15 @@ describe("Issue 17: __SchemaInferenceFellBack brand is structurally stable", () 
 // ---------------------------------------------------------------------------
 
 describe("Issue 18: UnsafeFields requires the __unsafe brand", () => {
-    it("plain Record<string, FieldOverride> is NOT assignable to UnsafeFields", () => {
-        const plain: Record<string, FieldOverride> = {
+    it("a plain Record<string, FieldOverride> literal is NOT assignable to UnsafeFields", () => {
+        // The assertion is the assignment itself: a literal whose
+        // shape is just `Record<string, FieldOverride>` must NOT
+        // satisfy `UnsafeFields` once the brand is required.
+        // @ts-expect-error — UnsafeFields requires an explicit __unsafe: true marker
+        const escape: UnsafeFields = {
             name: { readOnly: true },
         };
-        // @ts-expect-error — missing required __unsafe marker
-
-        void plain;
+        void escape;
     });
 
     it("an explicit __unsafe: true literal is accepted", () => {
@@ -871,5 +877,152 @@ describe("Issue 21: FieldsFromInferred fallback when operation is unknown", () =
         >;
         const fields: Fields = { anyKey: { readOnly: true } };
         void fields;
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue 6 — InferredInputValue / InferredOutputValue helper aliases
+// ---------------------------------------------------------------------------
+
+describe("Issue 6: schema value helpers narrow from Zod / JSON Schema / OpenAPI", () => {
+    it("Zod schemas narrow via z.input / z.output", () => {
+        const schema = z.object({
+            id: z.string().readonly(),
+            name: z.string(),
+        });
+        void schema;
+        // Output: includes readOnly fields. Input: omits them (Zod
+        // models readOnly as the type's read-only marker; only the
+        // shape it advertises differs by mode.)
+        type Out = InferredOutputValue<typeof schema>;
+        type In = InferredInputValue<typeof schema>;
+        const out: Out = { id: "abc", name: "Ada" };
+        const inp: In = { id: "abc", name: "Ada" };
+        void out;
+        void inp;
+    });
+
+    it("JSON Schema with readOnly produces directional input / output shapes", () => {
+        const schema = {
+            type: "object" as const,
+            properties: {
+                id: { type: "string" as const, readOnly: true },
+                name: { type: "string" as const },
+            },
+            required: ["id", "name"] as const,
+        } as const;
+        void schema;
+        type Out = InferredOutputValue<typeof schema>;
+        type In = InferredInputValue<typeof schema>;
+        const out: Out = { id: "abc", name: "Ada" };
+        void out;
+        const inp: In = { name: "Ada" };
+        void inp;
+        // @ts-expect-error — id is readOnly and not part of the input shape
+        const inpInvalid: In = { id: "abc", name: "Ada" };
+        void inpInvalid;
+    });
+
+    it("OpenAPI ref narrows via ResolveOpenAPIRef", () => {
+        const doc = {
+            openapi: "3.1.0" as const,
+            components: {
+                schemas: {
+                    User: {
+                        type: "object" as const,
+                        properties: {
+                            email: { type: "string" as const },
+                        },
+                        required: ["email"] as const,
+                    },
+                },
+            },
+        } as const;
+        void doc;
+        type V = InferredOutputValue<typeof doc, "#/components/schemas/User">;
+        const v: V = { email: "ada@example.com" };
+        void v;
+    });
+
+    it("falls back to unknown for runtime schemas", () => {
+        const schema: Record<string, unknown> = { type: "object" };
+        void schema;
+        type V = InferredOutputValue<typeof schema>;
+        // unknown accepts anything
+        const v: V = { anything: 123 };
+        void v;
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue 7 — path-typed prop on SchemaComponentProps narrows value helpers
+// ---------------------------------------------------------------------------
+
+describe("Issue 7: SchemaComponentProps accepts a typed path generic", () => {
+    const schema = z.object({
+        address: z.object({
+            city: z.string(),
+            postcode: z.string(),
+        }),
+        name: z.string(),
+    });
+    void schema;
+
+    it("InferredOutputValue with a path returns the sub-shape", () => {
+        type City = InferredOutputValue<
+            typeof schema,
+            undefined,
+            "address.city"
+        >;
+        const city: City = "London";
+        void city;
+    });
+
+    it("InferredInputValue narrows the same way", () => {
+        type Address = InferredInputValue<typeof schema, undefined, "address">;
+        const addr: Address = { city: "London", postcode: "SW1" };
+        void addr;
+    });
+
+    it("SchemaComponentProps accepts the third generic argument", () => {
+        type Props = SchemaComponentProps<
+            typeof schema,
+            undefined,
+            "address.city"
+        >;
+        // The `path` prop must accept the requested literal — earlier
+        // revisions had no `path` field on SchemaComponentProps.
+        const props: Props = {
+            schema,
+            path: "address.city",
+            value: "London",
+            onChange: (v) => {
+                void v;
+            },
+        };
+        void props;
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue 20 — SchemaFieldProps function default for P matches the interface
+// ---------------------------------------------------------------------------
+
+describe("Issue 20: SchemaFieldProps['P'] default propagates path autocomplete", () => {
+    it("typed schemas accept only valid dot-paths", () => {
+        const schema = z.object({
+            address: z.object({
+                city: z.string(),
+                postcode: z.string(),
+            }),
+            name: z.string(),
+        });
+        void schema;
+        type Props = SchemaFieldProps<typeof schema>;
+        const valid: Props = { schema, path: "address.city" };
+        void valid;
+        // @ts-expect-error — `address.country` is not a valid path
+        const invalid: Props = { schema, path: "address.country" };
+        void invalid;
     });
 });

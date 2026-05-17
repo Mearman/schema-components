@@ -41,9 +41,11 @@ import type {
 } from "../core/types.ts";
 import type {
     FromJSONSchema,
+    FromJSONSchemaMode,
     PathOfType,
     RejectUnrepresentableZod,
     ResolveOpenAPIRef,
+    TypeAtPath,
 } from "../core/typeInference.ts";
 import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
 import { headlessResolver } from "./headless.tsx";
@@ -133,9 +135,89 @@ type InferFields<T, Ref extends string | undefined> = T extends z.ZodType
             : FieldOverrides<FromJSONSchema<T>>
         : Record<string, FieldOverride>;
 
+/**
+ * Infer the data type carried by the schema input.
+ *
+ * Mirrors {@link InferFields}'s dispatch order: Zod schema → `z.infer`,
+ * OpenAPI doc + ref → `ResolveOpenAPIRef`, plain JSON Schema object →
+ * `FromJSONSchema`, everything else → `unknown`. The `Mode` parameter
+ * is plumbed through to `FromJSONSchema` / `ResolveOpenAPIRef` so
+ * `readOnly` / `writeOnly` keywords participate in the inferred
+ * object shape — `"output"` for the rendered value, `"input"` for the
+ * `onChange` argument.
+ *
+ * When the schema's value type cannot be statically determined (e.g.
+ * a runtime `Record<string, unknown>` JSON Schema, or an OpenAPI doc
+ * without a ref), the result falls back to `unknown` so callers can
+ * still supply arbitrary values.
+ */
+type InferSchemaValue<
+    T,
+    Ref extends string | undefined,
+    Mode extends FromJSONSchemaMode,
+> = T extends z.ZodType
+    ? Mode extends "input"
+        ? z.input<T>
+        : z.output<T>
+    : T extends { openapi: unknown }
+      ? Ref extends string
+          ? ResolveOpenAPIRef<T & Record<string, unknown>, Ref, [], Mode>
+          : unknown
+      : T extends object
+        ?
+              | FromJSONSchema<T, Record<string, never>, [], Mode>
+              | (unknown extends FromJSONSchema<T>
+                    ? unknown
+                    : never) extends infer V
+            ? V
+            : unknown
+        : unknown;
+
+/**
+ * Narrow an inferred value type to the sub-shape at `P`, or return
+ * the original value type when `P` is `undefined` (no path supplied).
+ */
+type NarrowAtPath<V, P extends string | undefined> = P extends string
+    ? TypeAtPath<V, P>
+    : V;
+
+/**
+ * Public alias mapping a schema input to the rendered value type.
+ * Use to narrow a runtime callback inside the body of an `onChange`
+ * handler:
+ *
+ * ```tsx
+ * <SchemaComponent
+ *   schema={userSchema}
+ *   onChange={(v) => {
+ *     const user = v as InferredOutputValue<typeof userSchema>;
+ *     // ...narrowly typed access on `user`
+ *   }}
+ * />
+ * ```
+ *
+ * The `onChange` argument is typed `unknown` at the props boundary
+ * because the walker propagates `unknown` values through the render
+ * pipeline. Narrowing on the consumer side is therefore an explicit
+ * step and never a silent contract gap.
+ */
+export type InferredOutputValue<
+    T,
+    Ref extends string | undefined = undefined,
+    P extends string | undefined = undefined,
+> = NarrowAtPath<InferSchemaValue<T, Ref, "output">, P>;
+
+/** Companion to {@link InferredOutputValue} for `"input"`-mode shapes. */
+export type InferredInputValue<
+    T,
+    Ref extends string | undefined = undefined,
+    P extends string | undefined = undefined,
+> = NarrowAtPath<InferSchemaValue<T, Ref, "input">, P>;
+
 export interface SchemaComponentProps<
     T = unknown,
     Ref extends string | undefined = undefined,
+    P extends string | undefined = undefined,
 > {
     /**
      * Zod schema, JSON Schema object, or OpenAPI document.
@@ -150,9 +232,51 @@ export interface SchemaComponentProps<
     schema: RejectUnrepresentableZod<T>;
     /** For OpenAPI: a ref string like "#/components/schemas/User" or "/users/post". */
     ref?: Ref;
-    /** Current value to render. */
+    /**
+     * Optional dot-separated path used purely for type narrowing.
+     * When the schema is typed, the path is restricted to the valid
+     * dot-paths reachable through the schema's inferred value.
+     *
+     * RUNTIME CAVEAT: this prop is currently type-level only. The
+     * render pipeline still operates on the root schema; sub-path
+     * value resolution is provided by the dedicated `<SchemaField>`
+     * component, which already implements `resolvePath` /
+     * `setNestedValue`. The `path` prop here documents intent at the
+     * type level (and prepares the API surface) so consumers can
+     * declare narrow typed wrappers without runtime regressions. Use
+     * `<SchemaField>` when a sub-path render is required at runtime.
+     */
+    path?: P;
+    /**
+     * Current value to render.
+     *
+     * TYPE BOUNDARY NOTE: kept as `unknown` at the props boundary so
+     * existing call sites — including legitimate edge-case fixtures
+     * that pass deliberately invalid values to exercise fallback code
+     * paths — continue to typecheck. Use {@link InferredOutputValue}
+     * to narrow on the consumer side:
+     *
+     * ```tsx
+     * const user: InferredOutputValue<typeof userSchema> = { ... };
+     * <SchemaComponent schema={userSchema} value={user} readOnly />
+     * ```
+     *
+     * The narrowing is fully expressible through the helper alias
+     * without forcing every existing caller to update their value
+     * shapes for `exactOptionalPropertyTypes` / enum literal widening.
+     */
     value?: unknown;
-    /** Called when the value changes (editable fields). */
+    /**
+     * Called when the value changes (editable fields).
+     *
+     * TYPE BOUNDARY NOTE: the parameter is typed `unknown` rather
+     * than the inferred input shape because the walker pipeline only
+     * propagates `unknown` values and a narrow contravariant callback
+     * signature is not assignable from an `unknown`-emitting source
+     * without an unsafe boundary cast. The {@link InferredInputValue}
+     * alias is the recommended way for callers to narrow on the
+     * consumer side — `onChange={(v) => { const u = v as InferredInputValue<typeof schema>; ... }}`.
+     */
     onChange?: (value: unknown) => void;
     /** Run schema.safeParse() on change and surface errors via onValidationError. */
     validate?: boolean;
@@ -192,24 +316,30 @@ export interface SchemaComponentProps<
 export function SchemaComponent<
     T = unknown,
     Ref extends string | undefined = undefined,
->({
-    schema: schemaInput,
-    ref: refInput,
-    value,
-    onChange,
-    validate,
-    onValidationError,
-    onError,
-    onDiagnostic,
-    strict,
-    fields,
-    meta: componentMeta,
-    readOnly,
-    writeOnly,
-    description,
-    widgets: instanceWidgets,
-    idPrefix,
-}: SchemaComponentProps<T, Ref>): ReactNode {
+    P extends string | undefined = undefined,
+>(props: SchemaComponentProps<T, Ref, P>): ReactNode {
+    // `path` is currently type-level only — see the JSDoc on
+    // `SchemaComponentProps.path`. It is intentionally not destructured
+    // here because the render pipeline always operates on the root
+    // schema; sub-path rendering belongs to `<SchemaField>`.
+    const {
+        schema: schemaInput,
+        ref: refInput,
+        value,
+        onChange,
+        validate,
+        onValidationError,
+        onError,
+        onDiagnostic,
+        strict,
+        fields,
+        meta: componentMeta,
+        readOnly,
+        writeOnly,
+        description,
+        widgets: instanceWidgets,
+        idPrefix,
+    } = props;
     const userResolver = useContext(UserResolverContext);
     const contextWidgets = useContext(WidgetsContext);
     const generatedId = useId();
@@ -635,7 +765,13 @@ export interface SchemaFieldProps<
 export function SchemaField<
     T = unknown,
     Ref extends string | undefined = undefined,
-    P extends string = string,
+    // Keep the default aligned with `SchemaFieldProps['P']`'s default so
+    // path narrowing survives at the call site. Earlier revisions
+    // collapsed `P` to `string` here, which silently undid the
+    // autocomplete-narrowing the interface offers.
+    P extends string =
+        | PathOfType<InferSchemaType<T>>
+        | (string extends PathOfType<InferSchemaType<T>> ? string : never),
 >({
     path,
     schema: schemaInput,
@@ -768,8 +904,21 @@ export function SchemaField<
 /**
  * Dispatch Zod errors to per-field onValidationError callbacks.
  * Walks the fields override tree and matches errors by path prefix.
+ *
+ * The `fields` parameter mirrors the runtime shape produced by
+ * `InferFields<T, Ref>` at the props boundary — either a typed
+ * `FieldOverrides<...>` tree (for narrowable schemas) or the loose
+ * `Record<string, FieldOverride>` fallback. Both reduce to the same
+ * runtime shape, and the runtime narrowing below
+ * (`toRecordOrUndefined`) handles `undefined` and non-object inputs
+ * defensively. Typing the parameter as the union — rather than the
+ * `unknown` that earlier revisions used — keeps the type contract
+ * visible to readers without changing runtime behaviour.
  */
-function dispatchFieldErrors(fields: unknown, error: unknown): void {
+function dispatchFieldErrors(
+    fields: Record<string, FieldOverride> | FieldOverrides<unknown> | undefined,
+    error: unknown
+): void {
     if (fields === undefined || !isObject(error)) return;
 
     // Zod errors have issues[] with path[] arrays
