@@ -177,10 +177,19 @@ export function normaliseSwagger2Document(
     // locations: #/definitions/X → #/components/schemas/X, etc.
     rewriteSwaggerRefs(result);
 
-    // Emit diagnostics for dropped Swagger 2.0 features
+    // Emit diagnostics for dropped Swagger 2.0 features.
+    //
+    // The XML-namespace metadata Swagger 2.0 attaches to schemas (and the
+    // `consumes: ["application/xml"]` annotations operations may carry)
+    // has no renderer surface — `getXmlInfo` exists but no React component
+    // invokes it. Surface this loudly when any subtree carries `xml`
+    // markup, regardless of whether it sits in definitions, paths,
+    // parameters, or responses.
     if (
-        isObject(doc.xml) ||
-        (isObject(doc.definitions) && hasXmlInSchemas(doc.definitions))
+        hasXmlAnywhere(doc.definitions) ||
+        hasXmlAnywhere(doc.paths) ||
+        hasXmlAnywhere(doc.parameters) ||
+        hasXmlAnywhere(doc.responses)
     ) {
         emitDiagnostic(diagnostics, {
             code: "dropped-swagger-feature",
@@ -661,11 +670,24 @@ function rewriteSwaggerRefs(node: unknown): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Check if any schema in a definitions block contains an `xml` property.
+ * Recursively check whether any node in the supplied subtree carries an
+ * `xml` annotation. Walks both objects and arrays so the check works for
+ * schemas (definitions, parameter schemas, response schemas, request body
+ * schemas) as well as operations and parameters that may carry `xml`
+ * metadata at any depth.
  */
-function hasXmlInSchemas(definitions: Record<string, unknown>): boolean {
-    for (const schema of Object.values(definitions)) {
-        if (isObject(schema) && "xml" in schema) return true;
+function hasXmlAnywhere(node: unknown): boolean {
+    if (!isObject(node)) {
+        if (Array.isArray(node)) {
+            for (const item of node) {
+                if (hasXmlAnywhere(item)) return true;
+            }
+        }
+        return false;
+    }
+    if ("xml" in node) return true;
+    for (const value of Object.values(node)) {
+        if (hasXmlAnywhere(value)) return true;
     }
     return false;
 }

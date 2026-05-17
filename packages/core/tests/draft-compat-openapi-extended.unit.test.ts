@@ -20,6 +20,7 @@ import {
     getResponses,
 } from "../src/openapi/parser.ts";
 import type { JsonObject } from "../src/core/types.ts";
+import type { Diagnostic } from "../src/core/diagnostics.ts";
 
 describe("OpenAPI 3.0.x discriminator", () => {
     const doc = {
@@ -885,5 +886,129 @@ describe("Swagger 2.0 components.responses deep normalisation", () => {
         expect(fourOhFour.description).toBe("Not found");
         expect(fourOhFour.contentTypes).toContain("application/json");
         expect(isObject(fourOhFour.schema)).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Swagger 2.0: XML markup diagnostic across operations and parameters
+// ---------------------------------------------------------------------------
+
+describe("Swagger 2.0 xml markup diagnostic", () => {
+    it("emits a dropped-feature diagnostic for xml inside an operation parameter schema", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            paths: {
+                "/items": {
+                    post: {
+                        consumes: ["application/xml"],
+                        parameters: [
+                            {
+                                name: "body",
+                                in: "body",
+                                schema: {
+                                    type: "object",
+                                    xml: { name: "Item" },
+                                    properties: {
+                                        id: { type: "string" },
+                                    },
+                                },
+                            },
+                        ],
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const events: Diagnostic[] = [];
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        normaliseOpenApiSchemas(doc, version, {
+            diagnostics: (d) => {
+                events.push(d);
+            },
+        });
+
+        const xmlDiagnostic = events.find(
+            (d) =>
+                d.code === "dropped-swagger-feature" &&
+                d.detail?.feature === "xml"
+        );
+        expect(xmlDiagnostic).toBeDefined();
+    });
+
+    it("emits a diagnostic for xml inside a shared response schema", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: {
+                        responses: {
+                            "200": { $ref: "#/responses/Item" },
+                        },
+                    },
+                },
+            },
+            responses: {
+                Item: {
+                    description: "An item",
+                    schema: {
+                        type: "object",
+                        xml: { name: "Item", namespace: "urn:example" },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const events: Diagnostic[] = [];
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        normaliseOpenApiSchemas(doc, version, {
+            diagnostics: (d) => {
+                events.push(d);
+            },
+        });
+
+        const xmlDiagnostic = events.find(
+            (d) =>
+                d.code === "dropped-swagger-feature" &&
+                d.detail?.feature === "xml"
+        );
+        expect(xmlDiagnostic).toBeDefined();
+    });
+
+    it("does not emit the xml diagnostic when no schema carries xml metadata", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: { responses: { "200": { description: "OK" } } },
+                },
+            },
+            definitions: {
+                Item: {
+                    type: "object",
+                    properties: { id: { type: "string" } },
+                },
+            },
+        };
+
+        const events: Diagnostic[] = [];
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        normaliseOpenApiSchemas(doc, version, {
+            diagnostics: (d) => {
+                events.push(d);
+            },
+        });
+
+        const xmlDiagnostic = events.find(
+            (d) =>
+                d.code === "dropped-swagger-feature" &&
+                d.detail?.feature === "xml"
+        );
+        expect(xmlDiagnostic).toBeUndefined();
     });
 });
