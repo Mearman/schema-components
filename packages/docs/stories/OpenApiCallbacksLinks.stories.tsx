@@ -8,13 +8,6 @@ import {
 } from "schema-components/openapi/components";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
-const meta: Meta = {
-    title: "OpenAPI/Callbacks & Links",
-    tags: ["openapi"],
-};
-export default meta;
-type Story = StoryObj<typeof meta>;
-
 // ---------------------------------------------------------------------------
 // OpenAPI 3.0 callback
 // ---------------------------------------------------------------------------
@@ -95,18 +88,6 @@ const callbackSpec = {
         },
     },
 } as const;
-
-export const SubscriptionWithCallback: Story = {
-    render: () => (
-        <ApiOperation schema={callbackSpec} path="/subscribe" method="post" />
-    ),
-};
-
-export const SubscriptionBody: Story = {
-    render: () => (
-        <ApiRequestBody schema={callbackSpec} path="/subscribe" method="post" />
-    ),
-};
 
 // ---------------------------------------------------------------------------
 // OpenAPI 3.0 response links
@@ -204,18 +185,6 @@ const linksSpec = {
     },
 } as const;
 
-export const CreateUserWithLinks: Story = {
-    render: () => (
-        <ApiOperation schema={linksSpec} path="/users" method="post" />
-    ),
-};
-
-export const GetUserWithParams: Story = {
-    render: () => (
-        <ApiOperation schema={linksSpec} path="/users/{userId}" method="get" />
-    ),
-};
-
 // ---------------------------------------------------------------------------
 // Schema with externalDocs and XML
 // ---------------------------------------------------------------------------
@@ -244,7 +213,63 @@ const xmlDocsSpec = {
     },
 } as const;
 
-export const SchemaWithXmlAndDocs: Story = {
+// ---------------------------------------------------------------------------
+// Story metadata
+// ---------------------------------------------------------------------------
+
+// ApiOperation is the most-common component (3 of 6 stories). The remaining
+// three stories render either ApiRequestBody or SchemaComponent and keep
+// their own `render`, typed against the component they render.
+const meta: Meta<typeof ApiOperation> = {
+    title: "OpenAPI/Callbacks & Links",
+    component: ApiOperation,
+    tags: ["openapi"],
+};
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+// ---------------------------------------------------------------------------
+// ApiOperation stories (args-only)
+// ---------------------------------------------------------------------------
+
+export const SubscriptionWithCallback: Story = {
+    args: {
+        schema: callbackSpec,
+        path: "/subscribe",
+        method: "post",
+    },
+};
+
+export const CreateUserWithLinks: Story = {
+    args: {
+        schema: linksSpec,
+        path: "/users",
+        method: "post",
+    },
+};
+
+export const GetUserWithParams: Story = {
+    args: {
+        schema: linksSpec,
+        path: "/users/{userId}",
+        method: "get",
+    },
+};
+
+// ---------------------------------------------------------------------------
+// ApiRequestBody / SchemaComponent stories — kept on `render` because they
+// render a component other than the file's dominant `ApiOperation`.
+// ---------------------------------------------------------------------------
+
+/** Renders ApiRequestBody; kept on `render` because meta.component is ApiOperation. */
+export const SubscriptionBody: StoryObj<typeof ApiRequestBody> = {
+    render: () => (
+        <ApiRequestBody schema={callbackSpec} path="/subscribe" method="post" />
+    ),
+};
+
+/** Renders SchemaComponent; kept on `render` because meta.component is ApiOperation. */
+export const SchemaWithXmlAndDocs: StoryObj<typeof SchemaComponent> = {
     render: () => (
         <SchemaComponent
             schema={xmlDocsSpec}
@@ -254,7 +279,8 @@ export const SchemaWithXmlAndDocs: Story = {
     ),
 };
 
-export const SchemaWithXmlAndDocsReadOnly: Story = {
+/** Renders SchemaComponent; kept on `render` because meta.component is ApiOperation. */
+export const SchemaWithXmlAndDocsReadOnly: StoryObj<typeof SchemaComponent> = {
     render: () => (
         <SchemaComponent
             schema={xmlDocsSpec}
