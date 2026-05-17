@@ -943,6 +943,177 @@ export function renderRecursive(props: RenderProps): ReactNode {
     );
 }
 
+/**
+ * Render a literal field — `z.literal("a")` or `{ const: 5 }`.
+ *
+ * Literals are non-editable by nature (the value is fixed at the schema
+ * level), so both read-only and editable modes display the literal value(s).
+ * Multiple literals (`z.literal(["a", "b"])`) render comma-separated.
+ */
+export function renderLiteral(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
+    if (props.tree.type !== "literal") return null;
+    const values = props.tree.literalValues;
+    if (values.length === 0) {
+        return (
+            <span id={id} aria-readonly="true">
+                {"—"}
+            </span>
+        );
+    }
+    const display = values
+        .map((v) => (v === null ? "null" : String(v)))
+        .join(", ");
+    return (
+        <span id={id} aria-readonly="true">
+            {display}
+        </span>
+    );
+}
+
+/**
+ * Render a null field — `z.null()` or `{ type: "null" }`.
+ *
+ * The only valid value is `null`, so render an em-dash placeholder
+ * regardless of mode. There is nothing the user can usefully change.
+ */
+export function renderNull(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
+    return (
+        <span id={id} aria-readonly="true">
+            {"—"}
+        </span>
+    );
+}
+
+/**
+ * Render a never field — `z.never()` or `{ not: {} }` / `false` schema.
+ *
+ * `never` indicates a position that cannot hold any value. We render a
+ * visible placeholder rather than throwing because some valid schemas
+ * intentionally contain `never` branches (e.g. exhaustive discriminated
+ * unions), and a runtime crash on render would be worse than a visible
+ * indicator.
+ */
+export function renderNever(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
+    return (
+        <span id={id} aria-readonly="true" className="sc-never">
+            <em>never matches</em>
+        </span>
+    );
+}
+
+/**
+ * Render a tuple field — `z.tuple([z.string(), z.number()])` or
+ * `{ prefixItems: [...] }`.
+ *
+ * Positional rendering: each `prefixItems` entry is rendered at its index.
+ * The structural index (e.g. `[0]`) is passed as the path suffix so
+ * children get unique ids and labels.
+ */
+export function renderTuple(props: RenderProps): ReactNode {
+    if (props.tree.type !== "tuple") return null;
+    const prefixItems = props.tree.prefixItems;
+    if (prefixItems.length === 0) return null;
+    const arr = Array.isArray(props.value) ? props.value : [];
+
+    return (
+        <div role="group" aria-label={props.meta.description ?? undefined}>
+            {prefixItems.map((element, i) => {
+                const itemValue: unknown = arr[i];
+                const childOnChange = (v: unknown) => {
+                    const next = arr.slice();
+                    next[i] = v;
+                    props.onChange(next);
+                };
+                return (
+                    <div key={String(i)}>
+                        {toReactNode(
+                            props.renderChild(
+                                element,
+                                itemValue,
+                                childOnChange,
+                                `[${String(i)}]`
+                            )
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+/**
+ * Render a conditional field — JSON Schema `if`/`then`/`else`.
+ *
+ * Conditional schemas describe constraints rather than a single value
+ * shape, so the renderer surfaces each clause as a labelled fieldset.
+ * This mirrors the HTML renderer's annotation approach and gives a
+ * predictable structure for theme adapters that want to override it.
+ */
+export function renderConditional(props: RenderProps): ReactNode {
+    if (props.tree.type !== "conditional") return null;
+    const { ifClause, thenClause, elseClause } = props.tree;
+    return (
+        <fieldset className="sc-conditional">
+            <div className="sc-conditional-if">
+                <strong>if:</strong>{" "}
+                {toReactNode(
+                    props.renderChild(ifClause, props.value, props.onChange)
+                )}
+            </div>
+            {thenClause !== undefined && (
+                <div className="sc-conditional-then">
+                    <strong>then:</strong>{" "}
+                    {toReactNode(
+                        props.renderChild(
+                            thenClause,
+                            props.value,
+                            props.onChange
+                        )
+                    )}
+                </div>
+            )}
+            {elseClause !== undefined && (
+                <div className="sc-conditional-else">
+                    <strong>else:</strong>{" "}
+                    {toReactNode(
+                        props.renderChild(
+                            elseClause,
+                            props.value,
+                            props.onChange
+                        )
+                    )}
+                </div>
+            )}
+        </fieldset>
+    );
+}
+
+/**
+ * Render a negation field — JSON Schema `{ not: { ... } }`.
+ *
+ * Negation describes a constraint ("value must NOT match this schema")
+ * rather than a value shape. The renderer surfaces the negated schema
+ * beneath an explanatory preamble.
+ */
+export function renderNegation(props: RenderProps): ReactNode {
+    if (props.tree.type !== "negation") return null;
+    return (
+        <fieldset className="sc-negation">
+            <strong>Must NOT match:</strong>{" "}
+            {toReactNode(
+                props.renderChild(
+                    props.tree.negated,
+                    props.value,
+                    props.onChange
+                )
+            )}
+        </fieldset>
+    );
+}
+
 export function renderUnknown(props: RenderProps): ReactNode {
     const id = inputId(props.path);
 

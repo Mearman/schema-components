@@ -759,6 +759,56 @@ function renderNegationHtml(props: HtmlRenderProps): string {
 }
 
 // ---------------------------------------------------------------------------
+// Null rendering
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a null field — `z.null()` or `{ type: "null" }`.
+ *
+ * The only valid value is `null`, so render an em-dash placeholder.
+ */
+function renderNullHtml(props: HtmlRenderProps): string {
+    const id = fieldId(props.path);
+    return serialize(
+        h(
+            "span",
+            {
+                class: "sc-value sc-value--empty",
+                id,
+                ...ariaReadonlyAttrs(),
+            },
+            "—"
+        )
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Never rendering
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a never field — `z.never()` or a `false` schema.
+ *
+ * `never` indicates a position that cannot hold any value. Render a
+ * visible placeholder rather than throwing because some valid schemas
+ * intentionally contain `never` branches.
+ */
+function renderNeverHtml(props: HtmlRenderProps): string {
+    const id = fieldId(props.path);
+    return serialize(
+        h(
+            "span",
+            {
+                class: "sc-value sc-never",
+                id,
+                ...ariaReadonlyAttrs(),
+            },
+            h("em", {}, "never matches")
+        )
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Union matching heuristic
 // ---------------------------------------------------------------------------
 
@@ -792,6 +842,7 @@ export const defaultHtmlResolver: HtmlResolver = {
     string: renderStringHtml,
     number: renderNumberHtml,
     boolean: renderBooleanHtml,
+    null: renderNullHtml,
     enum: renderEnumHtml,
     object: renderObjectHtml,
     array: renderArrayHtml,
@@ -804,5 +855,6 @@ export const defaultHtmlResolver: HtmlResolver = {
     negation: renderNegationHtml,
     recursive: renderRecursiveHtml,
     file: renderFileHtml,
+    never: renderNeverHtml,
     unknown: renderUnknownHtml,
 };

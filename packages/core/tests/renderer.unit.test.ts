@@ -18,23 +18,37 @@ import type { ComponentResolver, HtmlResolver } from "../src/core/renderer.ts";
 // ---------------------------------------------------------------------------
 
 describe("RESOLVER_KEYS", () => {
-    it("contains all expected keys", () => {
-        expect(RESOLVER_KEYS).toContain("string");
-        expect(RESOLVER_KEYS).toContain("number");
-        expect(RESOLVER_KEYS).toContain("boolean");
-        expect(RESOLVER_KEYS).toContain("enum");
-        expect(RESOLVER_KEYS).toContain("object");
-        expect(RESOLVER_KEYS).toContain("array");
-        expect(RESOLVER_KEYS).toContain("record");
-        expect(RESOLVER_KEYS).toContain("union");
-        expect(RESOLVER_KEYS).toContain("discriminatedUnion");
-        expect(RESOLVER_KEYS).toContain("literal");
-        expect(RESOLVER_KEYS).toContain("file");
-        expect(RESOLVER_KEYS).toContain("unknown");
+    it("contains every WalkedField variant", () => {
+        // Derived list — adding a new variant to SchemaType must add a
+        // corresponding RESOLVER_KEYS entry, otherwise typeToKey will not
+        // type-check (exhaustive switch).
+        const expected: readonly (typeof RESOLVER_KEYS)[number][] = [
+            "string",
+            "number",
+            "boolean",
+            "null",
+            "enum",
+            "object",
+            "array",
+            "tuple",
+            "record",
+            "union",
+            "discriminatedUnion",
+            "conditional",
+            "negation",
+            "recursive",
+            "literal",
+            "file",
+            "never",
+            "unknown",
+        ];
+        for (const key of expected) expect(RESOLVER_KEYS).toContain(key);
     });
 
-    it("has 16 entries", () => {
-        expect(RESOLVER_KEYS.length).toBe(16);
+    it("has the same length as the expected key list", () => {
+        // The total must match — any change here requires a matching
+        // change in `typeToKey` and both resolver interfaces.
+        expect(RESOLVER_KEYS.length).toBe(18);
     });
 });
 
@@ -47,14 +61,20 @@ describe("typeToKey", () => {
         "string",
         "number",
         "boolean",
+        "null",
         "enum",
         "object",
         "array",
+        "tuple",
         "record",
         "union",
         "discriminatedUnion",
+        "conditional",
+        "negation",
+        "recursive",
         "literal",
         "file",
+        "never",
         "unknown",
     ] as const)("maps '%s' to itself", (type) => {
         expect(typeToKey(type)).toBe(type);

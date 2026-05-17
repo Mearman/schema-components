@@ -185,6 +185,7 @@ export interface ComponentResolver {
     string?: RenderFunction;
     number?: RenderFunction;
     boolean?: RenderFunction;
+    null?: RenderFunction;
     enum?: RenderFunction;
     object?: RenderFunction;
     array?: RenderFunction;
@@ -197,6 +198,7 @@ export interface ComponentResolver {
     recursive?: RenderFunction;
     literal?: RenderFunction;
     file?: RenderFunction;
+    never?: RenderFunction;
     unknown?: RenderFunction;
 }
 
@@ -215,6 +217,7 @@ export interface HtmlResolver {
     string?: HtmlRenderFunction;
     number?: HtmlRenderFunction;
     boolean?: HtmlRenderFunction;
+    null?: HtmlRenderFunction;
     enum?: HtmlRenderFunction;
     object?: HtmlRenderFunction;
     array?: HtmlRenderFunction;
@@ -227,6 +230,7 @@ export interface HtmlResolver {
     recursive?: HtmlRenderFunction;
     literal?: HtmlRenderFunction;
     file?: HtmlRenderFunction;
+    never?: HtmlRenderFunction;
     unknown?: HtmlRenderFunction;
 }
 
@@ -238,6 +242,7 @@ export const RESOLVER_KEYS = [
     "string",
     "number",
     "boolean",
+    "null",
     "enum",
     "object",
     "array",
@@ -250,6 +255,7 @@ export const RESOLVER_KEYS = [
     "recursive",
     "literal",
     "file",
+    "never",
     "unknown",
 ] as const;
 
@@ -257,13 +263,16 @@ type ResolverKey = (typeof RESOLVER_KEYS)[number];
 
 /**
  * Map a schema type to the resolver key that handles it.
- * `discriminatedUnion` → `union`. Unknown types → `unknown`.
+ * Every WalkedField variant has a direct resolver key — exhaustive switch
+ * ensures new variants surface as a type error rather than silently
+ * falling through to "unknown".
  */
 export function typeToKey(type: WalkedField["type"]): ResolverKey {
     switch (type) {
         case "string":
         case "number":
         case "boolean":
+        case "null":
         case "enum":
         case "object":
         case "array":
@@ -276,10 +285,9 @@ export function typeToKey(type: WalkedField["type"]): ResolverKey {
         case "recursive":
         case "literal":
         case "file":
+        case "never":
         case "unknown":
             return type;
-        default:
-            return "unknown";
     }
 }
 

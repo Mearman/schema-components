@@ -14,6 +14,8 @@ import {
     fragment,
     serializeFragment,
 } from "../src/html/html.ts";
+import { defaultHtmlResolver } from "../src/html/renderers.ts";
+import { getHtmlRenderFn } from "../src/core/renderer.ts";
 
 // ---------------------------------------------------------------------------
 // Basic type rendering — read-only
@@ -665,5 +667,46 @@ describe("renderToHtml — recursion limit", () => {
         const html = renderToHtml(inner, {});
         expect(html).toMatch(/sc-recursive/);
         expect(html).toMatch(/schema \(recursive\)/);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// null and never — previously fell through to the unknown renderer
+// ---------------------------------------------------------------------------
+
+describe("renderToHtml — null", () => {
+    it("renders an em-dash for a null schema", () => {
+        const schema = z.null();
+        const html = renderToHtml(schema, { value: null, readOnly: true });
+        expect(html).toMatch(/—/);
+        expect(html).toMatch(/sc-value--empty/);
+    });
+});
+
+describe("renderToHtml — never", () => {
+    it("renders a 'never matches' placeholder via the registered renderer", () => {
+        // The walker only emits the `never` variant for a literal `false`
+        // schema, which the normaliser rejects at the top level. Invoke the
+        // renderer directly through the resolver to assert it is wired up
+        // and produces the expected output.
+        const fn = getHtmlRenderFn("never", defaultHtmlResolver);
+        if (fn === undefined) throw new Error("never renderer not registered");
+        const html = fn({
+            value: undefined,
+            readOnly: true,
+            writeOnly: false,
+            meta: {},
+            constraints: {},
+            path: "field",
+            tree: {
+                type: "never",
+                editability: "presentation",
+                meta: {},
+                constraints: {},
+            },
+            renderChild: () => "",
+        });
+        expect(html).toMatch(/never matches/);
+        expect(html).toMatch(/sc-never/);
     });
 });

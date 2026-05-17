@@ -20,14 +20,20 @@ import {
     renderString,
     renderNumber,
     renderBoolean,
+    renderNull,
     renderEnum,
     renderObject,
     renderRecord,
     renderArray,
+    renderTuple,
     renderUnion,
     renderDiscriminatedUnion,
+    renderConditional,
+    renderNegation,
+    renderLiteral,
     renderFile,
     renderRecursive,
+    renderNever,
     renderUnknown,
 } from "./headlessRenderers.tsx";
 
@@ -39,18 +45,30 @@ import {
  * The headless resolver uses props.renderChild for recursive rendering.
  * No factory function needed — the renderChild is always available
  * on RenderProps.
+ *
+ * Every WalkedField variant the walker can emit has a registered renderer.
+ * Missing a registration causes `getRenderFunction` to return `undefined`
+ * and the field to render as nothing — silent invisibility. The
+ * `ComponentResolver` interface keeps each key optional for theme
+ * adapters, so the registration here is the single source of completeness.
  */
 export const headlessResolver: ComponentResolver = {
     string: renderString,
     number: renderNumber,
     boolean: renderBoolean,
+    null: renderNull,
     enum: renderEnum,
     object: renderObject,
     record: renderRecord,
     array: renderArray,
+    tuple: renderTuple,
     union: renderUnion,
     discriminatedUnion: renderDiscriminatedUnion,
+    conditional: renderConditional,
+    negation: renderNegation,
+    literal: renderLiteral,
     file: renderFile,
     recursive: renderRecursive,
+    never: renderNever,
     unknown: renderUnknown,
 };
