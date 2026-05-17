@@ -399,4 +399,81 @@ describe("Unrepresentable Zod 4 features", () => {
             }
         }
     });
+
+    it("classifies duplicate schema ids as zod-duplicate-id", () => {
+        // Two distinct schemas with the same id trigger Zod's
+        // `Duplicate schema id "..."` error during conversion.
+        const a = z.string().meta({ id: "dup-id" });
+        const b = z.number().meta({ id: "dup-id" });
+        const schema = z.object({ a, b });
+        try {
+            normaliseSchema(schema);
+            expect.unreachable("Expected normaliseSchema to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod-duplicate-id");
+                expect(err.cause).toBeInstanceOf(Error);
+                if (err.cause instanceof Error) {
+                    expect(err.cause.message).toContain(
+                        'Duplicate schema id "dup-id"'
+                    );
+                }
+                // The structured message must mention the offending id so
+                // consumers don't have to parse the wrapped Zod message.
+                expect(err.message).toContain('"dup-id"');
+            }
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Structural nested Zod 3 detection (engine-agnostic)
+// ---------------------------------------------------------------------------
+
+describe("Nested Zod 3 — structural detection across engines", () => {
+    it("classifies deeply-nested Zod 3 schema as zod3-unsupported", () => {
+        // Two levels deep — earlier message-based detection still worked
+        // because V8 emitted the same TypeError regardless of depth, but
+        // structural detection must descend recursively to find the marker.
+        const fakeZod3 = { _def: { typeName: "ZodString" } };
+        const inner = z.object({
+            child: fakeZod3 as unknown as z.ZodType,
+        });
+        const schema = z.object({ outer: inner });
+        try {
+            normaliseSchema(schema);
+            expect.unreachable("Expected normaliseSchema to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod3-unsupported");
+            }
+        }
+    });
+
+    it("classifies a Zod 3 schema embedded inside an array element as zod3-unsupported", () => {
+        // Arrays must be descended into during the structural walk.
+        const fakeZod3 = { _def: { typeName: "ZodString" } };
+        const schema = z.object({
+            items: z.array(fakeZod3 as unknown as z.ZodType),
+        });
+        try {
+            normaliseSchema(schema);
+            expect.unreachable("Expected normaliseSchema to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod3-unsupported");
+            }
+        }
+    });
+
+    it("does not misclassify legitimate Zod 4 schemas", () => {
+        // The detector keys on `_def.typeName` AND absence of `_zod` on
+        // the same node — a real Zod 4 schema (which carries both) must
+        // not trip the rule.
+        const schema = z.object({ name: z.string() });
+        expect(() => normaliseSchema(schema)).not.toThrow();
+    });
 });

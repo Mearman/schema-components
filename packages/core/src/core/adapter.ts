@@ -79,19 +79,33 @@ export function detectSchemaKind(input: unknown): SchemaKind {
  * SchemaNormalisationError so the caller does not have to re-parse error
  * message strings. The classification covers:
  *
- * - Nested Zod 3 schemas inside a Zod 4 tree (which surface as
- *   "Cannot read properties of undefined (reading 'def')") → zod3-unsupported
- * - Transforms ("Transforms cannot be represented") → zod-transform-unsupported
- * - Dynamic catch values whose handler throws ("Dynamic catch values are not
- *   supported") → zod-type-unrepresentable with zodType "dynamic-catch"
+ * - Nested Zod 3 schemas inside a Zod 4 tree → zod3-unsupported.
+ *   Detected structurally (presence of `_def.typeName` markers anywhere
+ *   in the schema tree) so the check works across V8, JavaScriptCore,
+ *   and SpiderMonkey, none of which agree on the wording of
+ *   "Cannot read properties of undefined".
+ * - Transforms → zod-transform-unsupported. This also catches `z.codec(…)`
+ *   because Zod implements codecs as a pipe + transform internally, so
+ *   they trip the same processor when round-tripping is forced. (Plain
+ *   `z.toJSONSchema(codec)` itself does NOT throw because Zod picks one
+ *   side of the codec; the static rejection in `typeInference.ts` is the
+ *   compile-time guard.)
+ * - Dynamic catch values whose handler throws → zod-type-unrepresentable
+ *   with zodType "dynamic-catch".
  * - Unrepresentable types — bigint, date, map, set, symbol, function, custom,
  *   undefined, void, NaN, and the literal-only forms `z.literal(undefined)`
  *   ("undefined-literal") and `z.literal(<bigint>)` ("bigint-literal") →
- *   zod-type-unrepresentable
+ *   zod-type-unrepresentable.
  * - The catch-all "Non-representable type encountered: <type>" fallback Zod
  *   emits for any new schema kind without a registered processor →
- *   zod-type-unrepresentable with zodType set to the offending def.type
- * - Anything else → zod-conversion-failed
+ *   zod-type-unrepresentable with zodType set to the offending def.type.
+ * - Cycle detected (`cycles: "throw"`) → zod-cycle-detected.
+ * - Duplicate schema id → zod-duplicate-id.
+ * - "Unprocessed schema. This is a bug in Zod." → zod-conversion-bug.
+ * - "Error converting schema to JSON." → zod-conversion-failed (explicit
+ *   classification rather than the generic fallback so the contract test
+ *   protects the prefix from drift).
+ * - Anything else → zod-conversion-failed.
  *
  * The original error is preserved on each classified error via the `cause`
  * field so consumers can still inspect the Zod stack trace.
@@ -106,70 +120,430 @@ function callToJsonSchema(schema: unknown): unknown {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Classifier rules — anchored regex matching against the live Zod wording.
+// ---------------------------------------------------------------------------
+
 /**
- * Error messages emitted by Zod 4's z.toJSONSchema for unrepresentable types.
- * Mapping is exact-prefix on the message and the corresponding Zod type name
- * surfaced to the consumer via SchemaNormalisationError.zodType.
+ * A single classifier rule. `prefix` is the verbatim wording from Zod that
+ * uniquely identifies a thrown error. The classifier matches against the
+ * start of the message using an anchored regex so an accidental rewording
+ * by Zod (e.g. adding a leading namespace tag) fails loudly rather than
+ * matching a different rule by substring overlap.
  *
- * Sources (verbatim message prefixes):
+ * `build` produces the structured SchemaNormalisationError for the rule.
+ * The Zod-extracted captures (e.g. cycle path, duplicate id, def.type) are
+ * passed through `match` so each rule can shape its message richly.
+ */
+interface ClassifierRule {
+    readonly prefix: string;
+    readonly kind: SchemaNormalisationError["kind"];
+    readonly zodType?: string;
+    readonly build: (
+        match: RegExpExecArray,
+        cause: unknown,
+        schema: unknown,
+        fullMessage: string
+    ) => SchemaNormalisationError;
+}
+
+/**
+ * Escape a string for inclusion in a `RegExp`. Required because Zod
+ * messages contain `[`, `]`, `.`, `(`, and `)` characters which have regex
+ * meaning. The set covers every character with special meaning in a
+ * JavaScript regular-expression source — RegExp.escape is not yet widely
+ * available so we escape manually.
+ */
+function escapeRegExp(literal: string): string {
+    return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Compile a prefix into an anchored regex that captures any trailing text
+ * (used by rules that need to extract dynamic data such as the duplicate id
+ * or the def.type that tripped the non-representable fallback).
+ */
+function anchored(prefix: string): RegExp {
+    return new RegExp(`^${escapeRegExp(prefix)}(.*)$`, "s");
+}
+
+/**
+ * Build the message body shared by every unrepresentable-type rule.
+ */
+function unrepresentableMessage(typeName: string, fullMessage: string): string {
+    return (
+        `Zod type ${typeName} cannot be represented in JSON Schema and is not supported by schema-components. ` +
+        `Original message: ${fullMessage}`
+    );
+}
+
+/**
+ * Classifier rules ordered most-specific first. Order is load-bearing:
+ * `Literal \`undefined\` cannot be represented` must precede the broader
+ * `Undefined cannot be represented` so the literal classification wins
+ * even when both share a leading word. A consistency check in the unit
+ * test suite asserts no two `prefix` values are prefixes of each other —
+ * any future rule that breaks the invariant fails the build.
+ *
+ * Verbatim sources (kept aligned with `tests/zod-error-wording-contract.unit.test.ts`):
  * - zod/src/v4/core/json-schema-processors.ts L104 (bigint), L110 (symbol),
  *   L126 (undefined), L132 (void), L150 (date), L169 (literal-undefined),
  *   L175 (literal-bigint), L204 (NaN), L246 (custom), L252 (function),
- *   L264 (map), L270 (set), L521 (dynamic catch).
- * - zod/src/v4/core/to-json-schema.ts L182 (non-representable type fallback).
- *
- * The kept message prefix is the shortest substring that uniquely identifies
- * the source — the test in tests/zod-error-wording-contract.unit.test.ts
- * asserts each prefix is still present in the live Zod output so a Zod
- * patch upgrade that changes wording fails the build.
- *
- * Note: the more specific literal-* prefixes precede the generic "BigInt"
- * prefix so the literal classifications win. JavaScript object iteration
- * order preserves insertion order, and the loop short-circuits on first
- * match, so ordering here is load-bearing.
+ *   L258 (transforms), L264 (map), L270 (set), L521 (dynamic catch).
+ * - zod/src/v4/core/to-json-schema.ts L182 (non-representable type fallback),
+ *   L225 + L364 (unprocessed schema), L235 (duplicate id), L307 (cycle),
+ *   L522 (error converting).
  */
-const UNREPRESENTABLE_ZOD_TYPES: readonly (readonly [string, string])[] = [
-    // Literal-only forms must precede the broader "BigInt" / "Undefined"
-    // prefixes so `z.literal(undefined)` reports as "undefined-literal" rather
-    // than "undefined".
-    ["Literal `undefined` cannot be represented", "undefined-literal"],
-    ["BigInt literals cannot be represented", "bigint-literal"],
-    ["BigInt cannot be represented", "bigint"],
-    ["Date cannot be represented", "date"],
-    ["Map cannot be represented", "map"],
-    ["Set cannot be represented", "set"],
-    ["Symbols cannot be represented", "symbol"],
-    ["Function types cannot be represented", "function"],
-    ["Custom types cannot be represented", "custom"],
-    ["Undefined cannot be represented", "undefined"],
-    ["Void cannot be represented", "void"],
-    ["NaN cannot be represented", "nan"],
+const CLASSIFIER_RULES: readonly ClassifierRule[] = [
+    // Literal-only forms must precede their broader counterparts.
+    {
+        prefix: "Literal `undefined` cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "undefined-literal",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("undefined-literal", full),
+                schema,
+                "zod-type-unrepresentable",
+                "undefined-literal",
+                cause
+            ),
+    },
+    {
+        prefix: "BigInt literals cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "bigint-literal",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("bigint-literal", full),
+                schema,
+                "zod-type-unrepresentable",
+                "bigint-literal",
+                cause
+            ),
+    },
+    {
+        prefix: "BigInt cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "bigint",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("bigint", full),
+                schema,
+                "zod-type-unrepresentable",
+                "bigint",
+                cause
+            ),
+    },
+    {
+        prefix: "Date cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "date",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("date", full),
+                schema,
+                "zod-type-unrepresentable",
+                "date",
+                cause
+            ),
+    },
+    {
+        prefix: "Map cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "map",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("map", full),
+                schema,
+                "zod-type-unrepresentable",
+                "map",
+                cause
+            ),
+    },
+    {
+        prefix: "Set cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "set",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("set", full),
+                schema,
+                "zod-type-unrepresentable",
+                "set",
+                cause
+            ),
+    },
+    {
+        prefix: "Symbols cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "symbol",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("symbol", full),
+                schema,
+                "zod-type-unrepresentable",
+                "symbol",
+                cause
+            ),
+    },
+    {
+        prefix: "Function types cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "function",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("function", full),
+                schema,
+                "zod-type-unrepresentable",
+                "function",
+                cause
+            ),
+    },
+    {
+        prefix: "Custom types cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "custom",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("custom", full),
+                schema,
+                "zod-type-unrepresentable",
+                "custom",
+                cause
+            ),
+    },
+    {
+        prefix: "Undefined cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "undefined",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("undefined", full),
+                schema,
+                "zod-type-unrepresentable",
+                "undefined",
+                cause
+            ),
+    },
+    {
+        prefix: "Void cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "void",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("void", full),
+                schema,
+                "zod-type-unrepresentable",
+                "void",
+                cause
+            ),
+    },
+    {
+        prefix: "NaN cannot be represented",
+        kind: "zod-type-unrepresentable",
+        zodType: "nan",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                unrepresentableMessage("nan", full),
+                schema,
+                "zod-type-unrepresentable",
+                "nan",
+                cause
+            ),
+    },
+    {
+        prefix: "Transforms cannot be represented",
+        kind: "zod-transform-unsupported",
+        build: (_m, cause, schema) =>
+            new SchemaNormalisationError(
+                "Zod transforms cannot be represented in JSON Schema. " +
+                    "Remove the .transform() call, or pre-transform the input before " +
+                    "passing it to the component. (Note: z.codec(...) is implemented " +
+                    "as a transform internally — codecs that force round-tripping trip " +
+                    "this same rule.)",
+                schema,
+                "zod-transform-unsupported",
+                undefined,
+                cause
+            ),
+    },
+    {
+        prefix: "Dynamic catch values are not supported",
+        kind: "zod-type-unrepresentable",
+        zodType: "dynamic-catch",
+        build: (_m, cause, schema) =>
+            new SchemaNormalisationError(
+                "Zod catch values that depend on runtime computation cannot be " +
+                    "represented in JSON Schema. Provide a static catch value or " +
+                    "remove the .catch() call.",
+                schema,
+                "zod-type-unrepresentable",
+                "dynamic-catch",
+                cause
+            ),
+    },
+    {
+        // `[toJSONSchema]: Non-representable type encountered: ${def.type}`
+        prefix: "[toJSONSchema]: Non-representable type encountered:",
+        kind: "zod-type-unrepresentable",
+        build: (match, cause, schema, full) => {
+            // The captured group contains everything after the colon. Trim
+            // and keep the first whitespace-delimited token so additional
+            // context appended in future Zod versions does not bleed into
+            // the zodType field.
+            const trailing = match[1]?.trim() ?? "";
+            const typeName =
+                trailing.length > 0 ? trailing.split(/\s+/)[0] : undefined;
+            return new SchemaNormalisationError(
+                `Zod encountered a schema kind${typeName !== undefined ? ` "${typeName}"` : ""} ` +
+                    `with no JSON Schema processor registered. ` +
+                    `This usually means Zod added a new schema type that schema-components ` +
+                    `does not yet support. Original message: ${full}`,
+                schema,
+                "zod-type-unrepresentable",
+                typeName,
+                cause
+            );
+        },
+    },
+    {
+        // `Cycle detected: #/...\n\nSet the cycles parameter to "ref" ...`
+        prefix: "Cycle detected: ",
+        kind: "zod-cycle-detected",
+        build: (match, cause, schema, full) => {
+            const trailing = match[1] ?? "";
+            // Path is the first whitespace-delimited token (the JSON Pointer
+            // up to the trailing newline that Zod inserts before the advice).
+            const path = trailing.split(/\s+/)[0] ?? "";
+            return new SchemaNormalisationError(
+                `Zod detected a cycle in the schema graph at ${path}. ` +
+                    `Cycles can only be converted when z.toJSONSchema is called with ` +
+                    `{ cycles: "ref" } — schema-components calls it without options ` +
+                    `for cache safety, so the cycle surfaces as an error. ` +
+                    `Restructure the schema to break the cycle, or use a $ref-based ` +
+                    `definition. Original message: ${full}`,
+                schema,
+                "zod-cycle-detected",
+                undefined,
+                cause
+            );
+        },
+    },
+    {
+        // `Duplicate schema id "${id}" detected during JSON Schema conversion. ...`
+        prefix: 'Duplicate schema id "',
+        kind: "zod-duplicate-id",
+        build: (match, cause, schema, full) => {
+            const trailing = match[1] ?? "";
+            // The id is delimited by the closing double-quote that follows.
+            const closing = trailing.indexOf('"');
+            const id = closing === -1 ? trailing : trailing.slice(0, closing);
+            return new SchemaNormalisationError(
+                `Two different Zod schemas share the same id "${id}". ` +
+                    `JSON Schema requires distinct ids when multiple schemas are ` +
+                    `bundled together. Give each schema its own .meta({ id: ... }) ` +
+                    `or remove the duplicate. Original message: ${full}`,
+                schema,
+                "zod-duplicate-id",
+                undefined,
+                cause
+            );
+        },
+    },
+    {
+        // `Unprocessed schema. This is a bug in Zod.`
+        prefix: "Unprocessed schema. This is a bug in Zod.",
+        kind: "zod-conversion-bug",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                "Zod failed to process this schema during JSON Schema conversion " +
+                    "and reports it as an internal bug. File an issue on the Zod " +
+                    "tracker with a reproduction. " +
+                    `Original message: ${full}`,
+                schema,
+                "zod-conversion-bug",
+                undefined,
+                cause
+            ),
+    },
+    {
+        // `Error converting schema to JSON.`
+        prefix: "Error converting schema to JSON.",
+        kind: "zod-conversion-failed",
+        build: (_m, cause, schema, full) =>
+            new SchemaNormalisationError(
+                `z.toJSONSchema() failed to produce a Standard Schema payload. ` +
+                    `Inspect the underlying cause for the original error. ` +
+                    `Original message: ${full}`,
+                schema,
+                "zod-conversion-failed",
+                undefined,
+                cause
+            ),
+    },
 ];
 
 /**
- * Marker for Zod's catch-all message when a brand-new schema type has no
- * registered processor (e.g. ahead of a Zod patch adding a new schema kind).
- *
- * Source: zod/src/v4/core/to-json-schema.ts L182
- *   `[toJSONSchema]: Non-representable type encountered: ${def.type}`
+ * Compiled regex form of {@link CLASSIFIER_RULES} — built once at module
+ * load. Avoids per-error compilation.
  */
-const NON_REPRESENTABLE_TYPE_MARKER =
-    "[toJSONSchema]: Non-representable type encountered:";
+const COMPILED_CLASSIFIER_RULES: readonly {
+    readonly rule: ClassifierRule;
+    readonly pattern: RegExp;
+}[] = CLASSIFIER_RULES.map((rule) => ({
+    rule,
+    pattern: anchored(rule.prefix),
+}));
 
 /**
- * Marker for dynamic catch failures — Zod throws when `def.catchValue(...)`
- * itself throws while building the JSON Schema default.
+ * Walk an arbitrary value looking for Zod 3 markers (`_def.typeName`).
+ * Zod 4 schemas always carry a `_zod.def`; Zod 3 schemas carry `_def`
+ * with a `typeName` field. Presence of the latter anywhere in the tree
+ * means a Zod 3 schema was nested inside a Zod 4 input, which is what
+ * trips the V8 `"Cannot read properties of undefined"` failure.
  *
- * Source: zod/src/v4/core/json-schema-processors.ts L521
+ * Engine-agnostic by construction — the detector inspects schema shape
+ * instead of pattern-matching against the runtime's TypeError message,
+ * so it works equivalently under V8, JavaScriptCore (Bun/Safari), and
+ * SpiderMonkey (Firefox) — none of which agree on the wording.
+ *
+ * The walk is bounded by an explicit `visited` set so cyclical references
+ * cannot cause stack overflow. The recursion follows both array elements
+ * and own enumerable properties of every object encountered.
  */
-const DYNAMIC_CATCH_MARKER = "Dynamic catch values are not supported";
+function containsNestedZod3(value: unknown, visited: Set<object>): boolean {
+    if (value === null || typeof value !== "object") return false;
+    if (visited.has(value)) return false;
+    visited.add(value);
 
-/**
- * The cryptic error produced when z.toJSONSchema encounters a nested Zod 3
- * schema (one without `_zod.def`). Reproduced verbatim from Node's TypeError
- * for property access on undefined.
- */
-const NESTED_ZOD3_MARKER = "Cannot read properties of undefined";
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            if (containsNestedZod3(item, visited)) return true;
+        }
+        return false;
+    }
+
+    // After the array check, narrow to the indexable record form so we can
+    // probe `_def` / `_zod` without cast. `isObject` rejects arrays and
+    // `null` and produces `Record<string, unknown>`.
+    if (!isObject(value)) return false;
+
+    const def = value._def;
+    const zod = value._zod;
+    if (
+        zod === undefined &&
+        isObject(def) &&
+        typeof def.typeName === "string"
+    ) {
+        return true;
+    }
+
+    for (const key of Object.keys(value)) {
+        if (containsNestedZod3(value[key], visited)) return true;
+    }
+    return false;
+}
 
 function classifyZodConversionError(
     err: unknown,
@@ -177,8 +551,13 @@ function classifyZodConversionError(
 ): SchemaNormalisationError {
     const message = err instanceof Error ? err.message : String(err);
 
-    // Nested Zod 3 schema inside a Zod 4 tree.
-    if (message.includes(NESTED_ZOD3_MARKER)) {
+    // Nested Zod 3 — detected structurally on the input schema so the
+    // detection works across JavaScript engines whose TypeError wording
+    // differs (V8 says "Cannot read properties of undefined", Bun/JSC
+    // says "undefined is not an object", SpiderMonkey says "undefined
+    // has no properties"). Match on the input rather than the message
+    // and the classification holds on every runtime.
+    if (containsNestedZod3(schema, new Set())) {
         return new SchemaNormalisationError(
             "A nested Zod 3 schema was found inside a Zod 4 schema. " +
                 "schema-components requires Zod 4 throughout the schema tree. " +
@@ -191,71 +570,19 @@ function classifyZodConversionError(
         );
     }
 
-    // Transforms — emitted as "Transforms cannot be represented in JSON Schema".
-    if (message.includes("Transforms cannot be represented")) {
-        return new SchemaNormalisationError(
-            "Zod transforms cannot be represented in JSON Schema. " +
-                "Remove the .transform() call, or pre-transform the input before " +
-                "passing it to the component.",
-            schema,
-            "zod-transform-unsupported",
-            undefined,
-            err
-        );
-    }
-
-    // Dynamic catch — the catch value function itself threw.
-    if (message.includes(DYNAMIC_CATCH_MARKER)) {
-        return new SchemaNormalisationError(
-            "Zod catch values that depend on runtime computation cannot be " +
-                "represented in JSON Schema. Provide a static catch value or " +
-                "remove the .catch() call.",
-            schema,
-            "zod-type-unrepresentable",
-            "dynamic-catch",
-            err
-        );
-    }
-
-    // Unrepresentable Zod 4 types — bigint, date, map, set, symbol, function, etc.
-    for (const [prefix, typeName] of UNREPRESENTABLE_ZOD_TYPES) {
-        if (message.includes(prefix)) {
-            return new SchemaNormalisationError(
-                `Zod type ${typeName} cannot be represented in JSON Schema and is not supported by schema-components. ` +
-                    `Original message: ${message}`,
-                schema,
-                "zod-type-unrepresentable",
-                typeName,
-                err
-            );
+    // Anchored regex match — the first rule whose prefix matches wins.
+    // Because the rules are pre-sorted most-specific first AND the unit
+    // test asserts no two prefixes are prefixes of each other, the match
+    // is unambiguous.
+    for (const { rule, pattern } of COMPILED_CLASSIFIER_RULES) {
+        const match = pattern.exec(message);
+        if (match !== null) {
+            return rule.build(match, err, schema, message);
         }
     }
 
-    // Catch-all "Non-representable type encountered: <type>" — capture the
-    // `def.type` value so consumers see which schema kind tripped the fallback.
-    const nonReprIndex = message.indexOf(NON_REPRESENTABLE_TYPE_MARKER);
-    if (nonReprIndex !== -1) {
-        const trailing = message
-            .slice(nonReprIndex + NON_REPRESENTABLE_TYPE_MARKER.length)
-            .trim();
-        // The message ends with the type name, but be defensive: only keep
-        // the first whitespace-delimited token in case Zod ever appends
-        // additional context.
-        const typeName =
-            trailing.length > 0 ? trailing.split(/\s+/)[0] : undefined;
-        return new SchemaNormalisationError(
-            `Zod encountered a schema kind${typeName !== undefined ? ` "${typeName}"` : ""} ` +
-                `with no JSON Schema processor registered. ` +
-                `This usually means Zod added a new schema type that schema-components ` +
-                `does not yet support. Original message: ${message}`,
-            schema,
-            "zod-type-unrepresentable",
-            typeName,
-            err
-        );
-    }
-
-    // Anything else — preserve the original message but classify it.
+    // Anything else — preserve the original message but classify it as a
+    // generic conversion failure.
     return new SchemaNormalisationError(
         `z.toJSONSchema() failed: ${message}`,
         schema,
@@ -264,6 +591,14 @@ function classifyZodConversionError(
         err
     );
 }
+
+/**
+ * Exposed for unit testing — lets the contract test enumerate every rule's
+ * `prefix` value and assert mutual non-prefixing.
+ */
+export const __CLASSIFIER_RULES_FOR_TEST: readonly {
+    readonly prefix: string;
+}[] = CLASSIFIER_RULES;
 
 // ---------------------------------------------------------------------------
 // Schema normalisation — synchronous

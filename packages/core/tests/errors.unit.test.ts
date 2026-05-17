@@ -65,6 +65,46 @@ describe("SchemaNormalisationError", () => {
         );
         expect(err.cause).toBeUndefined();
     });
+
+    it("wires cause through the native ES2022 Error constructor option", () => {
+        // Forwarding `cause` through the Error constructor option means
+        // the runtime installs it as a non-enumerable own property — the
+        // same form `util.inspect` looks for when rendering the
+        // "[cause]: ..." chain. Subclass code that stores its own
+        // enumerable `cause` field would instead show up as enumerable
+        // and would NOT be rendered as the cause chain by Node.
+        const underlying = new Error("zod blew up");
+        const err = new SchemaNormalisationError(
+            "wrapped",
+            {},
+            "zod-conversion-failed",
+            undefined,
+            underlying
+        );
+        const descriptor = Object.getOwnPropertyDescriptor(err, "cause");
+        expect(descriptor).toBeDefined();
+        if (descriptor !== undefined) {
+            // The native constructor sets cause as non-enumerable. An
+            // own-field assignment in the subclass would be enumerable by
+            // default — distinguishing the two is exactly the difference
+            // that breaks `util.inspect`'s cause chain.
+            expect(descriptor.enumerable).toBe(false);
+            expect(descriptor.value).toBe(underlying);
+        }
+        expect(err.cause).toBe(underlying);
+    });
+
+    it("accepts the new Zod error kinds (cycle, duplicate-id, conversion-bug)", () => {
+        const kinds = [
+            "zod-cycle-detected",
+            "zod-duplicate-id",
+            "zod-conversion-bug",
+        ] as const;
+        for (const kind of kinds) {
+            const err = new SchemaNormalisationError("msg", {}, kind);
+            expect(err.kind).toBe(kind);
+        }
+    });
 });
 
 describe("SchemaRenderError", () => {
@@ -75,6 +115,18 @@ describe("SchemaRenderError", () => {
         expect(err).toBeInstanceOf(SchemaRenderError);
         expect(err.name).toBe("SchemaRenderError");
         expect(err.schemaType).toBe("string");
+        expect(err.cause).toBe(cause);
+    });
+
+    it("wires cause through the native ES2022 Error constructor option", () => {
+        const cause = new Error("boom");
+        const err = new SchemaRenderError("render failed", {}, "string", cause);
+        const descriptor = Object.getOwnPropertyDescriptor(err, "cause");
+        expect(descriptor).toBeDefined();
+        if (descriptor !== undefined) {
+            expect(descriptor.enumerable).toBe(false);
+            expect(descriptor.value).toBe(cause);
+        }
         expect(err.cause).toBe(cause);
     });
 });
