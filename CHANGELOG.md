@@ -1,3 +1,9 @@
+## [1.15.1](https://github.com/Mearman/schema-components/compare/v1.15.0...v1.15.1) (2026-05-17)
+
+### Bug Fixes
+
+* **react:** decode em-dash and ellipsis escapes in JSX text ([77f7ea1](https://github.com/Mearman/schema-components/commit/77f7ea1c7ccebc4a51ba3b6c382d03e09a07ca59))
+
 ## [1.15.0](https://github.com/Mearman/schema-components/compare/v1.14.0...v1.15.0) (2026-05-16)
 
 ### Features
