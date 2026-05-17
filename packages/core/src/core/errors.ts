@@ -48,6 +48,7 @@ export class SchemaError extends Error {
 export class SchemaNormalisationError extends SchemaError {
     readonly kind:
         | "invalid-zod"
+        | "unsupported-schema"
         | "zod3-unsupported"
         | "zod-transform-unsupported"
         | "zod-type-unrepresentable"

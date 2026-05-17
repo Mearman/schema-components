@@ -42,7 +42,12 @@ const schemaCache = new WeakMap<object, NormalisedSchema>();
 export type { JsonObject, SchemaMeta };
 
 export type SchemaInput = Record<string, unknown>;
-export type SchemaKind = "zod4" | "zod3" | "jsonSchema" | "openapi";
+export type SchemaKind =
+    | "zod4"
+    | "zod3"
+    | "jsonSchema"
+    | "openapi"
+    | "unsupported-schema-lib";
 
 // Type guards and safe access imported from core/guards.ts
 
@@ -50,13 +55,48 @@ export type SchemaKind = "zod4" | "zod3" | "jsonSchema" | "openapi";
 // Schema detection
 // ---------------------------------------------------------------------------
 
+/**
+ * Classify the input schema by its structural markers.
+ *
+ * - `zod4` — has a `_zod` marker (further validation that `_zod` is an
+ *   object and `_zod.def` is a non-null object happens inside
+ *   `normaliseZod4`).
+ * - `zod3` — has `_def` and no `_zod`. The `typeName` field is no longer
+ *   required: any `_def` without `_zod` is treated as a probable Zod 3
+ *   schema. Third-party libraries that expose `_def` without `_zod` are
+ *   nearly always Zod 3 forks; surfacing the migration message is the
+ *   correct response.
+ * - `openapi` — has `openapi` or `swagger` at the root.
+ * - `unsupported-schema-lib` — has `parse` and `safeParse` callables but
+ *   no `_zod` and no `_def` marker. This catches Standard Schema
+ *   implementations (valibot, arktype, etc.) that would otherwise flow
+ *   through as "malformed JSON Schema".
+ * - `jsonSchema` — fallback for anything that does not match the above.
+ */
 export function detectSchemaKind(input: unknown): SchemaKind {
     if (hasProperty(input, "_zod")) return "zod4";
     if (hasProperty(input, "_def") && !hasProperty(input, "_zod"))
         return "zod3";
     if (hasProperty(input, "openapi") || hasProperty(input, "swagger"))
         return "openapi";
+    if (isLikelyOtherSchemaLib(input)) return "unsupported-schema-lib";
     return "jsonSchema";
+}
+
+/**
+ * Heuristic: a non-Zod object exposing both `.parse` and `.safeParse` as
+ * callables is almost certainly an instance of a competing schema library
+ * (Standard Schema, valibot, arktype, etc.). schema-components requires
+ * Zod 4 throughout — surfacing the unsupported library by name beats
+ * letting the input drop through to the JSON Schema branch where it
+ * would fail as "malformed JSON Schema" without explanation.
+ */
+function isLikelyOtherSchemaLib(input: unknown): boolean {
+    if (!isObject(input)) return false;
+    if (hasProperty(input, "_zod") || hasProperty(input, "_def")) return false;
+    const parse = input.parse;
+    const safeParse = input.safeParse;
+    return typeof parse === "function" && typeof safeParse === "function";
 }
 
 // ---------------------------------------------------------------------------
@@ -653,6 +693,18 @@ export function normaliseSchema(
         case "zod3":
             result = normaliseZod3(input);
             break;
+        case "unsupported-schema-lib":
+            throw new SchemaNormalisationError(
+                "Input looks like a schema from a non-Zod library — it exposes " +
+                    "`parse` and `safeParse` but carries no Zod 4 (`_zod`) or " +
+                    "Zod 3 (`_def`) marker. schema-components requires a Zod 4 " +
+                    "schema. Convert the schema with the equivalent Zod 4 builder, " +
+                    "or feed schema-components a JSON Schema / OpenAPI document " +
+                    "instead. See the Zod 4 contract at https://zod.dev/v4 or " +
+                    "run: pnpm add zod@^4",
+                input,
+                "unsupported-schema"
+            );
         case "openapi":
             if (!isObject(input)) {
                 throw new SchemaNormalisationError(
@@ -688,20 +740,33 @@ export function normaliseSchema(
 
 function normaliseZod4(input: unknown): NormalisedSchema {
     // z.toJSONSchema() converts Zod → JSON Schema losslessly.
-    // detectSchemaKind confirmed _zod is present.
+    // detectSchemaKind confirmed _zod is present, but the marker may be a
+    // half-constructed sentinel (e.g. a test double of the form
+    // `{ _zod: true }`). Require `_zod` to be a non-null object AND
+    // `_zod.def` to be a non-null object — anything else is not a valid
+    // Zod 4 schema and is classified explicitly as `unsupported-schema`
+    // so the consumer is pointed at the Zod 4 contract rather than the
+    // older, less specific `invalid-zod`.
     const zod = getProperty(input, "_zod");
     if (!isObject(zod)) {
         throw new SchemaNormalisationError(
-            "Invalid Zod 4 schema: missing _zod property",
+            "Input is not a valid Zod 4 schema: `_zod` is present but is not an object. " +
+                "schema-components expected a Zod 4 schema produced by the `zod` package " +
+                "version 4 or later. See the Zod 4 migration guide at " +
+                "https://zod.dev/v4/migration or run: pnpm add zod@^4",
             input,
-            "invalid-zod"
+            "unsupported-schema"
         );
     }
-    if (!("def" in zod)) {
+    const def = getProperty(zod, "def");
+    if (!isObject(def)) {
         throw new SchemaNormalisationError(
-            "Invalid Zod 4 schema: missing _zod.def",
+            "Input is not a valid Zod 4 schema: `_zod.def` is missing or not an object. " +
+                "schema-components expected a Zod 4 schema produced by the `zod` package " +
+                "version 4 or later. See the Zod 4 migration guide at " +
+                "https://zod.dev/v4/migration or run: pnpm add zod@^4",
             input,
-            "invalid-zod"
+            "unsupported-schema"
         );
     }
 
