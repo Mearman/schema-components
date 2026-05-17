@@ -1,3 +1,44 @@
+## [1.21.0](https://github.com/Mearman/schema-components/compare/v1.20.0...v1.21.0) (2026-05-17)
+
+### Features
+
+* **core:** classify cycle/duplicate-id/conversion-bug Zod errors ([d7e8184](https://github.com/Mearman/schema-components/commit/d7e8184ac3dfd28aaaa3f9c4c24a7cc365a96921))
+* **core:** walk contains schema as an array/tuple field ([e788ed1](https://github.com/Mearman/schema-components/commit/e788ed1e317aed9a5d458070bc30e5b70a03d03e))
+* **openapi:** match application/*+json variants when selecting schema content ([3426006](https://github.com/Mearman/schema-components/commit/342600606308d289c707ba9656d79e25c969fa28))
+* **openapi:** normalise discriminator on allOf-composite schemas ([b20c2e4](https://github.com/Mearman/schema-components/commit/b20c2e4942840d530bf68589b8f92e89196d2176))
+* **openapi:** render OAuth flows, bearerFormat, scheme, and openIdConnectUrl in ApiSecurity ([176fbeb](https://github.com/Mearman/schema-components/commit/176fbebc13352e6aeea624f9055ba4f908be4563))
+* **openapi:** thread diagnostics through getParsed and resolveOperation ([56f4b33](https://github.com/Mearman/schema-components/commit/56f4b33848b53329a21666e43c1068eaeea82b8f))
+
+### Bug Fixes
+
+* **core:** add cycle guards to recursive ref and schema walkers ([c18b9c9](https://github.com/Mearman/schema-components/commit/c18b9c9bfb8453385429f0b88d72440a1728e359))
+* **core:** block prototype-pollution segments in canonical dereference ([266bf35](https://github.com/Mearman/schema-components/commit/266bf358306500a4f0c456af95896e11924cc702))
+* **core:** broaden Swagger 2.0 detection in typeInference ([342c354](https://github.com/Mearman/schema-components/commit/342c354478fd8eb3405f8f697f2f882ae75c2bc9))
+* **core:** extract defs at FromJSONSchema root for sibling-ref resolution ([d7ef27d](https://github.com/Mearman/schema-components/commit/d7ef27d0fa3840dd008db10b96007f686ad0b339))
+* **core:** guard z.fromJSONSchema against round-trip failures ([44ce1a7](https://github.com/Mearman/schema-components/commit/44ce1a7e4025230ce8087758c0f22b95462ec533))
+* **core:** handle boolean entries in allOf ([841ce1c](https://github.com/Mearman/schema-components/commit/841ce1c51be518c3f38f7a6865d332dab79a07ba))
+* **core:** thread Depth through typeInference ref resolution ([d3b38ca](https://github.com/Mearman/schema-components/commit/d3b38caba782163a7308a538d16803d4b14b0c6e))
+* **core:** translate Draft 06/07 tuple-form items to prefixItems ([079c1aa](https://github.com/Mearman/schema-components/commit/079c1aa665e20c79207e5105f8417a0b0e96a3a1))
+* **core:** treat oneOf [T, null] as nullable like anyOf ([6587954](https://github.com/Mearman/schema-components/commit/65879542deb6b47baab26924da444b14a03e0759))
+* **core:** unwrap Zod wrappers before rejecting unrepresentable types ([f30ddbd](https://github.com/Mearman/schema-components/commit/f30ddbd609f1bec1861b28cf10a6302ca4f6b89b))
+* **core:** use native Error cause on schema-components errors ([afc6a3a](https://github.com/Mearman/schema-components/commit/afc6a3a8a8a06bb26a79c0f83fd1aa1d45c982c1))
+* **core:** walk boolean sub-schemas at composite positions ([d412a54](https://github.com/Mearman/schema-components/commit/d412a54539722d16927d37a20bc99d9b4531ac9c))
+* **openapi:** apply $id base-URI resolution to OpenAPI 3.1 schemas ([5d0a665](https://github.com/Mearman/schema-components/commit/5d0a665f34282ebc9463baf6afaa9958ec6282f3))
+* **openapi:** block prototype-pollution segments in pathItem ref resolution ([a52b72b](https://github.com/Mearman/schema-components/commit/a52b72bcae75c103c6a1f68640fe0ee3b954d257))
+* **openapi:** resolve $ref on response and requestBody objects ([692706e](https://github.com/Mearman/schema-components/commit/692706e8d460d50d97d55117c6ffce297f5581c2))
+
+### Refactoring
+
+* **core:** drop unused parentKey parameter from rewriteRelativeRefsValue ([e6f2390](https://github.com/Mearman/schema-components/commit/e6f2390c6e461572dd760eb5b1af24c5e6eca462))
+
+### Tests
+
+* **core:** avoid `as` assertion in cycle-safety test setup ([0568785](https://github.com/Mearman/schema-components/commit/05687858362e3730a0c060561f22aae9df14b5f9))
+
+### Chores
+
+* **core:** raise typeInference DEFAULT_MAX_DEPTH to match runtime ([a20af64](https://github.com/Mearman/schema-components/commit/a20af648dd0de2ee3ceef78fa9ce05876fd09e02))
+
 ## [1.20.0](https://github.com/Mearman/schema-components/compare/v1.19.0...v1.20.0) (2026-05-17)
 
 ### Features
