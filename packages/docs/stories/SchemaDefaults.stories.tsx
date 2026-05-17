@@ -6,11 +6,13 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { z } from "zod";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 
-const meta: Meta = {
+const meta = {
     title: "Inputs/Defaults",
+    component: SchemaComponent,
     tags: ["editable", "zod", "json-schema"],
-};
+} satisfies Meta<typeof SchemaComponent>;
 export default meta;
+type Story = StoryObj<typeof meta>;
 
 // ---------------------------------------------------------------------------
 // Zod defaults
@@ -23,31 +25,35 @@ const userSchema = z.object({
     score: z.number().default(0),
 });
 
-export const NoValue: StoryObj = {
+export const NoValue: Story = {
     name: "No value — defaults fill in",
-    render: () => <SchemaComponent schema={userSchema} />,
+    args: {
+        schema: userSchema,
+    },
 };
 
-export const PartialValue: StoryObj = {
+export const PartialValue: Story = {
     name: "Partial value — defaults fill gaps",
-    render: () => (
-        <SchemaComponent schema={userSchema} value={{ name: "Ada" }} />
-    ),
+    args: {
+        schema: userSchema,
+        value: { name: "Ada" },
+    },
 };
 
-export const FullValue: StoryObj = {
+export const FullValue: Story = {
     name: "Full value — defaults not used",
-    render: () => (
-        <SchemaComponent
-            schema={userSchema}
-            value={{ name: "Grace", role: "admin", active: false, score: 100 }}
-        />
-    ),
+    args: {
+        schema: userSchema,
+        value: { name: "Grace", role: "admin", active: false, score: 100 },
+    },
 };
 
-export const ReadOnlyDefaults: StoryObj = {
+export const ReadOnlyDefaults: Story = {
     name: "Read-only with defaults",
-    render: () => <SchemaComponent schema={userSchema} readOnly />,
+    args: {
+        schema: userSchema,
+        readOnly: true,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -65,9 +71,11 @@ const nestedSchema = z.object({
     }),
 });
 
-export const NestedDefaults: StoryObj = {
+export const NestedDefaults: Story = {
     name: "Nested object defaults",
-    render: () => <SchemaComponent schema={nestedSchema} />,
+    args: {
+        schema: nestedSchema,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -83,9 +91,11 @@ const jsonSchema = {
     },
 } as const;
 
-export const JsonSchemaDefaults: StoryObj = {
+export const JsonSchemaDefaults: Story = {
     name: "JSON Schema defaults",
-    render: () => <SchemaComponent schema={jsonSchema} />,
+    args: {
+        schema: jsonSchema,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -96,7 +106,10 @@ const arraySchema = z.object({
     tags: z.array(z.string()).default(["react", "typescript"]),
 });
 
-export const ArrayDefaults: StoryObj = {
+export const ArrayDefaults: Story = {
     name: "Array with defaults",
-    render: () => <SchemaComponent schema={arraySchema} readOnly />,
+    args: {
+        schema: arraySchema,
+        readOnly: true,
+    },
 };
