@@ -538,15 +538,14 @@ function ResponseCard({
         );
     }
 
-    // Get links for this response if we have path/method context
+    // Get links for this response if we have path/method context.
+    // `getLinks` returns `[]` for the no-links case, so any exception
+    // bubbling out is a genuine bug (e.g. malformed parser state) — let it
+    // propagate rather than silencing it with an empty array.
     let links: import("./parser.ts").LinkInfo[] = [];
     if (path !== undefined && method !== undefined) {
-        try {
-            const parsed = getParsed(rootDoc);
-            links = getLinks(parsed, path, method, response.statusCode);
-        } catch {
-            // links lookup may fail for various reasons; that's fine
-        }
+        const parsed = getParsed(rootDoc);
+        links = getLinks(parsed, path, method, response.statusCode);
     }
 
     return (
