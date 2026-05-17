@@ -114,24 +114,24 @@ describe("toDoc", () => {
         expect(toDoc(obj)).toBe(obj);
     });
 
-    it("returns empty record for strings", () => {
-        expect(toDoc("hello")).toStrictEqual({});
+    it("returns undefined for strings", () => {
+        expect(toDoc("hello")).toBeUndefined();
     });
 
-    it("returns empty record for null", () => {
-        expect(toDoc(null)).toStrictEqual({});
+    it("returns undefined for null", () => {
+        expect(toDoc(null)).toBeUndefined();
     });
 
-    it("returns empty record for undefined", () => {
-        expect(toDoc(undefined)).toStrictEqual({});
+    it("returns undefined for undefined", () => {
+        expect(toDoc(undefined)).toBeUndefined();
     });
 
-    it("returns empty record for numbers", () => {
-        expect(toDoc(42)).toStrictEqual({});
+    it("returns undefined for numbers", () => {
+        expect(toDoc(42)).toBeUndefined();
     });
 
-    it("returns empty record for arrays", () => {
-        expect(toDoc([1, 2, 3])).toStrictEqual({});
+    it("returns undefined for arrays", () => {
+        expect(toDoc([1, 2, 3])).toBeUndefined();
     });
 });
 

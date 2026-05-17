@@ -90,11 +90,18 @@ export function getParsed(
 }
 
 /**
- * Coerce an unknown value to a record, returning an empty record
- * for non-objects.
+ * Coerce an unknown value to a record, returning `undefined` when the
+ * value is not a plain object. Callers MUST handle the `undefined` case
+ * explicitly — typically by rendering a "doc not an object" diagnostic
+ * and short-circuiting, never by silently substituting `{}`.
+ *
+ * A previous implementation fell back to `{}` for non-objects, which
+ * masked configuration mistakes (passing a string, `null`, an array, or
+ * `undefined` as the OpenAPI document) as an empty document with no
+ * operations.
  */
-export function toDoc(value: unknown): Record<string, unknown> {
-    return isObject(value) ? value : {};
+export function toDoc(value: unknown): Record<string, unknown> | undefined {
+    return isObject(value) ? value : undefined;
 }
 
 // ---------------------------------------------------------------------------

@@ -49,6 +49,7 @@ import { ApiCallbacks } from "./ApiCallbacks.tsx";
 import { ApiLinks } from "./ApiLinks.tsx";
 import { ApiResponseHeaders } from "./ApiResponseHeaders.tsx";
 import type { DiagnosticSink } from "../core/diagnostics.ts";
+import { emitDiagnostic } from "../core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Shared diagnostics props
@@ -77,6 +78,32 @@ function buildDiagnostics(
     if (onDiagnostic !== undefined) opts.diagnostics = onDiagnostic;
     if (strict === true) opts.strict = true;
     return opts;
+}
+
+/**
+ * Coerce an `unknown` `schema` prop to a document record. Returns
+ * `undefined` when the prop is not a plain object, surfacing a
+ * `doc-not-object` diagnostic so silent "empty document" misbehaviour
+ * (the historic `toDoc` `{}` fallback) is impossible.
+ *
+ * Components MUST short-circuit when this returns `undefined` rather
+ * than rendering empty operation lists.
+ */
+function resolveRootDoc(
+    doc: unknown,
+    diagnostics: import("../core/diagnostics.ts").DiagnosticsOptions | undefined
+): Record<string, unknown> | undefined {
+    const resolved = toDoc(doc);
+    if (resolved === undefined) {
+        emitDiagnostic(diagnostics, {
+            code: "doc-not-object",
+            message:
+                "OpenAPI document prop is not a plain object; nothing to render",
+            pointer: "",
+            detail: { received: typeof doc },
+        });
+    }
+    return resolved;
 }
 
 // ---------------------------------------------------------------------------
@@ -211,8 +238,10 @@ export function ApiOperation<
     onDiagnostic,
     strict,
 }: ApiOperationProps<Doc, Path, Method>): ReactNode {
-    const rootDoc = toDoc(doc);
     const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    const instancePrefix = sanitisePrefix(useId());
+    const rootDoc = resolveRootDoc(doc, diagnostics);
+    if (rootDoc === undefined) return null;
     // Run the normalisation pipeline once and reuse the parsed result.
     // Diagnostics emit during normalisation, so a second `getParsed` with
     // the same sink would double-fire every event.
@@ -221,7 +250,6 @@ export function ApiOperation<
     const securityReqs = getSecurityRequirements(parsed, path, method);
     const securitySchemes = getSecuritySchemes(parsed);
     const callbacks = listCallbacks(parsed, path, method);
-    const instancePrefix = sanitisePrefix(useId());
 
     return (
         <section data-operation={`${method.toUpperCase()} ${path}`}>
@@ -332,11 +360,12 @@ export function ApiParameters<
     onDiagnostic,
     strict,
 }: ApiParametersProps<Doc, Path, Method>): ReactNode {
-    const rootDoc = toDoc(doc);
     const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    const instancePrefix = sanitisePrefix(useId());
+    const rootDoc = resolveRootDoc(doc, diagnostics);
+    if (rootDoc === undefined) return null;
     const parsed = getParsed(rootDoc, diagnostics);
     const params = resolveParametersFromParsed(parsed, path, method);
-    const instancePrefix = sanitisePrefix(useId());
 
     if (params.length === 0) return null;
 
@@ -393,11 +422,12 @@ export function ApiRequestBody<
     onDiagnostic,
     strict,
 }: ApiRequestBodyProps<Doc, Path, Method>): ReactNode {
-    const rootDoc = toDoc(doc);
     const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    const instancePrefix = sanitisePrefix(useId());
+    const rootDoc = resolveRootDoc(doc, diagnostics);
+    if (rootDoc === undefined) return null;
     const parsed = getParsed(rootDoc, diagnostics);
     const requestBody = resolveRequestBodyFromParsed(parsed, path, method);
-    const instancePrefix = sanitisePrefix(useId());
 
     if (requestBody?.schema === undefined) {
         return null;
@@ -465,11 +495,12 @@ export function ApiResponse<
     onDiagnostic,
     strict,
 }: ApiResponseProps<Doc, Path, Method, Status>): ReactNode {
-    const rootDoc = toDoc(doc);
     const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    const instancePrefix = sanitisePrefix(useId());
+    const rootDoc = resolveRootDoc(doc, diagnostics);
+    if (rootDoc === undefined) return null;
     const parsed = getParsed(rootDoc, diagnostics);
     const response = resolveResponseFromParsed(parsed, path, method, status);
-    const instancePrefix = sanitisePrefix(useId());
 
     if (response.schema === undefined) {
         return (
