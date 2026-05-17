@@ -27,7 +27,7 @@
 
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { headlessResolver } from "../react/headless.tsx";
-import { toReactNode } from "../react/headlessRenderers.tsx";
+import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { isObject } from "../core/guards.ts";
 import type { ReactNode } from "react";
 
@@ -116,19 +116,21 @@ export function registerRadixComponents(components: {
 function renderStringInput(props: RenderProps): ReactNode {
     const strValue = typeof props.value === "string" ? props.value : "";
     const label = getLabel(props);
+    const id = inputId(props.path);
 
     if (props.readOnly) {
-        return <RadixText>{strValue || "\u2014"}</RadixText>;
+        return <RadixText id={id}>{strValue || "\u2014"}</RadixText>;
     }
 
     return (
         <RadixBox>
             {label !== undefined && (
-                <RadixText as="label" size="2" weight="medium">
+                <RadixText as="label" size="2" weight="medium" htmlFor={id}>
                     {label}
                 </RadixText>
             )}
             <RadixTextField
+                id={id}
                 type={
                     props.constraints.format === "email"
                         ? "email"
@@ -148,21 +150,23 @@ function renderStringInput(props: RenderProps): ReactNode {
 
 function renderNumberInput(props: RenderProps): ReactNode {
     const label = getLabel(props);
+    const id = inputId(props.path);
 
     if (props.readOnly) {
         if (typeof props.value !== "number")
-            return <RadixText>{"\u2014"}</RadixText>;
-        return <RadixText>{props.value.toLocaleString()}</RadixText>;
+            return <RadixText id={id}>{"\u2014"}</RadixText>;
+        return <RadixText id={id}>{props.value.toLocaleString()}</RadixText>;
     }
 
     return (
         <RadixBox>
             {label !== undefined && (
-                <RadixText as="label" size="2" weight="medium">
+                <RadixText as="label" size="2" weight="medium" htmlFor={id}>
                     {label}
                 </RadixText>
             )}
             <RadixTextField
+                id={id}
                 type="number"
                 value={
                     props.writeOnly
@@ -182,22 +186,28 @@ function renderNumberInput(props: RenderProps): ReactNode {
 
 function renderBooleanInput(props: RenderProps): ReactNode {
     const label = getLabel(props);
+    const id = inputId(props.path);
 
     if (props.readOnly) {
         if (typeof props.value !== "boolean")
-            return <RadixText>{"\u2014"}</RadixText>;
-        return <RadixText>{props.value ? "Yes" : "No"}</RadixText>;
+            return <RadixText id={id}>{"\u2014"}</RadixText>;
+        return <RadixText id={id}>{props.value ? "Yes" : "No"}</RadixText>;
     }
 
     return (
         <RadixFlex align="center" gap="2">
             <RadixCheckbox
+                id={id}
                 checked={props.writeOnly ? false : props.value === true}
                 onCheckedChange={(checked: unknown) => {
                     if (typeof checked === "boolean") props.onChange(checked);
                 }}
             />
-            {label !== undefined && <RadixText as="label">{label}</RadixText>}
+            {label !== undefined && (
+                <RadixText as="label" htmlFor={id}>
+                    {label}
+                </RadixText>
+            )}
         </RadixFlex>
     );
 }
@@ -205,15 +215,16 @@ function renderBooleanInput(props: RenderProps): ReactNode {
 function renderEnumInput(props: RenderProps): ReactNode {
     const enumValue = typeof props.value === "string" ? props.value : "";
     const label = getLabel(props);
+    const id = inputId(props.path);
 
     if (props.readOnly) {
-        return <RadixText>{enumValue || "\u2014"}</RadixText>;
+        return <RadixText id={id}>{enumValue || "\u2014"}</RadixText>;
     }
 
     return (
         <RadixBox>
             {label !== undefined && (
-                <RadixText as="label" size="2" weight="medium">
+                <RadixText as="label" size="2" weight="medium" htmlFor={id}>
                     {label}
                 </RadixText>
             )}
@@ -223,7 +234,7 @@ function renderEnumInput(props: RenderProps): ReactNode {
                     props.onChange(value);
                 }}
             >
-                <RadixSelectTrigger mt="1" />
+                <RadixSelectTrigger id={id} mt="1" />
                 <RadixSelectContent>
                     {(props.enumValues ?? []).map((value) => (
                         <RadixSelectItem key={value} value={value}>
@@ -268,7 +279,8 @@ function renderObjectContainer(props: RenderProps): ReactNode {
                                     props.renderChild(
                                         field,
                                         childValue,
-                                        childOnChange
+                                        childOnChange,
+                                        key
                                     )
                                 )}
                             </RadixBox>

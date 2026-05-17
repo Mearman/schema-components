@@ -14,7 +14,7 @@
 
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { headlessResolver } from "../react/headless.tsx";
-import { toReactNode } from "../react/headlessRenderers.tsx";
+import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { isObject } from "../core/guards.ts";
 import { isValidElement, type ReactNode } from "react";
 
@@ -38,10 +38,11 @@ function renderStringInput(props: RenderProps): ReactNode {
         typeof props.meta.description === "string"
             ? props.meta.description
             : undefined;
+    const id = inputId(props.path);
 
     if (props.readOnly) {
         return (
-            <MuiTypography variant="body2">
+            <MuiTypography id={id} variant="body2">
                 {strValue || "\u2014"}
             </MuiTypography>
         );
@@ -49,6 +50,7 @@ function renderStringInput(props: RenderProps): ReactNode {
 
     return (
         <MuiTextField
+            id={id}
             label={label}
             type={
                 props.constraints.format === "email"
@@ -78,12 +80,17 @@ function renderNumberInput(props: RenderProps): ReactNode {
         typeof props.meta.description === "string"
             ? props.meta.description
             : undefined;
+    const id = inputId(props.path);
 
     if (props.readOnly) {
         if (typeof props.value !== "number")
-            return <MuiTypography variant="body2">{"\u2014"}</MuiTypography>;
+            return (
+                <MuiTypography id={id} variant="body2">
+                    {"\u2014"}
+                </MuiTypography>
+            );
         return (
-            <MuiTypography variant="body2">
+            <MuiTypography id={id} variant="body2">
                 {props.value.toLocaleString()}
             </MuiTypography>
         );
@@ -91,6 +98,7 @@ function renderNumberInput(props: RenderProps): ReactNode {
 
     return (
         <MuiTextField
+            id={id}
             label={label}
             type="number"
             value={
@@ -120,12 +128,17 @@ function renderBooleanInput(props: RenderProps): ReactNode {
         typeof props.meta.description === "string"
             ? props.meta.description
             : undefined;
+    const id = inputId(props.path);
 
     if (props.readOnly) {
         if (typeof props.value !== "boolean")
-            return <MuiTypography variant="body2">{"\u2014"}</MuiTypography>;
+            return (
+                <MuiTypography id={id} variant="body2">
+                    {"\u2014"}
+                </MuiTypography>
+            );
         return (
-            <MuiTypography variant="body2">
+            <MuiTypography id={id} variant="body2">
                 {props.value ? "Yes" : "No"}
             </MuiTypography>
         );
@@ -135,6 +148,7 @@ function renderBooleanInput(props: RenderProps): ReactNode {
         <MuiFormControlLabel
             control={
                 <MuiCheckbox
+                    id={id}
                     checked={props.writeOnly ? false : props.value === true}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                         props.onChange(e.target.checked);
@@ -152,10 +166,11 @@ function renderEnumInput(props: RenderProps): ReactNode {
         typeof props.meta.description === "string"
             ? props.meta.description
             : undefined;
+    const id = inputId(props.path);
 
     if (props.readOnly) {
         return (
-            <MuiTypography variant="body2">
+            <MuiTypography id={id} variant="body2">
                 {enumValue || "\u2014"}
             </MuiTypography>
         );
@@ -163,6 +178,7 @@ function renderEnumInput(props: RenderProps): ReactNode {
 
     return (
         <MuiTextField
+            id={id}
             select
             label={label}
             value={props.writeOnly ? "" : enumValue}
@@ -210,7 +226,12 @@ function renderObjectContainer(props: RenderProps): ReactNode {
                 return (
                     <div key={key}>
                         {toReactNode(
-                            props.renderChild(field, childValue, childOnChange)
+                            props.renderChild(
+                                field,
+                                childValue,
+                                childOnChange,
+                                key
+                            )
                         )}
                     </div>
                 );
@@ -235,7 +256,12 @@ function renderArrayContainer(props: RenderProps): ReactNode {
                 return (
                     <div key={String(i)}>
                         {toReactNode(
-                            props.renderChild(element, item, childOnChange)
+                            props.renderChild(
+                                element,
+                                item,
+                                childOnChange,
+                                `[${String(i)}]`
+                            )
                         )}
                     </div>
                 );

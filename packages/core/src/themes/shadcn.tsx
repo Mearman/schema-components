@@ -14,7 +14,7 @@
 
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { headlessResolver } from "../react/headless.tsx";
-import { toReactNode } from "../react/headlessRenderers.tsx";
+import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { toRecord } from "../core/guards.ts";
 import type { ReactNode } from "react";
 
@@ -36,6 +36,7 @@ function buildClassNames(...classes: (string | undefined)[]): string {
 
 function renderStringInput(props: RenderProps): ReactNode {
     const strValue = typeof props.value === "string" ? props.value : "";
+    const id = inputId(props.path);
     const className = buildClassNames(
         "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors",
         "file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
@@ -45,12 +46,17 @@ function renderStringInput(props: RenderProps): ReactNode {
     );
 
     if (props.readOnly) {
-        return <span className="text-sm">{strValue || "—"}</span>;
+        return (
+            <span id={id} className="text-sm">
+                {strValue || "—"}
+            </span>
+        );
     }
 
     if (props.writeOnly) {
         return (
             <input
+                id={id}
                 type={props.constraints.format === "email" ? "email" : "text"}
                 className={className}
                 placeholder={
@@ -68,6 +74,7 @@ function renderStringInput(props: RenderProps): ReactNode {
 
     return (
         <input
+            id={id}
             type={props.constraints.format === "email" ? "email" : "text"}
             className={className}
             value={strValue}
@@ -86,6 +93,7 @@ function renderStringInput(props: RenderProps): ReactNode {
 }
 
 function renderNumberInput(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
     const className = buildClassNames(
         "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors",
         "placeholder:text-muted-foreground",
@@ -95,12 +103,21 @@ function renderNumberInput(props: RenderProps): ReactNode {
 
     if (props.readOnly) {
         if (typeof props.value !== "number")
-            return <span className="text-sm">—</span>;
-        return <span className="text-sm">{props.value.toLocaleString()}</span>;
+            return (
+                <span id={id} className="text-sm">
+                    {"—"}
+                </span>
+            );
+        return (
+            <span id={id} className="text-sm">
+                {props.value.toLocaleString()}
+            </span>
+        );
     }
 
     return (
         <input
+            id={id}
             type="number"
             className={className}
             value={
@@ -120,6 +137,7 @@ function renderNumberInput(props: RenderProps): ReactNode {
 }
 
 function renderBooleanInput(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
     const className = buildClassNames(
         "h-4 w-4 rounded border border-primary shadow",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
@@ -128,12 +146,21 @@ function renderBooleanInput(props: RenderProps): ReactNode {
 
     if (props.readOnly) {
         if (typeof props.value !== "boolean")
-            return <span className="text-sm">—</span>;
-        return <span className="text-sm">{props.value ? "Yes" : "No"}</span>;
+            return (
+                <span id={id} className="text-sm">
+                    {"—"}
+                </span>
+            );
+        return (
+            <span id={id} className="text-sm">
+                {props.value ? "Yes" : "No"}
+            </span>
+        );
     }
 
     return (
         <input
+            id={id}
             type="checkbox"
             className={className}
             checked={props.writeOnly ? false : props.value === true}
@@ -164,6 +191,7 @@ function renderObjectContainer(props: RenderProps): ReactNode {
             )}
             {Object.entries(fields).map(([key, field]) => {
                 const childValue = toRecord(obj)[key];
+                const childId = inputId(`${props.path}.${key}`);
                 const childOnChange = (v: unknown) => {
                     const updated: Record<string, unknown> = {};
                     for (const [k, val] of Object.entries(obj)) {
@@ -174,11 +202,19 @@ function renderObjectContainer(props: RenderProps): ReactNode {
                 };
                 return (
                     <div key={key} className="space-y-1">
-                        <label className="text-sm font-medium leading-none">
+                        <label
+                            htmlFor={childId}
+                            className="text-sm font-medium leading-none"
+                        >
                             {field.meta.description ?? key}
                         </label>
                         {toReactNode(
-                            props.renderChild(field, childValue, childOnChange)
+                            props.renderChild(
+                                field,
+                                childValue,
+                                childOnChange,
+                                key
+                            )
                         )}
                     </div>
                 );
@@ -203,7 +239,12 @@ function renderArrayContainer(props: RenderProps): ReactNode {
                 return (
                     <div key={String(i)}>
                         {toReactNode(
-                            props.renderChild(element, item, childOnChange)
+                            props.renderChild(
+                                element,
+                                item,
+                                childOnChange,
+                                `[${String(i)}]`
+                            )
                         )}
                     </div>
                 );
@@ -213,6 +254,7 @@ function renderArrayContainer(props: RenderProps): ReactNode {
 }
 
 function renderEnumInput(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
     const className = buildClassNames(
         "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm",
         "focus:outline-none focus:ring-1 focus:ring-ring",
@@ -222,18 +264,23 @@ function renderEnumInput(props: RenderProps): ReactNode {
     const enumValue = typeof props.value === "string" ? props.value : "";
 
     if (props.readOnly) {
-        return <span className="text-sm">{enumValue || "—"}</span>;
+        return (
+            <span id={id} className="text-sm">
+                {enumValue || "—"}
+            </span>
+        );
     }
 
     return (
         <select
+            id={id}
             className={className}
             value={props.writeOnly ? "" : enumValue}
             onChange={(e) => {
                 props.onChange(e.target.value);
             }}
         >
-            <option value="">Select\u2026</option>
+            <option value="">Select{"…"}</option>
             {props.enumValues?.map((v) => {
                 const display =
                     v === null ? "null" : typeof v === "string" ? v : String(v);
