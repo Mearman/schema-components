@@ -254,6 +254,81 @@ describe("OpenAPI 3.0 nullable: applied at every FromJSONSchema entry", () => {
 });
 
 // ---------------------------------------------------------------------------
+// JSON Pointer escape decoding parity
+// ---------------------------------------------------------------------------
+//
+// The runtime `dereference` (ref.ts line 226) decodes `~1` -> `/` and
+// `~0` -> `~` on every JSON Pointer segment per RFC 6901 §4. The
+// type-level path mirrors this via `DecodeJsonPointerSegment` so refs
+// containing encoded path components such as `#/paths/~1pets/get` resolve
+// to the `"/pets"` key.
+// ---------------------------------------------------------------------------
+
+describe("JSON Pointer tilde escapes: typeInference decodes ~1 and ~0", () => {
+    interface PetsSpecBase {
+        readonly openapi: "3.1.0";
+        readonly paths: {
+            readonly "/pets": {
+                readonly get: {
+                    readonly responses: {
+                        readonly "200": {
+                            readonly content: {
+                                readonly "application/json": {
+                                    readonly schema: {
+                                        readonly type: "string";
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    }
+    type PetsSpec = PetsSpecBase & Record<string, unknown>;
+
+    // `ResolveOpenAPIRef` returns the raw resolved schema object for
+    // path-based refs (callers are expected to feed it through
+    // `FromJSONSchema` themselves). Without `~1` decoding the lookup of
+    // `paths["~1pets"]` would miss the actual `paths["/pets"]` key and
+    // collapse to `unknown`; with decoding the schema object is reached.
+    type ResolvedEncoded = ResolveOpenAPIRef<
+        PetsSpec,
+        "#/paths/~1pets/get/responses/200/content/application~1json/schema"
+    >;
+
+    interface ExpectedSchema {
+        readonly type: "string";
+    }
+
+    it("decodes ~1 to / so encoded path segments resolve", () => {
+        expectTypeOf<ResolvedEncoded>().toEqualTypeOf<ExpectedSchema>();
+    });
+
+    interface TildeKeySpecBase {
+        readonly openapi: "3.1.0";
+        readonly paths: {
+            readonly "~weird": { readonly value: { readonly type: "boolean" } };
+        };
+    }
+    type TildeKeySpec = TildeKeySpecBase & Record<string, unknown>;
+
+    // `~0` decodes back to a literal `~` per RFC 6901.
+    type ResolvedTildeKey = ResolveOpenAPIRef<
+        TildeKeySpec,
+        "#/paths/~0weird/value"
+    >;
+
+    interface ExpectedTildeKey {
+        readonly type: "boolean";
+    }
+
+    it("decodes ~0 to ~ so tilde-prefixed keys resolve", () => {
+        expectTypeOf<ResolvedTildeKey>().toEqualTypeOf<ExpectedTildeKey>();
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Swagger 2.0 fallback parity
 // ---------------------------------------------------------------------------
 //

@@ -496,11 +496,14 @@ export type ResolveOpenAPIRef<
 
 /**
  * Resolve a path-based $ref after the `#/paths/` prefix.
- * Splits on `/` and navigates the document tree.
+ * Splits on `/` and navigates the document tree, decoding JSON Pointer
+ * tilde escapes (`~1` -> `/`, `~0` -> `~`) on every segment.
  *
- * Note: JSON Pointer tilde encoding (~1 for /, ~0 for ~) is not decoded
- * at the type level. For `as const` literals, use the literal path
- * character directly (e.g. `#/paths//pets/get/...`).
+ * SOURCE-OF-TRUTH: mirrors runtime `dereference` in
+ * `packages/core/src/core/ref.ts` (line 226), which applies the same
+ * `~1` -> `/`, `~0` -> `~` substitutions per RFC 6901 §4. The runtime
+ * uses ordered string replacement; the type-level mirror does the same
+ * via {@link DecodeJsonPointerSegment}.
  */
 type ResolvePathBasedRef<
     Spec extends Record<string, unknown>,
@@ -511,6 +514,33 @@ type ResolvePathBasedRef<
         : unknown;
 
 /**
+ * Replace every occurrence of `From` with `To` inside `S`.
+ *
+ * Pure type-level alternative to `String.prototype.replaceAll` used for
+ * JSON Pointer escape decoding. Terminates when no further match is
+ * found in the tail.
+ */
+type ReplaceAll<
+    S extends string,
+    From extends string,
+    To extends string,
+> = S extends `${infer Head}${From}${infer Tail}`
+    ? `${Head}${To}${ReplaceAll<Tail, From, To>}`
+    : S;
+
+/**
+ * Decode a single JSON Pointer reference token per RFC 6901 §4:
+ * apply `~1` -> `/` first, then `~0` -> `~`. The order matters — an
+ * encoded `~` containing a literal `1` (e.g. `~01`) must remain `~1`
+ * after decoding, which only works when `~1` is processed first.
+ */
+type DecodeJsonPointerSegment<S extends string> = ReplaceAll<
+    ReplaceAll<S, "~1", "/">,
+    "~0",
+    "~"
+>;
+
+/**
  * Split a path string on `/` into a tuple of segments.
  * The first segment is the path key (may be empty for `/pets` -> `""` / `"pets"`).
  */
@@ -519,16 +549,20 @@ type SplitPath<S extends string> = S extends `${infer Head}/${infer Tail}`
     : [S];
 
 /**
- * Recursively navigate into a document object by path segments.
+ * Recursively navigate into a document object by path segments. Each
+ * segment is JSON-Pointer-decoded before indexing so encoded forms such
+ * as `~1pets` correctly resolve to the `"/pets"` key.
  */
 type ResolvePathSegments<Doc, Segs extends string[]> = Segs extends [
     infer Head extends string,
     ...infer Rest extends string[],
 ]
     ? Doc extends Record<string, unknown>
-        ? Rest extends []
-            ? Doc[Head]
-            : ResolvePathSegments<Doc[Head], Rest>
+        ? DecodeJsonPointerSegment<Head> extends infer Decoded extends string
+            ? Rest extends []
+                ? Doc[Decoded]
+                : ResolvePathSegments<Doc[Decoded], Rest>
+            : unknown
         : unknown
     : unknown;
 
