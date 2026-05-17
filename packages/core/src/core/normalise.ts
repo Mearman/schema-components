@@ -23,6 +23,7 @@ import {
 } from "./version.ts";
 import { isObject } from "./guards.ts";
 import {
+    applyDiscriminatorAllOfPrepass,
     deepNormaliseOpenApi30Doc,
     deepNormaliseOpenApiDoc,
     normaliseOpenApi30Discriminator,
@@ -1016,7 +1017,14 @@ export function normaliseOpenApiSchemas(
     }
 
     if (isOpenApi30(version)) {
-        return deepNormaliseOpenApi30Doc(doc, deepNormalise);
+        // Hoist `discriminator` declared on a base schema and inherited
+        // by subtypes through `allOf` into a synthesised `oneOf` on the
+        // base, with per-option `const`s on each subtype. Runs first so
+        // the per-node discriminator transform applied by
+        // `deepNormaliseOpenApi30Doc` sees the rewritten `oneOf` and
+        // clears the `discriminator` keyword normally.
+        const hoisted = applyDiscriminatorAllOfPrepass(doc);
+        return deepNormaliseOpenApi30Doc(hoisted, deepNormalise);
     }
 
     // OpenAPI 3.1.x — already Draft 2020-12 compatible, but the
@@ -1055,14 +1063,18 @@ export function normaliseOpenApiSchemas(
         }
     }
 
-    // Apply `$id` base-URI resolution per Schema Object — OpenAPI 3.1
+    // Apply the discriminator `allOf`-inheritance pre-pass before the
+    // per-node transforms — the 3.1 path follows the same subtype
+    // hoisting rules as 3.0.
+    const hoisted = applyDiscriminatorAllOfPrepass(doc);
+    // Then apply `$id` base-URI resolution per Schema Object — OpenAPI 3.1
     // Schema Objects may carry `$id` to establish a base URI for nested
     // relative `$ref`s (JSON Schema §8.2). Scope the rewrite to schemas
     // surfaced by `deepNormaliseOpenApiDoc` (components/schemas and
     // inline operation/parameter/response/header/requestBody schemas),
     // leaving OpenAPI-level Reference Objects untouched — those use the
     // OpenAPI ref semantics handled by `openapi/resolve.ts`.
-    return deepNormaliseOpenApiDoc(doc, (schema) =>
+    return deepNormaliseOpenApiDoc(hoisted, (schema) =>
         resolveRelativeRefs(
             deepNormalise(schema, normaliseOpenApi30Discriminator),
             diagnostics

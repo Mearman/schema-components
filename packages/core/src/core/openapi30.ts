@@ -199,6 +199,358 @@ export function normaliseOpenApi30Discriminator(
 }
 
 // ---------------------------------------------------------------------------
+// Document-level discriminator + allOf composition
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the schema name a `$ref` points at when it targets
+ * `#/components/schemas/<Name>`, or `undefined` otherwise.
+ *
+ * The walker only resolves intra-document refs and other allOf-base
+ * patterns; refs into `definitions` (Swagger 2.0) are already rewritten
+ * before this stage.
+ */
+function componentSchemaName(ref: unknown): string | undefined {
+    if (typeof ref !== "string") return undefined;
+    const prefix = "#/components/schemas/";
+    if (!ref.startsWith(prefix)) return undefined;
+    const name = ref.slice(prefix.length);
+    return name.length > 0 ? name : undefined;
+}
+
+/**
+ * Find every immediate `$ref` that an `allOf` array contains pointing
+ * back at a `components/schemas/<Name>` entry. Used to discover
+ * "Cat extends Pet"-style inheritance — the subtype's `allOf` lists
+ * the base by `$ref` alongside its own local fields.
+ */
+function listAllOfBaseRefs(schema: Record<string, unknown>): string[] {
+    const allOf = schema.allOf;
+    if (!Array.isArray(allOf)) return [];
+    const result: string[] = [];
+    for (const entry of allOf) {
+        if (!isObject(entry)) continue;
+        const name = componentSchemaName(entry.$ref);
+        if (name !== undefined) result.push(name);
+    }
+    return result;
+}
+
+interface DiscriminatorSubtype {
+    /** Component name of the subtype, e.g. `"Cat"`. */
+    name: string;
+    /** Discriminator `const` value for this subtype. */
+    constValue: string;
+}
+
+/**
+ * Collect discriminator subtypes for a base schema. Entries come from:
+ *
+ * 1. The base's `discriminator.mapping` (explicit author intent — the
+ *    mapping key supplies the `const` value, the ref names the subtype).
+ * 2. Component schemas whose `allOf` lists this base by `$ref` and
+ *    were not already named in the mapping. The `const` value defaults
+ *    to the subtype's component name.
+ *
+ * Returned in deterministic order: mapping entries first (preserving
+ * authored order), then implicit subtypes alphabetically.
+ */
+function collectDiscriminatorSubtypes(
+    baseName: string,
+    discriminator: Record<string, unknown>,
+    componentSchemas: Record<string, unknown>
+): DiscriminatorSubtype[] {
+    const result: DiscriminatorSubtype[] = [];
+    const seen = new Set<string>();
+
+    const mapping = isObject(discriminator.mapping)
+        ? discriminator.mapping
+        : undefined;
+    if (mapping !== undefined) {
+        for (const [constValue, ref] of Object.entries(mapping)) {
+            const name = componentSchemaName(ref);
+            if (name === undefined) continue;
+            if (!isObject(componentSchemas[name])) continue;
+            if (seen.has(name)) continue;
+            seen.add(name);
+            result.push({ name, constValue });
+        }
+    }
+
+    const implicitNames: string[] = [];
+    for (const [name, schema] of Object.entries(componentSchemas)) {
+        if (!isObject(schema)) continue;
+        if (seen.has(name)) continue;
+        if (!listAllOfBaseRefs(schema).includes(baseName)) continue;
+        implicitNames.push(name);
+    }
+    implicitNames.sort();
+    for (const name of implicitNames) {
+        result.push({ name, constValue: name });
+        seen.add(name);
+    }
+
+    return result;
+}
+
+/**
+ * Inject the discriminator `const` on a subtype schema in-place.
+ *
+ * When the subtype already declares a matching const we leave it
+ * alone. Otherwise the const is added in whichever location the walker
+ * will actually observe:
+ *
+ * - Subtype declares `allOf`: append a new `allOf` entry carrying just
+ *   `{ properties: { [propertyName]: { const } } }`. The walker's
+ *   `mergeAllOf` merges every entry's `properties` into the resolved
+ *   schema, so the const propagates through to the merged result. A
+ *   top-level `properties` sibling of `allOf` would be ignored by the
+ *   merge.
+ * - Subtype does not declare `allOf`: extend the top-level `properties`
+ *   block — the walker reads this directly.
+ */
+function injectSubtypeConst(
+    subtype: Record<string, unknown>,
+    propertyName: string,
+    constValue: string
+): void {
+    if (subtypeAlreadyDeclaresConst(subtype, propertyName)) return;
+
+    const constEntry: Record<string, unknown> = {
+        properties: { [propertyName]: { const: constValue } },
+    };
+
+    if (Array.isArray(subtype.allOf)) {
+        const existing: unknown[] = subtype.allOf;
+        subtype.allOf = [...existing, constEntry];
+        return;
+    }
+
+    const existingProps = isObject(subtype.properties)
+        ? { ...subtype.properties }
+        : {};
+    const existingDisc = existingProps[propertyName];
+    existingProps[propertyName] = {
+        ...(isObject(existingDisc) ? existingDisc : {}),
+        const: constValue,
+    };
+    subtype.properties = existingProps;
+}
+
+/**
+ * Check whether a subtype (or any of its `allOf` entries) already
+ * carries a `const` for the discriminator property. Used to avoid
+ * overwriting an author-supplied const.
+ */
+function subtypeAlreadyDeclaresConst(
+    subtype: Record<string, unknown>,
+    propertyName: string
+): boolean {
+    if (hasConstProp(subtype.properties, propertyName)) return true;
+    if (Array.isArray(subtype.allOf)) {
+        for (const entry of subtype.allOf) {
+            if (!isObject(entry)) continue;
+            if (hasConstProp(entry.properties, propertyName)) return true;
+        }
+    }
+    return false;
+}
+
+function hasConstProp(properties: unknown, propertyName: string): boolean {
+    if (!isObject(properties)) return false;
+    const prop = properties[propertyName];
+    return isObject(prop) && "const" in prop;
+}
+
+/**
+ * Strip every `$ref` entry in a subtype's `allOf` that targets the
+ * discriminator base. The base's own schema content (properties,
+ * required, type) is replicated into a synthesised `allOf` entry so
+ * the subtype remains structurally complete — without this the base's
+ * synthesised `oneOf` would cycle through the subtype's `$ref`s on
+ * every walk (Dog → Pet.oneOf → Dog → ...).
+ */
+function rewriteSubtypeAllOf(
+    subtype: Record<string, unknown>,
+    baseName: string,
+    baseInherited: Record<string, unknown>
+): void {
+    const allOf = subtype.allOf;
+    if (!Array.isArray(allOf)) return;
+    const baseRefPrefix = `#/components/schemas/${baseName}`;
+    const rewritten: unknown[] = [];
+    let removedBaseRef = false;
+    for (const entry of allOf) {
+        if (
+            isObject(entry) &&
+            typeof entry.$ref === "string" &&
+            entry.$ref === baseRefPrefix
+        ) {
+            removedBaseRef = true;
+            continue;
+        }
+        rewritten.push(entry);
+    }
+    if (!removedBaseRef) return;
+    // Prepend the inherited base content so the subtype keeps the
+    // base's properties/required/type without depending on the rewritten
+    // base (which now carries `oneOf` instead of its original shape).
+    subtype.allOf = [baseInherited, ...rewritten];
+}
+
+/**
+ * Capture the "inheritable" portion of a base schema before rewriting:
+ * `properties`, `required`, `type`, and any other constraint that
+ * subtypes used to inherit through `$ref`. The discriminator keyword
+ * and the synthesised `oneOf` are intentionally excluded — subtypes
+ * never inherited those and including them would re-introduce the
+ * Pet → Dog → Pet cycle.
+ */
+function captureBaseInherited(
+    base: Record<string, unknown>
+): Record<string, unknown> {
+    const inherited: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(base)) {
+        if (key === "discriminator") continue;
+        if (key === "oneOf") continue;
+        if (key === "anyOf") continue;
+        inherited[key] = value;
+    }
+    return inherited;
+}
+
+/**
+ * Build an inline `oneOf` option that targets a subtype via `$ref` and
+ * carries the discriminator property's `const` at the option's top
+ * level. The const sibling is what makes `detectDiscriminated` classify
+ * the parent `oneOf` as a discriminated union — it inspects each
+ * option's literal `properties`, not the resolved schema.
+ */
+function buildDiscriminatorOption(
+    subtype: DiscriminatorSubtype,
+    propertyName: string
+): Record<string, unknown> {
+    return {
+        $ref: `#/components/schemas/${subtype.name}`,
+        properties: {
+            [propertyName]: { const: subtype.constValue },
+        },
+    };
+}
+
+/**
+ * Document-level pre-pass for OpenAPI discriminators that are declared
+ * on a base schema and inherited by subtypes via `allOf`.
+ *
+ * The per-node {@link normaliseOpenApi30Discriminator} only handles
+ * discriminators that already sit alongside `oneOf`/`anyOf`. For the
+ * canonical "Cat extends Pet" pattern — where `Pet` carries the
+ * discriminator and `Cat`/`Dog` reference `Pet` via `allOf` — the
+ * discriminator is silently lost. This pre-pass:
+ *
+ * 1. Injects the discriminator `const` on each subtype's local
+ *    `properties` (so a direct render of the subtype validates the
+ *    discriminator value correctly).
+ * 2. Synthesises a `oneOf` on the base whenever it lacks one, listing
+ *    each subtype as `{ $ref, properties: { propertyName: { const } } }`.
+ *    The per-node discriminator transform then sees `oneOf` and clears
+ *    the `discriminator` keyword, and the walker's
+ *    `detectDiscriminated` finds the per-option `const`s.
+ *
+ * Mutates a shallow clone of `components/schemas` — the input document
+ * is never modified.
+ */
+export function applyDiscriminatorAllOfPrepass(
+    doc: Record<string, unknown>
+): Record<string, unknown> {
+    const components = doc.components;
+    if (!isObject(components)) return doc;
+    const schemas = components.schemas;
+    if (!isObject(schemas)) return doc;
+
+    // Plan first against the original document so additions to the
+    // subtype map do not perturb sibling lookups mid-pass.
+    interface Plan {
+        baseName: string;
+        propertyName: string;
+        subtypes: DiscriminatorSubtype[];
+        baseHasOneOfOrAnyOf: boolean;
+        baseInherited: Record<string, unknown>;
+    }
+    const plans: Plan[] = [];
+    for (const [baseName, base] of Object.entries(schemas)) {
+        if (!isObject(base)) continue;
+        const discriminator = base.discriminator;
+        if (!isObject(discriminator)) continue;
+        const propertyName = discriminator.propertyName;
+        if (typeof propertyName !== "string") continue;
+        const subtypes = collectDiscriminatorSubtypes(
+            baseName,
+            discriminator,
+            schemas
+        );
+        if (subtypes.length === 0) continue;
+        plans.push({
+            baseName,
+            propertyName,
+            subtypes,
+            baseHasOneOfOrAnyOf:
+                Array.isArray(base.oneOf) || Array.isArray(base.anyOf),
+            // Snapshot the base's inheritable content from the *original*
+            // document. Subtype rewrites must inline the pre-rewrite
+            // shape so the synthesised `oneOf` on the base never cycles
+            // back through the subtype's `$ref`.
+            baseInherited: captureBaseInherited(base),
+        });
+    }
+
+    if (plans.length === 0) return doc;
+
+    // Clone the schemas map and every schema we are about to touch.
+    const newSchemas: Record<string, unknown> = { ...schemas };
+    const cloneSchema = (name: string): Record<string, unknown> => {
+        const existing = newSchemas[name];
+        if (!isObject(existing)) {
+            throw new Error(
+                `applyDiscriminatorAllOfPrepass: schema "${name}" disappeared between planning and rewrite`
+            );
+        }
+        const clone = { ...existing };
+        newSchemas[name] = clone;
+        return clone;
+    };
+
+    for (const plan of plans) {
+        for (const subtype of plan.subtypes) {
+            const clone = cloneSchema(subtype.name);
+            // Break the `allOf` cycle first so injecting the const
+            // operates on the rewritten allOf shape rather than the
+            // original `$ref` chain.
+            rewriteSubtypeAllOf(clone, plan.baseName, plan.baseInherited);
+            injectSubtypeConst(clone, plan.propertyName, subtype.constValue);
+        }
+        if (!plan.baseHasOneOfOrAnyOf) {
+            const baseClone = cloneSchema(plan.baseName);
+            baseClone.oneOf = plan.subtypes.map((subtype) =>
+                buildDiscriminatorOption(subtype, plan.propertyName)
+            );
+            // Remove the base's own `properties`/`required`/`type` — the
+            // inherited shape now lives on each subtype, and leaving
+            // them on the base would conflict with `oneOf` semantics
+            // (allOf-style merge into a union branch).
+            delete baseClone.properties;
+            delete baseClone.required;
+            delete baseClone.type;
+        }
+    }
+
+    return {
+        ...doc,
+        components: { ...components, schemas: newSchemas },
+    };
+}
+
+// ---------------------------------------------------------------------------
 // Combined transform
 // ---------------------------------------------------------------------------
 

@@ -4,13 +4,17 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import {
     normaliseOpenApi30Node,
     normaliseOpenApi30Discriminator,
     deepNormaliseOpenApi30Doc,
+    applyDiscriminatorAllOfPrepass,
 } from "../src/core/openapi30.ts";
 import { isObject } from "../src/core/guards.ts";
 import { deepNormalise } from "../src/core/normalise.ts";
+import { SchemaComponent } from "../src/react/SchemaComponent.tsx";
 
 // ---------------------------------------------------------------------------
 // Helpers — narrow Record<string, unknown> property chains without assertions
@@ -709,5 +713,204 @@ describe("OAS 3.0 Draft 04 normalisation", () => {
             "my-schema-id"
         );
         expect(isObject(mySchema) ? mySchema.id : undefined).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Discriminator on allOf-composite schemas (Cat extends Pet)
+// ---------------------------------------------------------------------------
+
+describe("applyDiscriminatorAllOfPrepass", () => {
+    // Canonical OAS "Cat extends Pet" pattern: the base `Pet` carries
+    // the discriminator and each subtype lists `Pet` under its `allOf`.
+    // The per-node discriminator transform alone never visits this case
+    // because the base has no sibling `oneOf`/`anyOf`.
+    const allOfCompositeDoc = {
+        openapi: "3.1.0",
+        info: { title: "Pets", version: "1.0" },
+        paths: {},
+        components: {
+            schemas: {
+                Pet: {
+                    type: "object",
+                    discriminator: {
+                        propertyName: "petType",
+                        mapping: {
+                            Dog: "#/components/schemas/Dog",
+                            Cat: "#/components/schemas/Cat",
+                        },
+                    },
+                    properties: {
+                        petType: { type: "string" },
+                        name: { type: "string" },
+                    },
+                    required: ["petType", "name"],
+                },
+                Dog: {
+                    allOf: [
+                        { $ref: "#/components/schemas/Pet" },
+                        {
+                            type: "object",
+                            properties: {
+                                bark: { type: "boolean" },
+                            },
+                        },
+                    ],
+                },
+                Cat: {
+                    allOf: [
+                        { $ref: "#/components/schemas/Pet" },
+                        {
+                            type: "object",
+                            properties: {
+                                hunts: { type: "boolean" },
+                            },
+                        },
+                    ],
+                },
+            },
+        },
+    };
+
+    it("synthesises oneOf on the base from explicit mapping entries", () => {
+        const result = applyDiscriminatorAllOfPrepass(allOfCompositeDoc);
+        const pet = prop(prop(prop(result, "components"), "schemas"), "Pet");
+        expect(pet).toBeDefined();
+        if (pet === undefined) return;
+        const oneOf = propArr(pet, "oneOf");
+        expect(oneOf).toBeDefined();
+        if (oneOf === undefined) return;
+        expect(oneOf.length).toBe(2);
+
+        const dogOption = oneOf[0];
+        const dogProps = prop(dogOption, "properties");
+        const dogPetType = prop(dogProps, "petType");
+        expect(propVal(dogOption, "$ref")).toBe("#/components/schemas/Dog");
+        expect(propVal(dogPetType, "const")).toBe("Dog");
+    });
+
+    it("injects const into the subtype's allOf chain so allOf merging surfaces it", () => {
+        // Subtypes declare `allOf`, so the const is appended as a new
+        // allOf entry. The walker's mergeAllOf reads `properties` from
+        // every entry — a top-level `properties` sibling of `allOf`
+        // would never reach the merged result.
+        const result = applyDiscriminatorAllOfPrepass(allOfCompositeDoc);
+        const schemas = prop(prop(result, "components"), "schemas");
+
+        const cat = prop(schemas, "Cat");
+        const catAllOf = propArr(cat, "allOf");
+        expect(catAllOf).toBeDefined();
+        if (catAllOf === undefined) return;
+        const catConstEntry = catAllOf.find((entry) => {
+            const props = prop(entry, "properties");
+            const petType = prop(props, "petType");
+            return propVal(petType, "const") === "Cat";
+        });
+        expect(catConstEntry).toBeDefined();
+
+        const dog = prop(schemas, "Dog");
+        const dogAllOf = propArr(dog, "allOf");
+        expect(dogAllOf).toBeDefined();
+        if (dogAllOf === undefined) return;
+        const dogConstEntry = dogAllOf.find((entry) => {
+            const props = prop(entry, "properties");
+            const petType = prop(props, "petType");
+            return propVal(petType, "const") === "Dog";
+        });
+        expect(dogConstEntry).toBeDefined();
+    });
+
+    it("includes implicit subtypes not named in mapping", () => {
+        const docWithImplicitSubtype = {
+            openapi: "3.1.0",
+            info: { title: "Pets", version: "1.0" },
+            paths: {},
+            components: {
+                schemas: {
+                    Pet: {
+                        type: "object",
+                        discriminator: { propertyName: "petType" },
+                        properties: { petType: { type: "string" } },
+                    },
+                    Fish: {
+                        allOf: [{ $ref: "#/components/schemas/Pet" }],
+                    },
+                },
+            },
+        };
+        const result = applyDiscriminatorAllOfPrepass(docWithImplicitSubtype);
+        const pet = prop(prop(prop(result, "components"), "schemas"), "Pet");
+        const oneOf = propArr(pet, "oneOf");
+        expect(oneOf).toBeDefined();
+        if (oneOf === undefined) return;
+        expect(oneOf.length).toBe(1);
+        const fishOption = oneOf[0];
+        expect(propVal(fishOption, "$ref")).toBe("#/components/schemas/Fish");
+        const fishProps = prop(fishOption, "properties");
+        const fishPetType = prop(fishProps, "petType");
+        expect(propVal(fishPetType, "const")).toBe("Fish");
+    });
+
+    it("does not mutate the input document", () => {
+        const before = JSON.parse(JSON.stringify(allOfCompositeDoc)) as unknown;
+        applyDiscriminatorAllOfPrepass(allOfCompositeDoc);
+        expect(allOfCompositeDoc).toEqual(before);
+    });
+
+    it("leaves base schema untouched when it already declares oneOf", () => {
+        const docWithBaseOneOf = {
+            openapi: "3.1.0",
+            info: { title: "Pets", version: "1.0" },
+            paths: {},
+            components: {
+                schemas: {
+                    Pet: {
+                        type: "object",
+                        discriminator: { propertyName: "petType" },
+                        oneOf: [{ $ref: "#/components/schemas/Dog" }],
+                    },
+                    Dog: {
+                        allOf: [{ $ref: "#/components/schemas/Pet" }],
+                    },
+                },
+            },
+        };
+        const result = applyDiscriminatorAllOfPrepass(docWithBaseOneOf);
+        const pet = prop(prop(prop(result, "components"), "schemas"), "Pet");
+        const oneOf = propArr(pet, "oneOf");
+        // Still the author's single-entry oneOf — the pre-pass left it.
+        expect(oneOf?.length).toBe(1);
+    });
+
+    it("renders the base schema as a WAI-ARIA tablist via <SchemaComponent>", () => {
+        const html = renderToString(
+            createElement(SchemaComponent, {
+                schema: allOfCompositeDoc,
+                ref: "#/components/schemas/Pet",
+                value: { petType: "Dog", name: "Fido", bark: true },
+            })
+        );
+        // The synthesised oneOf with per-option `const`s must produce a
+        // discriminated union that the headless renderer turns into a
+        // WAI-ARIA tablist (one tab per mapping entry).
+        expect(html).toContain('role="tablist"');
+        const tabs = html.match(/role="tab"/g) ?? [];
+        expect(tabs.length).toBe(2);
+        expect(html).toContain(">Dog<");
+        expect(html).toContain(">Cat<");
+    });
+
+    it("works for OpenAPI 3.0 documents with the same shape", () => {
+        const oas30Doc = { ...allOfCompositeDoc, openapi: "3.0.3" };
+        const html = renderToString(
+            createElement(SchemaComponent, {
+                schema: oas30Doc,
+                ref: "#/components/schemas/Pet",
+                value: { petType: "Dog", name: "Fido", bark: true },
+            })
+        );
+        expect(html).toContain('role="tablist"');
+        const tabs = html.match(/role="tab"/g) ?? [];
+        expect(tabs.length).toBe(2);
     });
 });
