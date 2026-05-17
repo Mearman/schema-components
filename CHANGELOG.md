@@ -1,3 +1,9 @@
+## [1.16.1](https://github.com/Mearman/schema-components/compare/v1.16.0...v1.16.1) (2026-05-17)
+
+### Chores
+
+* add pre-push hook running pnpm audit ([f5b6347](https://github.com/Mearman/schema-components/commit/f5b634759f1cb87dc40729782b5df62cc7296b41))
+
 ## [1.16.0](https://github.com/Mearman/schema-components/compare/v1.15.1...v1.16.0) (2026-05-17)
 
 ### Features
