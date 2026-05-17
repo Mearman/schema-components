@@ -1,3 +1,13 @@
+## [1.16.0](https://github.com/Mearman/schema-components/compare/v1.15.1...v1.16.0) (2026-05-17)
+
+### Features
+
+* **html:** theme HTML default styles via CSS custom properties ([e724e5c](https://github.com/Mearman/schema-components/commit/e724e5c00aa41e5e8d8192b6a2c639dd8b770f97))
+
+### Bug Fixes
+
+* **docs:** comprehensive dark-mode theming for storybook docs ([65d6c15](https://github.com/Mearman/schema-components/commit/65d6c15a273a2955329d51c908e520a78206b50e))
+
 ## [1.15.1](https://github.com/Mearman/schema-components/compare/v1.15.0...v1.15.1) (2026-05-17)
 
 ### Bug Fixes
