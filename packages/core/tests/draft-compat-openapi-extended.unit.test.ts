@@ -1229,3 +1229,135 @@ describe("Swagger 2.0 formData urlencoded consumes", () => {
         expect("application/x-www-form-urlencoded" in content).toBe(false);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Swagger 2.0: response-level header conversion
+// ---------------------------------------------------------------------------
+
+describe("Swagger 2.0 response headers conversion", () => {
+    it("rewraps Swagger 2.0 header type/format under schema", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: {
+                        responses: {
+                            "200": {
+                                description: "OK",
+                                headers: {
+                                    "X-Rate-Limit": {
+                                        type: "integer",
+                                        format: "int32",
+                                        description: "Calls remaining",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+        const paths = normalised.paths as Record<string, unknown>;
+        const items = paths["/items"] as Record<string, unknown>;
+        const get = items.get as Record<string, unknown>;
+        const responses = get.responses as Record<string, unknown>;
+        const ok = responses["200"] as Record<string, unknown>;
+        const headers = ok.headers as Record<string, unknown>;
+        const rateLimit = headers["X-Rate-Limit"] as Record<string, unknown>;
+
+        expect("type" in rateLimit).toBe(false);
+        expect("format" in rateLimit).toBe(false);
+        expect(rateLimit.description).toBe("Calls remaining");
+        const schema = rateLimit.schema as Record<string, unknown>;
+        expect(schema.type).toBe("integer");
+        expect(schema.format).toBe("int32");
+    });
+
+    it("converts header collectionFormat to style/explode", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: {
+                        responses: {
+                            "200": {
+                                description: "OK",
+                                headers: {
+                                    "X-Tags": {
+                                        type: "array",
+                                        collectionFormat: "csv",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+        const paths = normalised.paths as Record<string, unknown>;
+        const items = paths["/items"] as Record<string, unknown>;
+        const get = items.get as Record<string, unknown>;
+        const responses = get.responses as Record<string, unknown>;
+        const ok = responses["200"] as Record<string, unknown>;
+        const headers = ok.headers as Record<string, unknown>;
+        const tags = headers["X-Tags"] as Record<string, unknown>;
+
+        // Headers default to `simple` style in OpenAPI 3.x, not `form` like
+        // query parameters. CSV serialisation maps to `simple` with explode false.
+        expect(tags.style).toBe("simple");
+        expect(tags.explode).toBe(false);
+        expect("collectionFormat" in tags).toBe(false);
+    });
+
+    it("converts headers on a shared response under components.responses", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            responses: {
+                Paged: {
+                    description: "A paged response",
+                    headers: {
+                        "X-Total": {
+                            type: "integer",
+                        },
+                    },
+                },
+            },
+            paths: {
+                "/items": {
+                    get: {
+                        responses: {
+                            "200": { $ref: "#/responses/Paged" },
+                        },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+        const components = normalised.components as Record<string, unknown>;
+        const componentResponses = components.responses as Record<
+            string,
+            unknown
+        >;
+        const paged = componentResponses.Paged as Record<string, unknown>;
+        const headers = paged.headers as Record<string, unknown>;
+        const total = headers["X-Total"] as Record<string, unknown>;
+
+        expect("type" in total).toBe(false);
+        const schema = total.schema as Record<string, unknown>;
+        expect(schema.type).toBe("integer");
+    });
+});

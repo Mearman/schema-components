@@ -666,9 +666,12 @@ function normaliseSwaggerSingleResponse(
 
     const normalised: Record<string, unknown> = {};
 
-    // Copy non-schema fields
+    // Copy non-schema, non-headers fields verbatim.
+    // `schema` is wrapped into `content` below; `headers` carry Swagger 2.0
+    // parameter-style keywords at the root that must be re-shaped into
+    // OpenAPI 3.x form before the renderer sees them.
     for (const [key, value] of Object.entries(resolved)) {
-        if (key !== "schema") {
+        if (key !== "schema" && key !== "headers") {
             normalised[key] = value;
         }
     }
@@ -687,7 +690,81 @@ function normaliseSwaggerSingleResponse(
         normalised.content = content;
     }
 
+    // Convert response headers from Swagger 2.0 shape to OpenAPI 3.x.
+    const headers = resolved.headers;
+    if (isObject(headers)) {
+        const convertedHeaders: Record<string, unknown> = {};
+        for (const [name, header] of Object.entries(headers)) {
+            convertedHeaders[name] = isObject(header)
+                ? normaliseSwaggerHeader(header)
+                : header;
+        }
+        normalised.headers = convertedHeaders;
+    }
+
     return normalised;
+}
+
+/**
+ * Normalise a single Swagger 2.0 response header to OpenAPI 3.x form.
+ *
+ * Swagger 2.0 headers mirror parameter shape: `type`/`format`/
+ * `collectionFormat` live at the root. OpenAPI 3.x requires the type
+ * descriptor under `schema`, with collection serialisation expressed via
+ * `style`/`explode`. Headers do not carry `name` or `in` — those are not
+ * part of either spec at this level — so this is a thin sibling to
+ * `normaliseSwaggerParameter` rather than a full reuse. The OpenAPI 3.x
+ * default header style is `simple`, so CSV-encoded headers map to
+ * `simple`/`explode: false` rather than the `form` style used for query
+ * parameters.
+ */
+function normaliseSwaggerHeader(
+    header: Record<string, unknown>
+): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(header)) {
+        if (key === "type" || key === "format" || key === "collectionFormat") {
+            continue;
+        }
+        result[key] = value;
+    }
+
+    if (typeof header.type === "string") {
+        const schema: Record<string, unknown> = { type: header.type };
+        if (typeof header.format === "string") {
+            schema.format = header.format;
+        }
+        if (header.enum !== undefined) schema.enum = header.enum;
+        if (header.default !== undefined) schema.default = header.default;
+        if (header.minimum !== undefined) schema.minimum = header.minimum;
+        if (header.maximum !== undefined) schema.maximum = header.maximum;
+        result.schema = schema;
+    }
+
+    const cf = header.collectionFormat;
+    if (typeof cf === "string") {
+        switch (cf) {
+            case "csv":
+                result.style = "simple";
+                result.explode = false;
+                break;
+            case "ssv":
+                result.style = "spaceDelimited";
+                result.explode = false;
+                break;
+            case "tsv":
+                result.style = "tabDelimited";
+                result.explode = false;
+                break;
+            case "pipes":
+                result.style = "pipeDelimited";
+                result.explode = false;
+                break;
+        }
+    }
+
+    return result;
 }
 
 // ---------------------------------------------------------------------------
