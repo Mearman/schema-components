@@ -46,6 +46,26 @@ export function normaliseOpenApi30Node(
     // nullable: true — transform to anyOf [T, null]
     const nullOption: Record<string, unknown> = { type: "null" };
 
+    // `nullable + $ref`: the spec is ambiguous (the OAS 3.0 sibling
+    // siblings of $ref are usually ignored), but in practice authors
+    // mean "this ref OR null". Wrap explicitly in anyOf so the
+    // nullability survives normalisation instead of being silently
+    // discarded. The wrapper carries only `$ref` so the reference
+    // remains a Reference Object per the spec.
+    if (typeof node.$ref === "string") {
+        const ref = node.$ref;
+        return { anyOf: [{ $ref: ref }, nullOption] };
+    }
+
+    // `nullable + enum`: per the OAS 3.0 spec, nullable: true with an
+    // explicit enum implicitly extends the enum to include `null`.
+    // Append `null` to the enum array before normalising so the walker
+    // sees a single enum carrying every valid value.
+    if (Array.isArray(node.enum) && !node.enum.includes(null)) {
+        const existingEnum: unknown[] = node.enum;
+        node.enum = [...existingEnum, null];
+    }
+
     // If the node already has anyOf, append null option
     if (Array.isArray(node.anyOf)) {
         const existing: unknown[] = node.anyOf;
@@ -193,8 +213,31 @@ export function normaliseOpenApi30Discriminator(
         node.anyOf = normalisedComposite;
     }
 
-    // Remove discriminator — no longer needed after const injection
-    delete node.discriminator;
+    // Preserve any vendor `x-*` extensions the author attached to the
+    // discriminator object — the spec allows specification extensions
+    // on Discriminator Objects, and dropping them silently loses
+    // information consumers may depend on for tooling, vendor lookup,
+    // or downstream conversion. Strategy: retain a minimal
+    // `discriminator` stub with only `propertyName` (per-option
+    // `const`s have replaced the runtime use of `mapping`) plus every
+    // `x-*` key. The walker treats the stub as informational and does
+    // not re-process it (no `oneOf`/`anyOf` lookup proceeds when the
+    // composite is already normalised). When there are no extensions
+    // we drop the discriminator entirely as before.
+    const extensions: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(discriminator)) {
+        if (key.startsWith("x-")) {
+            extensions[key] = value;
+        }
+    }
+    if (Object.keys(extensions).length > 0) {
+        node.discriminator = {
+            propertyName,
+            ...extensions,
+        };
+    } else {
+        delete node.discriminator;
+    }
     return node;
 }
 
