@@ -45,22 +45,26 @@ const widgetValue = {
     department: "Engineering",
 };
 
-const meta: Meta = {
+const meta = {
     title: "Extensibility/Widgets",
+    component: SchemaComponent,
     tags: ["widget", "editable"],
-};
+} satisfies Meta<typeof SchemaComponent>;
 export default meta;
+type Story = StoryObj<typeof meta>;
 
 // ---------------------------------------------------------------------------
 // Global scope
 // ---------------------------------------------------------------------------
 
-export const GlobalWidget: StoryObj = {
+export const GlobalWidget: Story = {
     name: "Global widget (registerWidget)",
     tags: ["widget", "readonly"],
-    render: () => (
-        <SchemaComponent schema={schema} value={widgetValue} readOnly />
-    ),
+    args: {
+        schema: schema,
+        value: widgetValue,
+        readOnly: true,
+    },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         const badges = await canvas.findAllByTestId("global-badge");
@@ -97,12 +101,21 @@ const contextWidgets: WidgetMap = new Map([
     ],
 ]);
 
-export const ContextScoped: StoryObj = {
+export const ContextScoped: Story = {
     name: "Context-scoped widget (SchemaProvider)",
     tags: ["widget", "readonly"],
-    render: () => (
+    args: {
+        schema: schema,
+        value: widgetValue,
+        readOnly: true,
+    },
+    // Wrapped in SchemaProvider so the widget map is supplied via context —
+    // this story genuinely needs `render` rather than pure args-only. Args
+    // mirror what the render function passes so the controls panel still
+    // reflects the rendered component.
+    render: (args) => (
         <SchemaProvider resolver={{}} widgets={contextWidgets}>
-            <SchemaComponent schema={schema} value={widgetValue} readOnly />
+            <SchemaComponent {...args} />
         </SchemaProvider>
     ),
     play: async ({ canvasElement }) => {
@@ -139,17 +152,15 @@ const instanceWidgets: WidgetMap = new Map([
     ],
 ]);
 
-export const InstanceScoped: StoryObj = {
+export const InstanceScoped: Story = {
     name: "Instance-scoped widget (widgets prop)",
     tags: ["widget", "readonly"],
-    render: () => (
-        <SchemaComponent
-            schema={schema}
-            value={widgetValue}
-            readOnly
-            widgets={instanceWidgets}
-        />
-    ),
+    args: {
+        schema: schema,
+        value: widgetValue,
+        readOnly: true,
+        widgets: instanceWidgets,
+    },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         const badges = await canvas.findAllByTestId("instance-badge");
@@ -161,17 +172,21 @@ export const InstanceScoped: StoryObj = {
 // Resolution order
 // ---------------------------------------------------------------------------
 
-export const InstanceOverridesContext: StoryObj = {
+export const InstanceOverridesContext: Story = {
     name: "Instance overrides context",
     tags: ["widget", "readonly"],
-    render: () => (
+    args: {
+        schema: schema,
+        value: widgetValue,
+        readOnly: true,
+        widgets: instanceWidgets,
+    },
+    // Composed with SchemaProvider so the instance-scoped widgets prop can be
+    // shown winning over the context-supplied map — args drive SchemaComponent
+    // and the provider stays in render.
+    render: (args) => (
         <SchemaProvider resolver={{}} widgets={contextWidgets}>
-            <SchemaComponent
-                schema={schema}
-                value={widgetValue}
-                readOnly
-                widgets={instanceWidgets}
-            />
+            <SchemaComponent {...args} />
         </SchemaProvider>
     ),
     play: async ({ canvasElement }) => {
@@ -235,19 +250,17 @@ const richtextWidgets: WidgetMap = new Map([
     ],
 ]);
 
-export const RichTextWidget: StoryObj = {
+export const RichTextWidget: Story = {
     name: "Rich text widget (editable)",
     tags: ["widget", "editable"],
-    render: () => (
-        <SchemaComponent
-            schema={richtextSchema}
-            value={{
-                title: "Hello",
-                body: "This is some **markdown** content.",
-            }}
-            widgets={richtextWidgets}
-        />
-    ),
+    args: {
+        schema: richtextSchema,
+        value: {
+            title: "Hello",
+            body: "This is some **markdown** content.",
+        },
+        widgets: richtextWidgets,
+    },
     play: async ({ canvasElement, step }) => {
         const canvas = within(canvasElement);
         await step(
@@ -263,20 +276,18 @@ export const RichTextWidget: StoryObj = {
     },
 };
 
-export const RichTextWidgetReadOnly: StoryObj = {
+export const RichTextWidgetReadOnly: Story = {
     name: "Rich text widget (read-only)",
     tags: ["widget", "readonly"],
-    render: () => (
-        <SchemaComponent
-            schema={richtextSchema}
-            value={{
-                title: "Hello",
-                body: "This is some **markdown** content.",
-            }}
-            readOnly
-            widgets={richtextWidgets}
-        />
-    ),
+    args: {
+        schema: richtextSchema,
+        value: {
+            title: "Hello",
+            body: "This is some **markdown** content.",
+        },
+        readOnly: true,
+        widgets: richtextWidgets,
+    },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         const readonlyBody = await canvas.findByTestId("richtext-readonly");
