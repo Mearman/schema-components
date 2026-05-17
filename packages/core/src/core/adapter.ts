@@ -82,9 +82,19 @@ export function detectSchemaKind(input: unknown): SchemaKind {
  * - Nested Zod 3 schemas inside a Zod 4 tree (which surface as
  *   "Cannot read properties of undefined (reading 'def')") → zod3-unsupported
  * - Transforms ("Transforms cannot be represented") → zod-transform-unsupported
- * - Unrepresentable types ("BigInt cannot be represented", "Date cannot be
- *   represented", etc.) → zod-type-unrepresentable
+ * - Dynamic catch values whose handler throws ("Dynamic catch values are not
+ *   supported") → zod-type-unrepresentable with zodType "dynamic-catch"
+ * - Unrepresentable types — bigint, date, map, set, symbol, function, custom,
+ *   undefined, void, NaN, and the literal-only forms `z.literal(undefined)`
+ *   ("undefined-literal") and `z.literal(<bigint>)` ("bigint-literal") →
+ *   zod-type-unrepresentable
+ * - The catch-all "Non-representable type encountered: <type>" fallback Zod
+ *   emits for any new schema kind without a registered processor →
+ *   zod-type-unrepresentable with zodType set to the offending def.type
  * - Anything else → zod-conversion-failed
+ *
+ * The original error is preserved on each classified error via the `cause`
+ * field so consumers can still inspect the Zod stack trace.
  */
 function callToJsonSchema(schema: unknown): unknown {
     try {
@@ -101,19 +111,58 @@ function callToJsonSchema(schema: unknown): unknown {
  * Mapping is exact-prefix on the message and the corresponding Zod type name
  * surfaced to the consumer via SchemaNormalisationError.zodType.
  *
- * Source: zod/src/v4/core/to-json-schema.ts ("cannot be represented" messages).
+ * Sources (verbatim message prefixes):
+ * - zod/src/v4/core/json-schema-processors.ts L104 (bigint), L110 (symbol),
+ *   L126 (undefined), L132 (void), L150 (date), L169 (literal-undefined),
+ *   L175 (literal-bigint), L204 (NaN), L246 (custom), L252 (function),
+ *   L264 (map), L270 (set), L521 (dynamic catch).
+ * - zod/src/v4/core/to-json-schema.ts L182 (non-representable type fallback).
+ *
+ * The kept message prefix is the shortest substring that uniquely identifies
+ * the source — the test in tests/zod-error-wording-contract.unit.test.ts
+ * asserts each prefix is still present in the live Zod output so a Zod
+ * patch upgrade that changes wording fails the build.
+ *
+ * Note: the more specific literal-* prefixes precede the generic "BigInt"
+ * prefix so the literal classifications win. JavaScript object iteration
+ * order preserves insertion order, and the loop short-circuits on first
+ * match, so ordering here is load-bearing.
  */
 const UNREPRESENTABLE_ZOD_TYPES: readonly (readonly [string, string])[] = [
+    // Literal-only forms must precede the broader "BigInt" / "Undefined"
+    // prefixes so `z.literal(undefined)` reports as "undefined-literal" rather
+    // than "undefined".
+    ["Literal `undefined` cannot be represented", "undefined-literal"],
+    ["BigInt literals cannot be represented", "bigint-literal"],
     ["BigInt cannot be represented", "bigint"],
     ["Date cannot be represented", "date"],
     ["Map cannot be represented", "map"],
     ["Set cannot be represented", "set"],
     ["Symbols cannot be represented", "symbol"],
     ["Function types cannot be represented", "function"],
+    ["Custom types cannot be represented", "custom"],
     ["Undefined cannot be represented", "undefined"],
     ["Void cannot be represented", "void"],
     ["NaN cannot be represented", "nan"],
 ];
+
+/**
+ * Marker for Zod's catch-all message when a brand-new schema type has no
+ * registered processor (e.g. ahead of a Zod patch adding a new schema kind).
+ *
+ * Source: zod/src/v4/core/to-json-schema.ts L182
+ *   `[toJSONSchema]: Non-representable type encountered: ${def.type}`
+ */
+const NON_REPRESENTABLE_TYPE_MARKER =
+    "[toJSONSchema]: Non-representable type encountered:";
+
+/**
+ * Marker for dynamic catch failures — Zod throws when `def.catchValue(...)`
+ * itself throws while building the JSON Schema default.
+ *
+ * Source: zod/src/v4/core/json-schema-processors.ts L521
+ */
+const DYNAMIC_CATCH_MARKER = "Dynamic catch values are not supported";
 
 /**
  * The cryptic error produced when z.toJSONSchema encounters a nested Zod 3
@@ -155,6 +204,19 @@ function classifyZodConversionError(
         );
     }
 
+    // Dynamic catch — the catch value function itself threw.
+    if (message.includes(DYNAMIC_CATCH_MARKER)) {
+        return new SchemaNormalisationError(
+            "Zod catch values that depend on runtime computation cannot be " +
+                "represented in JSON Schema. Provide a static catch value or " +
+                "remove the .catch() call.",
+            schema,
+            "zod-type-unrepresentable",
+            "dynamic-catch",
+            err
+        );
+    }
+
     // Unrepresentable Zod 4 types — bigint, date, map, set, symbol, function, etc.
     for (const [prefix, typeName] of UNREPRESENTABLE_ZOD_TYPES) {
         if (message.includes(prefix)) {
@@ -167,6 +229,30 @@ function classifyZodConversionError(
                 err
             );
         }
+    }
+
+    // Catch-all "Non-representable type encountered: <type>" — capture the
+    // `def.type` value so consumers see which schema kind tripped the fallback.
+    const nonReprIndex = message.indexOf(NON_REPRESENTABLE_TYPE_MARKER);
+    if (nonReprIndex !== -1) {
+        const trailing = message
+            .slice(nonReprIndex + NON_REPRESENTABLE_TYPE_MARKER.length)
+            .trim();
+        // The message ends with the type name, but be defensive: only keep
+        // the first whitespace-delimited token in case Zod ever appends
+        // additional context.
+        const typeName =
+            trailing.length > 0 ? trailing.split(/\s+/)[0] : undefined;
+        return new SchemaNormalisationError(
+            `Zod encountered a schema kind${typeName !== undefined ? ` "${typeName}"` : ""} ` +
+                `with no JSON Schema processor registered. ` +
+                `This usually means Zod added a new schema type that schema-components ` +
+                `does not yet support. Original message: ${message}`,
+            schema,
+            "zod-type-unrepresentable",
+            typeName,
+            err
+        );
     }
 
     // Anything else — preserve the original message but classify it.

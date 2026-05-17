@@ -153,6 +153,70 @@ describe("Normalisation errors", () => {
         }
     });
 
+    it("classifies z.custom() as unrepresentable with zodType 'custom'", () => {
+        const schema = z.custom<number>(() => true);
+        try {
+            renderToHtml(schema);
+            expect.unreachable("Expected renderToHtml to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod-type-unrepresentable");
+                expect(err.zodType).toBe("custom");
+                expect(err.cause).toBeInstanceOf(Error);
+            }
+        }
+    });
+
+    it("classifies z.literal(undefined) as 'undefined-literal'", () => {
+        const schema = z.literal(undefined);
+        try {
+            renderToHtml(schema);
+            expect.unreachable("Expected renderToHtml to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod-type-unrepresentable");
+                expect(err.zodType).toBe("undefined-literal");
+                expect(err.cause).toBeInstanceOf(Error);
+            }
+        }
+    });
+
+    it("classifies z.literal(<bigint>) as 'bigint-literal'", () => {
+        const schema = z.literal(123n);
+        try {
+            renderToHtml(schema);
+            expect.unreachable("Expected renderToHtml to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod-type-unrepresentable");
+                expect(err.zodType).toBe("bigint-literal");
+                expect(err.cause).toBeInstanceOf(Error);
+            }
+        }
+    });
+
+    it("classifies dynamic catch failures as 'dynamic-catch'", () => {
+        // A catch handler that throws causes Zod to throw
+        // "Dynamic catch values are not supported in JSON Schema".
+        const schema = z.string().catch(() => {
+            throw new Error("catch fn cannot be invoked statically");
+        });
+        try {
+            renderToHtml(schema);
+            expect.unreachable("Expected renderToHtml to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod-type-unrepresentable");
+                expect(err.zodType).toBe("dynamic-catch");
+                expect(err.cause).toBeInstanceOf(Error);
+            }
+        }
+    });
+
     it("throws for missing OpenAPI ref", () => {
         const doc = {
             openapi: "3.1.0",
