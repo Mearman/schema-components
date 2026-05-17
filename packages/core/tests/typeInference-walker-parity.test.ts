@@ -254,6 +254,51 @@ describe("OpenAPI 3.0 nullable: applied at every FromJSONSchema entry", () => {
 });
 
 // ---------------------------------------------------------------------------
+// ResolveSchemaRef `#/components/schemas/` parity
+// ---------------------------------------------------------------------------
+//
+// The runtime `dereference` (`ref.ts` line 217) walks any `#/...` JSON
+// Pointer uniformly, so an inline `$ref: "#/components/schemas/Foo"`
+// inside a JSON Schema with the matching definitions populated resolves
+// successfully. The type-level mirror previously accepted only
+// `#/$defs/` and `#/definitions/` prefixes — add the OpenAPI 3.x
+// equivalent so callers do not have to copy entries between sections.
+// ---------------------------------------------------------------------------
+
+describe("ResolveSchemaRef resolves #/components/schemas/<Name> when defs hold the name", () => {
+    interface SchemaWithComponentsBase {
+        readonly type: "object";
+        // `ExtractDefs` populates the resolution context from `definitions`
+        // (and `$defs`). Once those entries are in `Defs`, an inline
+        // `#/components/schemas/<Name>` lookup must succeed against the
+        // same map — this is the parity gap that this branch closes.
+        readonly definitions: {
+            readonly Foo: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly id: { readonly type: "string" };
+                };
+                readonly required: readonly ["id"];
+            };
+        };
+        readonly properties: {
+            readonly foo: { readonly $ref: "#/components/schemas/Foo" };
+        };
+        readonly required: readonly ["foo"];
+    }
+    type Resolved = FromJSONSchema<SchemaWithComponentsBase>;
+
+    interface ExpectedRoot {
+        foo: { id: string };
+    }
+
+    it("resolves OpenAPI-style component ref against the local def context", () => {
+        expectTypeOf<ExpectedRoot>().toExtend<Resolved>();
+        expectTypeOf<Resolved>().toExtend<ExpectedRoot>();
+    });
+});
+
+// ---------------------------------------------------------------------------
 // JSON Pointer escape decoding parity
 // ---------------------------------------------------------------------------
 //

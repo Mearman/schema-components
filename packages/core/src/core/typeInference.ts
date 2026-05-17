@@ -162,7 +162,14 @@ export type DEFAULT_MAX_DEPTH = 10;
  * Supports:
  * - `#` (root)
  * - `#/$defs/Name` and `#/definitions/Name` (named definitions)
+ * - `#/components/schemas/Name` (OpenAPI 3.x component schemas)
  * - `#SomeName` ($anchor, $dynamicAnchor resolved from definitions)
+ *
+ * `#/components/schemas/` is resolved here for parity with the runtime's
+ * `dereference` (`ref.ts` line 217), which walks any `#/...` JSON Pointer
+ * uniformly. When the runtime walker encounters an inline `$ref` inside
+ * a Zod-converted or hand-written JSON Schema that points into the
+ * OpenAPI component tree, this branch produces the corresponding type.
  */
 type ResolveSchemaRef<
     R extends string,
@@ -180,13 +187,17 @@ type ResolveSchemaRef<
           ? Name extends keyof Defs
               ? DetectRecursiveFallback<FromJSONSchema<Defs[Name], Defs>>
               : unknown
-          : R extends `#${infer AnchorName}`
-            ? AnchorName extends keyof Defs
-                ? DetectRecursiveFallback<
-                      FromJSONSchema<Defs[AnchorName], Defs>
-                  >
+          : R extends `#/components/schemas/${infer Name}`
+            ? Name extends keyof Defs
+                ? DetectRecursiveFallback<FromJSONSchema<Defs[Name], Defs>>
                 : unknown
-            : unknown;
+            : R extends `#${infer AnchorName}`
+              ? AnchorName extends keyof Defs
+                  ? DetectRecursiveFallback<
+                        FromJSONSchema<Defs[AnchorName], Defs>
+                    >
+                  : unknown
+              : unknown;
 
 /**
  * Merge an allOf array into an intersection type.
