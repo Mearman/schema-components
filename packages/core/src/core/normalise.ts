@@ -902,7 +902,6 @@ function rewriteRelativeRefsNode(
         }
         result[key] = rewriteRelativeRefsValue(
             value,
-            key,
             nextBase,
             docBase,
             appendPointer(pointer, key),
@@ -914,7 +913,6 @@ function rewriteRelativeRefsNode(
 
 function rewriteRelativeRefsValue(
     value: unknown,
-    parentKey: string,
     currentBase: string,
     docBase: string,
     pointer: string,
@@ -924,7 +922,6 @@ function rewriteRelativeRefsValue(
         return value.map((item, i) =>
             rewriteRelativeRefsValue(
                 item,
-                parentKey,
                 currentBase,
                 docBase,
                 appendPointer(pointer, String(i)),
