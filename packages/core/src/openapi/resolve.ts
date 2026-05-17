@@ -19,6 +19,7 @@ import {
     type ResponseInfo,
 } from "./parser.ts";
 import { getProperty, isObject } from "../core/guards.ts";
+import { MAX_PATH_ITEM_REF_HOPS } from "../core/limits.ts";
 import { isPrototypePollutingKey } from "../core/uri.ts";
 import { detectOpenApiVersion } from "../core/version.ts";
 import { normaliseOpenApiSchemas } from "../core/normalise.ts";
@@ -313,16 +314,6 @@ function lookupPathItemNode(
         diagnostics
     );
 }
-
-/**
- * Maximum number of `$ref` hops the Path Item resolver will follow
- * before bailing with a `path-item-ref-too-deep` diagnostic. Mirrors
- * the conservative depth caps used elsewhere in the resolver — a
- * legitimate Path Item Object should resolve in one or two hops; a
- * deeper chain almost always indicates author error or a malicious
- * document attempting to exhaust the resolver.
- */
-const MAX_PATH_ITEM_REF_HOPS = 8;
 
 function resolvePathItemNode(
     parsed: OpenApiDocument,

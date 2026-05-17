@@ -40,6 +40,7 @@ import {
 } from "./SchemaComponent.tsx";
 import { headlessResolver } from "./headless.tsx";
 import { normaliseSchema } from "../core/adapter.ts";
+import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
@@ -165,7 +166,6 @@ export function SchemaView({
 
     // Recursive render — no hooks, pure functions. Depth limit prevents
     // infinite recursion on circular schema references.
-    const MAX_SERVER_DEPTH = 10;
     const makeRenderChild =
         (currentDepth: number, parentPath: string) =>
         (
@@ -174,7 +174,7 @@ export function SchemaView({
             pathSuffix?: string
         ): ReactNode => {
             const childPath = joinPath(parentPath, pathSuffix);
-            if (currentDepth >= MAX_SERVER_DEPTH) {
+            if (currentDepth >= MAX_RENDER_DEPTH) {
                 const label =
                     typeof childTree.meta.description === "string"
                         ? childTree.meta.description

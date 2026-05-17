@@ -13,6 +13,7 @@
 
 import type { JsonObject } from "../core/types.ts";
 import { getProperty, isObject } from "../core/guards.ts";
+import { MAX_PATH_ITEM_REF_HOPS } from "../core/limits.ts";
 import { isPrototypePollutingKey } from "../core/uri.ts";
 
 // Type guards imported from core/guards.ts
@@ -192,13 +193,6 @@ const METHODS = [
  * (OpenAPI 3.1) if present. Returns `undefined` when the value is not a
  * path item, the ref is malformed, or the target does not resolve.
  */
-/**
- * Maximum number of `$ref` hops the parser-level Path Item resolver
- * will follow. Matches the cap used by `resolve.ts` so cycle and
- * depth-cap diagnostics surface from the same boundary regardless of
- * which entry point a caller uses.
- */
-const MAX_PATH_ITEM_REF_HOPS = 8;
 
 /**
  * Follow Path Item Object `$ref` chains (up to MAX_PATH_ITEM_REF_HOPS).

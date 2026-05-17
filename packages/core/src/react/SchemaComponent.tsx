@@ -27,6 +27,7 @@ import {
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import { normaliseSchema } from "../core/adapter.ts";
+import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import {
     buildRenderProps,
     getRenderFunction,
@@ -642,9 +643,6 @@ function runValidation(
 // ---------------------------------------------------------------------------
 // Field rendering — delegates to resolver or headless fallback
 // ---------------------------------------------------------------------------
-
-/** Maximum rendering depth before treating a field as recursive. */
-const MAX_RENDER_DEPTH = 10;
 
 export function renderField(
     tree: WalkedField,

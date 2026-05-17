@@ -6,6 +6,7 @@
  */
 
 import { isObject } from "./guards.ts";
+import { MAX_REF_DEPTH } from "./limits.ts";
 import { isPrototypePollutingKey } from "./uri.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { emitDiagnostic } from "./diagnostics.ts";
@@ -129,9 +130,9 @@ export function resolveRef(
         };
     }
 
-    // Depth bound: derived from document's distinct ref count, or a
-    // reasonable default of 64 for callers that don't pre-compute.
-    const depthLimit = maxDepth ?? 64;
+    // Depth bound: derived from document's distinct ref count, or
+    // {@link MAX_REF_DEPTH} for callers that don't pre-compute.
+    const depthLimit = maxDepth ?? MAX_REF_DEPTH;
     if (visited.size >= depthLimit) {
         emitDiagnostic(diagnostics, {
             code: "depth-exceeded",

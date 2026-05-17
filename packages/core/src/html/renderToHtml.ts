@@ -20,6 +20,7 @@
  */
 
 import { normaliseSchema } from "../core/adapter.ts";
+import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
@@ -28,23 +29,6 @@ import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
 import { defaultHtmlResolver } from "./renderers.ts";
 import { joinPath } from "./a11y.ts";
 import { h, serialize } from "./html.ts";
-
-// ---------------------------------------------------------------------------
-// Shared depth cap
-// ---------------------------------------------------------------------------
-
-/**
- * Maximum recursion depth for HTML rendering. Used by both the
- * synchronous renderer in this module and the streaming renderer in
- * `streamRenderers.ts`. Beyond this depth, a sentinel "recursive" node
- * is emitted instead of further descent — prevents stack overflow on
- * cyclic walked-field graphs (e.g. `z.lazy` schemas).
- *
- * TODO(round6): consolidate this constant into `core/renderer.ts` once
- * the post-merge cleanup lands; both renderers should import the same
- * symbol from a single canonical location.
- */
-export const MAX_HTML_DEPTH = 10;
 
 /**
  * Build the recursion-cap sentinel element. The label is interpolated
@@ -134,7 +118,7 @@ export function renderToHtml(
             childValue: unknown,
             pathSuffix?: string
         ): string => {
-            if (currentDepth >= MAX_HTML_DEPTH) {
+            if (currentDepth >= MAX_RENDER_DEPTH) {
                 const label =
                     typeof childTree.meta.description === "string"
                         ? childTree.meta.description

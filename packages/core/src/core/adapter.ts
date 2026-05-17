@@ -13,6 +13,7 @@
 import { z } from "zod";
 import type { JsonObject, SchemaMeta } from "./types.ts";
 import { hasProperty, isObject, getProperty } from "./guards.ts";
+import { MAX_REF_DEPTH } from "./limits.ts";
 import { dereference } from "./ref.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { emitDiagnostic } from "./diagnostics.ts";
@@ -672,14 +673,10 @@ const COMPILED_CLASSIFIER_RULES: readonly {
 }));
 
 /**
- * Maximum recursion depth for {@link containsNestedZod3}. Mirrors the
- * type-level `DEFAULT_MAX_DEPTH` in `typeInference.ts` (currently `64`) so
- * the runtime walk and the compile-time walker agree on the limit. The
- * constant is duplicated here rather than imported because
- * `typeInference.ts` exports the value as a TypeScript type only — there
- * is no runtime export to consume.
+ * Maximum recursion depth for {@link containsNestedZod3}. Reuses the
+ * shared {@link MAX_REF_DEPTH} so the runtime walk and the compile-time
+ * `DEFAULT_MAX_DEPTH` (type-aliased to the same value) stay in lockstep.
  */
-const NESTED_ZOD3_MAX_DEPTH = 64;
 
 /**
  * Walk an arbitrary value looking for Zod 3 markers (`_def` without
@@ -705,7 +702,7 @@ const NESTED_ZOD3_MAX_DEPTH = 64;
  *   them on every conversion failure is wasted work. Switching to a
  *   targeted descent (only `_zod.def` plus the schema root's `_def`
  *   field) trims the walk dramatically.
- * - **Depth cap.** Recursion is bounded by {@link NESTED_ZOD3_MAX_DEPTH}
+ * - **Depth cap.** Recursion is bounded by {@link MAX_REF_DEPTH}
  *   so a pathological schema graph cannot cause stack overflow. The
  *   `visited` set still defends against cyclic references; the depth
  *   cap defends against deep-but-acyclic trees.
@@ -719,7 +716,7 @@ function containsNestedZod3Inner(
     visited: Set<object>,
     depth: number
 ): boolean {
-    if (depth >= NESTED_ZOD3_MAX_DEPTH) return false;
+    if (depth >= MAX_REF_DEPTH) return false;
     if (value === null || typeof value !== "object") return false;
     if (visited.has(value)) return false;
     visited.add(value);

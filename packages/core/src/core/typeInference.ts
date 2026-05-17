@@ -18,6 +18,7 @@
  */
 
 import type { z } from "zod";
+import type { MaxRefDepth } from "./limits.ts";
 import type { FieldOverride, FieldOverrides } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -467,7 +468,7 @@ type DetectRecursiveFallback<T> = unknown extends T
  * `__SchemaInferenceFellBack` so consumers can detect the limit
  * explicitly.
  */
-export type DEFAULT_MAX_DEPTH = 64;
+export type DEFAULT_MAX_DEPTH = MaxRefDepth;
 
 /**
  * Resolve a $ref against the local definitions context.

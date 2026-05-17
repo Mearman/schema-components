@@ -9,7 +9,7 @@
  * - Leaf types: rendered entirely as one chunk
  *
  * All container generators thread `currentDepth` so cyclic walked-field
- * graphs (e.g. `z.lazy` schemas) terminate at `MAX_HTML_DEPTH` with a
+ * graphs (e.g. `z.lazy` schemas) terminate at `MAX_RENDER_DEPTH` with a
  * recursion sentinel rather than overflowing the stack. The cap is
  * shared with the synchronous renderer in `renderToHtml.ts`.
  *
@@ -45,7 +45,8 @@ import {
     ariaLabelAttrs,
     joinPath,
 } from "./a11y.ts";
-import { MAX_HTML_DEPTH, recursionSentinelHtml } from "./renderToHtml.ts";
+import { MAX_RENDER_DEPTH } from "../core/limits.ts";
+import { recursionSentinelHtml } from "./renderToHtml.ts";
 
 // ---------------------------------------------------------------------------
 // Yield helpers (passed from the parent module)
@@ -195,7 +196,7 @@ export function* streamField(
     // Recursion guard: cyclic walked-field graphs (z.lazy, mutually
     // recursive $ref) would otherwise overflow the stack. Mirrors the
     // sync renderer in `renderToHtml.ts`.
-    if (currentDepth >= MAX_HTML_DEPTH) {
+    if (currentDepth >= MAX_RENDER_DEPTH) {
         const label =
             typeof tree.meta.description === "string"
                 ? tree.meta.description
