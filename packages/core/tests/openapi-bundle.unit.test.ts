@@ -415,6 +415,85 @@ describe("bundleOpenApiDoc", () => {
         expect(petEntries).toEqual(["Pet"]);
     });
 
+    it("does not walk into sibling properties of a $ref node", async () => {
+        // OpenAPI 3.1 / JSON Schema 2020-12 treats a node with `$ref` as a
+        // reference object: siblings are tolerated but not processed as
+        // schemas. The bundler must rewrite the ref and stop, leaving any
+        // siblings untouched and not recursing into them.
+        let callCount = 0;
+        const resolver: BundleResolver = () => {
+            callCount++;
+            return {
+                type: "object",
+                properties: {
+                    name: { type: "string" },
+                },
+            };
+        };
+
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/pets": {
+                    get: {
+                        responses: {
+                            "200": {
+                                content: {
+                                    "application/json": {
+                                        schema: {
+                                            $ref: "https://api.example.com/schemas/Pet.json#",
+                                            description: "should not be walked",
+                                            title: "ignored",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        const bundled = await bundleOpenApiDoc(doc, resolver);
+
+        const schema = navigate(
+            bundled,
+            "paths",
+            "/pets",
+            "get",
+            "responses",
+            "200",
+            "content",
+            "application/json",
+            "schema"
+        );
+
+        expect(schema).toBeDefined();
+        if (schema === undefined) return;
+
+        // The $ref is rewritten to the internal form.
+        expect(schema.$ref).toBe("#/components/schemas/Pet");
+
+        // Siblings are preserved verbatim — the spec permits them; we just
+        // do not descend into them as if they were schemas.
+        expect(schema.description).toBe("should not be walked");
+        expect(schema.title).toBe("ignored");
+
+        // The external document was resolved exactly once: the walker did
+        // not recurse into sibling properties and then re-encounter the ref.
+        expect(callCount).toBe(1);
+
+        // Only one entry exists in components.schemas for this ref.
+        const schemas = navigate(bundled, "components", "schemas");
+        expect(schemas).toBeDefined();
+        if (schemas === undefined) return;
+        const petEntries = Object.keys(schemas).filter((key) =>
+            key.startsWith("Pet")
+        );
+        expect(petEntries).toEqual(["Pet"]);
+    });
+
     it("preserves internal $ref strings", async () => {
         const resolver = createMemoryResolver({});
         const doc = {

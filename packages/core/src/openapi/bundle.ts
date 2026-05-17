@@ -155,6 +155,11 @@ async function walkAndInline(
                 node.$ref = `#/components/schemas/${inlinedName}`;
             }
         }
+
+        // OpenAPI 3.1 / JSON Schema 2020-12: a node containing `$ref` is a
+        // reference object. Non-spec-defined siblings are tolerated but are
+        // not processed as schemas, so we must not walk into them here.
+        return;
     }
 
     for (const value of Object.values(node)) {
