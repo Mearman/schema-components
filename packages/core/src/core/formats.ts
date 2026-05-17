@@ -70,6 +70,37 @@ export const FORMAT_PATTERNS: Readonly<Record<string, RegExp>> = {
     base64url: /^[A-Za-z0-9_-]*$/,
     // E.164: leading "+", country digit 1-9, 6-14 more digits (total 7-15)
     e164: /^\+[1-9]\d{6,14}$/,
+    // Emoji — Zod's `_emoji` source builds a Unicode regex matching one or
+    // more Extended_Pictographic or Emoji_Component code points. Reproduced
+    // verbatim with the same `u` flag.
+    // Source: node_modules/zod/src/v4/core/regexes.ts L60-63
+    emoji: /^(\p{Extended_Pictographic}|\p{Emoji_Component})+$/u,
+    // ULID — 26 chars, Crockford base32 (no I, L, O, U).
+    // Source: node_modules/zod/src/v4/core/regexes.ts L10
+    ulid: /^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$/,
+    // XID — 20-char lowercase base32hex variant (0-9, a-v).
+    // Source: node_modules/zod/src/v4/core/regexes.ts L11
+    xid: /^[0-9a-vA-V]{20}$/,
+    // KSUID — 27-char base62.
+    // Source: node_modules/zod/src/v4/core/regexes.ts L12
+    ksuid: /^[A-Za-z0-9]{27}$/,
+    // Lowercase — string with no uppercase letters.
+    // Source: node_modules/zod/src/v4/core/regexes.ts L149
+    lowercase: /^[^A-Z]*$/,
+    // Uppercase — string with no lowercase letters.
+    // Source: node_modules/zod/src/v4/core/regexes.ts L151
+    uppercase: /^[^a-z]*$/,
+    // JWT — Zod uses a structural runtime check (base64-decode the header and
+    // verify the JSON contains a recognised algorithm), so regexes.ts has no
+    // canonical pattern. This regex is a deliberately looser syntactic
+    // prefilter matching the three-segment JWS Compact Serialisation shape
+    // (`header.payload.signature`). The signature segment may be empty for
+    // `alg: "none"` tokens, hence `*` rather than `+` on the trailing group.
+    // Zod's runtime check is stricter — UI consumers wanting full validation
+    // should call `z.jwt().safeParse(value)` instead of relying on this
+    // pattern.
+    // Source: node_modules/zod/src/v4/core/api.ts L484-499 (no regex; structural check elsewhere)
+    jwt: /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/,
 };
 
 // ---------------------------------------------------------------------------
@@ -105,6 +136,19 @@ const PREDICATE_VALIDATORS: Readonly<
     regex: (value: string): boolean => {
         try {
             new RegExp(value);
+            return true;
+        } catch {
+            return false;
+        }
+    },
+    // json-string — Zod's `formatMap` renames the internal `json_string`
+    // format to JSON Schema's `"json-string"` before emission (see
+    // node_modules/zod/src/v4/core/json-schema-processors.ts L17-23). Zod has
+    // no regex for this format; the only meaningful validator is to attempt
+    // JSON.parse and check it succeeds.
+    "json-string": (value: string): boolean => {
+        try {
+            JSON.parse(value);
             return true;
         } catch {
             return false;

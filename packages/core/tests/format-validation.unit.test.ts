@@ -271,6 +271,73 @@ describe("FORMAT_PATTERNS", () => {
         expect(e164.test("+0123456")).toBe(false);
         expect(e164.test("+12")).toBe(false);
     });
+
+    // --- Additional Zod 4 emitted formats ---
+
+    it("emoji accepts Unicode emoji sequences", () => {
+        const emoji = patternFor("emoji");
+        expect(emoji.test("\u{1F600}")).toBe(true);
+        expect(emoji.test("\u{1F44D}\u{1F44D}")).toBe(true);
+        expect(emoji.test("abc")).toBe(false);
+        expect(emoji.test("")).toBe(false);
+    });
+
+    it("ulid accepts canonical ULIDs", () => {
+        const ulid = patternFor("ulid");
+        expect(ulid.test("01ARZ3NDEKTSV4RRFFQ69G5FAV")).toBe(true);
+        expect(ulid.test("01arz3ndektsv4rrffq69g5fav")).toBe(true);
+        // Crockford base32 forbids I, L, O, U.
+        expect(ulid.test("01ARZ3NDEKTSV4RRFFQ69G5FAI")).toBe(false);
+        expect(ulid.test("not-a-ulid")).toBe(false);
+    });
+
+    it("xid accepts 20-char xid strings", () => {
+        const xid = patternFor("xid");
+        expect(xid.test("9m4e2mr0ui3e8a215n4g")).toBe(true);
+        // 'w' is outside the 0-9a-v range.
+        expect(xid.test("9m4e2mr0ui3e8a215n4w")).toBe(false);
+        expect(xid.test("too-short")).toBe(false);
+    });
+
+    it("ksuid accepts 27-char base62 strings", () => {
+        const ksuid = patternFor("ksuid");
+        expect(ksuid.test("1srOrx2ZWZBpBUvZwXKQmoEYga2")).toBe(true);
+        expect(ksuid.test("short")).toBe(false);
+        // Non-base62 character.
+        expect(ksuid.test("1srOrx2ZWZBpBUvZwXKQmoEYga-")).toBe(false);
+    });
+
+    it("lowercase accepts strings with no uppercase letters", () => {
+        const lower = patternFor("lowercase");
+        expect(lower.test("hello")).toBe(true);
+        expect(lower.test("hello123!")).toBe(true);
+        expect(lower.test("")).toBe(true);
+        expect(lower.test("Hello")).toBe(false);
+    });
+
+    it("uppercase accepts strings with no lowercase letters", () => {
+        const upper = patternFor("uppercase");
+        expect(upper.test("HELLO")).toBe(true);
+        expect(upper.test("HELLO123!")).toBe(true);
+        expect(upper.test("")).toBe(true);
+        expect(upper.test("HEllo")).toBe(false);
+    });
+
+    it("jwt accepts the three-segment JWS Compact shape", () => {
+        const jwt = patternFor("jwt");
+        // alg=HS256, payload {sub: "1234567890"}
+        const sample =
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U";
+        expect(jwt.test(sample)).toBe(true);
+        // alg=none — empty signature segment is allowed.
+        expect(
+            jwt.test("eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMjM0NTY3ODkwIn0.")
+        ).toBe(true);
+        // Missing segments or too many segments.
+        expect(jwt.test("only.two")).toBe(false);
+        expect(jwt.test("a.b.c.d")).toBe(false);
+        expect(jwt.test("")).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -302,6 +369,21 @@ describe("predicate validators", () => {
 
     it("regex rejects invalid regex patterns", () => {
         expect(validateFormat("[invalid", "regex")).toBe(false);
+    });
+
+    it("json-string accepts strings that parse as JSON", () => {
+        expect(validateFormat('{"a":1}', "json-string")).toBe(true);
+        expect(validateFormat("[1,2,3]", "json-string")).toBe(true);
+        expect(validateFormat('"hello"', "json-string")).toBe(true);
+        expect(validateFormat("123", "json-string")).toBe(true);
+        expect(validateFormat("true", "json-string")).toBe(true);
+        expect(validateFormat("null", "json-string")).toBe(true);
+    });
+
+    it("json-string rejects non-JSON strings", () => {
+        expect(validateFormat("{a:1}", "json-string")).toBe(false);
+        expect(validateFormat("not json", "json-string")).toBe(false);
+        expect(validateFormat("", "json-string")).toBe(false);
     });
 });
 
@@ -413,6 +495,16 @@ describe("Zod 4 emitted format round-trip", () => {
         ["base64", () => z.base64()],
         ["base64url", () => z.base64url()],
         ["e164", () => z.e164()],
+        // Newly registered Zod 4 formats — each round-trips through
+        // z.toJSONSchema() and surfaces with a derived FORMAT_PATTERNS entry,
+        // confirming no `unknown-format` diagnostic fires.
+        ["emoji", () => z.emoji()],
+        ["ulid", () => z.ulid()],
+        ["xid", () => z.xid()],
+        ["ksuid", () => z.ksuid()],
+        ["jwt", () => z.jwt()],
+        ["lowercase", () => z.string().lowercase()],
+        ["uppercase", () => z.string().uppercase()],
     ];
 
     it.each(cases)(
