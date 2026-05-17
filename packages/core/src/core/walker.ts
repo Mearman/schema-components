@@ -24,6 +24,7 @@ import type {
 } from "./types.ts";
 import { isObject } from "./guards.ts";
 import { resolveRef, countDistinctRefs } from "./ref.ts";
+import { matchJsonSchemaDraftUri } from "./version.ts";
 import {
     mergeAllOf,
     normaliseAnyOf,
@@ -541,6 +542,17 @@ function walkNode(
 // Type-specific walkers
 // ---------------------------------------------------------------------------
 
+/**
+ * Drafts that pre-date the `contentSchema` keyword (added in Draft
+ * 2019-09). Used to emit `keyword-out-of-draft` when a document
+ * declaring one of these drafts uses `contentSchema` anyway.
+ */
+const PRE_CONTENT_SCHEMA_DRAFTS: ReadonlySet<string> = new Set([
+    "draft-04",
+    "draft-06",
+    "draft-07",
+]);
+
 function walkString(
     schema: Record<string, unknown>,
     ctx: WalkContext
@@ -557,6 +569,25 @@ function walkString(
     // when contentEncoding / contentMediaType are present.
     const contentSchema = getObject(schema, "contentSchema");
     if (contentSchema !== undefined) {
+        // `contentSchema` was added in Draft 2019-09. If the root
+        // document declared an earlier draft (Draft 04/06/07), surface
+        // the use as a `keyword-out-of-draft` diagnostic. The walker
+        // still descends into the schema — schema-components accepts
+        // forward-compatible keywords on older drafts to match how
+        // mainstream validators behave — the diagnostic exists so
+        // consumers can audit cross-draft usage.
+        const rootSchema = getString(ctx.rootDocument, "$schema");
+        if (rootSchema !== undefined) {
+            const draft = matchJsonSchemaDraftUri(rootSchema);
+            if (draft !== undefined && PRE_CONTENT_SCHEMA_DRAFTS.has(draft)) {
+                emitDiagnostic(ctx.diagnostics, {
+                    code: "keyword-out-of-draft",
+                    message: `\`contentSchema\` is a Draft 2019-09+ keyword; the document declares ${draft}`,
+                    pointer: appendPointer(ctx.pointer, "contentSchema"),
+                    detail: { keyword: "contentSchema", declaredDraft: draft },
+                });
+            }
+        }
         field.meta.decodedSchema = walkNode(contentSchema, ctx);
     }
 
