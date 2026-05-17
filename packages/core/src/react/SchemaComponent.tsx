@@ -512,14 +512,6 @@ export function SchemaComponent<
 // ---------------------------------------------------------------------------
 
 /**
- * Default root-path sentinel used when no `idPrefix` is supplied AND the
- * component is rendered outside a React tree (e.g. server-side bundling
- * test harnesses). Production callers receive a `useId()`-derived prefix
- * that is unique per instance.
- */
-export const ROOT_PATH = "root";
-
-/**
  * Append a child path suffix to a parent path. When the suffix is omitted
  * (e.g. transparent wrappers like union options), the parent path is
  * returned unchanged so the child inherits the parent's id.
@@ -672,7 +664,9 @@ export function renderField(
 ): ReactNode {
     if (path.length === 0) {
         throw new Error(
-            "renderField requires a non-empty path. Pass ROOT_PATH for the root field and use renderChild's pathSuffix to derive child paths."
+            "renderField requires a non-empty path. Pass the root path " +
+                "(derived from `idPrefix` or `useId()`) for the root field, " +
+                "and use renderChild's pathSuffix to derive child paths."
         );
     }
     // 0. Depth limit — prevent infinite recursion on circular schemas
