@@ -28,6 +28,7 @@ import { describe, it, expectTypeOf } from "vitest";
 import type {
     FromJSONSchema,
     ResolveOpenAPIRef,
+    __SchemaInferenceFellBack,
 } from "../src/core/typeInference.ts";
 
 // ---------------------------------------------------------------------------
@@ -133,6 +134,34 @@ describe("nullable anyOf: { type: 'null' } member normalises to nullable inner",
 // Both walk `#/components/schemas/<Name>` and `#/definitions/<Name>` and
 // return the resolved schema, then continue walking it.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Draft 04 tuple-form items parity
+// ---------------------------------------------------------------------------
+//
+// Draft 04 expressed tuples as `items: [Schema, Schema, ...]`. The runtime
+// normaliser in `normalise.ts` (lines 526-534) rewrites this to
+// `prefixItems` before the walker runs. `ArraySchemaToTs` mirrors the
+// rewrite so an `as const` legacy schema infers the same tuple type at
+// compile time.
+// ---------------------------------------------------------------------------
+
+describe("Draft 04 tuple-form items: typeInference mirrors the prefixItems rewrite", () => {
+    interface LegacyTupleSchema {
+        readonly type: "array";
+        readonly items: readonly [
+            { readonly type: "string" },
+            { readonly type: "number" },
+            { readonly type: "boolean" },
+        ];
+    }
+
+    type Inferred = FromJSONSchema<LegacyTupleSchema>;
+
+    it("produces [string, number, boolean] (matches prefixItems output)", () => {
+        expectTypeOf<Inferred>().toEqualTypeOf<[string, number, boolean]>();
+    });
+});
 
 describe("OpenAPI $ref resolution into components/schemas", () => {
     interface FooSchema {

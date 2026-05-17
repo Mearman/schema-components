@@ -157,12 +157,12 @@ const draft04Tuple = {
 } as const;
 void draft04Tuple;
 
-// After normalisation: items array → prefixItems
-// Type-level parser operates on raw schema — items-as-array is treated as
-// a single schema (the array itself), not as a tuple.
-// Runtime normalisation converts items[] → prefixItems for the walker.
+// After normalisation: items array → prefixItems. The type-level parser
+// mirrors the runtime normaliser (`normalise.ts` lines 526-534), promoting
+// a tuple-form `items` to a tuple type so legacy `as const` literals infer
+// the same shape as their modern `prefixItems` equivalents.
 type Draft04TupleType = FromJSONSchema<typeof draft04Tuple>;
-const _d04tup: Draft04TupleType = [];
+const _d04tup: Draft04TupleType = ["hello", 42];
 void _d04tup;
 
 // ---------------------------------------------------------------------------

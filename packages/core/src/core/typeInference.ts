@@ -298,6 +298,13 @@ type OmitArrayHelpers<S> = Omit<
 /**
  * Parse an array schema: prefixItems -> tuple, items -> T[], or unknown[].
  *
+ * Draft 04 used tuple-form `items` (an array of schemas) for tuple typing;
+ * Draft 2020-12 renamed this to `prefixItems`. The runtime normaliser in
+ * `packages/core/src/core/normalise.ts` (lines 526-534) rewrites the legacy
+ * form to `prefixItems` before the walker sees it. We mirror that rewrite
+ * here so `as const` literals using the legacy form infer the same tuple
+ * type at compile time.
+ *
  * `contains` / `minContains` / `maxContains` constrain elements at runtime
  * but don't change the compile-time array element type.
  */
@@ -305,9 +312,12 @@ type ArraySchemaToTs<S, Defs extends Record<string, unknown>> = S extends {
     prefixItems: infer P;
 }
     ? PrefixItemsToTuple<P, Defs>
-    : S extends { items: infer I }
-      ? FromJSONSchema<I, Defs>[]
-      : unknown[];
+    : S extends { items: infer I extends readonly unknown[] }
+      ? /** Draft 04 tuple-form items: rewrite to a tuple at the type level. */
+        PrefixItemsToTuple<I, Defs>
+      : S extends { items: infer I }
+        ? FromJSONSchema<I, Defs>[]
+        : unknown[];
 
 /**
  * Convert a prefixItems array to a TypeScript tuple type.
