@@ -1163,6 +1163,23 @@ function resolveOpenApiRef(
 // Root meta extraction
 // ---------------------------------------------------------------------------
 
+/**
+ * Surface root-level metadata from the JSON Schema into the `rootMeta`
+ * shape consumed by the walker. Pulls `readOnly`, `writeOnly`,
+ * `description`, `title`, `deprecated`, `examples`, and `default`
+ * directly from the schema root.
+ *
+ * `examples` is forwarded only when present as an array (per JSON Schema
+ * Draft 2020-12 — Draft 04's `example` singular is normalised upstream).
+ * `default` is forwarded for any value the schema declares (any JSON
+ * value, including `null` and `false`); the presence check uses `in`
+ * so a literal `false` or `null` default is preserved.
+ *
+ * `examples` and `default` ride on the `[key: string]: unknown` index
+ * signature of {@link SchemaMeta}. They are not declared as named fields
+ * on `SchemaMeta` because that type lives in `types.ts` and is shared
+ * with the walker; the index signature is the agreed extension point.
+ */
 function extractRootMetaFromJson(
     jsonSchema: JsonObject
 ): SchemaMeta | undefined {
@@ -1174,5 +1191,11 @@ function extractRootMetaFromJson(
     if (typeof jsonSchema.title === "string") meta.title = jsonSchema.title;
     if (typeof jsonSchema.deprecated === "boolean")
         meta.deprecated = jsonSchema.deprecated;
+    if (Array.isArray(jsonSchema.examples)) {
+        meta.examples = jsonSchema.examples;
+    }
+    if ("default" in jsonSchema) {
+        meta.default = jsonSchema.default;
+    }
     return Object.keys(meta).length > 0 ? meta : undefined;
 }
