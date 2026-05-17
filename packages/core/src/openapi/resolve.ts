@@ -9,6 +9,7 @@
 import {
     parseOpenApiDocument,
     listOperations,
+    listWebhooks,
     getParameters,
     getRequestBody,
     getResponses,
@@ -140,7 +141,13 @@ function lookupPathItemNode(
     path: string
 ): Record<string, unknown> | undefined {
     const paths = getProperty(parsed.doc, "paths");
-    return resolvePathItemNode(parsed, getProperty(paths, path));
+    const fromPaths = resolvePathItemNode(parsed, getProperty(paths, path));
+    if (fromPaths !== undefined) return fromPaths;
+    // OpenAPI 3.1 webhook fallback: identifiers without a leading `/`
+    // can address `webhooks/<name>` directly, so the same accessors and
+    // path-item metadata extractors work for both maps.
+    const webhooks = getProperty(parsed.doc, "webhooks");
+    return resolvePathItemNode(parsed, getProperty(webhooks, path));
 }
 
 function resolvePathItemNode(
@@ -192,7 +199,14 @@ export function resolveOperationFromParsed(
     path: string,
     method: string
 ): ResolvedOperation {
-    const operations = listOperations(parsed);
+    // Match against both `paths` and OpenAPI 3.1 `webhooks` — every
+    // downstream accessor (`getParameters`, `getRequestBody`,
+    // `getResponses`) already resolves either through `lookupPathItem`,
+    // so a single composed list keeps the failure-mode symmetrical.
+    const operations = [
+        ...listOperations(parsed),
+        ...listWebhooks(parsed).flatMap((w) => w.operations),
+    ];
     const operation = operations.find(
         (op) => op.path === path && op.method === method
     );
@@ -203,9 +217,10 @@ export function resolveOperationFromParsed(
 
     const pathItemNode = lookupPathItemNode(parsed, path);
     if (pathItemNode === undefined) {
-        // listOperations found the operation by iterating paths, so the
-        // path entry must exist and resolve to an object. Reaching this
-        // branch means an upstream invariant has broken.
+        // listOperations / listWebhooks found the operation by iterating
+        // the document, so the path or webhook entry must exist and
+        // resolve to an object. Reaching this branch means an upstream
+        // invariant has broken.
         throw new Error(
             `Path item missing for ${method.toUpperCase()} ${path}`
         );

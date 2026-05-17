@@ -19,6 +19,7 @@ import {
     getSecurityRequirements,
     getSecuritySchemes,
     getLinks,
+    listWebhooks,
 } from "./parser.ts";
 import type { PathItemInfo } from "./resolve.ts";
 import { walk } from "../core/walker.ts";
@@ -527,6 +528,111 @@ export function ApiResponse<
             method={method}
             idPrefix={instancePrefix}
         />
+    );
+}
+
+// ---------------------------------------------------------------------------
+// <ApiWebhook>
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a single OpenAPI 3.1 webhook by name. A webhook is a Path Item
+ * Object under the document's top-level `webhooks` map; once resolved,
+ * its operations are structurally identical to operations under `paths`.
+ *
+ * Internally, this delegates to `ApiOperation` for each method present
+ * on the webhook's Path Item Object. The parser's `lookupPathItem`
+ * resolves webhook names through the same code path as paths, so
+ * `ApiOperation` works for both with no special-casing in the renderer.
+ */
+export interface ApiWebhookProps extends ApiDiagnosticsProps {
+    schema: unknown;
+    /** Webhook name (key under the document's `webhooks` map). */
+    name: string;
+    /** Instance-scoped widgets, forwarded to each rendered operation. */
+    widgets?: WidgetMap;
+    meta?: SchemaMeta;
+}
+
+export function ApiWebhook({
+    schema: doc,
+    name,
+    widgets,
+    meta,
+    onDiagnostic,
+    strict,
+}: ApiWebhookProps): ReactNode {
+    const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    const instancePrefix = sanitisePrefix(useId());
+    const rootDoc = resolveRootDoc(doc, diagnostics);
+    if (rootDoc === undefined) return null;
+    const parsed = getParsed(rootDoc, diagnostics);
+    const webhooks = listWebhooks(parsed);
+    const webhook = webhooks.find((w) => w.name === name);
+    if (webhook === undefined) return null;
+
+    return (
+        <section data-webhook={name} data-instance={instancePrefix}>
+            <h3>Webhook: {name}</h3>
+            {webhook.operations.map((op) => {
+                const opProps: ApiOperationProps<Record<string, unknown>> = {
+                    schema: rootDoc,
+                    path: name,
+                    method: op.method,
+                };
+                if (widgets !== undefined) opProps.widgets = widgets;
+                if (meta !== undefined) opProps.meta = meta;
+                return (
+                    <ApiOperation key={`${name}-${op.method}`} {...opProps} />
+                );
+            })}
+        </section>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// <ApiWebhooks>
+// ---------------------------------------------------------------------------
+
+/**
+ * Render every OpenAPI 3.1 webhook declared on the document, one
+ * `<ApiWebhook>` per entry. Returns `null` when the document has no
+ * `webhooks` map or it is empty.
+ */
+export interface ApiWebhooksProps extends ApiDiagnosticsProps {
+    schema: unknown;
+    widgets?: WidgetMap;
+    meta?: SchemaMeta;
+}
+
+export function ApiWebhooks({
+    schema: doc,
+    widgets,
+    meta,
+    onDiagnostic,
+    strict,
+}: ApiWebhooksProps): ReactNode {
+    const diagnostics = buildDiagnostics(onDiagnostic, strict);
+    const instancePrefix = sanitisePrefix(useId());
+    const rootDoc = resolveRootDoc(doc, diagnostics);
+    if (rootDoc === undefined) return null;
+    const parsed = getParsed(rootDoc, diagnostics);
+    const webhooks = listWebhooks(parsed);
+    if (webhooks.length === 0) return null;
+
+    return (
+        <section data-webhooks data-instance={instancePrefix}>
+            <h2>Webhooks</h2>
+            {webhooks.map((webhook) => {
+                const props: ApiWebhookProps = {
+                    schema: rootDoc,
+                    name: webhook.name,
+                };
+                if (widgets !== undefined) props.widgets = widgets;
+                if (meta !== undefined) props.meta = meta;
+                return <ApiWebhook key={webhook.name} {...props} />;
+            })}
+        </section>
     );
 }
 
