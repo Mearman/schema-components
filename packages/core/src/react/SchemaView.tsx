@@ -275,7 +275,7 @@ function renderFieldServer(
     }
 
     // Fallback
-    if (value === undefined || value === null) return <span>\u2014</span>;
+    if (value === undefined || value === null) return <span>{"\u2014"}</span>;
     return (
         <span>{typeof value === "string" ? value : JSON.stringify(value)}</span>
     );

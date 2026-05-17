@@ -108,7 +108,7 @@ export function renderString(props: RenderProps): ReactNode {
         if (strValue === undefined || strValue.length === 0)
             return (
                 <span id={id} aria-readonly="true">
-                    \u2014
+                    {"\u2014"}
                 </span>
             );
         const format = props.constraints.format;
@@ -187,7 +187,7 @@ export function renderString(props: RenderProps): ReactNode {
                 }}
                 {...ariaAttrs}
             >
-                <option value="">Select\u2026</option>
+                <option value="">Select{"\u2026"}</option>
                 {props.enumValues.map((v) => {
                     const display =
                         v === null
@@ -238,7 +238,7 @@ export function renderNumber(props: RenderProps): ReactNode {
         if (typeof props.value !== "number")
             return (
                 <span id={id} aria-readonly="true">
-                    \u2014
+                    {"\u2014"}
                 </span>
             );
         return (
@@ -276,7 +276,7 @@ export function renderBoolean(props: RenderProps): ReactNode {
         if (typeof props.value !== "boolean")
             return (
                 <span id={id} aria-readonly="true">
-                    \u2014
+                    {"\u2014"}
                 </span>
             );
         return (
@@ -333,7 +333,7 @@ export function renderEnum(props: RenderProps): ReactNode {
             }}
             {...ariaAttrs}
         >
-            <option value="">Select\u2026</option>
+            <option value="">Select{"\u2026"}</option>
             {props.enumValues?.map((v) => {
                 const display =
                     v === null ? "null" : typeof v === "string" ? v : String(v);
@@ -483,7 +483,7 @@ export function renderUnion(props: RenderProps): ReactNode {
     const options = props.options;
     if (options === undefined || options.length === 0) {
         if (props.value === undefined || props.value === null)
-            return <span>\u2014</span>;
+            return <span>{"\u2014"}</span>;
         return <span>{JSON.stringify(props.value)}</span>;
     }
 
@@ -501,7 +501,7 @@ export function renderUnion(props: RenderProps): ReactNode {
         );
     }
 
-    return <span>\u2014</span>;
+    return <span>{"\u2014"}</span>;
 }
 
 // ---------------------------------------------------------------------------
@@ -513,7 +513,7 @@ export function renderDiscriminatedUnion(props: RenderProps): ReactNode {
     const discriminator = props.discriminator;
     if (options === undefined || options.length === 0) {
         if (props.value === undefined || props.value === null)
-            return <span>\u2014</span>;
+            return <span>{"\u2014"}</span>;
         return <span>{JSON.stringify(props.value)}</span>;
     }
 
@@ -550,7 +550,7 @@ export function renderDiscriminatedUnion(props: RenderProps): ReactNode {
                 props.renderChild(activeOption, props.value, props.onChange)
             );
         }
-        return <span>\u2014</span>;
+        return <span>{"\u2014"}</span>;
     }
 
     return (
@@ -747,7 +747,7 @@ export function renderUnknown(props: RenderProps): ReactNode {
         if (props.value === undefined || props.value === null)
             return (
                 <span id={id} aria-readonly="true">
-                    \u2014
+                    {"\u2014"}
                 </span>
             );
         return (
