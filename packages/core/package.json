@@ -3,8 +3,6 @@
     "version": "1.21.0",
     "description": "React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents",
     "type": "module",
-    "main": "./dist/index.mjs",
-    "types": "./dist/index.d.mts",
     "exports": {
         "./styles.css": "./dist/html/styles.css",
         "./core/*": {
