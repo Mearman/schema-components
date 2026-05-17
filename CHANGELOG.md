@@ -1,3 +1,9 @@
+## [1.16.2](https://github.com/Mearman/schema-components/compare/v1.16.1...v1.16.2) (2026-05-17)
+
+### Bug Fixes
+
+* **docs:** sync MUI/Mantine/Radix/shadcn previews with theme toggle ([eae6d50](https://github.com/Mearman/schema-components/commit/eae6d5044632dda3b339faf8f782c760ffae8cda))
+
 ## [1.16.1](https://github.com/Mearman/schema-components/compare/v1.16.0...v1.16.1) (2026-05-17)
 
 ### Chores
