@@ -140,7 +140,13 @@ describe("normaliseSchema — OpenAPI", () => {
 
     it("uses the full OpenAPI doc as rootDocument for $ref resolution", () => {
         const result = normaliseSchema(openApiDoc, "#/components/schemas/User");
-        expect(result.rootDocument).toBe(openApiDoc);
+        // OAS 3.1 documents now also flow through the discriminator
+        // normaliser (see `normaliseOpenApiSchemas`), so `rootDocument`
+        // is a structurally-equal clone of the input rather than the
+        // same reference. The intent of the test is that the entire
+        // document — paths, components, the lot — is available for
+        // `$ref` resolution, which structural equality proves.
+        expect(result.rootDocument).toEqual(openApiDoc);
     });
 
     it("throws for missing ref", () => {

@@ -33,11 +33,12 @@ const docCache = new WeakMap<object, OpenApiDocument>();
  *
  * Before parsing, the document is run through the version-aware
  * normalisation pipeline (`normaliseOpenApiSchemas`) so OpenAPI 3.0.x
- * keywords (`nullable`, `discriminator`, `example`) and Swagger 2.0
- * documents are converted to canonical Draft 2020-12 form. The parser
- * and downstream extractors (`getRequestBody`, `getResponses`, etc.) then
- * observe schemas in the same form `<SchemaComponent>` does, keeping the
- * OpenAPI components on the same pipeline as the top-level adapter.
+ * keywords (`nullable`, `discriminator`, `example`), OpenAPI 3.1.x
+ * `discriminator`, and Swagger 2.0 documents are all converted to
+ * canonical Draft 2020-12 form. The parser and downstream extractors
+ * (`getRequestBody`, `getResponses`, etc.) then observe schemas in the
+ * same form `<SchemaComponent>` does, keeping the OpenAPI components on
+ * the same pipeline as the top-level adapter.
  *
  * The cache is keyed by the caller-supplied document so subsequent calls
  * with the same input bypass both normalisation and parsing.

@@ -17,7 +17,11 @@
 import type { JsonSchemaDraft, OpenApiVersionInfo } from "./version.ts";
 import { isOpenApi30, isSwagger2 } from "./version.ts";
 import { isObject } from "./guards.ts";
-import { deepNormaliseOpenApi30Doc } from "./openapi30.ts";
+import {
+    deepNormaliseOpenApi30Doc,
+    deepNormaliseOpenApiDoc,
+    normaliseOpenApi30Discriminator,
+} from "./openapi30.ts";
 import { normaliseSwagger2Document } from "./swagger2.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { appendPointer, emitDiagnostic } from "./diagnostics.ts";
@@ -764,6 +768,16 @@ export function normaliseOpenApiSchemas(
         return deepNormaliseOpenApi30Doc(doc, deepNormalise);
     }
 
-    // OpenAPI 3.1.x — already Draft 2020-12 compatible
-    return doc;
+    // OpenAPI 3.1.x — already Draft 2020-12 compatible, but the
+    // `discriminator` keyword (carried over from 3.0) still uses
+    // `propertyName` + `mapping` rather than per-option `const`s. The
+    // walker's discriminated-union detection relies on `const`s being
+    // present on each option, so apply the discriminator transform
+    // (only) to every Schema Object in the document. This keeps 3.1 and
+    // 3.0 producing identical walker input for the same logical
+    // discriminated union — and 3.1 does not have boolean `nullable`,
+    // so the rest of the 3.0 combined transform must not run here.
+    return deepNormaliseOpenApiDoc(doc, (schema) =>
+        deepNormalise(schema, normaliseOpenApi30Discriminator)
+    );
 }
