@@ -665,6 +665,128 @@ describe("ApiSecurity", () => {
         );
         expect(html).toBe("");
     });
+
+    it("renders bearerFormat, scheme name, and apiKey location fields", () => {
+        const html = renderToString(
+            createElement(ApiSecurity, {
+                requirements: [
+                    { name: "bearerAuth", scopes: [] },
+                    { name: "apiKeyAuth", scopes: [] },
+                    { name: "oidcAuth", scopes: [] },
+                ],
+                schemes: new Map([
+                    [
+                        "bearerAuth",
+                        {
+                            type: "http",
+                            scheme: "bearer",
+                            bearerFormat: "JWT",
+                            description: undefined,
+                            name: undefined,
+                            location: undefined,
+                            flows: undefined,
+                            openIdConnectUrl: undefined,
+                        },
+                    ],
+                    [
+                        "apiKeyAuth",
+                        {
+                            type: "apiKey",
+                            name: "X-API-Key",
+                            location: "header",
+                            scheme: undefined,
+                            bearerFormat: undefined,
+                            description: undefined,
+                            flows: undefined,
+                            openIdConnectUrl: undefined,
+                        },
+                    ],
+                    [
+                        "oidcAuth",
+                        {
+                            type: "openIdConnect",
+                            openIdConnectUrl:
+                                "https://example.com/.well-known/openid-configuration",
+                            description: undefined,
+                            name: undefined,
+                            location: undefined,
+                            scheme: undefined,
+                            bearerFormat: undefined,
+                            flows: undefined,
+                        },
+                    ],
+                ]),
+            })
+        );
+        expect(html).toContain("data-security-http-scheme");
+        expect(html).toContain("bearer");
+        expect(html).toContain("data-security-bearer-format");
+        expect(html).toContain("JWT");
+        expect(html).toContain("data-security-apikey-name");
+        expect(html).toContain("X-API-Key");
+        expect(html).toContain("data-security-apikey-in");
+        expect(html).toContain("header");
+        expect(html).toContain("data-security-openid-url");
+        expect(html).toContain(
+            "https://example.com/.well-known/openid-configuration"
+        );
+    });
+
+    it("renders OAuth2 flows with URLs and scope maps", () => {
+        const html = renderToString(
+            createElement(ApiSecurity, {
+                requirements: [{ name: "oauth2Auth", scopes: ["read:pets"] }],
+                schemes: new Map([
+                    [
+                        "oauth2Auth",
+                        {
+                            type: "oauth2",
+                            description: undefined,
+                            name: undefined,
+                            location: undefined,
+                            scheme: undefined,
+                            bearerFormat: undefined,
+                            openIdConnectUrl: undefined,
+                            flows: {
+                                implicit: {
+                                    authorizationUrl:
+                                        "https://example.com/oauth/authorize",
+                                    scopes: {
+                                        "read:pets": "Read pets",
+                                        "write:pets": "Modify pets",
+                                    },
+                                },
+                                authorizationCode: {
+                                    authorizationUrl:
+                                        "https://example.com/oauth/authorize",
+                                    tokenUrl: "https://example.com/oauth/token",
+                                    refreshUrl:
+                                        "https://example.com/oauth/refresh",
+                                    scopes: {
+                                        "admin:pets": "Administer pets",
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                ]),
+            })
+        );
+        // Implicit flow with two scopes
+        expect(html).toContain('data-security-flow="implicit"');
+        expect(html).toContain("https://example.com/oauth/authorize");
+        expect(html).toContain("read:pets");
+        expect(html).toContain("Read pets");
+        expect(html).toContain("write:pets");
+        expect(html).toContain("Modify pets");
+
+        // Authorization code flow with all three URLs and one scope
+        expect(html).toContain('data-security-flow="authorizationCode"');
+        expect(html).toContain("https://example.com/oauth/token");
+        expect(html).toContain("https://example.com/oauth/refresh");
+        expect(html).toContain("admin:pets");
+        expect(html).toContain("Administer pets");
+    });
 });
 
 // ---------------------------------------------------------------------------
