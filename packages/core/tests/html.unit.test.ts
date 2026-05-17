@@ -539,6 +539,73 @@ describe("serializeChunks", () => {
     });
 });
 
+// ---------------------------------------------------------------------------
+// Discriminated union — tab id sanitisation
+// ---------------------------------------------------------------------------
+
+describe("renderToHtml — discriminated union tab ids", () => {
+    it("produces valid HTML ids and matching aria-labelledby when nested under arrays of objects", () => {
+        // Nested discriminated union at path `things[0]`: the array-of-objects
+        // pattern produces a structural path containing both brackets and
+        // (potentially) dots. Without sanitisation the tab/panel ids include
+        // those raw characters, producing invalid CSS selectors and breaking
+        // the `aria-labelledby` association on the tabpanel.
+        const schema = z.object({
+            things: z.array(
+                z.discriminatedUnion("kind", [
+                    z.object({ kind: z.literal("a"), a: z.string() }),
+                    z.object({ kind: z.literal("b"), b: z.number() }),
+                ])
+            ),
+        });
+
+        const html = renderToHtml(schema, {
+            value: { things: [{ kind: "b", b: 7 }] },
+        });
+
+        // Pull every `id="..."` on a tab button and the `aria-labelledby`
+        // on the tabpanel, then check structural validity.
+        const tabButtonIds = [
+            ...html.matchAll(/<button[^>]*role="tab"[^>]*\bid="([^"]+)"/g),
+        ].map((m) => m[1] ?? "");
+        expect(tabButtonIds.length).toBe(2);
+
+        const validIdPattern = /^[A-Za-z][A-Za-z0-9_-]*$/;
+        for (const id of tabButtonIds) {
+            expect(id).toMatch(validIdPattern);
+            // Defensive structural checks — the bug substituted `.` / `[` / `]`
+            // directly into the id; assert none survived sanitisation.
+            expect(id).not.toContain(".");
+            expect(id).not.toContain("[");
+            expect(id).not.toContain("]");
+        }
+
+        const panelMatch =
+            /<div[^>]*role="tabpanel"[^>]*\baria-labelledby="([^"]+)"/.exec(
+                html
+            );
+        expect(panelMatch).not.toBeNull();
+        const labelledBy = panelMatch?.[1] ?? "";
+
+        // Active tab is the one carrying `aria-selected="true"`. The panel's
+        // `aria-labelledby` must reference that id exactly. Attribute order
+        // inside the tag is not guaranteed, so match the whole tag and pull
+        // both attributes independently.
+        const buttonTags = [
+            ...html.matchAll(/<button\b[^>]*role="tab"[^>]*>/g),
+        ].map((m) => m[0]);
+        const activeButton = buttonTags.find((tag) =>
+            tag.includes('aria-selected="true"')
+        );
+        expect(activeButton).toBeDefined();
+        const activeIdMatch = activeButton?.match(/\bid="([^"]+)"/);
+        expect(activeIdMatch).not.toBeNull();
+        const activeId = activeIdMatch?.[1] ?? "";
+        expect(labelledBy).toBe(activeId);
+        expect(tabButtonIds).toContain(activeId);
+    });
+});
+
 describe("fragment", () => {
     it("creates an element with empty tag", () => {
         const frag = fragment("a", "b");

@@ -549,14 +549,20 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
         );
     }
 
-    // Editable: WAI-ARIA tabs pattern
-    const panelId = `sc-${props.path}-panel`;
+    // Editable: WAI-ARIA tabs pattern.
+    // Sanitise the base id once so dots/brackets in `props.path` (object
+    // nesting, array indices) cannot leak into the tab/panel ids — those
+    // would otherwise produce invalid CSS selectors and break the
+    // `aria-labelledby` association on the tabpanel.
+    const baseId = fieldId(props.path);
+    const panelId = `${baseId}-panel`;
+    const tabId = (i: number): string => `${baseId}-tab-${String(i)}`;
     const tabButtons = options.map((_opt, i) => {
         const attrs: HtmlAttributes = {
             type: "button",
             role: "tab",
             class: i === activeIndex ? "sc-tab sc-tab--active" : "sc-tab",
-            id: `sc-${props.path}-tab-${String(i)}`,
+            id: tabId(i),
             "aria-selected": i === activeIndex ? "true" : undefined,
             "aria-controls": panelId,
             tabindex: i === activeIndex ? "0" : "-1",
@@ -584,7 +590,7 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
                 {
                     role: "tabpanel",
                     id: panelId,
-                    "aria-labelledby": `sc-${props.path}-tab-${String(activeIndex)}`,
+                    "aria-labelledby": tabId(activeIndex),
                 },
                 raw(childHtml)
             )
