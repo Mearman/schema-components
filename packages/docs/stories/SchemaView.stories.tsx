@@ -31,61 +31,64 @@ const user = {
     active: true,
 };
 
-const meta: Meta = {
+const meta = {
     title: "Server Rendering/SchemaView",
+    component: SchemaView,
     tags: ["server-render", "readonly", "zod"],
-};
+} satisfies Meta<typeof SchemaView>;
 export default meta;
+type Story = StoryObj<typeof meta>;
 
 // ---------------------------------------------------------------------------
 // Basic rendering
 // ---------------------------------------------------------------------------
 
-export const BasicObject: StoryObj = {
+export const BasicObject: Story = {
     name: "Object with primitives",
-    render: () => <SchemaView schema={userSchema} value={user} />,
+    args: {
+        schema: userSchema,
+        value: user,
+    },
 };
 
-export const NestedObject: StoryObj = {
+export const NestedObject: Story = {
     name: "Nested object",
-    render: () => (
-        <SchemaView
-            schema={nestedSchema}
-            value={{
-                name: "Ada",
-                address: {
-                    street: "17 Bond Street",
-                    city: "London",
-                    postcode: "W1S 4SQ",
-                    country: "United Kingdom",
-                },
-            }}
-        />
-    ),
+    args: {
+        schema: nestedSchema,
+        value: {
+            name: "Ada",
+            address: {
+                street: "17 Bond Street",
+                city: "London",
+                postcode: "W1S 4SQ",
+                country: "United Kingdom",
+            },
+        },
+    },
 };
 
 // ---------------------------------------------------------------------------
 // Edge cases
 // ---------------------------------------------------------------------------
 
-export const EmptyValues: StoryObj = {
+export const EmptyValues: Story = {
     name: "Missing / empty values",
-    render: () => (
-        <SchemaView
-            schema={userSchema}
-            value={{
-                name: "",
-                email: undefined,
-                role: "viewer",
-                active: false,
-            }}
-        />
-    ),
+    args: {
+        schema: userSchema,
+        value: {
+            name: "",
+            email: undefined,
+            role: "viewer",
+            active: false,
+        },
+    },
 };
 
-export const NoValue: StoryObj = {
+export const NoValue: Story = {
     name: "No value prop",
-    render: () => <SchemaView schema={userSchema} />,
+    args: {
+        schema: userSchema,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -101,11 +104,12 @@ const jsonSchema = {
     required: ["title"],
 } as const;
 
-export const JsonSchemaInput: StoryObj = {
+export const JsonSchemaInput: Story = {
     name: "JSON Schema input",
-    render: () => (
-        <SchemaView schema={jsonSchema} value={{ title: "Hello", count: 42 }} />
-    ),
+    args: {
+        schema: jsonSchema,
+        value: { title: "Hello", count: 42 },
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -116,14 +120,12 @@ const arraySchema = z.object({
     tags: z.array(z.string()).meta({ description: "Tags" }),
 });
 
-export const WithArray: StoryObj = {
+export const WithArray: Story = {
     name: "Array field",
-    render: () => (
-        <SchemaView
-            schema={arraySchema}
-            value={{ tags: ["react", "zod", "typescript"] }}
-        />
-    ),
+    args: {
+        schema: arraySchema,
+        value: { tags: ["react", "zod", "typescript"] },
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -143,16 +145,14 @@ const paymentSchema = z.discriminatedUnion("method", [
     }),
 ]);
 
-export const DiscriminatedUnion: StoryObj = {
+export const DiscriminatedUnion: Story = {
     name: "Discriminated union",
-    render: () => (
-        <SchemaView
-            schema={paymentSchema}
-            value={{
-                method: "card",
-                cardNumber: "4111 **** **** 1234",
-                expiry: "12/28",
-            }}
-        />
-    ),
+    args: {
+        schema: paymentSchema,
+        value: {
+            method: "card",
+            cardNumber: "4111 **** **** 1234",
+            expiry: "12/28",
+        },
+    },
 };
