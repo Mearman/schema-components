@@ -51,7 +51,16 @@ export type DiagnosticCode =
     | "pattern-invalid"
     | "duplicate-body-parameter"
     | "prototype-polluting-property"
+    | "cross-schema-relative-ref-unsupported"
+    | "cyclic-path-item-ref"
+    | "doc-not-object"
+    | "path-item-ref-too-deep"
+    | "swagger-cyclic-parameter-ref"
+    | "swagger-invalid-file-parameter"
+    | "swagger-missing-consumes"
+    | "swagger-missing-host"
     | "type-mismatch"
+    | "unknown-security-scheme-type"
     | "zod-codec-output-only";
 
 // ---------------------------------------------------------------------------
