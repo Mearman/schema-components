@@ -16,6 +16,7 @@ import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { headlessResolver } from "../react/headless.tsx";
 import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { toRecord } from "../core/guards.ts";
+import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
@@ -189,7 +190,7 @@ function renderObjectContainer(props: RenderProps): ReactNode {
                     {props.meta.description}
                 </h3>
             )}
-            {Object.entries(fields).map(([key, field]) => {
+            {sortFieldsByOrder(fields).map(([key, field]) => {
                 const childValue = toRecord(obj)[key];
                 const childId = inputId(`${props.path}.${key}`);
                 const childOnChange = (v: unknown) => {

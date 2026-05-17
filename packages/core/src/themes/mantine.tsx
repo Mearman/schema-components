@@ -22,6 +22,7 @@ import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { headlessResolver } from "../react/headless.tsx";
 import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { isObject } from "../core/guards.ts";
+import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
@@ -190,7 +191,7 @@ function renderObjectContainer(props: RenderProps): ReactNode {
 
     return (
         <MantineFieldset legend={getLabel(props)}>
-            {Object.entries(fields)
+            {sortFieldsByOrder(fields)
                 .filter(([, field]) => field.meta.visible !== false)
                 .map(([key, field]) => {
                     const childValue = obj[key];

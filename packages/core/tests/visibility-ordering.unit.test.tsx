@@ -8,8 +8,16 @@ import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { z } from "zod";
-import { SchemaComponent } from "../src/react/SchemaComponent.tsx";
+import {
+    SchemaComponent,
+    SchemaProvider,
+} from "../src/react/SchemaComponent.tsx";
 import { renderToHtml } from "../src/html/renderToHtml.ts";
+import { shadcnResolver } from "../src/themes/shadcn.tsx";
+import { mantineResolver } from "../src/themes/mantine.tsx";
+import { muiResolver } from "../src/themes/mui.tsx";
+import { radixResolver } from "../src/themes/radix.tsx";
+import type { ComponentResolver } from "../src/core/renderer.ts";
 
 // ---------------------------------------------------------------------------
 // Visibility
@@ -246,4 +254,61 @@ describe("visible + order combined", () => {
         expect(dIdx).toBeLessThan(aIdx);
         expect(aIdx).toBeLessThan(cIdx);
     });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-theme parity — every theme adapter must honour meta.order
+// ---------------------------------------------------------------------------
+
+describe("field ordering — theme adapter parity", () => {
+    const schema = z.object({
+        alpha: z.string().meta({ description: "AlphaLabel" }),
+        beta: z.string().meta({ description: "BetaLabel" }),
+        gamma: z.string().meta({ description: "GammaLabel" }),
+    });
+    // Distinct, easily-findable values so we can locate each field's
+    // rendered output without relying on labels — read-only mantine,
+    // MUI and Radix string renderers omit labels in presentation mode.
+    const value = {
+        alpha: "AAA-value",
+        beta: "BBB-value",
+        gamma: "GGG-value",
+    };
+    const fields = {
+        gamma: { order: 1 },
+        alpha: { order: 2 },
+        beta: { order: 3 },
+    } as const;
+
+    const cases: { name: string; resolver: ComponentResolver }[] = [
+        { name: "shadcn", resolver: shadcnResolver },
+        { name: "mantine", resolver: mantineResolver },
+        { name: "mui", resolver: muiResolver },
+        { name: "radix", resolver: radixResolver },
+    ];
+
+    for (const { name, resolver } of cases) {
+        it(`${name} adapter renders fields in meta.order`, () => {
+            const html = renderToString(
+                <SchemaProvider resolver={resolver}>
+                    <SchemaComponent
+                        schema={schema}
+                        value={value}
+                        fields={fields}
+                        readOnly
+                    />
+                </SchemaProvider>
+            );
+
+            const gammaIdx = html.indexOf("GGG-value");
+            const alphaIdx = html.indexOf("AAA-value");
+            const betaIdx = html.indexOf("BBB-value");
+
+            expect(gammaIdx).toBeGreaterThanOrEqual(0);
+            expect(alphaIdx).toBeGreaterThanOrEqual(0);
+            expect(betaIdx).toBeGreaterThanOrEqual(0);
+            expect(gammaIdx).toBeLessThan(alphaIdx);
+            expect(alphaIdx).toBeLessThan(betaIdx);
+        });
+    }
 });

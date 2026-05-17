@@ -16,6 +16,7 @@ import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { headlessResolver } from "../react/headless.tsx";
 import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { isObject } from "../core/guards.ts";
+import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import { isValidElement, type ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
@@ -215,7 +216,7 @@ function renderObjectContainer(props: RenderProps): ReactNode {
                     {props.meta.description}
                 </MuiTypography>
             )}
-            {Object.entries(fields).map(([key, field]) => {
+            {sortFieldsByOrder(fields).map(([key, field]) => {
                 const childValue = obj[key];
                 const childOnChange = (v: unknown) => {
                     const updated: Record<string, unknown> = {};
