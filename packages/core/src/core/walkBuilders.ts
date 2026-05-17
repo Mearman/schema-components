@@ -299,16 +299,24 @@ export function buildFileField(
 // Object sub-schema helpers
 // ---------------------------------------------------------------------------
 
-/** Walk a map of sub-schemas (patternProperties, dependentSchemas). */
+/**
+ * Walk a map of sub-schemas (patternProperties, dependentSchemas, $defs).
+ *
+ * The callback receives each value as `unknown` so the caller can route
+ * boolean schemas (`true`/`false`, valid per Draft 06+) through the
+ * walker's boolean dispatch alongside object schemas. Non-schema values
+ * (numbers, strings, arrays, undefined) are silently skipped — they
+ * cannot represent a JSON Schema and have no walk-time meaning.
+ */
 export function walkSubSchemaMap<T>(
     map: Record<string, unknown>,
-    walkNode: (schema: Record<string, unknown>, ctx: WalkContext) => T,
+    walkSubSchema: (schema: unknown, ctx: WalkContext) => T,
     ctx: WalkContext
 ): Record<string, T> {
     const result: Record<string, T> = {};
     for (const [key, value] of Object.entries(map)) {
-        if (isObject(value)) {
-            result[key] = walkNode(value, ctx);
+        if (isObject(value) || typeof value === "boolean") {
+            result[key] = walkSubSchema(value, ctx);
         }
     }
     return result;

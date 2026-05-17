@@ -266,8 +266,9 @@ function walkNode(
     }
 
     // --- Handle if/then/else conditional ---
-    const ifSchema = getObject(schema, "if");
-    if (ifSchema !== undefined) {
+    // `if` accepts a boolean per Draft 06+. Detect via `in` so a boolean
+    // value triggers the conditional branch — `getObject` would skip it.
+    if ("if" in schema) {
         emitDiagnostic(ctx.diagnostics, {
             code: "conditional-fallback",
             message:
@@ -278,26 +279,26 @@ function walkNode(
             withoutKeys(schema, ["if", "then", "else"]),
             ctx
         );
-        const thenSchema = getObject(schema, "then");
-        const elseSchema = getObject(schema, "else");
         const conditional: ConditionalField = {
             ...base,
             type: "conditional",
             constraints: {},
-            ifClause: walkNode(ifSchema, ctx),
+            ifClause: walkSubSchema(schema.if, ctx),
         };
-        if (thenSchema !== undefined) {
-            conditional.thenClause = walkNode(thenSchema, ctx);
+        if ("then" in schema) {
+            conditional.thenClause = walkSubSchema(schema.then, ctx);
         }
-        if (elseSchema !== undefined) {
-            conditional.elseClause = walkNode(elseSchema, ctx);
+        if ("else" in schema) {
+            conditional.elseClause = walkSubSchema(schema.else, ctx);
         }
         return conditional;
     }
 
     // --- Handle not (negation) ---
-    const notSchema = getObject(schema, "not");
-    if (notSchema !== undefined) {
+    // `not` accepts a boolean per Draft 06+. Use `in` for the same reason
+    // as `if` above so `not: false` and `not: true` route through
+    // `walkSubSchema` rather than being silently dropped.
+    if ("not" in schema) {
         emitDiagnostic(ctx.diagnostics, {
             code: "type-negation-fallback",
             message:
@@ -309,7 +310,7 @@ function walkNode(
             ...base,
             type: "negation",
             constraints: {},
-            negated: walkNode(notSchema, ctx),
+            negated: walkSubSchema(schema.not, ctx),
         };
         return negated;
     }
@@ -603,10 +604,13 @@ function walkObject(
     }
 
     // --- patternProperties ---
+    // Each value may be a boolean schema (Draft 06+); route every entry
+    // through `walkSubSchema` so booleans become `unknown`/`never` rather
+    // than being silently dropped.
     const patternProps = getObject(schema, "patternProperties");
     const walkedPatternProps: Record<string, WalkedField> | undefined =
         patternProps !== undefined
-            ? walkSubSchemaMap(patternProps, walkNode, ctx)
+            ? walkSubSchemaMap(patternProps, walkSubSchema, ctx)
             : undefined;
 
     // --- additionalProperties as boolean or schema ---
@@ -627,10 +631,12 @@ function walkObject(
     }
 
     // --- dependentSchemas ---
+    // Boolean entries are valid per Draft 06+; route through
+    // `walkSubSchema` so they are represented in the field tree.
     const depSchemas = getObject(schema, "dependentSchemas");
     const walkedDepSchemas: Record<string, WalkedField> | undefined =
         depSchemas !== undefined
-            ? walkSubSchemaMap(depSchemas, walkNode, ctx)
+            ? walkSubSchemaMap(depSchemas, walkSubSchema, ctx)
             : undefined;
 
     // --- dependentRequired ---
@@ -656,10 +662,12 @@ function walkObject(
     }
 
     // --- propertyNames ---
-    const propertyNamesSchema = getObject(schema, "propertyNames");
+    // Accepts a boolean per Draft 06+ (e.g. `{ propertyNames: true }` means
+    // any property name is permitted). Route through `walkSubSchema` so
+    // boolean schemas are handled rather than silently dropped.
     const walkedPropertyNames: WalkedField | undefined =
-        propertyNamesSchema !== undefined
-            ? walkNode(propertyNamesSchema, ctx)
+        "propertyNames" in schema
+            ? walkSubSchema(schema.propertyNames, ctx)
             : undefined;
 
     return {
