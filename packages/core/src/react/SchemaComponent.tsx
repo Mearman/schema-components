@@ -19,6 +19,7 @@ import {
     createContext,
     useContext,
     useCallback,
+    useId,
     useMemo,
     isValidElement,
     type ReactNode,
@@ -161,6 +162,13 @@ export interface SchemaComponentProps<
     description?: string;
     /** Instance-scoped widgets — override context and global widgets. */
     widgets?: WidgetMap;
+    /**
+     * Prefix used for every input `id`/label `htmlFor` in this component
+     * subtree. Defaults to a per-instance value from `useId()` so multiple
+     * `<SchemaComponent>` instances on the same page never collide. Override
+     * for deterministic ids in screenshot tests.
+     */
+    idPrefix?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,9 +194,12 @@ export function SchemaComponent<
     writeOnly,
     description,
     widgets: instanceWidgets,
+    idPrefix,
 }: SchemaComponentProps<T, Ref>): ReactNode {
     const userResolver = useContext(UserResolverContext);
     const contextWidgets = useContext(WidgetsContext);
+    const generatedId = useId();
+    const rootPath = idPrefix ?? sanitisePrefix(generatedId);
 
     const mergedMeta: SchemaMeta = useMemo(() => {
         const merged: SchemaMeta = { ...componentMeta };
@@ -285,7 +296,7 @@ export function SchemaComponent<
             );
         };
 
-    const renderChild = makeRenderChild(0, ROOT_PATH);
+    const renderChild = makeRenderChild(0, rootPath);
 
     const effectiveValue = value ?? tree.defaultValue;
     return renderField(
@@ -294,7 +305,7 @@ export function SchemaComponent<
         handleChange,
         userResolver,
         renderChild,
-        ROOT_PATH,
+        rootPath,
         instanceWidgets,
         contextWidgets,
         0
@@ -306,9 +317,10 @@ export function SchemaComponent<
 // ---------------------------------------------------------------------------
 
 /**
- * Sentinel path for the root field. Every rendered field's path is derived
- * from this by appending dot-separated suffixes via `joinPath`. Kept short
- * so generated DOM ids stay readable (e.g. `sc-root-address-city`).
+ * Default root-path sentinel used when no `idPrefix` is supplied AND the
+ * component is rendered outside a React tree (e.g. server-side bundling
+ * test harnesses). Production callers receive a `useId()`-derived prefix
+ * that is unique per instance.
  */
 export const ROOT_PATH = "root";
 
@@ -321,6 +333,24 @@ export function joinPath(parent: string, suffix: string | undefined): string {
     if (suffix === undefined || suffix.length === 0) return parent;
     if (parent.length === 0) return suffix;
     return `${parent}.${suffix}`;
+}
+
+/**
+ * Normalise a `useId()` value into a DOM-id-safe prefix. React's `useId`
+ * returns values containing `:` characters (e.g. `«:r0:»`) which are
+ * invalid in CSS selectors. Replace any run of non-alphanumeric characters
+ * with a single hyphen and trim leading/trailing hyphens.
+ */
+export function sanitisePrefix(value: string): string {
+    const sanitised = value
+        .replace(/[^a-zA-Z0-9_]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    if (sanitised.length === 0) {
+        throw new Error(
+            `Cannot derive a DOM-safe id prefix from "${value}". Pass an explicit idPrefix prop.`
+        );
+    }
+    return sanitised;
 }
 
 // ---------------------------------------------------------------------------
@@ -581,6 +611,7 @@ export function SchemaField<
 }: SchemaFieldProps<T, Ref, P>): ReactNode {
     const userResolver = useContext(UserResolverContext);
     const contextWidgets = useContext(WidgetsContext);
+    const generatedId = useId();
 
     let jsonSchema: Record<string, unknown>;
     let zodSchema: unknown;
@@ -672,9 +703,10 @@ export function SchemaField<
             );
         };
 
-    // SchemaField always renders a specific path within the schema. Use
-    // it as the root path so generated ids reflect the field's location.
-    const rootPath = joinPath(ROOT_PATH, path);
+    // SchemaField always renders a specific path within the schema. Combine
+    // a per-instance prefix with the requested path so generated ids stay
+    // unique across multiple <SchemaField> instances on the same page.
+    const rootPath = joinPath(sanitisePrefix(generatedId), path);
     const renderChild = makeRenderChild(0, rootPath);
 
     return renderField(
