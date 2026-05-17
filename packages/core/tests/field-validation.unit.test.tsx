@@ -1,14 +1,18 @@
 /**
+ * @vitest-environment happy-dom
+ *
  * Tests for per-field onValidationError callbacks.
  *
  * When fields prop carries onValidationError callbacks, validation
  * errors are dispatched to each field's callback based on Zod error paths.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { z } from "zod";
 import { SchemaComponent } from "../src/react/SchemaComponent.tsx";
+import type { Diagnostic } from "../src/core/diagnostics.ts";
 
 function noop() {
     /* intentional no-op */
@@ -175,5 +179,110 @@ describe("nested field onValidationError", () => {
         );
 
         expect(html).toContain("Ada");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// z.fromJSONSchema guard — Fix 4
+// ---------------------------------------------------------------------------
+
+describe("z.fromJSONSchema fallback guard", () => {
+    afterEach(() => {
+        cleanup();
+    });
+
+    it("does not crash the render when fromJSONSchema cannot round-trip the JSON Schema", () => {
+        // `not` is one of several JSON Schema keywords Zod refuses to
+        // convert back ("not is not supported in Zod"). The fallback
+        // validation path used to call z.fromJSONSchema unguarded — a
+        // change event would throw synchronously inside the React render
+        // and bring down the tree. The fix wraps the call so the
+        // validation step degrades gracefully while rendering continues.
+        // `dependentSchemas` makes `z.fromJSONSchema` throw
+        // ("dependentSchemas and dependentRequired are not supported")
+        // while the schema-components walker handles it fine — so the
+        // render proceeds normally and only the fallback validation step
+        // hits the unsupported feature.
+        const jsonSchema = {
+            type: "object" as const,
+            properties: {
+                name: { type: "string" as const },
+            },
+            dependentSchemas: {
+                name: { required: ["email"] as const },
+            },
+        };
+
+        const diagnostics: Diagnostic[] = [];
+        const onValidationError = vi.fn();
+
+        render(
+            createElement(SchemaComponent, {
+                schema: jsonSchema,
+                value: { name: "Ada" },
+                validate: true,
+                onValidationError,
+                onDiagnostic: (d) => diagnostics.push(d),
+                onChange: noop,
+            })
+        );
+
+        const input = screen.getByDisplayValue("Ada");
+        // Fire a change event — this triggers handleChange -> runValidation
+        // -> z.fromJSONSchema. The unguarded code path threw synchronously
+        // here, killing the entire React tree. With the guard the throw
+        // is caught and surfaced as a diagnostic instead.
+        expect(() => {
+            fireEvent.change(input, { target: { value: "Lovelace" } });
+        }).not.toThrow();
+
+        // The diagnostic channel must have received an `unsupported-type`
+        // notification identifying z.fromJSONSchema as the source.
+        const fromJsonSchemaDiagnostic = diagnostics.find(
+            (d) =>
+                d.code === "unsupported-type" &&
+                d.detail?.source === "z.fromJSONSchema"
+        );
+        expect(fromJsonSchemaDiagnostic).toBeDefined();
+
+        // Validation was skipped, so no validation error should have
+        // reached the consumer — the guard explicitly turns the throw
+        // into a no-op rather than fabricating a fake error.
+        expect(onValidationError).not.toHaveBeenCalled();
+    });
+
+    it("silently swallows the fromJSONSchema failure when no diagnostic sink is configured", () => {
+        // No diagnostics callback wired up — the throw must still not
+        // escape into the render. The diagnostic system contract is that
+        // failures degrade silently when no sink is configured, matching
+        // the behaviour of every other emitDiagnostic call site.
+        // `dependentSchemas` makes `z.fromJSONSchema` throw
+        // ("dependentSchemas and dependentRequired are not supported")
+        // while the schema-components walker handles it fine — so the
+        // render proceeds normally and only the fallback validation step
+        // hits the unsupported feature.
+        const jsonSchema = {
+            type: "object" as const,
+            properties: {
+                name: { type: "string" as const },
+            },
+            dependentSchemas: {
+                name: { required: ["email"] as const },
+            },
+        };
+
+        render(
+            createElement(SchemaComponent, {
+                schema: jsonSchema,
+                value: { name: "Ada" },
+                validate: true,
+                onChange: noop,
+            })
+        );
+
+        const input = screen.getByDisplayValue("Ada");
+        expect(() => {
+            fireEvent.change(input, { target: { value: "Lovelace" } });
+        }).not.toThrow();
     });
 });

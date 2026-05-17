@@ -271,7 +271,12 @@ export function SchemaComponent<
     const handleChange = useCallback(
         (nextValue: unknown) => {
             if (validate) {
-                const error = runValidation(zodSchema, jsonSchema, nextValue);
+                const error = runValidation(
+                    zodSchema,
+                    jsonSchema,
+                    nextValue,
+                    onDiagnostic
+                );
                 if (error !== undefined) {
                     // Root-level error callback
                     onValidationError?.(error);
@@ -281,7 +286,15 @@ export function SchemaComponent<
             }
             onChange?.(nextValue);
         },
-        [validate, zodSchema, jsonSchema, onChange, onValidationError, fields]
+        [
+            validate,
+            zodSchema,
+            jsonSchema,
+            onChange,
+            onValidationError,
+            fields,
+            onDiagnostic,
+        ]
     );
 
     // Walk the JSON Schema tree
@@ -381,7 +394,8 @@ export function sanitisePrefix(value: string): string {
 function runValidation(
     zodSchema: unknown,
     jsonSchema: Record<string, unknown>,
-    value: unknown
+    value: unknown,
+    onDiagnostic?: (diagnostic: Diagnostic) => void
 ): unknown {
     // Prefer original Zod schema for validation (most accurate)
     if (zodSchema !== undefined && isObject(zodSchema)) {
@@ -399,8 +413,22 @@ function runValidation(
         }
     }
 
-    // Fallback: convert JSON Schema to Zod for validation
-    const parsed: unknown = z.fromJSONSchema(jsonSchema);
+    // Fallback: convert JSON Schema to Zod for validation. `z.fromJSONSchema`
+    // throws synchronously for JSON Schema features Zod refuses to round-trip
+    // (e.g. `not`, certain `allOf` shapes, `patternProperties`,
+    // `dependentSchemas`). Validation is a best-effort enhancement, not core
+    // rendering — surface the failure via the diagnostics channel and skip
+    // validation rather than letting the throw escape into the React render
+    // and crash the tree. The render itself succeeds because it only
+    // depends on the (already-normalised) JSON Schema, not on the Zod
+    // round-trip.
+    let parsed: unknown;
+    try {
+        parsed = z.fromJSONSchema(jsonSchema);
+    } catch (err) {
+        emitFromJsonSchemaDiagnostic(err, onDiagnostic);
+        return undefined;
+    }
     if (isObject(parsed)) {
         const safeParseFn = parsed.safeParse;
         if (isCallable(safeParseFn)) {
@@ -416,6 +444,37 @@ function runValidation(
     }
 
     return undefined;
+}
+
+/**
+ * Emit a diagnostic when `z.fromJSONSchema` refuses to round-trip the
+ * already-normalised JSON Schema. The diagnostic reuses the existing
+ * `unsupported-type` code because the failure mode is the same — a
+ * keyword/structure Zod cannot represent — and the consumer should be
+ * able to opt in to noticing it via the existing diagnostics channel.
+ *
+ * Best-effort: when no `onDiagnostic` sink is configured we still swallow
+ * the throw (the alternative would crash the React render for a
+ * non-essential validation step), matching the silent-fallback contract
+ * the rest of the diagnostics system uses.
+ */
+function emitFromJsonSchemaDiagnostic(
+    err: unknown,
+    onDiagnostic: ((diagnostic: Diagnostic) => void) | undefined
+): void {
+    if (onDiagnostic === undefined) return;
+    const message =
+        err instanceof Error
+            ? err.message
+            : "z.fromJSONSchema threw a non-Error value";
+    onDiagnostic({
+        code: "unsupported-type",
+        message:
+            "Skipping fallback validation: z.fromJSONSchema could not " +
+            `round-trip the normalised JSON Schema. Original message: ${message}`,
+        pointer: "",
+        detail: { source: "z.fromJSONSchema" },
+    });
 }
 
 // ---------------------------------------------------------------------------
