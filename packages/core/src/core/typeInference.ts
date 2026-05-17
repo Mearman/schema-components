@@ -443,15 +443,27 @@ type ExtractRawDefs<S> = S extends { $defs: infer D }
 
 /**
  * Build a map of `$anchor` name -> schema from a definitions block.
- * Scans each definition value for `$anchor` or `$dynamicAnchor` and
- * creates entries like `{ Tree: <schema-with-$anchor-Tree> }`.
+ * Scans each definition value for `$anchor`, `$dynamicAnchor`, or the
+ * Draft 2019-09 `$recursiveAnchor` keyword and creates entries like
+ * `{ Tree: <schema-with-$anchor-Tree> }`.
+ *
+ * SOURCE-OF-TRUTH: mirrors `normaliseDraft201909NodeWithContext` in
+ * `packages/core/src/core/normalise.ts` (lines 638-650), which rewrites
+ * `$recursiveAnchor: true` to `$anchor: "__recursive__"` and a string
+ * `$recursiveAnchor: "name"` to `$anchor: "name"`. The corresponding
+ * `$recursiveRef: "#"` therefore resolves through the same `Defs` map
+ * as a modern `$ref: "#__recursive__"`.
  */
 type ExtractAnchors<D extends Record<string, unknown>> = {
     [K in keyof D as D[K] extends { $anchor: infer A extends string }
         ? A
         : D[K] extends { $dynamicAnchor: infer A extends string }
           ? A
-          : never]: D[K];
+          : D[K] extends { $recursiveAnchor: infer A extends string }
+            ? A
+            : D[K] extends { $recursiveAnchor: true }
+              ? "__recursive__"
+              : never]: D[K];
 };
 
 // ---------------------------------------------------------------------------

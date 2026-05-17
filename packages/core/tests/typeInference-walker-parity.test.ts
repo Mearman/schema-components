@@ -254,6 +254,84 @@ describe("OpenAPI 3.0 nullable: applied at every FromJSONSchema entry", () => {
 });
 
 // ---------------------------------------------------------------------------
+// $recursiveAnchor: true normalisation parity
+// ---------------------------------------------------------------------------
+//
+// The runtime normaliser rewrites bare `$recursiveAnchor: true` to
+// `$anchor: "__recursive__"` (see `normaliseDraft201909NodeWithContext`
+// in `normalise.ts` lines 638-643), and a string-valued
+// `$recursiveAnchor` to `$anchor` with the same name. After that
+// rewrite, any `$ref: "#__recursive__"` (or matching anchor name)
+// resolves through the standard $anchor machinery.
+//
+// `ExtractAnchors` mirrors that translation so the same pattern resolves
+// at the type level. The `$recursiveRef` keyword itself still bails out
+// to `unknown` because recursive types are not expressible in
+// TypeScript — that limitation is documented above the `FromJSONSchema`
+// definition and pinned by separate tests.
+// ---------------------------------------------------------------------------
+
+describe("$recursiveAnchor: true normalisation: indexed under __recursive__", () => {
+    interface RecursiveSchemaBase {
+        readonly type: "object";
+        readonly definitions: {
+            readonly Tree: {
+                readonly $recursiveAnchor: true;
+                readonly type: "object";
+                readonly properties: {
+                    readonly label: { readonly type: "string" };
+                };
+                readonly required: readonly ["label"];
+            };
+        };
+        readonly properties: {
+            readonly node: { readonly $ref: "#__recursive__" };
+        };
+        readonly required: readonly ["node"];
+    }
+
+    type Resolved = FromJSONSchema<RecursiveSchemaBase>;
+
+    interface ExpectedRoot {
+        node: { label: string };
+    }
+
+    it("resolves #__recursive__ against $recursiveAnchor: true definitions", () => {
+        expectTypeOf<ExpectedRoot>().toExtend<Resolved>();
+        expectTypeOf<Resolved>().toExtend<ExpectedRoot>();
+    });
+
+    interface NamedRecursiveSchemaBase {
+        readonly type: "object";
+        readonly definitions: {
+            readonly Node: {
+                readonly $recursiveAnchor: "graphNode";
+                readonly type: "object";
+                readonly properties: {
+                    readonly weight: { readonly type: "number" };
+                };
+                readonly required: readonly ["weight"];
+            };
+        };
+        readonly properties: {
+            readonly entry: { readonly $ref: "#graphNode" };
+        };
+        readonly required: readonly ["entry"];
+    }
+
+    type ResolvedNamed = FromJSONSchema<NamedRecursiveSchemaBase>;
+
+    interface ExpectedNamedRoot {
+        entry: { weight: number };
+    }
+
+    it("resolves string-valued $recursiveAnchor anchors", () => {
+        expectTypeOf<ExpectedNamedRoot>().toExtend<ResolvedNamed>();
+        expectTypeOf<ResolvedNamed>().toExtend<ExpectedNamedRoot>();
+    });
+});
+
+// ---------------------------------------------------------------------------
 // ResolveSchemaRef `#/components/schemas/` parity
 // ---------------------------------------------------------------------------
 //
