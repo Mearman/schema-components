@@ -182,6 +182,12 @@ function walkNode(
     const allOf = getArray(schema, "allOf");
     if (allOf !== undefined && allOf.length > 0) {
         const merged = mergeAllOf(allOf, ctx.diagnostics, ctx.pointer);
+        // `false` signals an unsatisfiable composite — a `false` branch
+        // collapses the whole conjunction. Render as a never field, the
+        // same shape a top-level `false` schema produces.
+        if (merged === false) {
+            return walkBooleanSchema(false);
+        }
         return walkNode(merged, ctx);
     }
 

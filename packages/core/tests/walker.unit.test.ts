@@ -541,6 +541,34 @@ describe("walk — allOf", () => {
             "age" in assertDefined(fieldsOf(tree), "expected fields")
         ).toBeTruthy();
     });
+
+    it("collapses allOf with a false branch to never", () => {
+        const tree = walk(
+            {
+                allOf: [{ type: "string" }, false],
+            },
+            {}
+        );
+        expect(tree.type).toBe("never");
+    });
+
+    it("ignores true branches in allOf", () => {
+        const tree = walk(
+            {
+                allOf: [
+                    true,
+                    {
+                        type: "object",
+                        properties: { name: { type: "string" } },
+                        required: ["name"],
+                    },
+                    true,
+                ],
+            },
+            {}
+        );
+        expect(tree.type).toBe("object");
+    });
 });
 
 // ---------------------------------------------------------------------------

@@ -162,17 +162,34 @@ export function mergeRefSiblings(
  * When a later branch redefines a keyword with a non-equal value the
  * later value is silently dropped — an `allof-conflict` diagnostic is
  * emitted so the loss is visible to consumers.
+ *
+ * Boolean branches (valid per Draft 06+) collapse the composite:
+ * - `false` makes the entire \`allOf\` unsatisfiable — return \`false\`,
+ *   which the walker turns into a \`NeverField\`.
+ * - \`true\` is the always-valid schema and contributes no constraints —
+ *   skip silently.
+ *
+ * Non-boolean, non-object entries (e.g. arrays, numbers) are malformed
+ * inputs that cannot represent a schema; skip them as before.
  */
 export function mergeAllOf(
     schemas: unknown[],
     diagnostics?: DiagnosticsOptions,
     pointer = ""
-): Record<string, unknown> {
+): Record<string, unknown> | false {
     const merged: Record<string, unknown> = {};
     const properties: Record<string, unknown> = {};
     const required: string[] = [];
 
     for (const entry of schemas) {
+        if (entry === false) {
+            // A \`false\` branch collapses the whole composite to never.
+            return false;
+        }
+        if (entry === true) {
+            // A \`true\` branch contributes no constraints.
+            continue;
+        }
         if (!isObject(entry)) continue;
 
         // Merge properties
