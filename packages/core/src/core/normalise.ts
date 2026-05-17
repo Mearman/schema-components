@@ -487,6 +487,22 @@ function applyDraft04Translations(
     else if (node.exclusiveMinimum === false) {
         delete node.exclusiveMinimum;
     }
+    // exclusiveMinimum: true without a numeric `minimum` is malformed in
+    // Draft 04 — the boolean form requires a sibling `minimum` to take
+    // its bound from. Drop the keyword and surface the issue rather than
+    // letting `extractNumberConstraints` silently discard it.
+    else if (node.exclusiveMinimum === true) {
+        if (ctx !== undefined) {
+            emitDiagnostic(ctx.diagnostics, {
+                code: "bare-exclusive-bound",
+                message:
+                    "`exclusiveMinimum: true` requires a sibling numeric `minimum` in Draft 04; dropping the keyword",
+                pointer: appendPointer(ctx.pointer, "exclusiveMinimum"),
+                detail: { keyword: "exclusiveMinimum" },
+            });
+        }
+        delete node.exclusiveMinimum;
+    }
 
     // exclusiveMaximum: true + maximum: N → exclusiveMaximum: N
     if (node.exclusiveMaximum === true && typeof node.maximum === "number") {
@@ -495,6 +511,20 @@ function applyDraft04Translations(
     }
     // exclusiveMaximum: false → remove (it's the default)
     else if (node.exclusiveMaximum === false) {
+        delete node.exclusiveMaximum;
+    }
+    // exclusiveMaximum: true without a numeric `maximum` is malformed —
+    // same treatment as `exclusiveMinimum: true` above.
+    else if (node.exclusiveMaximum === true) {
+        if (ctx !== undefined) {
+            emitDiagnostic(ctx.diagnostics, {
+                code: "bare-exclusive-bound",
+                message:
+                    "`exclusiveMaximum: true` requires a sibling numeric `maximum` in Draft 04; dropping the keyword",
+                pointer: appendPointer(ctx.pointer, "exclusiveMaximum"),
+                detail: { keyword: "exclusiveMaximum" },
+            });
+        }
         delete node.exclusiveMaximum;
     }
 

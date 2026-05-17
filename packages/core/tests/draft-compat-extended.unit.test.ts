@@ -494,5 +494,61 @@ describe("dependent-required-invalid diagnostic", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Draft 04 bare `exclusiveMinimum: true` / `exclusiveMaximum: true`
+// ---------------------------------------------------------------------------
+
+describe("Draft 04 bare exclusive bound without sibling minimum/maximum", () => {
+    it("emits bare-exclusive-bound and drops bare `exclusiveMinimum: true`", () => {
+        const schema: Record<string, unknown> = {
+            $schema: "http://json-schema.org/draft-04/schema#",
+            type: "integer",
+            exclusiveMinimum: true,
+        };
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        expect("exclusiveMinimum" in normalised).toBe(false);
+        const diag = diagnostics.find((d) => d.code === "bare-exclusive-bound");
+        expect(diag).toBeDefined();
+        expect(diag?.detail?.keyword).toBe("exclusiveMinimum");
+    });
+
+    it("emits bare-exclusive-bound and drops bare `exclusiveMaximum: true`", () => {
+        const schema: Record<string, unknown> = {
+            $schema: "http://json-schema.org/draft-04/schema#",
+            type: "integer",
+            exclusiveMaximum: true,
+        };
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        expect("exclusiveMaximum" in normalised).toBe(false);
+        const diag = diagnostics.find((d) => d.code === "bare-exclusive-bound");
+        expect(diag).toBeDefined();
+        expect(diag?.detail?.keyword).toBe("exclusiveMaximum");
+    });
+
+    it("does not emit when `exclusiveMinimum: true` is paired with a numeric `minimum`", () => {
+        const schema: Record<string, unknown> = {
+            $schema: "http://json-schema.org/draft-04/schema#",
+            type: "integer",
+            minimum: 5,
+            exclusiveMinimum: true,
+        };
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        expect(normalised.exclusiveMinimum).toBe(5);
+        expect("minimum" in normalised).toBe(false);
+        expect(
+            diagnostics.filter((d) => d.code === "bare-exclusive-bound").length
+        ).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // OpenAPI 3.0.x discriminator
 // ---------------------------------------------------------------------------
