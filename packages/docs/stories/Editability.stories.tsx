@@ -66,6 +66,11 @@ const meta: Meta<EditabilityArgs> = {
 };
 export default meta;
 type Story = StoryObj<EditabilityArgs>;
+// Override-pattern stories drive SchemaComponent directly rather than the
+// EditabilityDemo wrapper; type them against SchemaComponent's props so
+// their args are checked correctly without splitting the meta (which would
+// change the URL path and break bookmarks).
+type OverrideStory = StoryObj<typeof SchemaComponent>;
 
 // ---------------------------------------------------------------------------
 // Editable (default)
@@ -153,19 +158,21 @@ const readOnlySchema = z.object({
     }),
 });
 
-export const SchemaReadOnly: StoryObj = {
+export const SchemaReadOnly: OverrideStory = {
     name: "Schema-level readOnly fields",
     tags: ["readonly", "editable"],
-    render: () => (
-        <SchemaComponent
-            schema={readOnlySchema}
-            value={{
-                id: "usr_123",
-                name: "Ada",
-                createdAt: "2024-01-15T10:30:00Z",
-            }}
-        />
-    ),
+    args: {
+        schema: readOnlySchema,
+        value: {
+            id: "usr_123",
+            name: "Ada",
+            createdAt: "2024-01-15T10:30:00Z",
+        },
+    },
+    // Per-story render — the file's meta drives an EditabilityDemo wrapper for
+    // the readOnly/writeOnly demos, but these override-pattern stories render
+    // SchemaComponent directly so args map straight onto its props.
+    render: (args) => <SchemaComponent {...args} />,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         // Only the editable `name` field renders as an input.
@@ -180,20 +187,19 @@ export const SchemaReadOnly: StoryObj = {
 // Override escape hatch: readOnly: false
 // ---------------------------------------------------------------------------
 
-export const ReadOnlyOverride: StoryObj = {
+export const ReadOnlyOverride: OverrideStory = {
     name: "Read-only with editable escape hatch",
     tags: ["readonly", "editable"],
-    render: () => (
-        <SchemaComponent
-            schema={userSchema}
-            value={baseValue}
-            readOnly
-            fields={{
-                name: { readOnly: false },
-                notes: { readOnly: false },
-            }}
-        />
-    ),
+    args: {
+        schema: userSchema,
+        value: baseValue,
+        readOnly: true,
+        fields: {
+            name: { readOnly: false },
+            notes: { readOnly: false },
+        },
+    },
+    render: (args) => <SchemaComponent {...args} />,
     play: async ({ canvasElement, step }) => {
         const canvas = within(canvasElement);
         await step(
@@ -213,22 +219,21 @@ export const ReadOnlyOverride: StoryObj = {
 // Mixed editability
 // ---------------------------------------------------------------------------
 
-export const MixedEditability: StoryObj = {
+export const MixedEditability: OverrideStory = {
     name: "Mixed editability per field",
     tags: ["editable", "readonly"],
-    render: () => (
-        <SchemaComponent
-            schema={userSchema}
-            value={baseValue}
-            fields={{
-                name: { readOnly: false },
-                email: { readOnly: true },
-                role: { readOnly: false },
-                active: { readOnly: true },
-                notes: { readOnly: false },
-            }}
-        />
-    ),
+    args: {
+        schema: userSchema,
+        value: baseValue,
+        fields: {
+            name: { readOnly: false },
+            email: { readOnly: true },
+            role: { readOnly: false },
+            active: { readOnly: true },
+            notes: { readOnly: false },
+        },
+    },
+    render: (args) => <SchemaComponent {...args} />,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         const nameInput = await canvas.findByPlaceholderText(/full name/i);
@@ -242,19 +247,18 @@ export const MixedEditability: StoryObj = {
 // Write-only on specific fields
 // ---------------------------------------------------------------------------
 
-export const WriteOnlyFields: StoryObj = {
+export const WriteOnlyFields: OverrideStory = {
     name: "Write-only on sensitive fields",
     tags: ["writeonly", "editable"],
-    render: () => (
-        <SchemaComponent
-            schema={userSchema}
-            value={baseValue}
-            fields={{
-                email: { writeOnly: true },
-                notes: { writeOnly: true },
-            }}
-        />
-    ),
+    args: {
+        schema: userSchema,
+        value: baseValue,
+        fields: {
+            email: { writeOnly: true },
+            notes: { writeOnly: true },
+        },
+    },
+    render: (args) => <SchemaComponent {...args} />,
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         // Write-only forces these as inputs even though the rest defaults to editable.
