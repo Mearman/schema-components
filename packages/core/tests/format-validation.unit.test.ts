@@ -589,3 +589,80 @@ describe("Zod 4 emitted format round-trip", () => {
         }
     );
 });
+
+// ---------------------------------------------------------------------------
+// Zod 4 `z.iso.*` formats — round-trip through the library
+// ---------------------------------------------------------------------------
+
+describe("Zod 4 z.iso.* format round-trip", () => {
+    /**
+     * `z.iso.date()`, `z.iso.datetime()`, and `z.iso.duration()` emit a
+     * standard JSON Schema `format` value (`"date"`, `"date-time"`,
+     * `"duration"`). The walker must derive a `formatPattern` for each
+     * without firing an `unknown-format` diagnostic.
+     *
+     * `z.iso.time()` is covered separately below — Zod 4 emits only a
+     * `pattern` for time schemas (no `format`), so the formatPattern
+     * assertion does not apply.
+     */
+    const isoCases: readonly (readonly [string, string, () => z.ZodType])[] = [
+        ["z.iso.date()", "date", () => z.iso.date()],
+        ["z.iso.datetime()", "date-time", () => z.iso.datetime()],
+        ["z.iso.duration()", "duration", () => z.iso.duration()],
+    ];
+
+    it.each(isoCases)(
+        "%s emits format=%s and round-trips with derived formatPattern",
+        (_label, expectedFormat, build) => {
+            const { jsonSchema } = normaliseSchema(build());
+            const diags: Diagnostic[] = [];
+            const tree = walk(jsonSchema, {
+                diagnostics: {
+                    diagnostics: (d: Diagnostic) => {
+                        diags.push(d);
+                    },
+                },
+            });
+            if (tree.type !== "string") {
+                expect.unreachable(
+                    `Expected string field for format ${expectedFormat}`
+                );
+                return;
+            }
+            expect(tree.constraints.format).toBe(expectedFormat);
+            expect(tree.constraints.formatPattern).toBeInstanceOf(RegExp);
+            expect(diags.some((d) => d.code === "unknown-format")).toBe(false);
+            // Derived pattern matches the registry entry exactly.
+            expect(tree.constraints.formatPattern).toBe(
+                FORMAT_PATTERNS[expectedFormat]
+            );
+        }
+    );
+
+    it("z.iso.time() round-trips without firing an unknown-format diagnostic", () => {
+        // Zod 4 emits z.iso.time() as `{ type: "string", pattern: ... }`
+        // with no `format` keyword — so the walker simply skips format
+        // derivation. The test guards against a regression where the
+        // walker incorrectly synthesised a format value and triggered a
+        // false-positive `unknown-format` diagnostic.
+        const { jsonSchema } = normaliseSchema(z.iso.time());
+        const diags: Diagnostic[] = [];
+        const tree = walk(jsonSchema, {
+            diagnostics: {
+                diagnostics: (d: Diagnostic) => {
+                    diags.push(d);
+                },
+            },
+        });
+        if (tree.type !== "string") {
+            expect.unreachable("Expected string field for z.iso.time()");
+            return;
+        }
+        expect(tree.constraints.format).toBeUndefined();
+        expect(diags.some((d) => d.code === "unknown-format")).toBe(false);
+        // The Zod-emitted pattern survives the walker and is exposed as
+        // the user `pattern` constraint (a string — JSON Schema patterns
+        // are kept verbatim; only format-derived patterns are RegExp).
+        expect(typeof tree.constraints.pattern).toBe("string");
+    });
+});
