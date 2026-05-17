@@ -209,6 +209,17 @@ function walkNode(
     // --- Handle oneOf ---
     const oneOf = getArray(schema, "oneOf");
     if (oneOf !== undefined) {
+        // `oneOf: [T, { type: "null" }]` carries the same intent as the
+        // `anyOf` nullable form — recognise it so the inner schema walks
+        // with `isNullable: true` instead of producing a noisy 2-option
+        // union with a separate null branch.
+        const nullable = normaliseAnyOf(oneOf);
+        if (nullable !== undefined) {
+            return walkNode(nullable.inner, {
+                ...ctx,
+                isNullable: true,
+            });
+        }
         const discriminated = detectDiscriminated(
             oneOf,
             ctx.diagnostics,

@@ -572,6 +572,30 @@ describe("walk — allOf", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Walker — oneOf [T, null] nullable detection
+// ---------------------------------------------------------------------------
+
+describe("walk — oneOf nullable", () => {
+    it("detects nullable from oneOf [T, null]", () => {
+        const tree = walk(
+            { oneOf: [{ type: "string" }, { type: "null" }] },
+            {}
+        );
+        expect(tree.type).toBe("string");
+        expect(tree.isNullable).toBe(true);
+    });
+
+    it("detects nullable from oneOf [null, T] (order independent)", () => {
+        const tree = walk(
+            { oneOf: [{ type: "null" }, { type: "number" }] },
+            {}
+        );
+        expect(tree.type).toBe("number");
+        expect(tree.isNullable).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Walker — meta extraction
 // ---------------------------------------------------------------------------
 
