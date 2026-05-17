@@ -92,6 +92,7 @@ export function getParsed(
             : doc;
     if (diagnostics !== undefined) {
         validateSecuritySchemeTypes(normalisedDoc, diagnostics);
+        detectUnsupportedCrossSchemaRefs(normalisedDoc, diagnostics);
     }
     const parsed = parseOpenApiDocument(normalisedDoc);
     // Only populate the cache for the no-diagnostics path. Caching a
@@ -177,6 +178,62 @@ function validateSecuritySchemeTypes(
             });
         }
     }
+}
+
+/**
+ * Detect any `$ref` strings that survived normalisation in a non-
+ * fragment shape (anything not starting with `#/` or `#`). After
+ * `normaliseOpenApiSchemas` runs `resolveRelativeRefs`, every relative
+ * `$ref` within a Schema Object is rewritten to an absolute fragment.
+ * Refs that *cross* Schema Object boundaries — for example, a relative
+ * ref inside one component schema pointing into another via a sibling
+ * `$id` — cannot be resolved by the current pipeline (this is a
+ * documented limitation; see the JSDoc on this function).
+ *
+ * Emit a single diagnostic per offending ref so consumers notice
+ * silently broken references rather than discovering them only when
+ * the walker fails to render the target.
+ *
+ * NOTE: We can't determine "crossing" cleanly from the parser alone —
+ * doing so would require modelling every Schema Object's $id scope.
+ * As a pragmatic approximation, any surviving non-`#`-prefixed `$ref`
+ * is treated as cross-Schema-Object unsupported. False positives
+ * (legitimate external refs that the consumer planned to bundle later)
+ * are still useful — they confirm an unresolved reference is present.
+ */
+function detectUnsupportedCrossSchemaRefs(
+    doc: Record<string, unknown>,
+    diagnostics: DiagnosticsOptions
+): void {
+    const seenRefs = new Set<string>();
+    const walk = (node: unknown, pointer: string): void => {
+        if (Array.isArray(node)) {
+            for (const [index, item] of node.entries()) {
+                walk(item, `${pointer}/${String(index)}`);
+            }
+            return;
+        }
+        if (!isObject(node)) return;
+        const ref = node.$ref;
+        if (
+            typeof ref === "string" &&
+            !ref.startsWith("#") &&
+            !seenRefs.has(ref)
+        ) {
+            seenRefs.add(ref);
+            emitDiagnostic(diagnostics, {
+                code: "cross-schema-relative-ref-unsupported",
+                message: `Relative \`$ref\` "${ref}" was not resolved during normalisation; cross-Schema-Object relative refs are not currently supported`,
+                pointer,
+                detail: { ref },
+            });
+            return;
+        }
+        for (const [key, value] of Object.entries(node)) {
+            walk(value, `${pointer}/${key}`);
+        }
+    };
+    walk(doc, "");
 }
 
 /**

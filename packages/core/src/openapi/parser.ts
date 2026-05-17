@@ -510,6 +510,21 @@ function isJsonSuffixMediaType(mediaType: string): boolean {
 // $ref resolution
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve an in-document `$ref` against the supplied doc root.
+ *
+ * Limitation — cross-Schema-Object relative refs: refs that do NOT
+ * start with `#/` are not resolved here. The `normaliseOpenApiSchemas`
+ * pipeline (see `resolveRelativeRefs` in `core/normalise.ts`) rewrites
+ * relative refs WITHIN a Schema Object using that schema's `$id` base
+ * URI, but it does not currently model `$id` scopes that span Schema
+ * Object boundaries (e.g. a sibling component schema with its own
+ * `$id` that another schema's relative ref targets). Such refs survive
+ * normalisation unchanged and fall through this function returning
+ * `undefined`. `resolve.ts:detectUnsupportedCrossSchemaRefs` walks the
+ * normalised doc and emits `cross-schema-relative-ref-unsupported` per
+ * offending ref so consumers notice the silent failure.
+ */
 function resolveRefInDoc(doc: JsonObject, ref: string): JsonObject | undefined {
     if (!ref.startsWith("#/")) return undefined;
 
