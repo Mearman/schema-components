@@ -460,6 +460,9 @@ function OperationHeader({
                 {operation.method.toUpperCase()} {operation.path}
             </h3>
             {operation.summary && <p>{operation.summary}</p>}
+            {operation.description && (
+                <p data-description>{operation.description}</p>
+            )}
             {operation.deprecated && <span data-deprecated>Deprecated</span>}
         </header>
     );

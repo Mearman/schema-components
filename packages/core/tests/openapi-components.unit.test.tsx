@@ -104,6 +104,40 @@ describe("ApiOperation", () => {
         expect(html).toContain("404");
     });
 
+    it("renders operation.description in the header", () => {
+        const docWithDescription = {
+            openapi: "3.1.0",
+            info: { title: "Test API", version: "1.0" },
+            paths: {
+                "/widgets": {
+                    get: {
+                        operationId: "listWidgets",
+                        summary: "List widgets",
+                        description:
+                            "Returns a paginated list of widgets. Supports filtering by colour and shape via query parameters. Results are cached for 30 seconds.",
+                        responses: {
+                            "200": { description: "OK" },
+                        },
+                    },
+                },
+            },
+        };
+
+        const html = renderToString(
+            createElement(ApiOperation, {
+                schema: docWithDescription,
+                path: "/widgets",
+                method: "get",
+            })
+        );
+
+        expect(html).toContain("List widgets");
+        expect(html).toContain(
+            "Returns a paginated list of widgets. Supports filtering by colour and shape via query parameters. Results are cached for 30 seconds."
+        );
+        expect(html).toContain("data-description");
+    });
+
     it("throws for unknown path", () => {
         expect(() =>
             renderToString(
