@@ -365,4 +365,51 @@ describe("resolveResponses", () => {
         const responses = resolveResponses(minimal, "/test", "get");
         expect(responses).toStrictEqual([]);
     });
+
+    it("resolves $ref headers against the document root", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Refs", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: {
+                        operationId: "listItems",
+                        responses: {
+                            "200": {
+                                description: "OK",
+                                headers: {
+                                    "X-Rate-Limit": {
+                                        $ref: "#/components/headers/RateLimit",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                headers: {
+                    RateLimit: {
+                        description: "Calls remaining in window",
+                        required: true,
+                        deprecated: false,
+                        schema: { type: "integer", minimum: 0 },
+                    },
+                },
+            },
+        };
+
+        const responses = resolveResponses(doc, "/items", "get");
+        expect(responses.length).toBe(1);
+        const response = assertDefined(responses[0], "response 200");
+        expect(response.headers.size).toBe(1);
+        const header = assertDefined(
+            response.headers.get("X-Rate-Limit"),
+            "X-Rate-Limit header"
+        );
+        expect(header.description).toBe("Calls remaining in window");
+        expect(header.required).toBe(true);
+        expect(header.deprecated).toBe(false);
+        expect(header.schema).toStrictEqual({ type: "integer", minimum: 0 });
+    });
 });

@@ -376,7 +376,7 @@ export function getResponses(
         const schema = isObject(content)
             ? extractSchemaFromContent(content)
             : undefined;
-        const headers = getResponseHeaders(response);
+        const headers = getResponseHeaders(response, parsed.doc);
 
         result.push({
             statusCode,
@@ -496,7 +496,8 @@ export function getSecuritySchemes(
 // ---------------------------------------------------------------------------
 
 export function getResponseHeaders(
-    response: JsonObject
+    response: JsonObject,
+    doc?: JsonObject
 ): Map<string, HeaderInfo> {
     const result = new Map<string, HeaderInfo>();
     const headers = getProperty(response, "headers");
@@ -506,10 +507,14 @@ export function getResponseHeaders(
     for (const [name, headerObj] of Object.entries(headers)) {
         if (!isObject(headerObj)) continue;
 
-        // Resolve $ref on the header
+        // Resolve $ref on the header against the document root —
+        // e.g. `#/components/headers/MyHeader`. Without the document we
+        // cannot resolve the pointer, so fall back to the inline shape.
         const ref = getString(headerObj, "$ref");
         const resolved =
-            ref !== undefined ? resolveRefInDoc(headerObj, ref) : undefined;
+            ref !== undefined && doc !== undefined
+                ? resolveRefInDoc(doc, ref)
+                : undefined;
         const header = resolved ?? headerObj;
         const schemaProp = getProperty(header, "schema");
 
