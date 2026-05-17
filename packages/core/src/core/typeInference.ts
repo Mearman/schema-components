@@ -25,17 +25,33 @@ import type { FieldOverride, FieldOverrides } from "./types.ts";
 // ---------------------------------------------------------------------------
 
 /**
- * Zod 4 types that `z.toJSONSchema()` rejects at runtime because they
- * have no JSON Schema representation. The runtime adapter
- * (`packages/core/src/core/adapter.ts` lines 106-116) catches the
- * thrown error and surfaces it as a `SchemaNormalisationError` with
- * kind `zod-type-unrepresentable` — but the failure only happens on
- * first render. Statically rejecting these types at the props boundary
+ * Zod 4 types that have no useful JSON Schema representation and so
+ * cannot meaningfully be rendered by schema-components. The runtime
+ * adapter (`packages/core/src/core/adapter.ts`, see the
+ * `zod-type-unrepresentable` classifier rules) catches the thrown
+ * error and surfaces it as a `SchemaNormalisationError` — but for
+ * the runtime-throwing variants the failure only happens on first
+ * render. Statically rejecting these types at the props boundary
  * gives the same diagnostic at compile time.
  *
- * SOURCE-OF-TRUTH: list mirrors `UNREPRESENTABLE_ZOD_TYPES` in
- * `adapter.ts`. Add or remove entries here whenever the runtime list
- * changes.
+ * Two categories are listed:
+ *
+ * 1. **Runtime-throwing.** `z.toJSONSchema()` itself throws when it
+ *    encounters one of these — bigint, date, map, set, symbol,
+ *    function, custom, undefined, void, nan, codec. Source-of-truth
+ *    is the classifier in `adapter.ts` (search for
+ *    `zod-type-unrepresentable`).
+ * 2. **Statically rejected by schema-components.** `z.toJSONSchema()`
+ *    accepts these without throwing, but the resulting JSON Schema
+ *    is either degenerate (`ZodNever` becomes `{ not: {} }`,
+ *    contributing nothing renderable) or the async/Promise dimension
+ *    is dropped silently (`ZodPromise` is unwrapped to its inner
+ *    type with no signal to the consumer). Both surface here so the
+ *    rejection is explicit at the type level even though the runtime
+ *    is permissive.
+ *
+ * Names mirror the Zod 4 classic interface exports in
+ * `node_modules/zod/v4/classic/schemas.d.cts`.
  */
 export type UnrepresentableZodType =
     | z.ZodBigInt
@@ -47,7 +63,10 @@ export type UnrepresentableZodType =
     | z.ZodUndefined
     | z.ZodVoid
     | z.ZodNaN
-    | z.ZodCodec;
+    | z.ZodCodec
+    | z.ZodCustom
+    | z.ZodNever
+    | z.ZodPromise;
 
 /**
  * Brand returned in place of a rejected Zod input. The descriptive
@@ -136,6 +155,27 @@ export type RejectUnrepresentableZod<T> =
 type ArrayToUnion<A> = A extends readonly unknown[] ? A[number] : never;
 
 /**
+ * Direction of inference for `FromJSONSchema`.
+ *
+ * JSON Schema's `readOnly` / `writeOnly` keywords carry directional
+ * semantics: a `readOnly` property must not appear in client → server
+ * payloads, and a `writeOnly` property must not appear in server →
+ * client payloads. Mapping a schema to a TypeScript type therefore
+ * requires knowing which direction the value travels.
+ *
+ * - `"both"` — return every property regardless of `readOnly` /
+ *   `writeOnly`. Default, preserves the prior behaviour for callers
+ *   that do not care about the distinction.
+ * - `"input"` — omit properties marked `readOnly: true`. Use for the
+ *   shape consumers may supply (e.g. `onChange` arguments, POST
+ *   bodies).
+ * - `"output"` — omit properties marked `writeOnly: true`. Use for
+ *   the shape the server returns (e.g. rendered `value` props, GET
+ *   responses).
+ */
+export type FromJSONSchemaMode = "input" | "output" | "both";
+
+/**
  * Maps a JSON Schema structure to a TypeScript type.
  * Works with `as const` literals -- provides full autocomplete for `fields`.
  *
@@ -145,23 +185,28 @@ type ArrayToUnion<A> = A extends readonly unknown[] ? A[number] : never;
  * - enum -> union of literal types
  * - const -> literal type
  * - object with properties/required -> specific object type
- * - object with additionalProperties -> Record<string, T>
+ * - object with properties + additionalProperties -> object & Record<string, V>
+ * - object with additionalProperties only -> Record<string, T>
  * - array with items -> T[]
  * - array with prefixItems -> tuple type
  * - allOf -> intersection type
  * - anyOf -> union type
- * - oneOf -> union type
+ * - oneOf -> union type (plain union, or tagged union when `discriminator` is set)
  * - $ref -> resolved via $defs/definitions/$anchor context
  * - $dynamicRef -> resolved via $dynamicAnchor in definitions
  * - $recursiveRef -> unknown (recursive types not expressible in TS)
  * - if/then/else -> base schema (conditionals not expressible in TS)
  * - not -> unknown (negation not expressible in TS)
  * - patternProperties -> merged into loose index signature
+ *
+ * The `Mode` parameter controls how `readOnly` / `writeOnly` keywords
+ * influence inferred object properties — see {@link FromJSONSchemaMode}.
  */
 export type FromJSONSchema<
     S,
     Defs extends Record<string, unknown> = Record<string, never>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > =
     MergeRootDefs<S, Defs> extends infer MergedDefs extends Record<
         string,
@@ -176,40 +221,71 @@ export type FromJSONSchema<
                * `FromJSONSchema` level means nested fields inside refs preserve
                * nullability when resolved.
                */
-              FromJSONSchema<Omit<S, "nullable">, MergedDefs, Depth> | null
+              FromJSONSchema<
+                  Omit<S, "nullable">,
+                  MergedDefs,
+                  Depth,
+                  Mode
+              > | null
             : S extends { $ref: infer R extends string }
-              ? ResolveSchemaRef<R, MergedDefs, Depth>
+              ? ResolveSchemaRef<R, MergedDefs, Depth, Mode>
               : S extends { $recursiveRef: string }
                 ? /** $recursiveRef: TypeScript cannot express recursive types. */
                   unknown
                 : S extends { $dynamicRef: infer R extends string }
-                  ? ResolveSchemaRef<R, MergedDefs, Depth>
+                  ? ResolveSchemaRef<R, MergedDefs, Depth, Mode>
                   : S extends { allOf: infer A }
-                    ? AllOfToType<A, MergedDefs, Depth>
+                    ? AllOfToType<A, MergedDefs, Depth, Mode>
                     : S extends { anyOf: infer A }
-                      ? UnionOfMembers<A, MergedDefs, Depth>
-                      : S extends { oneOf: infer A }
-                        ? UnionOfMembers<A, MergedDefs, Depth>
-                        : S extends { if: unknown }
-                          ? /** if/then/else: infer base schema without conditionals. */
-                            FromJSONSchema<
-                                Omit<S, "if" | "then" | "else">,
-                                MergedDefs,
-                                Depth
-                            >
-                          : S extends { not: unknown }
-                            ? /** not: TypeScript cannot negate types. */
-                              unknown
-                            : S extends { const: infer V }
-                              ? V
-                              : S extends { enum: infer E }
-                                ? ArrayToUnion<E>
-                                : S extends { type: infer T }
-                                  ? TypeToTs<T, S, MergedDefs, Depth>
-                                  : S extends readonly (infer E)[]
-                                    ? E
-                                    : unknown
+                      ? UnionOfMembers<A, MergedDefs, Depth, Mode>
+                      : S extends {
+                              oneOf: infer A;
+                              discriminator: {
+                                  propertyName: infer DP extends string;
+                              };
+                          }
+                        ? DiscriminatedOneOfToUnion<
+                              A,
+                              DP,
+                              GetDiscriminatorMapping<S>,
+                              MergedDefs,
+                              Depth,
+                              Mode
+                          >
+                        : S extends { oneOf: infer A }
+                          ? UnionOfMembers<A, MergedDefs, Depth, Mode>
+                          : S extends { if: unknown }
+                            ? /** if/then/else: infer base schema without conditionals. */
+                              FromJSONSchema<
+                                  Omit<S, "if" | "then" | "else">,
+                                  MergedDefs,
+                                  Depth,
+                                  Mode
+                              >
+                            : S extends { not: unknown }
+                              ? /** not: TypeScript cannot negate types. */
+                                unknown
+                              : S extends { const: infer V }
+                                ? V
+                                : S extends { enum: infer E }
+                                  ? ArrayToUnion<E>
+                                  : S extends { type: infer T }
+                                    ? TypeToTs<T, S, MergedDefs, Depth, Mode>
+                                    : S extends readonly (infer E)[]
+                                      ? E
+                                      : unknown
         : unknown;
+
+/**
+ * Extract the `discriminator.mapping` map if present, otherwise the
+ * empty sentinel. Used by {@link DiscriminatedOneOfToUnion} to inject
+ * the discriminator literal into members referenced via $ref.
+ */
+type GetDiscriminatorMapping<S> = S extends {
+    discriminator: { mapping: infer M extends Record<string, string> };
+}
+    ? M
+    : Record<string, never>;
 
 /**
  * Merge `$defs` / `definitions` declared at the current schema position with
@@ -291,16 +367,22 @@ type IsEmptyDefs<T> = [keyof T] extends [never]
       : false;
 
 /**
- * True when the schema declares `$defs` or `definitions` as an object,
- * false otherwise. Used by {@link MergeRootDefs} and {@link ExtractDefs}
- * to avoid intersecting the parent context with an empty
- * index-signature sentinel.
+ * True when the schema declares `$defs`, `definitions`, or
+ * `components.schemas` as an object, false otherwise. Used by
+ * {@link MergeRootDefs} and {@link ExtractDefs} to avoid intersecting
+ * the parent context with an empty index-signature sentinel.
+ *
+ * `components.schemas` is recognised so OpenAPI documents whose root
+ * `oneOf`/`anyOf`/`$ref` schemas point into the components tree resolve
+ * via the same `Defs` map as `$defs`/`definitions` entries.
  */
 type HasLocalDefs<S> = S extends { $defs: Record<string, unknown> }
     ? true
     : S extends { definitions: Record<string, unknown> }
       ? true
-      : false;
+      : S extends { components: { schemas: Record<string, unknown> } }
+        ? true
+        : false;
 
 /**
  * Marker type emitted when OpenAPI $ref resolution hits the type-level
@@ -320,17 +402,41 @@ export interface __SchemaInferenceFellBack {
 
 /**
  * Escape hatch for recursive schemas where type-level inference
- * cannot proceed. Typed as `Record<string, FieldOverride>` but
- * explicitly branded so callers know they are using the unsafe path.
+ * cannot proceed. Typed as a map from field name (any string except
+ * the brand key) to `FieldOverride`, branded with a **required**
+ * discriminator so the unsafe path is an explicit opt-in rather than
+ * a silent default.
+ *
+ * Earlier revisions made the brand optional (`__unsafe?: true`).
+ * That defeated the brand's purpose: any plain `Record<string,
+ * FieldOverride>` literal silently satisfied the type and the
+ * "unsafe" intent was invisible to readers and reviewers. Marking
+ * the brand required forces callers to write `{ __unsafe: true,
+ * ... }`, making the escape-hatch use visible at the call site.
+ *
+ * The brand key is carved out of the field-name index signature so
+ * `__unsafe: true` does not collide with the `FieldOverride` value
+ * constraint — an index signature `[string]: FieldOverride` would
+ * otherwise reject the boolean literal.
  *
  * JSDoc trade-off note: This bypasses field-level type safety.
  * Prefer restructuring the schema to avoid deep $ref chains
  * when possible.
  */
-export type UnsafeFields = Record<string, FieldOverride> & {
-    /** Marks this as the unsafe fallback for recursive schemas. */
-    readonly __unsafe?: true;
-};
+export interface UnsafeFields {
+    /**
+     * Required marker — set to `true` to acknowledge that callers
+     * are deliberately bypassing field-level inference. The literal
+     * value is not used at runtime.
+     */
+    readonly __unsafe: true;
+    /**
+     * Field overrides keyed by name. The recursive `Record` exclusion
+     * prevents the brand from being assigned through the index
+     * signature.
+     */
+    readonly [field: string]: FieldOverride | true;
+}
 
 /**
  * Convert a `FromJSONSchema` result to `unknown` when recursion is detected.
@@ -388,6 +494,7 @@ type ResolveSchemaRef<
     R extends string,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > = Depth["length"] extends DEFAULT_MAX_DEPTH
     ? __SchemaInferenceFellBack
     : R extends "#"
@@ -395,19 +502,24 @@ type ResolveSchemaRef<
       : R extends `#/$defs/${infer Name}`
         ? Name extends keyof Defs
             ? DetectRecursiveFallback<
-                  FromJSONSchema<Defs[Name], Defs, [unknown, ...Depth]>
+                  FromJSONSchema<Defs[Name], Defs, [unknown, ...Depth], Mode>
               >
             : unknown
         : R extends `#/definitions/${infer Name}`
           ? Name extends keyof Defs
               ? DetectRecursiveFallback<
-                    FromJSONSchema<Defs[Name], Defs, [unknown, ...Depth]>
+                    FromJSONSchema<Defs[Name], Defs, [unknown, ...Depth], Mode>
                 >
               : unknown
           : R extends `#/components/schemas/${infer Name}`
             ? Name extends keyof Defs
                 ? DetectRecursiveFallback<
-                      FromJSONSchema<Defs[Name], Defs, [unknown, ...Depth]>
+                      FromJSONSchema<
+                          Defs[Name],
+                          Defs,
+                          [unknown, ...Depth],
+                          Mode
+                      >
                   >
                 : unknown
             : R extends `#${infer AnchorName}`
@@ -416,7 +528,8 @@ type ResolveSchemaRef<
                         FromJSONSchema<
                             Defs[AnchorName],
                             Defs,
-                            [unknown, ...Depth]
+                            [unknown, ...Depth],
+                            Mode
                         >
                     >
                   : unknown
@@ -424,13 +537,28 @@ type ResolveSchemaRef<
 
 /**
  * Merge an allOf array into an intersection type.
+ *
+ * KNOWN LIMITATION: when any member of the `allOf` array is itself a
+ * union (e.g. produced by an `anyOf` inside one member), distribution
+ * across the intersection does not always behave as a hand-written
+ * intersection would. `(A | B) & C` distributes to `(A & C) | (B & C)`,
+ * but TypeScript's mapped-type machinery — combined with the conditional
+ * dispatch above — does not always recover that distribution when the
+ * union arises from a `FromJSONSchema` expansion. The pinned regression
+ * test `allOf of unions is treated as the intersection of the union
+ * members` in `tests/type-inference-issue-fixes.test.ts` documents the
+ * current behaviour so future refactors do not silently make it worse.
+ * There is no known way to express "distribute every member-side union
+ * across the intersection" in TypeScript today without losing the
+ * non-union members' information.
  */
 type AllOfToType<
     A,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > = A extends readonly unknown[]
-    ? UnionToIntersection<FromJSONSchema<A[number], Defs, Depth>>
+    ? UnionToIntersection<FromJSONSchema<A[number], Defs, Depth, Mode>>
     : unknown;
 
 /**
@@ -457,11 +585,115 @@ type UnionOfMembers<
     A,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > = A extends readonly unknown[]
     ? HasNullMember<A> extends true
-        ? Exclude<FromJSONSchema<A[number], Defs, Depth>, null> | null
-        : FromJSONSchema<A[number], Defs, Depth>
+        ? Exclude<FromJSONSchema<A[number], Defs, Depth, Mode>, null> | null
+        : FromJSONSchema<A[number], Defs, Depth, Mode>
     : unknown;
+
+/**
+ * Convert an OpenAPI 3.x `oneOf` + `discriminator` schema into a true
+ * tagged union by injecting the discriminator literal value into each
+ * member at the property named `PropertyName`.
+ *
+ * Resolution rules per OpenAPI 3.x §4.7.25 (Discriminator Object):
+ *
+ * - When the member is a `$ref` and `Mapping` contains an entry whose
+ *   value equals the ref string, the entry key is used as the
+ *   discriminator literal — this is the explicit mapping form. When
+ *   no mapping entry matches, the ref's terminal name (the segment
+ *   after the last `/`) is used per the implicit-mapping rule.
+ * - When the member is an inline schema and already declares a
+ *   `const` value at `PropertyName`, that const is the discriminator
+ *   value; the member's parsed type already carries the literal so
+ *   no injection is required.
+ * - When the member is an inline schema without a `const` at
+ *   `PropertyName`, the discriminator value cannot be inferred at
+ *   the type level — fall through to the plain union.
+ *
+ * KNOWN LIMITATION: discriminator mappings whose values are external
+ * `$ref`s (e.g. `"#/components/schemas/SomeType"` defined in a
+ * different document) cannot be resolved at the type level because
+ * `FromJSONSchema` only sees the local `Defs` map. For external
+ * mappings the result falls back to the plain union of members.
+ */
+type DiscriminatedOneOfToUnion<
+    A,
+    PropertyName extends string,
+    Mapping extends Record<string, string>,
+    Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[],
+    Mode extends FromJSONSchemaMode,
+> = A extends readonly unknown[]
+    ? HasNullMember<A> extends true
+        ? Exclude<
+              DistributeDiscriminator<
+                  A[number],
+                  PropertyName,
+                  Mapping,
+                  Defs,
+                  Depth,
+                  Mode
+              >,
+              null
+          > | null
+        : DistributeDiscriminator<
+              A[number],
+              PropertyName,
+              Mapping,
+              Defs,
+              Depth,
+              Mode
+          >
+    : unknown;
+
+/**
+ * For each member of the discriminated `oneOf`, parse the member via
+ * `FromJSONSchema` and intersect with the discriminator literal when
+ * one can be derived from the mapping table or the implicit ref name.
+ */
+type DistributeDiscriminator<
+    M,
+    PropertyName extends string,
+    Mapping extends Record<string, string>,
+    Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[],
+    Mode extends FromJSONSchemaMode,
+> = M extends { $ref: infer R extends string }
+    ? FromJSONSchema<M, Defs, Depth, Mode> &
+          Record<PropertyName, DiscriminatorLiteralFor<R, Mapping>>
+    : FromJSONSchema<M, Defs, Depth, Mode>;
+
+/**
+ * Resolve the literal discriminator value for a `$ref` string. First
+ * checks the explicit `Mapping` for any entry whose value equals the
+ * ref; falls back to the trailing path segment if no mapping match is
+ * found. `[K] extends [never]` short-circuits the empty-mapping case
+ * without colliding with the `K = never` distribution rules.
+ */
+type DiscriminatorLiteralFor<
+    R extends string,
+    Mapping extends Record<string, string>,
+> = [LookupMappingKey<R, Mapping>] extends [never]
+    ? RefTerminalName<R>
+    : LookupMappingKey<R, Mapping>;
+
+/**
+ * Find the key in `Mapping` whose value equals `R`. Returns the union
+ * of matching keys, or `never` when no key matches.
+ */
+type LookupMappingKey<
+    R extends string,
+    Mapping extends Record<string, string>,
+> = {
+    [K in keyof Mapping]: Mapping[K] extends R ? K : never;
+}[keyof Mapping];
+
+/** Last `/`-delimited segment of a ref string, or the ref itself. */
+type RefTerminalName<R extends string> = R extends `${string}/${infer Rest}`
+    ? RefTerminalName<Rest>
+    : R;
 
 /**
  * Check whether an anyOf/oneOf array contains a `{ type: "null" }` member.
@@ -489,6 +721,7 @@ type TypeToTs<
     S,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > = T extends "string"
     ? string
     : T extends "number" | "integer"
@@ -498,22 +731,34 @@ type TypeToTs<
         : T extends "null"
           ? null
           : T extends "array"
-            ? ArraySchemaToTs<S, Defs, Depth>
+            ? ArraySchemaToTs<S, Defs, Depth, Mode>
             : T extends "object"
-              ? ObjectSchemaToTs<S, Defs, Depth>
+              ? ObjectSchemaToTs<S, Defs, Depth, Mode>
               : T extends readonly (infer E)[]
-                ? TypeArrayToTs<E, S, Defs, Depth>
+                ? TypeArrayToTs<E, S, Defs, Depth, Mode>
                 : unknown;
 
 /**
  * Handle `type` as an array (Draft 04-07): `["string", "null"]`.
  * Filters out "null" and makes the result nullable.
+ *
+ * Earlier revisions ran the array / object branches through
+ * `OmitArrayHelpers` to strip `prefixItems`, `items`, and
+ * `additionalProperties` before re-parsing. That was a bug: the strip
+ * stopped the type-array form from carrying any element / property
+ * information, so `{ type: ["array", "null"], items: { type: "string" } }`
+ * collapsed to `unknown[] | null` instead of `string[] | null`. The
+ * helper still parses the same schema, only without the unnecessary
+ * key removal. The regression is pinned in
+ * `tests/type-inference-issue-fixes.test.ts` via the
+ * `type: ["array", "null"] preserves items` case.
  */
 type TypeArrayToTs<
     E,
     S,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > = E extends "null"
     ? null
     : E extends "string"
@@ -523,15 +768,9 @@ type TypeArrayToTs<
         : E extends "boolean"
           ? NullableResult<boolean, S>
           : E extends "array"
-            ? NullableResult<
-                  ArraySchemaToTs<OmitArrayHelpers<S>, Defs, Depth>,
-                  S
-              >
+            ? NullableResult<ArraySchemaToTs<S, Defs, Depth, Mode>, S>
             : E extends "object"
-              ? NullableResult<
-                    ObjectSchemaToTs<OmitArrayHelpers<S>, Defs, Depth>,
-                    S
-                >
+              ? NullableResult<ObjectSchemaToTs<S, Defs, Depth, Mode>, S>
               : unknown;
 
 /**
@@ -543,15 +782,6 @@ type NullableResult<Base, S> = S extends { type: readonly (infer T)[] }
         ? Base | null
         : Base
     : Base;
-
-/**
- * Omit array-utility keys that interfere with object/array matching
- * when re-parsing a schema for a single type from a type array.
- */
-type OmitArrayHelpers<S> = Omit<
-    S,
-    "prefixItems" | "items" | "additionalProperties"
->;
 
 /**
  * Parse an array schema: prefixItems -> tuple, items -> T[], or unknown[].
@@ -570,15 +800,16 @@ type ArraySchemaToTs<
     S,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > = S extends {
     prefixItems: infer P;
 }
-    ? PrefixItemsToTuple<P, Defs, Depth>
+    ? PrefixItemsToTuple<P, Defs, Depth, Mode>
     : S extends { items: infer I extends readonly unknown[] }
       ? /** Draft 04 tuple-form items: rewrite to a tuple at the type level. */
-        PrefixItemsToTuple<I, Defs, Depth>
+        PrefixItemsToTuple<I, Defs, Depth, Mode>
       : S extends { items: infer I }
-        ? FromJSONSchema<I, Defs, Depth>[]
+        ? FromJSONSchema<I, Defs, Depth, Mode>[]
         : unknown[];
 
 /**
@@ -588,10 +819,11 @@ type PrefixItemsToTuple<
     P,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > = P extends readonly [infer First, ...infer Rest]
     ? [
-          FromJSONSchema<First, Defs, Depth>,
-          ...PrefixItemsToTuple<Rest, Defs, Depth>,
+          FromJSONSchema<First, Defs, Depth, Mode>,
+          ...PrefixItemsToTuple<Rest, Defs, Depth, Mode>,
       ]
     : [];
 
@@ -602,39 +834,102 @@ type PrefixItemsToTuple<
  * Handles:
  * - `properties` + `required` -> specific object type with required/optional keys
  * - `additionalProperties` as schema -> Record<string, T>
+ * - `properties` + `additionalProperties` -> base object intersected with
+ *   `Record<string, V>`, preserving the typed value shape of the extra props
  * - `patternProperties` -> merged into a loose index signature alongside specific props
  *   (TypeScript cannot express regex-keyed properties)
  * - `propertyNames` -> ignored at type level (TS cannot validate key shapes)
  * - `dependentSchemas` / `dependentRequired` -> ignored (runtime-only conditionals)
  * - `unevaluatedProperties` -> ignored (runtime-only)
+ *
+ * Properties marked `readOnly: true` are omitted when `Mode` is
+ * `"input"`; properties marked `writeOnly: true` are omitted when
+ * `Mode` is `"output"`. `Mode = "both"` (the default) ignores both
+ * keywords and preserves prior behaviour.
  */
 type ObjectSchemaToTs<
     S,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > = S extends {
     type: "object";
     properties: infer P;
 }
     ? ExtractDefs<S, Defs> extends infer D extends Record<string, unknown>
         ? MergePatternProps<
-              {
-                  [K in keyof P as K extends RequiredKeysOf<S>
-                      ? K
-                      : never]: FromJSONSchema<P[K], D, Depth>;
-              } & {
-                  [K in keyof P as K extends RequiredKeysOf<S>
-                      ? never
-                      : K]?: FromJSONSchema<P[K], D, Depth>;
-              },
+              MergeAdditionalProperties<
+                  {
+                      [K in keyof P as K extends RequiredKeysOf<S>
+                          ? IsPropertyHidden<P[K], Mode> extends true
+                              ? never
+                              : K
+                          : never]: FromJSONSchema<P[K], D, Depth, Mode>;
+                  } & {
+                      [K in keyof P as K extends RequiredKeysOf<S>
+                          ? never
+                          : IsPropertyHidden<P[K], Mode> extends true
+                            ? never
+                            : K]?: FromJSONSchema<P[K], D, Depth, Mode>;
+                  },
+                  S,
+                  D,
+                  Depth,
+                  Mode
+              >,
               S,
               D,
-              Depth
+              Depth,
+              Mode
           >
         : never
     : S extends { additionalProperties: infer V }
-      ? Record<string, FromJSONSchema<V, Defs, Depth>>
+      ? Record<string, FromJSONSchema<V, Defs, Depth, Mode>>
       : Record<string, unknown>;
+
+/**
+ * Decide whether a property should be omitted from the inferred type
+ * for the supplied `Mode`. `readOnly: true` properties are excluded
+ * from `"input"` mode (POST bodies, `onChange` arguments) and
+ * `writeOnly: true` properties are excluded from `"output"` mode
+ * (rendered values, GET responses). `"both"` is the permissive
+ * default and never hides anything.
+ */
+type IsPropertyHidden<P, Mode extends FromJSONSchemaMode> = Mode extends "input"
+    ? P extends { readOnly: true }
+        ? true
+        : false
+    : Mode extends "output"
+      ? P extends { writeOnly: true }
+          ? true
+          : false
+      : false;
+
+/**
+ * Intersect the base object type with `Record<string, V>` when the
+ * schema declares `additionalProperties` as a schema in addition to
+ * `properties`. Without this branch the inferred type silently dropped
+ * the value-type information for the extra props, leaving consumers
+ * with no way to type un-named keys that the schema explicitly permits.
+ *
+ * `additionalProperties: false` keeps the base unchanged (no extra
+ * keys are allowed); `additionalProperties: true` widens the value
+ * type to `unknown`; an inline schema produces a typed index
+ * signature.
+ */
+type MergeAdditionalProperties<
+    Base,
+    S,
+    Defs extends Record<string, unknown>,
+    Depth extends readonly unknown[],
+    Mode extends FromJSONSchemaMode,
+> = S extends { additionalProperties: false }
+    ? Base
+    : S extends { additionalProperties: true }
+      ? Base & Record<string, unknown>
+      : S extends { additionalProperties: infer V }
+        ? Base & Record<string, FromJSONSchema<V, Defs, Depth, Mode>>
+        : Base;
 
 /**
  * If the schema has `patternProperties`, intersect the base object type
@@ -646,9 +941,10 @@ type MergePatternProps<
     S,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
 > = S extends { patternProperties: infer PP }
     ? PP extends Record<string, unknown>
-        ? Base & Record<string, UnionOfPatternValues<PP, Defs, Depth>>
+        ? Base & Record<string, UnionOfPatternValues<PP, Defs, Depth, Mode>>
         : Base
     : Base;
 
@@ -659,16 +955,28 @@ type UnionOfPatternValues<
     PP extends Record<string, unknown>,
     Defs extends Record<string, unknown>,
     Depth extends readonly unknown[] = [],
-> = { [K in keyof PP]: FromJSONSchema<PP[K], Defs, Depth> }[keyof PP];
+    Mode extends FromJSONSchemaMode = "both",
+> = {
+    [K in keyof PP]: FromJSONSchema<PP[K], Defs, Depth, Mode>;
+}[keyof PP];
 
 /**
  * Extract the `required` array from a schema as a union of string literals.
- * Handles both readonly `as const` arrays and mutable arrays.
+ *
+ * Accepts both the `as const` readonly tuple form and a plain mutable
+ * `string[]` literal. The mutable form arises when a hand-written
+ * schema literal omits `as const` on the `required` field — without
+ * the second branch the conditional silently resolves to `never` and
+ * every property is marked optional, which is a silent footgun. See
+ * the regression test `RequiredKeysOf accepts widened string[] arrays`
+ * in `tests/type-inference-issue-fixes.test.ts`.
  */
 type RequiredKeysOf<S> = S extends { required: infer R }
     ? R extends readonly string[]
         ? R[number]
-        : never
+        : R extends string[]
+          ? R[number]
+          : never
     : never;
 
 /**
@@ -695,16 +1003,39 @@ type ExtractDefs<S, ParentDefs extends Record<string, unknown>> =
             : ParentDefs
         : ParentDefs;
 
-/** Extract raw $defs / definitions maps. */
-type ExtractRawDefs<S> = S extends { $defs: infer D }
+/**
+ * Extract raw `$defs` / `definitions` / `components.schemas` maps.
+ *
+ * Multiple keys may be present in a single schema (e.g. an OpenAPI
+ * document that also declares `$defs` for a Zod-converted subtree).
+ * `CollisionSafeMerge` resolves overlaps so the first non-empty source
+ * wins, mirroring the runtime's preference for `$defs` over the legacy
+ * `definitions` / `components.schemas` locations.
+ */
+type ExtractRawDefs<S> = CollisionSafeMerge<
+    CollisionSafeMerge<RawDefsOf<S>, RawDefinitionsOf<S>>,
+    RawComponentSchemasOf<S>
+>;
+
+type RawDefsOf<S> = S extends { $defs: infer D }
     ? D extends Record<string, unknown>
         ? D
         : Record<string, never>
-    : S extends { definitions: infer D }
-      ? D extends Record<string, unknown>
-          ? D
-          : Record<string, never>
-      : Record<string, never>;
+    : Record<string, never>;
+
+type RawDefinitionsOf<S> = S extends { definitions: infer D }
+    ? D extends Record<string, unknown>
+        ? D
+        : Record<string, never>
+    : Record<string, never>;
+
+type RawComponentSchemasOf<S> = S extends {
+    components: { schemas: infer D };
+}
+    ? D extends Record<string, unknown>
+        ? D
+        : Record<string, never>
+    : Record<string, never>;
 
 /**
  * Build a map of `$anchor` name -> schema from a definitions block.
@@ -760,27 +1091,88 @@ type UnionToIntersection<U> = (
  * - `#/components/schemas/Name` (OpenAPI 3.x)
  * - `#/definitions/Name` (Swagger 2.0)
  * - `#/paths/...` (path-based refs, navigating the document tree)
+ *
+ * When the resolved schema itself contains nested `$ref`s, the helper
+ * seeds {@link FromJSONSchema}'s `Defs` parameter with the document's
+ * `components.schemas` (OAS 3.x) and `definitions` (Swagger 2.0) maps
+ * so the nested refs resolve correctly. `Depth` is threaded too so the
+ * recursion budget is shared with the calling context. Earlier
+ * revisions called `FromJSONSchema<...>` with the empty defaults and
+ * silently produced `unknown` for any nested ref.
  */
 export type ResolveOpenAPIRef<
     Spec extends Record<string, unknown>,
     Ref extends string,
-> = Ref extends `#/components/schemas/${infer Name}`
-    ? Spec["components"] extends Record<string, unknown>
-        ? Spec["components"]["schemas"] extends Record<string, unknown>
-            ? Name extends keyof Spec["components"]["schemas"]
-                ? FromJSONSchema<Spec["components"]["schemas"][Name]>
+    Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
+> =
+    SpecDefs<Spec> extends infer Defs extends Record<string, unknown>
+        ? Ref extends `#/components/schemas/${infer Name}`
+            ? Spec["components"] extends Record<string, unknown>
+                ? Spec["components"]["schemas"] extends Record<string, unknown>
+                    ? Name extends keyof Spec["components"]["schemas"]
+                        ? FromJSONSchema<
+                              Spec["components"]["schemas"][Name],
+                              Defs,
+                              Depth,
+                              Mode
+                          >
+                        : unknown
+                    : unknown
                 : unknown
-            : unknown
-        : unknown
-    : Ref extends `#/definitions/${infer Name}`
-      ? Spec["definitions"] extends Record<string, unknown>
-          ? Name extends keyof Spec["definitions"]
-              ? FromJSONSchema<Spec["definitions"][Name]>
-              : unknown
-          : unknown
-      : Ref extends `#/paths/${infer PathRest}`
-        ? ResolvePathBasedRef<Spec, PathRest>
+            : Ref extends `#/definitions/${infer Name}`
+              ? Spec["definitions"] extends Record<string, unknown>
+                  ? Name extends keyof Spec["definitions"]
+                      ? FromJSONSchema<
+                            Spec["definitions"][Name],
+                            Defs,
+                            Depth,
+                            Mode
+                        >
+                      : unknown
+                  : unknown
+              : Ref extends `#/paths/${infer PathRest}`
+                ? ResolvePathBasedRef<Spec, PathRest>
+                : unknown
         : unknown;
+
+/**
+ * Build the `Defs` map for an OpenAPI document by combining
+ * `components.schemas` (OAS 3.x) and `definitions` (Swagger 2.0).
+ *
+ * Both keys are accepted so a single helper handles both versions of
+ * the spec. {@link CollisionSafeMerge} ensures the OAS-3.x entries
+ * take precedence when both are present, matching the runtime
+ * preference for components/schemas over the legacy definitions field.
+ */
+type SpecDefs<Spec> =
+    ExtractComponentsSchemas<Spec> extends infer C extends Record<
+        string,
+        unknown
+    >
+        ? ExtractDefinitions<Spec> extends infer D extends Record<
+              string,
+              unknown
+          >
+            ? CollisionSafeMerge<D, C>
+            : C
+        : Record<string, never>;
+
+/** Extract `components.schemas` from a spec, or the empty sentinel. */
+type ExtractComponentsSchemas<Spec> = Spec extends {
+    components: { schemas: infer S };
+}
+    ? S extends Record<string, unknown>
+        ? S
+        : Record<string, never>
+    : Record<string, never>;
+
+/** Extract `definitions` from a spec, or the empty sentinel. */
+type ExtractDefinitions<Spec> = Spec extends { definitions: infer D }
+    ? D extends Record<string, unknown>
+        ? D
+        : Record<string, never>
+    : Record<string, never>;
 
 /**
  * Resolve a path-based $ref after the `#/paths/` prefix.
@@ -876,36 +1268,124 @@ type OperationOf<PathItem, Method extends string> =
         : unknown;
 
 /**
- * Extract the schema from request body content (any media type).
+ * Default content type preferred when callers do not specify one.
  *
- * `Record<string, { schema: infer S }>` already subsumes the previous
- * `application/json`-specific branch — if the JSON content matches the
- * specific shape it also matches the general index-signature pattern.
- * The narrower branch was therefore unreachable and has been removed.
+ * `"application/json"` matches the most common OpenAPI convention and
+ * keeps prior `FromJSONSchema` behaviour for the common case. When the
+ * default content type is absent from an operation, the helpers below
+ * fall back to the first declared media type — matching the runtime
+ * resolver's first-match semantics.
  */
-type RequestBodySchemaOf<Op> = Op extends {
-    requestBody: { content: Record<string, { schema: infer S }> };
-}
-    ? S
-    : unknown;
+export type DEFAULT_OPENAPI_CONTENT_TYPE = "application/json";
 
 /**
- * Extract the schema from response content (any media type).
- *
- * Same rationale as `RequestBodySchemaOf`: the index-signature branch
- * subsumes the `application/json` branch, which was unreachable.
+ * Pick the content type to use for a request/response when the caller
+ * supplies one explicitly: when `ContentType` is present in `Content`
+ * use it verbatim, otherwise fall through to the default content type
+ * if present, otherwise pick the first key.
  */
-type ResponseSchemaOf<Op, Status extends string> = Op extends {
-    responses: Record<string, unknown>;
-}
-    ? Status extends keyof Op["responses"]
-        ? Op["responses"][Status] extends {
-              content: Record<string, { schema: infer S }>;
-          }
-            ? S
+type PickContentType<Content, ContentType extends string> =
+    Content extends Record<string, unknown>
+        ? ContentType extends keyof Content
+            ? ContentType
+            : DEFAULT_OPENAPI_CONTENT_TYPE extends keyof Content
+              ? DEFAULT_OPENAPI_CONTENT_TYPE
+              : FirstKey<Content>
+        : never;
+
+/** First string key of an object type, or `never` for an empty map. */
+type FirstKey<O> = keyof O extends infer K
+    ? K extends string
+        ? K
+        : never
+    : never;
+
+/**
+ * Extract the schema for a specific content type from a request body
+ * Content map.
+ *
+ * The caller's `ContentType` selects the media type: it falls back to
+ * `DEFAULT_OPENAPI_CONTENT_TYPE` and then to the first declared media
+ * type when the requested one is absent.
+ */
+type RequestBodySchemaOf<
+    Op,
+    ContentType extends string = DEFAULT_OPENAPI_CONTENT_TYPE,
+> = Op extends { requestBody: { content: infer C } }
+    ? PickContentType<C, ContentType> extends infer K extends string
+        ? C extends Record<string, unknown>
+            ? K extends keyof C
+                ? C[K] extends { schema: infer S }
+                    ? S
+                    : unknown
+                : unknown
             : unknown
         : unknown
     : unknown;
+
+/**
+ * Extract the schema for a specific status code and content type from
+ * a response map.
+ *
+ * Status-code resolution mirrors the OpenAPI 3.x §4.7.10 priority order:
+ *
+ * 1. The literal status (e.g. `"200"`) — exact match.
+ * 2. The class wildcard (e.g. `"2XX"`) derived from the leading digit.
+ * 3. The `"default"` key.
+ *
+ * Without this fallback, querying a concrete status against a document
+ * that declares only `"2XX"` or `"default"` would silently produce
+ * `unknown`. The runtime resolver applies the same fall-through
+ * behaviour in `resolveResponseFromParsed`.
+ */
+type ResponseSchemaOf<
+    Op,
+    Status extends string,
+    ContentType extends string = DEFAULT_OPENAPI_CONTENT_TYPE,
+> = Op extends { responses: infer Rs extends Record<string, unknown> }
+    ? PickResponse<Rs, Status> extends infer Resp
+        ? Resp extends { content: infer C }
+            ? PickContentType<C, ContentType> extends infer K extends string
+                ? C extends Record<string, unknown>
+                    ? K extends keyof C
+                        ? C[K] extends { schema: infer S }
+                            ? S
+                            : unknown
+                        : unknown
+                    : unknown
+                : unknown
+            : unknown
+        : unknown
+    : unknown;
+
+/**
+ * Resolve a response entry from a status code following the OpenAPI
+ * priority order: concrete > class wildcard > `default`. When none of
+ * the three matches, the result is `never` and the caller's outer
+ * conditional falls through to `unknown`.
+ */
+type PickResponse<Rs, Status extends string> = Status extends keyof Rs
+    ? Rs[Status]
+    : StatusClassWildcard<Status> extends infer Wildcard extends string
+      ? Wildcard extends keyof Rs
+          ? Rs[Wildcard]
+          : "default" extends keyof Rs
+            ? Rs["default"]
+            : never
+      : "default" extends keyof Rs
+        ? Rs["default"]
+        : never;
+
+/**
+ * Derive the class wildcard (`"2XX"`, `"4XX"`, etc.) for a numeric
+ * status code, or `never` for non-numeric inputs. Only the first digit
+ * of the status code participates so `"200"`, `"201"`, `"204"` all map
+ * to `"2XX"`.
+ */
+type StatusClassWildcard<Status extends string> =
+    Status extends `${infer D extends "1" | "2" | "3" | "4" | "5"}${string}`
+        ? `${D}XX`
+        : never;
 
 /**
  * Resolve a schema that may be a `$ref` pointer.
@@ -913,11 +1393,22 @@ type ResponseSchemaOf<Op, Status extends string> = Op extends {
  * The `nullable: true` handling lives inside `FromJSONSchema` so it
  * applies uniformly to direct schemas, refs, and nested fields. This
  * helper only dispatches between ref-resolution and plain inference.
+ *
+ * Threads `Defs`/`Depth`/`Mode` into both `ResolveOpenAPIRef` and
+ * `FromJSONSchema` so a nested `$ref` inside an inline schema is
+ * resolved against the same component-schemas context the parent
+ * document supplies. Without the propagation, nested refs degraded
+ * silently to `unknown`.
  */
-type ResolveMaybeRef<Doc, S> = S extends { $ref: infer R extends string }
-    ? ResolveOpenAPIRef<Doc & Record<string, unknown>, R>
+type ResolveMaybeRef<
+    Doc,
+    S,
+    Depth extends readonly unknown[] = [],
+    Mode extends FromJSONSchemaMode = "both",
+> = S extends { $ref: infer R extends string }
+    ? ResolveOpenAPIRef<Doc & Record<string, unknown>, R, Depth, Mode>
     : S extends Record<string, unknown>
-      ? FromJSONSchema<S>
+      ? FromJSONSchema<S, SpecDefs<Doc>, Depth, Mode>
       : unknown;
 
 /** Extract parameter names from an operation. */
@@ -944,8 +1435,11 @@ type ParameterNamesOf<Doc, Path extends string, Method extends string> =
  * `packages/core/src/core/version.ts` (line 305), which parses the
  * `swagger` field via `detectOpenApiVersion` (line 264) and returns true
  * for any document whose major version is `2`. Runtime therefore accepts
- * `"2.0"`, `"2.0.0"`, `"2.1"`, and any other `2.x` form — so the
- * type-level detector must too.
+ * `"2.0"`, `"2.0.0"`, `"2.1"`, any other `2.x` form — and the numeric
+ * literals `2` and `2.0`. The type-level detector must mirror every
+ * shape the runtime accepts, otherwise a numeric-versioned document
+ * silently bypasses the fallback and produces `unknown` instead of the
+ * `__SchemaInferenceFellBack` brand consumers expect.
  *
  * Type-level Swagger 2.0 documents cannot be fully normalised at compile
  * time — the rewrite reorders the document tree (definitions →
@@ -954,20 +1448,31 @@ type ParameterNamesOf<Doc, Path extends string, Method extends string> =
  * version is tractable, so we surface `__SchemaInferenceFellBack`
  * deliberately rather than silently producing `unknown`.
  *
- * Two shapes are accepted:
+ * Accepted shapes:
  * - `{ swagger: "2.<anything>" }` — the on-the-wire string form
+ * - `{ swagger: 2 }` / `{ swagger: 2.0 }` — numeric on-the-wire form
+ *   (some YAML serialisers emit a number rather than a string)
  * - `{ swagger: { major: 2, ... } }` — the parsed `OpenApiVersionInfo`
  *   object form, mirroring the runtime's tolerance for pre-parsed
  *   version metadata
  */
 type IsSwagger2Doc<Doc> = Doc extends { swagger: `2.${string}` }
     ? true
-    : Doc extends { swagger: { major: 2 } }
+    : Doc extends { swagger: 2 }
       ? true
-      : false;
+      : Doc extends { swagger: 2.0 }
+        ? true
+        : Doc extends { swagger: { major: 2 } }
+          ? true
+          : false;
 
 /**
  * Infer the TypeScript type of an OpenAPI operation's request body.
+ *
+ * `ContentType` selects which media type's schema to infer; defaults
+ * to {@link DEFAULT_OPENAPI_CONTENT_TYPE} and falls back to the first
+ * declared content type when the default is absent (see
+ * {@link PickContentType}).
  *
  * Swagger 2.0 documents are not normalised at the type level. When the
  * input is Swagger 2.0, this returns `__SchemaInferenceFellBack` so
@@ -977,16 +1482,28 @@ export type OpenAPIRequestBodyType<
     Doc,
     Path extends string,
     Method extends string,
+    ContentType extends string = DEFAULT_OPENAPI_CONTENT_TYPE,
 > =
     IsSwagger2Doc<Doc> extends true
         ? __SchemaInferenceFellBack
         : ResolveMaybeRef<
               Doc,
-              RequestBodySchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>>
+              RequestBodySchemaOf<
+                  OperationOf<PathItemOf<Doc, Path>, Method>,
+                  ContentType
+              >
           >;
 
 /**
  * Infer the TypeScript type of an OpenAPI operation's response.
+ *
+ * `ContentType` selects which media type's schema to infer; defaults
+ * to {@link DEFAULT_OPENAPI_CONTENT_TYPE} and falls back to the first
+ * declared content type when the default is absent.
+ *
+ * Status-code resolution follows the OpenAPI priority order: concrete
+ * code > class wildcard (e.g. `"2XX"`) > `"default"`. See
+ * {@link ResponseSchemaOf}.
  *
  * Swagger 2.0 documents are not normalised at the type level. When the
  * input is Swagger 2.0, this returns `__SchemaInferenceFellBack` so
@@ -997,6 +1514,7 @@ export type OpenAPIResponseType<
     Path extends string,
     Method extends string,
     Status extends string,
+    ContentType extends string = DEFAULT_OPENAPI_CONTENT_TYPE,
 > =
     IsSwagger2Doc<Doc> extends true
         ? __SchemaInferenceFellBack
@@ -1004,7 +1522,8 @@ export type OpenAPIResponseType<
               Doc,
               ResponseSchemaOf<
                   OperationOf<PathItemOf<Doc, Path>, Method>,
-                  Status
+                  Status,
+                  ContentType
               >
           >;
 
@@ -1014,15 +1533,27 @@ export type OpenAPIResponseType<
  *
  * - `__SchemaInferenceFellBack` (Swagger 2.0, depth-exceeded refs) is
  *   preserved verbatim so callers can detect the brand.
- * - `unknown` (no schema found at the supplied path/status) falls back
- *   to the loose `Record<string, FieldOverride>` shape so runtime
- *   documents still typecheck.
+ * - `unknown` (no schema found at the supplied path/status, or the
+ *   resolved operation itself widened to `unknown`) falls back to the
+ *   loose `Record<string, FieldOverride>` shape so runtime documents
+ *   still typecheck.
  * - Any other concrete type is mapped through `FieldOverrides`.
  *
  * The brand check intentionally precedes the `unknown` check. The brand
  * is a structural object type and is therefore NOT assignable to
  * `unknown extends T` — checking that first would always short-circuit
  * to the loose `Record` fallback and the brand would never surface.
+ *
+ * TRADE-OFF: when the operation resolves to `unknown` (e.g. the path or
+ * method does not exist on a typed `Doc`), `FieldsFromInferred` widens
+ * silently to `Record<string, FieldOverride>` so any key is accepted.
+ * The alternative — surfacing a distinct compile-time error — would
+ * trade autocomplete on typed paths for noisy diagnostics on runtime
+ * documents, and the existing `@ts-expect-error` regressions in
+ * `type-inference.test.ts` rely on the current widening behaviour.
+ * The trade-off is pinned by the
+ * `FieldsFromInferred widens to Record<string, FieldOverride> when the
+ * operation is unknown` regression test.
  */
 type FieldsFromInferred<T> = [T] extends [__SchemaInferenceFellBack]
     ? __SchemaInferenceFellBack
@@ -1037,12 +1568,16 @@ type FieldsFromInferred<T> = [T] extends [__SchemaInferenceFellBack]
  * for schemas whose $ref chains exceed type-level depth limits. Falls
  * back to `Record<string, FieldOverride>` for runtime documents whose
  * shape cannot be inferred at compile time.
+ *
+ * `ContentType` mirrors the parameter on
+ * {@link OpenAPIRequestBodyType}.
  */
 export type InferRequestBodyFields<
     Doc,
     Path extends string,
     Method extends string,
-> = FieldsFromInferred<OpenAPIRequestBodyType<Doc, Path, Method>>;
+    ContentType extends string = DEFAULT_OPENAPI_CONTENT_TYPE,
+> = FieldsFromInferred<OpenAPIRequestBodyType<Doc, Path, Method, ContentType>>;
 
 /**
  * Infer the fields prop type for ApiResponse.
@@ -1051,13 +1586,18 @@ export type InferRequestBodyFields<
  * for schemas whose $ref chains exceed type-level depth limits. Falls
  * back to `Record<string, FieldOverride>` for runtime documents whose
  * shape cannot be inferred at compile time.
+ *
+ * `ContentType` mirrors the parameter on {@link OpenAPIResponseType}.
  */
 export type InferResponseFields<
     Doc,
     Path extends string,
     Method extends string,
     Status extends string,
-> = FieldsFromInferred<OpenAPIResponseType<Doc, Path, Method, Status>>;
+    ContentType extends string = DEFAULT_OPENAPI_CONTENT_TYPE,
+> = FieldsFromInferred<
+    OpenAPIResponseType<Doc, Path, Method, Status, ContentType>
+>;
 
 /**
  * Infer the overrides prop type for ApiParameters.

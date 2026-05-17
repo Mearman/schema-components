@@ -38,20 +38,24 @@ void _closedObj2;
 // additionalProperties as schema alongside properties
 // ---------------------------------------------------------------------------
 
+// Hybrid object: typed named properties PLUS a typed additionalProperties
+// index signature. The named property's value type must be assignable to
+// the additionalProperties schema, because TypeScript requires every
+// declared key to be compatible with the index signature.
 const hybridObject = {
     type: "object" as const,
     properties: {
-        name: { type: "string" as const },
+        label: { type: "string" as const },
     },
-    required: ["name"] as const,
-    additionalProperties: { type: "number" as const },
+    required: ["label"] as const,
+    additionalProperties: { type: "string" as const },
 } as const;
 void hybridObject;
 
 type HybridObjectType = FromJSONSchema<typeof hybridObject>;
-const _hybrid: HybridObjectType = { name: "Ada" };
-// name is required
-// @ts-expect-error — missing name
+const _hybrid: HybridObjectType = { label: "Ada", extra: "anything" };
+// label is required
+// @ts-expect-error — missing label
 const _hybridBad: HybridObjectType = {};
 void _hybrid;
 void _hybridBad;
