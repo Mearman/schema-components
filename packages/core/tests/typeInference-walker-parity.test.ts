@@ -206,6 +206,54 @@ describe("OpenAPI $ref resolution into components/schemas", () => {
 });
 
 // ---------------------------------------------------------------------------
+// OpenAPI 3.0 nullable parity (applied uniformly inside FromJSONSchema)
+// ---------------------------------------------------------------------------
+//
+// The runtime path normalises `nullable: true` into `anyOf: [T, { type:
+// "null" }]` via `normaliseOpenApi30Node` (`openapi30.ts`). Mirroring at
+// the `FromJSONSchema` level (rather than only in `ResolveMaybeRef`) means
+// nullability propagates through nested properties resolved via
+// `#/components/schemas/...` refs.
+// ---------------------------------------------------------------------------
+
+describe("OpenAPI 3.0 nullable: applied at every FromJSONSchema entry", () => {
+    interface NullableStringSchema {
+        readonly type: "string";
+        readonly nullable: true;
+    }
+
+    type Inferred = FromJSONSchema<NullableStringSchema>;
+
+    it("produces string | null at the leaf", () => {
+        expectTypeOf<Inferred>().toEqualTypeOf<string | null>();
+    });
+
+    interface NullableObjectSchema {
+        readonly type: "object";
+        readonly properties: {
+            readonly name: { readonly type: "string" };
+            readonly nickname: {
+                readonly type: "string";
+                readonly nullable: true;
+            };
+        };
+        readonly required: readonly ["name"];
+    }
+
+    type NestedInferred = FromJSONSchema<NullableObjectSchema>;
+
+    interface ExpectedNested {
+        name: string;
+        nickname?: string | null;
+    }
+
+    it("nullable flows through nested object properties", () => {
+        expectTypeOf<ExpectedNested>().toExtend<NestedInferred>();
+        expectTypeOf<NestedInferred>().toExtend<ExpectedNested>();
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Swagger 2.0 fallback parity
 // ---------------------------------------------------------------------------
 //

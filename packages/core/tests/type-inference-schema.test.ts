@@ -404,7 +404,9 @@ type NullableOpenApiUser = ResolveOpenAPIRef<
     typeof nullableOpenApi,
     "#/components/schemas/User"
 >;
-// @ts-expect-error — nullable support not yet flowing through ResolveMaybeRef
+// `nullable: true` now flows through nested fields inside refs because
+// `FromJSONSchema` handles the keyword directly. Both null and string
+// values are accepted for `nickname`.
 const _noa: NullableOpenApiUser = { name: "Ada", nickname: null };
 const _noa2: NullableOpenApiUser = { name: "Ada", nickname: "The Countess" };
 // @ts-expect-error — name is required

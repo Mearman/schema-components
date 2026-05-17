@@ -55,34 +55,44 @@ type ArrayToUnion<A> = A extends readonly unknown[] ? A[number] : never;
 export type FromJSONSchema<
     S,
     Defs extends Record<string, unknown> = Record<string, never>,
-> = S extends { $ref: infer R extends string }
-    ? ResolveSchemaRef<R, Defs>
-    : S extends { $recursiveRef: string }
-      ? /** $recursiveRef: TypeScript cannot express recursive types. */
-        unknown
-      : S extends { $dynamicRef: infer R extends string }
-        ? ResolveSchemaRef<R, Defs>
-        : S extends { allOf: infer A }
-          ? AllOfToType<A, Defs>
-          : S extends { anyOf: infer A }
-            ? UnionOfMembers<A, Defs>
-            : S extends { oneOf: infer A }
+> = S extends { nullable: true }
+    ? /**
+       * OpenAPI 3.0 `nullable: true` — surface the keyword wherever it
+       * appears (not just inside `ResolveMaybeRef`). The runtime path
+       * rewrites this to `anyOf: [T, { type: "null" }]` via
+       * `normaliseOpenApi30Node` (`openapi30.ts`). Mirroring at the
+       * `FromJSONSchema` level means nested fields inside refs preserve
+       * nullability when resolved.
+       */
+      FromJSONSchema<Omit<S, "nullable">, Defs> | null
+    : S extends { $ref: infer R extends string }
+      ? ResolveSchemaRef<R, Defs>
+      : S extends { $recursiveRef: string }
+        ? /** $recursiveRef: TypeScript cannot express recursive types. */
+          unknown
+        : S extends { $dynamicRef: infer R extends string }
+          ? ResolveSchemaRef<R, Defs>
+          : S extends { allOf: infer A }
+            ? AllOfToType<A, Defs>
+            : S extends { anyOf: infer A }
               ? UnionOfMembers<A, Defs>
-              : S extends { if: unknown }
-                ? /** if/then/else: infer base schema without conditionals. */
-                  FromJSONSchema<Omit<S, "if" | "then" | "else">, Defs>
-                : S extends { not: unknown }
-                  ? /** not: TypeScript cannot negate types. */
-                    unknown
-                  : S extends { const: infer V }
-                    ? V
-                    : S extends { enum: infer E }
-                      ? ArrayToUnion<E>
-                      : S extends { type: infer T }
-                        ? TypeToTs<T, S, Defs>
-                        : S extends readonly (infer E)[]
-                          ? E
-                          : unknown;
+              : S extends { oneOf: infer A }
+                ? UnionOfMembers<A, Defs>
+                : S extends { if: unknown }
+                  ? /** if/then/else: infer base schema without conditionals. */
+                    FromJSONSchema<Omit<S, "if" | "then" | "else">, Defs>
+                  : S extends { not: unknown }
+                    ? /** not: TypeScript cannot negate types. */
+                      unknown
+                    : S extends { const: infer V }
+                      ? V
+                      : S extends { enum: infer E }
+                        ? ArrayToUnion<E>
+                        : S extends { type: infer T }
+                          ? TypeToTs<T, S, Defs>
+                          : S extends readonly (infer E)[]
+                            ? E
+                            : unknown;
 
 /**
  * Marker type emitted when OpenAPI $ref resolution hits the type-level
@@ -573,14 +583,18 @@ type ResponseSchemaOf<Op, Status extends string> = Op extends {
         : unknown
     : unknown;
 
-/** Resolve a schema that may be a $ref pointer. */
+/**
+ * Resolve a schema that may be a `$ref` pointer.
+ *
+ * The `nullable: true` handling lives inside `FromJSONSchema` so it
+ * applies uniformly to direct schemas, refs, and nested fields. This
+ * helper only dispatches between ref-resolution and plain inference.
+ */
 type ResolveMaybeRef<Doc, S> = S extends { $ref: infer R extends string }
     ? ResolveOpenAPIRef<Doc & Record<string, unknown>, R>
-    : S extends { nullable: true } & Record<string, unknown>
-      ? FromJSONSchema<Omit<S, "nullable">> | null
-      : S extends Record<string, unknown>
-        ? FromJSONSchema<S>
-        : unknown;
+    : S extends Record<string, unknown>
+      ? FromJSONSchema<S>
+      : unknown;
 
 /** Extract parameter names from an operation. */
 type ParameterNamesOf<Doc, Path extends string, Method extends string> =
