@@ -1,12 +1,13 @@
 /**
  * Component resolver interfaces — shared between React and HTML renderers.
  *
- * `BaseFieldProps` defines the 13 properties every render function receives,
+ * `BaseFieldProps` defines the properties every render function receives,
  * regardless of output format. `RenderProps` and `HtmlRenderProps` extend it
  * with their respective `renderChild` signatures and (for React) `onChange`.
  *
- * This eliminates the duplication where `RenderProps` and `HtmlRenderProps`
- * previously declared the same 13 fields independently.
+ * Per-type schema data (enum values, object fields, array element schema,
+ * union options, etc.) is read directly from the discriminated `tree` —
+ * renderers narrow on `tree.type` and access the matching variant.
  */
 
 import type {
@@ -40,6 +41,13 @@ export type AllConstraints = StringConstraints &
 /**
  * Properties available on every schema field, regardless of rendering target.
  * Both React and HTML renderers receive these.
+ *
+ * Per-type schema data — enum values, object fields, array element schema,
+ * union options, record key/value types, tuple `prefixItems`, conditional
+ * if/then/else clauses, negation `negated`, recursive `refTarget`, literal
+ * values — lives on the discriminated `tree`. Renderers narrow on
+ * `tree.type` and read from the matching variant; there are no duplicate
+ * sibling fields on these props.
  */
 export interface BaseFieldProps {
     /** Current field value. */
@@ -54,31 +62,6 @@ export interface BaseFieldProps {
     constraints: AllConstraints;
     /** Dot-separated path from root (e.g. "address.city"). */
     path: string;
-    /** For enums: the allowed values. */
-    enumValues?: (string | number | boolean | null)[];
-    /** For arrays: the element schema. */
-    element?: WalkedField;
-    /** For tuples: positional element schemas from prefixItems. */
-    prefixItems?: WalkedField[];
-    /** For conditionals: the if/then/else sub-schemas. */
-    ifClause?: WalkedField;
-    thenClause?: WalkedField;
-    elseClause?: WalkedField;
-    /** For negations: the negated sub-schema. */
-    negated?: WalkedField;
-    /** For recursive fields: the $ref string that would create the cycle. */
-    refTarget?: string;
-    /** For objects: map of field name → WalkedField. */
-    fields?: Record<string, WalkedField>;
-    /** For unions: the option schemas. */
-    options?: WalkedField[];
-    /** For discriminated unions: the discriminator key. */
-    discriminator?: string;
-    /** For records: key and value schemas. */
-    keyType?: WalkedField;
-    valueType?: WalkedField;
-    /** For literals: the literal value(s). */
-    literalValues?: (string | number | boolean | null)[];
     /** Example values from the schema's `examples` keyword. */
     examples?: unknown[];
     /** Walked field tree for recursive rendering. */
@@ -165,11 +148,6 @@ function noopOnChange(): void {
  * a noop `onChange` is wired up, `readOnly` is forced to `true`, and
  * `writeOnly` is forced to `false`. Otherwise the editability is taken
  * from `tree.editability`.
- *
- * The duplicate sibling fields (`enumValues`, `element`, `fields`, etc.)
- * are populated for backwards compatibility with renderers that have not
- * yet migrated to reading from `tree` directly. New renderers should
- * narrow on `tree.type` and read from `tree`.
  */
 export function buildRenderProps(
     tree: WalkedField,
@@ -193,25 +171,6 @@ export function buildRenderProps(
         tree,
         renderChild,
     };
-    if (tree.type === "enum") props.enumValues = tree.enumValues;
-    if (tree.type === "array" && tree.element !== undefined)
-        props.element = tree.element;
-    if (tree.type === "object") props.fields = tree.fields;
-    if (tree.type === "union" || tree.type === "discriminatedUnion")
-        props.options = tree.options;
-    if (tree.type === "discriminatedUnion")
-        props.discriminator = tree.discriminator;
-    if (tree.type === "record") props.keyType = tree.keyType;
-    if (tree.type === "record") props.valueType = tree.valueType;
-    if (tree.type === "tuple") props.prefixItems = tree.prefixItems;
-    if (tree.type === "conditional") props.ifClause = tree.ifClause;
-    if (tree.type === "conditional" && tree.thenClause !== undefined)
-        props.thenClause = tree.thenClause;
-    if (tree.type === "conditional" && tree.elseClause !== undefined)
-        props.elseClause = tree.elseClause;
-    if (tree.type === "negation") props.negated = tree.negated;
-    if (tree.type === "recursive") props.refTarget = tree.refTarget;
-    if (tree.type === "literal") props.literalValues = tree.literalValues;
     if (tree.examples !== undefined) props.examples = tree.examples;
     return props;
 }

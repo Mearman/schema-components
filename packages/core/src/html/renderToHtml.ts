@@ -154,24 +154,6 @@ function renderFieldHtml(
             tree,
             renderChild,
         };
-        if (tree.type === "enum") props.enumValues = tree.enumValues;
-        if (tree.type === "array" && tree.element !== undefined)
-            props.element = tree.element;
-        if (tree.type === "object") props.fields = tree.fields;
-        if (tree.type === "union" || tree.type === "discriminatedUnion")
-            props.options = tree.options;
-        if (tree.type === "discriminatedUnion")
-            props.discriminator = tree.discriminator;
-        if (tree.type === "record") props.keyType = tree.keyType;
-        if (tree.type === "record") props.valueType = tree.valueType;
-        if (tree.type === "tuple") props.prefixItems = tree.prefixItems;
-        if (tree.type === "conditional") props.ifClause = tree.ifClause;
-        if (tree.type === "conditional" && tree.thenClause !== undefined)
-            props.thenClause = tree.thenClause;
-        if (tree.type === "conditional" && tree.elseClause !== undefined)
-            props.elseClause = tree.elseClause;
-        if (tree.type === "negation") props.negated = tree.negated;
-        if (tree.type === "literal") props.literalValues = tree.literalValues;
         if (tree.examples !== undefined) props.examples = tree.examples;
 
         return renderFn(props);

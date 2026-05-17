@@ -8,6 +8,7 @@
 
 import type { WalkedField } from "../core/types.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
+import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import {
     h,
     serialize,
@@ -253,10 +254,11 @@ function renderEnumEditable(props: HtmlRenderProps): HtmlNode {
     const enumValue = typeof props.value === "string" ? props.value : "";
     const id = fieldId(props.path);
     const selectedValue = props.writeOnly ? "" : enumValue;
+    const enumValues = props.tree.type === "enum" ? props.tree.enumValues : [];
 
     const optionNodes = [
         h("option", { value: "" }, "Select\u2026"),
-        ...(props.enumValues ?? []).map((v) => {
+        ...enumValues.map((v) => {
             const display =
                 v === null ? "null" : typeof v === "string" ? v : String(v);
             const attrs: HtmlAttributes = { value: display };
@@ -287,8 +289,8 @@ function renderObjectHtml(props: HtmlRenderProps): string {
 }
 
 function renderObjectNode(props: HtmlRenderProps): HtmlNode {
-    const fields = props.fields;
-    if (fields === undefined) return "";
+    if (props.tree.type !== "object") return "";
+    const fields = props.tree.fields;
 
     const isRecord = (v: unknown): v is Record<string, unknown> =>
         typeof v === "object" && v !== null && !Array.isArray(v);
@@ -303,19 +305,9 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
             ? h("legend", {}, descriptionText)
             : undefined;
 
-    const sortedEntries = Object.entries(fields)
-        .sort((a, b) => {
-            const orderA =
-                typeof a[1].meta.order === "number"
-                    ? a[1].meta.order
-                    : Infinity;
-            const orderB =
-                typeof b[1].meta.order === "number"
-                    ? b[1].meta.order
-                    : Infinity;
-            return orderA - orderB;
-        })
-        .filter(([, field]) => field.meta.visible !== false);
+    const sortedEntries = sortFieldsByOrder(fields).filter(
+        ([, field]) => field.meta.visible !== false
+    );
 
     if (props.readOnly) {
         const children: HtmlNode[] = [];
@@ -384,7 +376,8 @@ function renderArrayHtml(props: HtmlRenderProps): string {
 
 function renderArrayNode(props: HtmlRenderProps): HtmlNode {
     const arr = Array.isArray(props.value) ? props.value : [];
-    const element = props.element;
+    const element =
+        props.tree.type === "array" ? props.tree.element : undefined;
     if (element === undefined) return "";
 
     // Render each child once; the readOnly branch only chooses the wrapper
@@ -416,11 +409,11 @@ function renderRecordHtml(props: HtmlRenderProps): string {
 }
 
 function renderRecordNode(props: HtmlRenderProps): HtmlNode {
+    if (props.tree.type !== "record") return "";
     const isRecord = (v: unknown): v is Record<string, unknown> =>
         typeof v === "object" && v !== null && !Array.isArray(v);
     const obj = isRecord(props.value) ? props.value : {};
-    const valueType = props.valueType;
-    if (valueType === undefined) return "";
+    const valueType = props.tree.valueType;
 
     const attrs: HtmlAttributes = { class: "sc-record", role: "group" };
 
@@ -454,8 +447,13 @@ function renderRecordNode(props: HtmlRenderProps): HtmlNode {
 // ---------------------------------------------------------------------------
 
 function renderLiteralHtml(props: HtmlRenderProps): string {
-    const values = props.literalValues;
-    if (values === undefined || values.length === 0) {
+    if (props.tree.type !== "literal") {
+        return serialize(
+            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+        );
+    }
+    const values = props.tree.literalValues;
+    if (values.length === 0) {
         return serialize(
             h("span", { class: "sc-value sc-value--empty" }, "\u2014")
         );
@@ -471,7 +469,10 @@ function renderLiteralHtml(props: HtmlRenderProps): string {
 // ---------------------------------------------------------------------------
 
 function renderUnionHtml(props: HtmlRenderProps): string {
-    const options = props.options;
+    const options =
+        props.tree.type === "union" || props.tree.type === "discriminatedUnion"
+            ? props.tree.options
+            : undefined;
     if (options === undefined || options.length === 0) {
         if (props.value === undefined || props.value === null) {
             return serialize(
@@ -502,8 +503,14 @@ function renderUnionHtml(props: HtmlRenderProps): string {
 // ---------------------------------------------------------------------------
 
 function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
-    const options = props.options;
-    const discriminator = props.discriminator;
+    const options =
+        props.tree.type === "discriminatedUnion"
+            ? props.tree.options
+            : undefined;
+    const discriminator =
+        props.tree.type === "discriminatedUnion"
+            ? props.tree.discriminator
+            : undefined;
     if (options === undefined || options.length === 0) {
         if (props.value === undefined || props.value === null) {
             return serialize(
@@ -642,7 +649,8 @@ function renderFileHtml(props: HtmlRenderProps): string {
 // ---------------------------------------------------------------------------
 
 function renderRecursiveHtml(props: HtmlRenderProps): string {
-    const refTarget = props.refTarget ?? "";
+    const refTarget =
+        props.tree.type === "recursive" ? props.tree.refTarget : "";
     const label =
         typeof props.meta.description === "string"
             ? props.meta.description
@@ -687,9 +695,9 @@ function renderUnknownHtml(props: HtmlRenderProps): string {
 // ---------------------------------------------------------------------------
 
 function renderTupleHtml(props: HtmlRenderProps): string {
+    if (props.tree.type !== "tuple") return renderUnknownHtml(props);
     const arr = Array.isArray(props.value) ? props.value : [];
-    const prefixItems = props.prefixItems;
-    if (prefixItems === undefined) return renderUnknownHtml(props);
+    const prefixItems = props.tree.prefixItems;
 
     const children: HtmlNode[] = [];
     for (let i = 0; i < prefixItems.length; i++) {
@@ -722,18 +730,19 @@ function renderConditionalHtml(props: HtmlRenderProps): string {
     // Conditionals are rendered as the base type with an annotation
     const children: HtmlNode[] = [];
 
-    if (props.ifClause !== undefined) {
+    if (props.tree.type === "conditional") {
+        // `ifClause` is always present on a ConditionalField.
         children.push(h("div", { class: "sc-conditional-if" }, raw("if: ...")));
-    }
-    if (props.thenClause !== undefined) {
-        children.push(
-            h("div", { class: "sc-conditional-then" }, raw("then: ..."))
-        );
-    }
-    if (props.elseClause !== undefined) {
-        children.push(
-            h("div", { class: "sc-conditional-else" }, raw("else: ..."))
-        );
+        if (props.tree.thenClause !== undefined) {
+            children.push(
+                h("div", { class: "sc-conditional-then" }, raw("then: ..."))
+            );
+        }
+        if (props.tree.elseClause !== undefined) {
+            children.push(
+                h("div", { class: "sc-conditional-else" }, raw("else: ..."))
+            );
+        }
     }
 
     return serialize(h("div", { class: "sc-conditional" }, ...children));

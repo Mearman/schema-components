@@ -17,6 +17,7 @@ import {
 } from "react";
 import type { RenderProps } from "../core/renderer.ts";
 import { isObject } from "../core/guards.ts";
+import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import type { WalkedField } from "../core/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -196,7 +197,8 @@ export function renderString(props: RenderProps): ReactNode {
         );
     }
 
-    if (props.enumValues !== undefined && props.enumValues.length > 0) {
+    if (props.tree.type === "enum" && props.tree.enumValues.length > 0) {
+        const enumValues = props.tree.enumValues;
         return (
             <select
                 id={id}
@@ -207,7 +209,7 @@ export function renderString(props: RenderProps): ReactNode {
                 {...ariaAttrs}
             >
                 <option value="">Select{"\u2026"}</option>
-                {props.enumValues.map((v) => {
+                {enumValues.map((v) => {
                     const display =
                         v === null
                             ? "null"
@@ -343,6 +345,8 @@ export function renderEnum(props: RenderProps): ReactNode {
         ariaAttrs["aria-required"] = "true";
     }
 
+    const enumValues = props.tree.type === "enum" ? props.tree.enumValues : [];
+
     return (
         <select
             id={id}
@@ -353,7 +357,7 @@ export function renderEnum(props: RenderProps): ReactNode {
             {...ariaAttrs}
         >
             <option value="">Select{"\u2026"}</option>
-            {props.enumValues?.map((v) => {
+            {enumValues.map((v) => {
                 const display =
                     v === null ? "null" : typeof v === "string" ? v : String(v);
                 return (
@@ -367,17 +371,11 @@ export function renderEnum(props: RenderProps): ReactNode {
 }
 
 export function renderObject(props: RenderProps): ReactNode {
+    if (props.tree.type !== "object") return null;
     const obj = isObject(props.value) ? props.value : {};
-    const fields = props.fields;
-    if (fields === undefined) return null;
+    const fields = props.tree.fields;
 
-    const sortedEntries = Object.entries(fields).sort((a, b) => {
-        const orderA =
-            typeof a[1].meta.order === "number" ? a[1].meta.order : Infinity;
-        const orderB =
-            typeof b[1].meta.order === "number" ? b[1].meta.order : Infinity;
-        return orderA - orderB;
-    });
+    const sortedEntries = sortFieldsByOrder(fields);
 
     return (
         <fieldset>
@@ -485,9 +483,9 @@ export function renameRecordKey(
 }
 
 export function renderRecord(props: RenderProps): ReactNode {
+    if (props.tree.type !== "record") return null;
     const obj = isObject(props.value) ? props.value : {};
-    const valueType = props.valueType;
-    if (valueType === undefined) return null;
+    const valueType = props.tree.valueType;
 
     const entries = Object.entries(obj);
 
@@ -603,8 +601,9 @@ export function renderRecord(props: RenderProps): ReactNode {
 }
 
 export function renderArray(props: RenderProps): ReactNode {
+    if (props.tree.type !== "array") return null;
     const arr = Array.isArray(props.value) ? props.value : [];
-    const element = props.element;
+    const element = props.tree.element;
     if (element === undefined) return null;
 
     // Suppress empty arrays — there is nothing to display. This prevents
@@ -637,7 +636,10 @@ export function renderArray(props: RenderProps): ReactNode {
 }
 
 export function renderUnion(props: RenderProps): ReactNode {
-    const options = props.options;
+    const options =
+        props.tree.type === "union" || props.tree.type === "discriminatedUnion"
+            ? props.tree.options
+            : undefined;
     if (options === undefined || options.length === 0) {
         if (props.value === undefined || props.value === null)
             return <span>{"\u2014"}</span>;
@@ -666,8 +668,14 @@ export function renderUnion(props: RenderProps): ReactNode {
 // ---------------------------------------------------------------------------
 
 export function renderDiscriminatedUnion(props: RenderProps): ReactNode {
-    const options = props.options;
-    const discriminator = props.discriminator;
+    const options =
+        props.tree.type === "discriminatedUnion"
+            ? props.tree.options
+            : undefined;
+    const discriminator =
+        props.tree.type === "discriminatedUnion"
+            ? props.tree.discriminator
+            : undefined;
     if (options === undefined || options.length === 0) {
         if (props.value === undefined || props.value === null)
             return <span>{"\u2014"}</span>;
@@ -922,7 +930,8 @@ export function renderFile(props: RenderProps): ReactNode {
 }
 
 export function renderRecursive(props: RenderProps): ReactNode {
-    const refTarget = props.refTarget ?? "";
+    const refTarget =
+        props.tree.type === "recursive" ? props.tree.refTarget : "";
     const label =
         typeof props.meta.description === "string"
             ? props.meta.description

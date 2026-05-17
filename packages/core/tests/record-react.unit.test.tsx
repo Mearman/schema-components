@@ -118,8 +118,6 @@ function buildRecordProps(
         constraints: record.constraints,
         path: "record",
         tree: record,
-        keyType: record.keyType,
-        valueType: record.valueType,
         renderChild: makeRenderChild(),
     };
 }

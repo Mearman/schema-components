@@ -69,16 +69,6 @@ export function renderLeaf(
             tree,
             renderChild: () => "",
         };
-        if (tree.type === "enum") props.enumValues = tree.enumValues;
-        if (tree.type === "literal") props.literalValues = tree.literalValues;
-        if (tree.type === "array" && tree.element !== undefined)
-            props.element = tree.element;
-        if (tree.type === "object") props.fields = tree.fields;
-        if (tree.type === "union") props.options = tree.options;
-        if (tree.type === "discriminatedUnion")
-            props.discriminator = tree.discriminator;
-        if (tree.type === "record") props.keyType = tree.keyType;
-        if (tree.type === "record") props.valueType = tree.valueType;
 
         return renderFn(props);
     }

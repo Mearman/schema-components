@@ -47,9 +47,6 @@ function makeRenderChild(): RenderProps["renderChild"] {
             path: "child",
             tree: childTree,
             renderChild: makeRenderChild(),
-            ...(childTree.type === "enum"
-                ? { enumValues: childTree.enumValues }
-                : {}),
         });
     };
 }
@@ -71,7 +68,6 @@ function buildUnionProps(
         constraints: union.constraints,
         path: "field",
         tree: union,
-        options: union.options,
         renderChild: makeRenderChild(),
     };
 }

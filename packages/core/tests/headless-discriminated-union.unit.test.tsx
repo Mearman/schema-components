@@ -58,8 +58,6 @@ function buildProps(
         constraints: du.constraints,
         path: "field",
         tree: du,
-        options: du.options,
-        discriminator: du.discriminator,
         renderChild: () => null,
     };
 }
@@ -206,8 +204,6 @@ describe("renderDiscriminatedUnion — read-only mode", () => {
                 options: [],
                 discriminator: "kind",
             },
-            options: [],
-            discriminator: "kind",
             renderChild: () => null,
         });
         const element = assertReactElement(result, "Expected ReactElement");
