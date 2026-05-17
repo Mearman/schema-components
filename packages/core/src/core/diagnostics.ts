@@ -45,7 +45,8 @@ export type DiagnosticCode =
     | "enum-value-filtered"
     | "required-non-string"
     | "pattern-invalid"
-    | "duplicate-body-parameter";
+    | "duplicate-body-parameter"
+    | "prototype-polluting-property";
 
 // ---------------------------------------------------------------------------
 // Diagnostic structure

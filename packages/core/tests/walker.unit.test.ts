@@ -747,7 +747,6 @@ describe("walk — recursive cycle detection", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
 // walk — silent filter diagnostics
 // ---------------------------------------------------------------------------
 
@@ -820,5 +819,70 @@ describe("walk — enum and required filtering diagnostics", () => {
         expect(
             diagnostics.filter((d) => d.code === "required-non-string").length
         ).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Walker — prototype pollution defence
+// ---------------------------------------------------------------------------
+
+describe("walk — prototype-polluting property names", () => {
+    it("skips a __proto__ property and emits a diagnostic", () => {
+        // Use JSON.parse to ensure `__proto__` becomes an own enumerable
+        // property — a JavaScript object literal `{ __proto__: ... }`
+        // sets the prototype instead, which would not exercise the guard.
+        const schema: unknown = JSON.parse(
+            '{"type":"object","properties":{"__proto__":{"type":"string"},"legitimate":{"type":"string"}}}'
+        );
+        const diagnostics: { code: string; pointer: string }[] = [];
+        const tree = walk(schema, {
+            diagnostics: {
+                diagnostics: (d) => {
+                    diagnostics.push({ code: d.code, pointer: d.pointer });
+                },
+            },
+        });
+        const fields = assertDefined(fieldsOf(tree), "expected object fields");
+        expect(Object.keys(fields)).toStrictEqual(["legitimate"]);
+        expect(Object.hasOwn(fields, "__proto__")).toBe(false);
+        expect(
+            diagnostics.some((d) => d.code === "prototype-polluting-property")
+        ).toBe(true);
+    });
+
+    it("skips a constructor property", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                constructor: { type: "string" },
+                kept: { type: "string" },
+            },
+        };
+        const diagnostics: { code: string }[] = [];
+        const tree = walk(schema, {
+            diagnostics: {
+                diagnostics: (d) => {
+                    diagnostics.push({ code: d.code });
+                },
+            },
+        });
+        const fields = assertDefined(fieldsOf(tree), "expected object fields");
+        expect(Object.hasOwn(fields, "constructor")).toBe(false);
+        expect(Object.keys(fields)).toStrictEqual(["kept"]);
+        expect(
+            diagnostics.some((d) => d.code === "prototype-polluting-property")
+        ).toBe(true);
+    });
+
+    it("skips a prototype property", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                prototype: { type: "string" },
+            },
+        };
+        const tree = walk(schema, {});
+        const fields = assertDefined(fieldsOf(tree), "expected object fields");
+        expect(Object.keys(fields)).toStrictEqual([]);
     });
 });

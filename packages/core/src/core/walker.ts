@@ -56,6 +56,7 @@ import {
 } from "./walkBuilders.ts";
 import type { WalkOptions, WalkContext } from "./walkBuilders.ts";
 import { emitDiagnostic, appendPointer } from "./diagnostics.ts";
+import { isPrototypePollutingKey } from "./uri.ts";
 
 // ---------------------------------------------------------------------------
 // Boolean schema handling (true/false at sub-schema positions)
@@ -552,6 +553,21 @@ function walkObject(
 
     const fields: Record<string, WalkedField> = {};
     for (const [key, propSchema] of Object.entries(properties)) {
+        // Defence in depth: refuse to register `__proto__`, `constructor`,
+        // or `prototype` as field names. Assigning into a fresh literal
+        // `{}` already avoids mutating `Object.prototype` here, but any
+        // downstream consumer that uses `fields` as a lookup target —
+        // for example via `fields[key]` inside an adapter — would happily
+        // surface a value sourced from the runtime prototype chain.
+        if (isPrototypePollutingKey(key)) {
+            emitDiagnostic(ctx.diagnostics, {
+                code: "prototype-polluting-property",
+                message: `Refusing to register prototype-polluting property name: ${key}`,
+                pointer: appendPointer(ctx.pointer, key),
+                detail: { propertyName: key },
+            });
+            continue;
+        }
         const childOverride = extractChildOverride(ctx.fieldOverrides, key);
         const isRequired = requiredFields.includes(key);
 
