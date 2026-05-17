@@ -8,14 +8,61 @@
  * ```html
  * <link rel="stylesheet" href="node_modules/@scalar/schema-components/dist/styles.css">
  * ```
+ *
+ * Every colour flows through a --sc-* custom property. The defaults below
+ * cover light mode; the @media (prefers-color-scheme: dark) block redefines
+ * them for dark mode. Consumers can override either set of variables to
+ * brand the rendered output without forking the stylesheet.
  */
+
+:root {
+    --sc-object-border: #e2e8f0;
+    --sc-legend-text: #334155;
+    --sc-label-text: #374151;
+    --sc-required-text: #dc2626;
+    --sc-input-text: #111827;
+    --sc-input-bg: #ffffff;
+    --sc-input-border: #d1d5db;
+    --sc-focus-ring: #3b82f6;
+    --sc-value-text: #111827;
+    --sc-value-empty-text: #9ca3af;
+    --sc-value-link-text: #2563eb;
+    --sc-hint-text: #6b7280;
+    --sc-tab-border: #d1d5db;
+    --sc-tab-text: #374151;
+    --sc-tab-active-bg: #eff6ff;
+    --sc-tab-active-border: #3b82f6;
+    --sc-tab-active-text: #1d4ed8;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --sc-object-border: #334155;
+        --sc-legend-text: #cbd5e1;
+        --sc-label-text: #cbd5e1;
+        --sc-required-text: #fca5a5;
+        --sc-input-text: #e2e8f0;
+        --sc-input-bg: #1e293b;
+        --sc-input-border: #475569;
+        --sc-focus-ring: #60a5fa;
+        --sc-value-text: #e2e8f0;
+        --sc-value-empty-text: #64748b;
+        --sc-value-link-text: #93c5fd;
+        --sc-hint-text: #94a3b8;
+        --sc-tab-border: #475569;
+        --sc-tab-text: #cbd5e1;
+        --sc-tab-active-bg: #1e3a5f;
+        --sc-tab-active-border: #60a5fa;
+        --sc-tab-active-text: #93c5fd;
+    }
+}
 
 /* ---------------------------------------------------------------------- */
 /* Object containers                                                      */
 /* ---------------------------------------------------------------------- */
 
 .sc-object {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--sc-object-border);
     border-radius: 0.375rem;
     padding: 1rem;
 }
@@ -23,7 +70,7 @@
 .sc-object legend {
     font-weight: 600;
     font-size: 0.875rem;
-    color: #334155;
+    color: var(--sc-legend-text);
     padding: 0 0.25rem;
 }
 
@@ -43,12 +90,12 @@
     display: block;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #374151;
+    color: var(--sc-label-text);
     margin-bottom: 0.25rem;
 }
 
 .sc-required {
-    color: #dc2626;
+    color: var(--sc-required-text);
     font-weight: 600;
 }
 
@@ -59,17 +106,17 @@
 .sc-input {
     width: 100%;
     padding: 0.375rem 0.5rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--sc-input-border);
     border-radius: 0.25rem;
     font-size: 0.875rem;
     line-height: 1.25rem;
-    color: #111827;
-    background-color: #fff;
+    color: var(--sc-input-text);
+    background-color: var(--sc-input-bg);
     box-sizing: border-box;
 }
 
 .sc-input:focus {
-    outline: 2px solid #3b82f6;
+    outline: 2px solid var(--sc-focus-ring);
     outline-offset: -1px;
     border-color: transparent;
 }
@@ -91,11 +138,11 @@
 
 .sc-value {
     font-size: 0.875rem;
-    color: #111827;
+    color: var(--sc-value-text);
 }
 
 .sc-value--empty {
-    color: #9ca3af;
+    color: var(--sc-value-empty-text);
 }
 
 .sc-value--boolean {
@@ -103,7 +150,7 @@
 }
 
 .sc-value[href] {
-    color: #2563eb;
+    color: var(--sc-value-link-text);
     text-decoration: none;
 }
 
@@ -152,7 +199,7 @@
 .sc-hint {
     display: block;
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--sc-hint-text);
     margin-top: 0.25rem;
 }
 
@@ -161,7 +208,7 @@
 /* ---------------------------------------------------------------------- */
 
 .sc-discriminated-union {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--sc-object-border);
     border-radius: 0.375rem;
     padding: 1rem;
 }
@@ -174,21 +221,21 @@
 
 .sc-tab {
     padding: 0.25rem 0.75rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--sc-tab-border);
     border-radius: 0.25rem;
     background: transparent;
     cursor: pointer;
     font-size: 0.875rem;
-    color: #374151;
+    color: var(--sc-tab-text);
 }
 
 .sc-tab:focus-visible {
-    outline: 2px solid #3b82f6;
+    outline: 2px solid var(--sc-focus-ring);
     outline-offset: 2px;
 }
 
 .sc-tab--active {
-    border-color: #3b82f6;
-    background: #eff6ff;
-    color: #1d4ed8;
+    border-color: var(--sc-tab-active-border);
+    background: var(--sc-tab-active-bg);
+    color: var(--sc-tab-active-text);
 }
