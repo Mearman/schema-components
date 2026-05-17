@@ -181,12 +181,20 @@ export const ReadOnlyProfile: Story = {
         await step(
             "the outer Mantine Fieldset still wraps the read-only view",
             async () => {
-                // The mantineResolver's object renderer always emits a Fieldset,
-                // even in read-only mode — string/enum/boolean fields fall back
-                // to bare <span> elements rather than a Mantine Text variant.
                 await expect(
                     canvasElement.querySelector(".mantine-Fieldset-root")
                 ).not.toBeNull();
+            }
+        );
+
+        await step(
+            "read-only scalars render as Mantine Text components",
+            async () => {
+                // Each scalar field (string/number/enum/boolean) now emits
+                // <Text> for visual consistency with the editable variants.
+                const texts =
+                    canvasElement.querySelectorAll(".mantine-Text-root");
+                await expect(texts.length).toBeGreaterThan(0);
             }
         );
 
@@ -196,8 +204,7 @@ export const ReadOnlyProfile: Story = {
                 canvas.getByText("alan@example.com")
             ).toBeInTheDocument();
             await expect(canvas.getByText("admin")).toBeInTheDocument();
-            // Boolean true renders as "Yes" via a plain <span> (no Mantine
-            // typography equivalent for read-only form values).
+            // Boolean true renders as "Yes" via a Mantine <Text>.
             await expect(canvas.getByText("Yes")).toBeInTheDocument();
         });
     },
