@@ -1,3 +1,19 @@
+## [1.18.1](https://github.com/Mearman/schema-components/compare/v1.18.0...v1.18.1) (2026-05-17)
+
+### Bug Fixes
+
+* **core:** guard deepEqual against cyclic values in mergeAllOf ([8f88349](https://github.com/Mearman/schema-components/commit/8f883494fa2b39012a17a52c85047ff080796e6b))
+* **html:** sanitise discriminated union tab ids derived from props.path ([cd7040b](https://github.com/Mearman/schema-components/commit/cd7040b6cdc45ee38e7535bac88df4cf1e7b74ba))
+* **openapi:** resolve $ref headers against document root ([25b962b](https://github.com/Mearman/schema-components/commit/25b962b69229e457ef3dc751a664c75bd932ec8e))
+* **openapi:** surface missing security scheme type as undefined ([fa266a7](https://github.com/Mearman/schema-components/commit/fa266a72c9ed0eb91cfcc55fa39489adaef32ee3))
+* **themes:** sort object fields by meta.order across all theme adapters ([b572f46](https://github.com/Mearman/schema-components/commit/b572f466b41efd217cb28e7e4712c6f878d10a7c))
+
+### Refactoring
+
+* **html:** remove unreachable renderFieldHtml fallback ([f8b22fd](https://github.com/Mearman/schema-components/commit/f8b22fd9ea1a5f29c5087c147cf61648bc352855))
+* **openapi:** return early after rewriting $ref to skip sibling walk ([d6a5739](https://github.com/Mearman/schema-components/commit/d6a57396ce88f238edcb3dec105e8b1a39a7eadc))
+* **react:** remove duplicate BaseFieldProps fields and read from tree ([04c20ac](https://github.com/Mearman/schema-components/commit/04c20ac8cc27e08b64470e590e0d4e81b89cdc82))
+
 ## [1.18.0](https://github.com/Mearman/schema-components/compare/v1.17.0...v1.18.0) (2026-05-17)
 
 ### Features
