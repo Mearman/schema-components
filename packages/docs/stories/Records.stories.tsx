@@ -50,10 +50,12 @@ export const StringValuesEditable: Story = {
     play: async ({ canvasElement, step }) => {
         const canvas = within(canvasElement);
         await step(
-            "every record entry renders as an editable text input",
+            "every record entry renders key and value as editable inputs",
             async () => {
+                // renderRecord emits a key input + a value input per entry,
+                // so three entries produce six textboxes.
                 const inputs = await canvas.findAllByRole("textbox");
-                await expect(inputs).toHaveLength(3);
+                await expect(inputs).toHaveLength(6);
                 for (const input of inputs) {
                     await expect(input).toBeEnabled();
                 }
