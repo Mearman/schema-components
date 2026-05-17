@@ -625,9 +625,19 @@ function normaliseContentMap(
                 isObject(enc) ? normaliseEncoding(enc, normaliseSchema) : enc
             );
         }
-        // Normalise example → examples on the media type object
+        // Normalise example → examples on the media type object.
+        //
+        // OpenAPI 3.0 defines Media Type Object's `examples` as
+        // `Map[string, Example Object | Reference Object]`, where each
+        // Example Object carries `summary`, `description`, `value`,
+        // `externalValue`. A bare `{ value: example }` would be parsed as
+        // a single Example Object instead of a map of them — incorrect per
+        // the spec. Wrap the value under a synthetic `default` key so the
+        // resulting structure is a valid Map of one Example Object.
         if ("example" in normalised && !("examples" in normalised)) {
-            normalised.examples = { value: normalised.example };
+            normalised.examples = {
+                default: { value: normalised.example },
+            };
             delete normalised.example;
         } else if ("example" in normalised) {
             delete normalised.example;

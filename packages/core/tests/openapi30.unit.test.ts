@@ -405,6 +405,108 @@ describe("deepNormaliseOpenApi30Doc", () => {
         expect(paramSchema.examples).toEqual(["abc"]);
     });
 
+    it("converts Media Type Object example to a single Example Object entry", () => {
+        // OpenAPI 3.0 Media Type Object: `examples` is
+        // `Map[string, Example Object | Reference Object]`. Each Example
+        // Object carries `value`, `summary`, `description`, `externalValue`.
+        // Wrapping `example: X` as `{ value: X }` directly under `examples`
+        // would parse as a single Example Object instead of a map of one —
+        // the correct shape is `{ default: { value: X } }`.
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/items": {
+                    post: {
+                        requestBody: {
+                            content: {
+                                "application/json": {
+                                    schema: { type: "string" },
+                                    example: { hello: "world" },
+                                },
+                            },
+                        },
+                        responses: {},
+                    },
+                },
+            },
+        };
+
+        const result = deepNormaliseOpenApi30Doc(doc, deepNormalise);
+        const paths = prop(result, "paths");
+        const items = prop(paths, "/items");
+        const post = prop(items, "post");
+        const body = prop(post, "requestBody");
+        const bodyContent = prop(body, "content");
+        const jsonContent = prop(bodyContent, "application/json");
+        expect(jsonContent).toBeDefined();
+        if (jsonContent === undefined) return;
+
+        // No bare `example` left on the media type.
+        expect(jsonContent.example).toBeUndefined();
+
+        // `examples` is a Map of Example Objects, not an Example Object
+        // itself. It must not have a top-level `value` key (that would
+        // signal a single Example Object).
+        const examples = prop(jsonContent, "examples");
+        expect(examples).toBeDefined();
+        if (examples === undefined) return;
+        expect(examples.value).toBeUndefined();
+
+        // The single synthesised entry sits under the `default` key and is
+        // itself an Example Object carrying the original example as `value`.
+        const defaultExample = prop(examples, "default");
+        expect(defaultExample).toBeDefined();
+        if (defaultExample === undefined) return;
+        expect(defaultExample.value).toEqual({ hello: "world" });
+    });
+
+    it("preserves existing media-type-level examples map and removes example", () => {
+        const doc = {
+            openapi: "3.0.3",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/items": {
+                    post: {
+                        requestBody: {
+                            content: {
+                                "application/json": {
+                                    schema: { type: "string" },
+                                    example: "ignored",
+                                    examples: {
+                                        first: { value: "kept" },
+                                    },
+                                },
+                            },
+                        },
+                        responses: {},
+                    },
+                },
+            },
+        };
+
+        const result = deepNormaliseOpenApi30Doc(doc, deepNormalise);
+        const paths = prop(result, "paths");
+        const items = prop(paths, "/items");
+        const post = prop(items, "post");
+        const body = prop(post, "requestBody");
+        const bodyContent = prop(body, "content");
+        const jsonContent = prop(bodyContent, "application/json");
+        expect(jsonContent).toBeDefined();
+        if (jsonContent === undefined) return;
+        expect(jsonContent.example).toBeUndefined();
+
+        const examples = prop(jsonContent, "examples");
+        expect(examples).toBeDefined();
+        if (examples === undefined) return;
+        const first = prop(examples, "first");
+        expect(first).toBeDefined();
+        if (first === undefined) return;
+        expect(first.value).toBe("kept");
+        // The conflicting `example` is dropped — the explicit `examples` wins.
+        expect(examples.default).toBeUndefined();
+    });
+
     it("passes through documents without components", () => {
         const doc = {
             openapi: "3.0.3",
