@@ -190,6 +190,29 @@ describe("renderToHtml — object", () => {
         expect(html).toMatch(/City/);
         expect(html).toMatch(/London/);
     });
+
+    it("gives sibling fields without descriptions unique structural ids", () => {
+        // Regression: when neither field carried a description, both children
+        // previously fell back to an empty path, producing duplicate `id`/`for`
+        // attributes that violate WCAG label-input pairing.
+        const schema = z.object({
+            alpha: z.string(),
+            beta: z.string(),
+        });
+        const html = renderToHtml(schema, { value: { alpha: "a", beta: "b" } });
+
+        const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+        const forAttrs = [...html.matchAll(/\sfor="([^"]+)"/g)].map(
+            (m) => m[1]
+        );
+
+        expect(ids).toContain("sc-alpha");
+        expect(ids).toContain("sc-beta");
+        expect(forAttrs).toContain("sc-alpha");
+        expect(forAttrs).toContain("sc-beta");
+        expect(new Set(ids).size).toBe(ids.length);
+        expect(new Set(forAttrs).size).toBe(forAttrs.length);
+    });
 });
 
 describe("renderToHtml — array", () => {

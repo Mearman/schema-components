@@ -13,16 +13,45 @@ import type { AllConstraints } from "../core/renderer.ts";
 import { h, type HtmlAttributes, type HtmlNode } from "./html.ts";
 
 // ---------------------------------------------------------------------------
+// Path helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Append a structural suffix to a parent path. Mirrors the canonical
+ * `joinPath` used by the React renderers: when the suffix is omitted
+ * (e.g. transparent wrappers like union options) the parent path is
+ * returned unchanged so the child inherits the parent's id.
+ *
+ * Suffixes are dot-joined except for bracketed array indices like `[0]`
+ * which append directly so `tags` + `[0]` becomes `tags[0]` rather than
+ * `tags.[0]`.
+ */
+export function joinPath(parent: string, suffix: string | undefined): string {
+    if (suffix === undefined || suffix.length === 0) return parent;
+    if (parent.length === 0) return suffix;
+    if (suffix.startsWith("[")) return `${parent}${suffix}`;
+    return `${parent}.${suffix}`;
+}
+
+// ---------------------------------------------------------------------------
 // Input ID helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Normalise a path into the id segment used after the `sc-` prefix.
+ * Dots (object nesting) and brackets (array indices) become hyphens so
+ * the id remains a valid CSS selector and matches test query semantics.
+ */
+function normaliseIdSegment(value: string): string {
+    return value.replace(/[.[\]]+/g, "-").replace(/-+$/g, "");
+}
 
 /**
  * Build the input ID for a field at a given path.
  */
 export function buildInputId(path: string, key: string): string {
-    const raw = path ? `${path}-${key}` : key;
-    // IDs are alphanumeric + hyphens, no need for full HTML escaping
-    return `sc-${raw}`;
+    const combined = joinPath(path, key);
+    return `sc-${normaliseIdSegment(combined)}`;
 }
 
 /**

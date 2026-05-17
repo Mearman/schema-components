@@ -38,15 +38,16 @@ export function dateInputType(format: string | undefined): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// ID normalisation — dots become hyphens for valid HTML IDs
+// ID normalisation — dots and brackets become hyphens for valid HTML IDs
 // ---------------------------------------------------------------------------
 
 /**
- * Normalise a dot-separated path into a valid, `sc-` prefixed HTML ID.
- * Dots in paths (from nested objects) become hyphens.
+ * Normalise a structural path into a valid, `sc-` prefixed HTML ID.
+ * Dots (object nesting) and brackets (array indices) become hyphens so
+ * the id remains a valid CSS selector and predictable in test queries.
  */
 export function fieldId(path: string): string {
-    return `sc-${path.replace(/\./g, "-")}`;
+    return `sc-${path.replace(/[.[\]]+/g, "-").replace(/-+$/g, "")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -326,11 +327,9 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
                     ? field.meta.description
                     : key;
             const childValue = obj[key];
-            const childHtml = props.renderChild(
-                field,
-                childValue,
-                props.path ? `${props.path}.${key}` : key
-            );
+            // Pass the structural key as a path suffix — `renderChild`
+            // joins it to the parent path so every child gets a unique id.
+            const childHtml = props.renderChild(field, childValue, key);
             children.push(h("dt", { class: "sc-label" }, label));
             children.push(h("dd", { class: "sc-value" }, raw(childHtml)));
         }
@@ -349,9 +348,10 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
                 ? field.meta.description
                 : key;
         const fieldId = buildInputId(props.path, key);
-        const childPath = props.path ? `${props.path}.${key}` : key;
         const childValue = obj[key];
-        const childHtml = props.renderChild(field, childValue, childPath);
+        // Pass the structural key as a path suffix — `renderChild`
+        // joins it to the parent path so every child gets a unique id.
+        const childHtml = props.renderChild(field, childValue, key);
         const required = requiredIndicator(field);
 
         const labelContent: HtmlNode[] = [label];
@@ -387,20 +387,23 @@ function renderArrayNode(props: HtmlRenderProps): HtmlNode {
     const element = props.element;
     if (element === undefined) return "";
 
-    const items = arr.map((item) => {
-        const childHtml = props.renderChild(element, item);
-        return h("li", { class: "sc-item" }, raw(childHtml));
-    });
+    // Render each child once; the readOnly branch only chooses the wrapper
+    // element. Pass `[i]` as the path suffix so siblings get unique ids.
+    const childHtmls = arr.map((item, i) =>
+        props.renderChild(element, item, `[${String(i)}]`)
+    );
 
     if (props.readOnly) {
+        const items = childHtmls.map((childHtml) =>
+            h("li", { class: "sc-item" }, raw(childHtml))
+        );
         return h("ul", { class: "sc-array" }, ...items);
     }
 
     // Editable: wrap each item in a div
-    const divItems = arr.map((item) => {
-        const childHtml = props.renderChild(element, item);
-        return h("div", {}, raw(childHtml));
-    });
+    const divItems = childHtmls.map((childHtml) =>
+        h("div", {}, raw(childHtml))
+    );
     return h("div", { class: "sc-array" }, ...divItems);
 }
 

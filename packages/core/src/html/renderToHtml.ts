@@ -27,6 +27,7 @@ import { getHtmlRenderFn, mergeHtmlResolvers } from "../core/renderer.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
 import { h, serialize } from "./html.ts";
 import { defaultHtmlResolver } from "./renderers.ts";
+import { joinPath } from "./a11y.ts";
 
 // ---------------------------------------------------------------------------
 // HTML resolver interface (re-exported for backward compatibility)
@@ -88,10 +89,14 @@ export function renderToHtml(
     const tree = walk(jsonSchema, walkOptions);
     const resolver = options.resolver ?? defaultHtmlResolver;
 
-    // Depth limit prevents infinite recursion on circular schema references
+    // Depth limit prevents infinite recursion on circular schema references.
+    // `parentPath` flows through the closure so each child path is derived
+    // from its structural position (property key, array index) joined to the
+    // parent \u2014 never from a description fallback that would collide across
+    // sibling fields without metadata.
     const MAX_HTML_DEPTH = 10;
     const makeRenderChild =
-        (currentDepth: number) =>
+        (currentDepth: number, parentPath: string) =>
         (
             childTree: WalkedField,
             childValue: unknown,
@@ -104,17 +109,17 @@ export function renderToHtml(
                         : "schema";
                 return `<fieldset class="sc-recursive"><em>\u21bb ${label} (recursive)</em></fieldset>`;
             }
-            const childPath = pathSuffix ?? childTree.meta.description ?? "";
+            const childPath = joinPath(parentPath, pathSuffix);
             return renderFieldHtml(
                 childTree,
                 childValue,
                 resolver,
                 childPath,
-                makeRenderChild(currentDepth + 1)
+                makeRenderChild(currentDepth + 1, childPath)
             );
         };
 
-    const renderChild = makeRenderChild(0);
+    const renderChild = makeRenderChild(0, "");
 
     const effectiveValue = options.value ?? tree.defaultValue;
     return renderFieldHtml(tree, effectiveValue, resolver, "", renderChild);
