@@ -1,3 +1,33 @@
+## [1.16.3](https://github.com/Mearman/schema-components/compare/v1.16.2...v1.16.3) (2026-05-17)
+
+### Bug Fixes
+
+* **docs:** update Records play function for new record edit controls ([5684ec2](https://github.com/Mearman/schema-components/commit/5684ec203849fb650d7f652fcda69f0802afd9cd))
+
+### Refactoring
+
+* **docs:** convert Records stories to args-only CSF3 ([99b0b85](https://github.com/Mearman/schema-components/commit/99b0b851995101f48d4a716532e1057d8dd1e280))
+* **docs:** convert SchemaDefaults stories to args-only CSF3 ([295de8a](https://github.com/Mearman/schema-components/commit/295de8aeb553e5c551c94173522a261ca23464db))
+* **docs:** convert SchemaView stories to args-only CSF3 ([c2504d9](https://github.com/Mearman/schema-components/commit/c2504d9a86b7dca0adf3561e33fad68ef318905d))
+* **docs:** convert single-story files to args-only CSF3 ([b692b20](https://github.com/Mearman/schema-components/commit/b692b2064f217220ba9aaab51b2e62742e332942))
+* **docs:** convert VisibilityOrdering stories to args-only CSF3 ([de4d9aa](https://github.com/Mearman/schema-components/commit/de4d9aaa9cb1e6598d63301c9ff3f28c60d3b873))
+* **docs:** convert Widgets stories to args-only CSF3 ([aaae3ce](https://github.com/Mearman/schema-components/commit/aaae3ce40271ea729346a204a417c34d062a42f7))
+* **docs:** type bare Editability stories with explicit SchemaComponent meta ([756a4af](https://github.com/Mearman/schema-components/commit/756a4afe5d96975570495de522d82ed77d1628d9))
+* **openapi:** convert callbacks/links stories to args-only ([1308171](https://github.com/Mearman/schema-components/commit/1308171110b0c241a3a96a623e73b747d5f690f4))
+* **openapi:** convert OpenApiAdvanced SchemaComponent stories to args-only ([121b678](https://github.com/Mearman/schema-components/commit/121b6784bc996eacfb450fdd9a1a4869ce9c1408))
+
+### Tests
+
+* **docs:** add Mantine adapter interaction tests ([64c1d36](https://github.com/Mearman/schema-components/commit/64c1d361209e0bc60fe8f213d1bb3fd85d12bbbc))
+* **docs:** add MUI adapter interaction tests ([765d4b1](https://github.com/Mearman/schema-components/commit/765d4b147c063d06a967de66cf696a5fc3ffa513))
+* **docs:** add Radix Themes adapter interaction tests ([502e2cd](https://github.com/Mearman/schema-components/commit/502e2cd3c0aaa5c711bf62019c2d706cfad7383f))
+* **docs:** add shadcn adapter interaction tests ([75c24d1](https://github.com/Mearman/schema-components/commit/75c24d1d3f9b0c35eb4a8f446b9006e789860069))
+* **docs:** extend ThemeComparison cross-adapter assertions ([8317b11](https://github.com/Mearman/schema-components/commit/8317b11718ca89c684f88ca0459accbce9b52a9a))
+* **react:** cover discriminated union ARIA tabs ([16437ff](https://github.com/Mearman/schema-components/commit/16437ff78f5d132397fcd7269a8dccb00564b17c))
+* **react:** cover renderUnion edge cases ([ccb86da](https://github.com/Mearman/schema-components/commit/ccb86dae9e7a0cda015dbb7e61b013938fc65407))
+* **react:** cover SchemaView server-component path ([b73ac93](https://github.com/Mearman/schema-components/commit/b73ac9375f25f7369a590cfcec8df1346064d9db))
+* **react:** expand record renderer coverage and add edit controls ([274f5ac](https://github.com/Mearman/schema-components/commit/274f5ac3180a577eb8e282da5fa6abeffcf33581))
+
 ## [1.16.2](https://github.com/Mearman/schema-components/compare/v1.16.1...v1.16.2) (2026-05-17)
 
 ### Bug Fixes
