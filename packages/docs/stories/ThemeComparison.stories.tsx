@@ -186,88 +186,25 @@ export const Editable: Story = {
                     await expect(shadcnName).toHaveValue("Cross-Adapter Test");
                 });
 
-                // The MUI, Mantine, Radix, and headless panels should still
-                // show the original profile name (state isolation across
-                // adapter instances).
-                const otherPanels: readonly {
-                    name: string;
-                    findInput: (panel: HTMLElement) => HTMLInputElement;
-                }[] = [
-                    {
-                        name: "mui",
-                        findInput: (panel) => {
-                            // MUI uses <label for=...> association, so the
-                            // first textbox inside the panel is the name.
-                            const utils = within(panel);
-                            return utils.getByRole<HTMLInputElement>(
-                                "textbox",
-                                { name: /full name/i }
-                            );
-                        },
-                    },
-                    {
-                        name: "mantine",
-                        findInput: (panel) => {
-                            const utils = within(panel);
-                            return utils.getByLabelText<HTMLInputElement>(
-                                /full name/i
-                            );
-                        },
-                    },
-                    {
-                        name: "radix",
-                        findInput: (panel) => {
-                            // Radix labels are unassociated. Walk from the
-                            // matching `label.rt-Text` to its sibling input.
-                            const labels = Array.from(
-                                panel.querySelectorAll<HTMLLabelElement>(
-                                    "label.rt-Text"
-                                )
-                            );
-                            const label = labels.find(
-                                (l) => l.textContent.trim() === "Full name"
-                            );
-                            if (label === undefined) {
-                                throw new Error(
-                                    "Could not find Radix Full name label"
-                                );
-                            }
-                            const container = label.parentElement;
-                            if (container === null) {
-                                throw new Error(
-                                    "Radix Full name label has no parent"
-                                );
-                            }
-                            const input =
-                                container.querySelector<HTMLInputElement>(
-                                    ".rt-TextFieldRoot input"
-                                );
-                            if (input === null) {
-                                throw new Error(
-                                    "Could not find Radix name input"
-                                );
-                            }
-                            return input;
-                        },
-                    },
-                    {
-                        name: "headless",
-                        findInput: (panel) => {
-                            // The headless renderer ships a bug where every
-                            // input is assigned id="sc-field" while labels
-                            // point at unique ids like for="sc-name". The
-                            // placeholder is the only stable hook.
-                            const utils = within(panel);
-                            return utils.getByPlaceholderText<HTMLInputElement>(
-                                /full name/i
-                            );
-                        },
-                    },
-                ];
+                // Every adapter now pairs labels with inputs via htmlFor/id,
+                // so the accessible name is computed for every control.
+                // `getByRole("textbox", { name })` is preferred — it follows
+                // the same lookup chain as a screen reader and avoids the
+                // ambiguity of MUI's notched-outline `<legend>` which would
+                // otherwise trip `getByLabelText`.
+                const otherPanelNames = [
+                    "mui",
+                    "mantine",
+                    "radix",
+                    "headless",
+                ] as const;
 
-                for (const { name, findInput } of otherPanels) {
+                for (const name of otherPanelNames) {
                     const panel = findAdapterPanel(canvasElement, name);
-                    const input = findInput(panel);
+                    const utils = within(panel);
+                    const input = utils.getByRole<HTMLInputElement>("textbox", {
+                        name: /full name/i,
+                    });
                     await expect(input).toHaveValue(profileData.name);
                 }
             }

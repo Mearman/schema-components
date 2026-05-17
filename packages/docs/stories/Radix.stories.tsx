@@ -96,38 +96,6 @@ const meta: Meta<typeof RadixPreview> = {
 export default meta;
 type Story = StoryObj<typeof RadixPreview>;
 
-/**
- * Find a Radix TextField input by its sibling label text. Radix Themes
- * renders `Text as="label"` without a `for=` attribute, so we cannot use
- * role-name queries — instead we walk to the parent `.rt-Box` and pick the
- * `input` inside the adjacent `.rt-TextFieldRoot`.
- */
-function findRadixInputByLabel(
-    root: HTMLElement,
-    labelText: string
-): HTMLInputElement {
-    const labels = Array.from(
-        root.querySelectorAll<HTMLLabelElement>("label.rt-Text")
-    );
-    const label = labels.find((l) => l.textContent.trim() === labelText);
-    if (label === undefined) {
-        throw new Error(`Could not find Radix label with text "${labelText}"`);
-    }
-    const container = label.parentElement;
-    if (container === null) {
-        throw new Error(`Radix label "${labelText}" has no parent element`);
-    }
-    const input = container.querySelector<HTMLInputElement>(
-        ".rt-TextFieldRoot input"
-    );
-    if (input === null) {
-        throw new Error(
-            `Radix label "${labelText}" has no associated TextField input`
-        );
-    }
-    return input;
-}
-
 export const EditableProfile: Story = {
     args: {
         schema: profileSchema,
@@ -135,6 +103,8 @@ export const EditableProfile: Story = {
         readOnly: false,
     },
     play: async ({ canvasElement, step }) => {
+        const canvas = within(canvasElement);
+
         await step(
             "Radix Themes components render (not the headless fallback)",
             async () => {
@@ -155,7 +125,10 @@ export const EditableProfile: Story = {
         );
 
         await step("typing updates the name input", async () => {
-            const nameInput = findRadixInputByLabel(canvasElement, "Full name");
+            // Labels are now paired with inputs via htmlFor/id, so
+            // findByLabelText resolves the Radix TextField directly.
+            const nameInput =
+                await canvas.findByLabelText<HTMLInputElement>(/full name/i);
             await expect(nameInput).toHaveValue("Edsger Dijkstra");
             await userEvent.clear(nameInput);
             await userEvent.type(nameInput, "Margaret Hamilton");
@@ -168,16 +141,12 @@ export const EditableProfile: Story = {
             "toggling Active flips the Radix Checkbox state",
             async () => {
                 // Radix Checkbox is a button[role=checkbox] with data-state.
-                // The "Active" label sits as a sibling <label class="rt-Text">
-                // without a for= attribute, so the accessible name is not
-                // automatically computed. Match by class instead.
-                const checkbox =
-                    canvasElement.querySelector<HTMLButtonElement>(
-                        ".rt-CheckboxRoot"
-                    );
-                if (checkbox === null) {
-                    throw new Error("Expected a .rt-CheckboxRoot element");
-                }
+                // The "Active" label is now paired via htmlFor, so the
+                // accessible name is computed and getByRole works.
+                const checkbox = canvas.getByRole<HTMLButtonElement>(
+                    "checkbox",
+                    { name: /active/i }
+                );
                 await expect(checkbox.getAttribute("data-state")).toBe(
                     "checked"
                 );
@@ -272,8 +241,11 @@ export const NestedEditable: Story = {
         );
 
         await step("nested fields are editable", async () => {
-            const streetInput = findRadixInputByLabel(canvasElement, "Street");
-            const cityInput = findRadixInputByLabel(canvasElement, "City");
+            const canvas = within(canvasElement);
+            const streetInput =
+                await canvas.findByLabelText<HTMLInputElement>(/street/i);
+            const cityInput =
+                await canvas.findByLabelText<HTMLInputElement>(/city/i);
             await expect(streetInput).toHaveValue("32 Vassar Street");
             await expect(cityInput).toHaveValue("Cambridge");
 
@@ -287,10 +259,13 @@ export const NestedEditable: Story = {
         await step(
             "updating a nested field does not reset outer fields",
             async () => {
-                const outerName = findRadixInputByLabel(canvasElement, "Name");
+                const canvas = within(canvasElement);
+                const outerName =
+                    canvas.getByLabelText<HTMLInputElement>(/^name$/i);
                 await expect(outerName).toHaveValue("Barbara Liskov");
 
-                const cityInput = findRadixInputByLabel(canvasElement, "City");
+                const cityInput =
+                    canvas.getByLabelText<HTMLInputElement>(/city/i);
                 await expect(cityInput).toHaveValue("Cambridge");
             }
         );

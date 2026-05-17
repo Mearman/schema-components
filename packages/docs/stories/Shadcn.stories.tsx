@@ -90,71 +90,6 @@ const meta: Meta<typeof ShadcnPreview> = {
 export default meta;
 type Story = StoryObj<typeof ShadcnPreview>;
 
-/**
- * Locate the `<div>` wrapping a shadcn field by its label text. The shadcn
- * object renderer wraps each field as
- * `<div class="space-y-1"><label>{name}</label><control/>`
- * without a `for=` attribute, so we walk to the parent and pick the control.
- */
-function findShadcnFieldContainer(
-    root: HTMLElement,
-    labelText: string
-): HTMLElement {
-    const labels = Array.from(root.querySelectorAll<HTMLLabelElement>("label"));
-    const label = labels.find((l) => l.textContent.trim() === labelText);
-    if (label === undefined) {
-        throw new Error(`Could not find shadcn label with text "${labelText}"`);
-    }
-    const container = label.parentElement;
-    if (container === null) {
-        throw new Error(`shadcn label "${labelText}" has no parent element`);
-    }
-    return container;
-}
-
-function findShadcnTextInput(
-    root: HTMLElement,
-    labelText: string
-): HTMLInputElement {
-    const container = findShadcnFieldContainer(root, labelText);
-    const input =
-        container.querySelector<HTMLInputElement>("input[type='text']");
-    if (input === null) {
-        throw new Error(
-            `shadcn label "${labelText}" has no text input sibling`
-        );
-    }
-    return input;
-}
-
-function findShadcnCheckbox(
-    root: HTMLElement,
-    labelText: string
-): HTMLInputElement {
-    const container = findShadcnFieldContainer(root, labelText);
-    const input = container.querySelector<HTMLInputElement>(
-        "input[type='checkbox']"
-    );
-    if (input === null) {
-        throw new Error(
-            `shadcn label "${labelText}" has no checkbox input sibling`
-        );
-    }
-    return input;
-}
-
-function findShadcnSelect(
-    root: HTMLElement,
-    labelText: string
-): HTMLSelectElement {
-    const container = findShadcnFieldContainer(root, labelText);
-    const select = container.querySelector<HTMLSelectElement>("select");
-    if (select === null) {
-        throw new Error(`shadcn label "${labelText}" has no select sibling`);
-    }
-    return select;
-}
-
 export const EditableProfile: Story = {
     args: {
         schema: profileSchema,
@@ -162,6 +97,8 @@ export const EditableProfile: Story = {
         readOnly: false,
     },
     play: async ({ canvasElement, step }) => {
+        const canvas = within(canvasElement);
+
         await step(
             "shadcn Tailwind classes render on form controls",
             async () => {
@@ -184,7 +121,10 @@ export const EditableProfile: Story = {
         );
 
         await step("typing updates the name input", async () => {
-            const nameInput = findShadcnTextInput(canvasElement, "Full name");
+            // Labels are paired with inputs via htmlFor/id, so
+            // findByLabelText resolves the input directly.
+            const nameInput =
+                await canvas.findByLabelText<HTMLInputElement>(/full name/i);
             await expect(nameInput).toHaveValue("Ada Lovelace");
             await userEvent.clear(nameInput);
             await userEvent.type(nameInput, "Margaret Hamilton");
@@ -196,9 +136,9 @@ export const EditableProfile: Story = {
         await step(
             "toggling Email notifications flips the checkbox state",
             async () => {
-                const checkbox = findShadcnCheckbox(
-                    canvasElement,
-                    "Email notifications"
+                const checkbox = canvas.getByRole<HTMLInputElement>(
+                    "checkbox",
+                    { name: /email notifications/i }
                 );
                 const initiallyChecked = checkbox.checked;
                 await userEvent.click(checkbox);
@@ -209,7 +149,9 @@ export const EditableProfile: Story = {
         );
 
         await step("Role enum selects a different value", async () => {
-            const select = findShadcnSelect(canvasElement, "Role");
+            const select = canvas.getByRole<HTMLSelectElement>("combobox", {
+                name: /role/i,
+            });
             await expect(select.value).toBe("admin");
             await userEvent.selectOptions(select, "editor");
             await waitFor(async () => {
@@ -278,8 +220,11 @@ export const NestedEditable: Story = {
         );
 
         await step("nested fields are editable", async () => {
-            const streetInput = findShadcnTextInput(canvasElement, "Street");
-            const cityInput = findShadcnTextInput(canvasElement, "City");
+            const canvas = within(canvasElement);
+            const streetInput =
+                await canvas.findByLabelText<HTMLInputElement>(/street/i);
+            const cityInput =
+                await canvas.findByLabelText<HTMLInputElement>(/city/i);
             await expect(streetInput).toHaveValue("5 Devonshire Street");
             await expect(cityInput).toHaveValue("London");
 
@@ -293,10 +238,13 @@ export const NestedEditable: Story = {
         await step(
             "updating a nested field does not reset outer fields",
             async () => {
-                const outerName = findShadcnTextInput(canvasElement, "Name");
+                const canvas = within(canvasElement);
+                const outerName =
+                    canvas.getByLabelText<HTMLInputElement>(/^name$/i);
                 await expect(outerName).toHaveValue("Charles Babbage");
 
-                const cityInput = findShadcnTextInput(canvasElement, "City");
+                const cityInput =
+                    canvas.getByLabelText<HTMLInputElement>(/city/i);
                 await expect(cityInput).toHaveValue("London");
             }
         );
