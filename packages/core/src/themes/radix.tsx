@@ -236,7 +236,10 @@ function renderEnumInput(props: RenderProps): ReactNode {
             >
                 <RadixSelectTrigger id={id} mt="1" />
                 <RadixSelectContent>
-                    {(props.enumValues ?? []).map((value) => (
+                    {(props.tree.type === "enum"
+                        ? props.tree.enumValues
+                        : []
+                    ).map((value) => (
                         <RadixSelectItem key={value} value={value}>
                             {value}
                         </RadixSelectItem>
@@ -248,8 +251,8 @@ function renderEnumInput(props: RenderProps): ReactNode {
 }
 
 function renderObjectContainer(props: RenderProps): ReactNode {
-    const fields = props.fields;
-    if (fields === undefined) return null;
+    if (props.tree.type !== "object") return null;
+    const fields = props.tree.fields;
 
     const obj = isObject(props.value) ? props.value : {};
 

@@ -147,6 +147,76 @@ export interface HtmlRenderProps extends BaseFieldProps {
 }
 
 // ---------------------------------------------------------------------------
+// Render-props builder — shared between SchemaView and SchemaComponent
+// ---------------------------------------------------------------------------
+
+/** No-op onChange used when callers render in read-only mode. */
+function noopOnChange(): void {
+    /* intentional no-op */
+}
+
+/**
+ * Build the `RenderProps` object handed to a resolver render function or a
+ * widget. Used by both the server-side `<SchemaView>` (which has no
+ * `onChange`) and the client-side `<SchemaComponent>` (which threads an
+ * `onChange` callback).
+ *
+ * When `onChange` is `undefined` the caller is rendering in read-only mode:
+ * a noop `onChange` is wired up, `readOnly` is forced to `true`, and
+ * `writeOnly` is forced to `false`. Otherwise the editability is taken
+ * from `tree.editability`.
+ *
+ * The duplicate sibling fields (`enumValues`, `element`, `fields`, etc.)
+ * are populated for backwards compatibility with renderers that have not
+ * yet migrated to reading from `tree` directly. New renderers should
+ * narrow on `tree.type` and read from `tree`.
+ */
+export function buildRenderProps(
+    tree: WalkedField,
+    value: unknown,
+    onChange: ((next: unknown) => void) | undefined,
+    renderChild: RenderProps["renderChild"],
+    path: string
+): RenderProps {
+    const isReadOnly =
+        onChange === undefined || tree.editability === "presentation";
+    const isWriteOnly = onChange !== undefined && tree.editability === "input";
+
+    const props: RenderProps = {
+        value,
+        onChange: onChange ?? noopOnChange,
+        readOnly: isReadOnly,
+        writeOnly: isWriteOnly,
+        meta: tree.meta,
+        constraints: tree.constraints,
+        path,
+        tree,
+        renderChild,
+    };
+    if (tree.type === "enum") props.enumValues = tree.enumValues;
+    if (tree.type === "array" && tree.element !== undefined)
+        props.element = tree.element;
+    if (tree.type === "object") props.fields = tree.fields;
+    if (tree.type === "union" || tree.type === "discriminatedUnion")
+        props.options = tree.options;
+    if (tree.type === "discriminatedUnion")
+        props.discriminator = tree.discriminator;
+    if (tree.type === "record") props.keyType = tree.keyType;
+    if (tree.type === "record") props.valueType = tree.valueType;
+    if (tree.type === "tuple") props.prefixItems = tree.prefixItems;
+    if (tree.type === "conditional") props.ifClause = tree.ifClause;
+    if (tree.type === "conditional" && tree.thenClause !== undefined)
+        props.thenClause = tree.thenClause;
+    if (tree.type === "conditional" && tree.elseClause !== undefined)
+        props.elseClause = tree.elseClause;
+    if (tree.type === "negation") props.negated = tree.negated;
+    if (tree.type === "recursive") props.refTarget = tree.refTarget;
+    if (tree.type === "literal") props.literalValues = tree.literalValues;
+    if (tree.examples !== undefined) props.examples = tree.examples;
+    return props;
+}
+
+// ---------------------------------------------------------------------------
 // ComponentResolver — the React theme adapter interface
 // ---------------------------------------------------------------------------
 

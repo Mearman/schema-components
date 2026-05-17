@@ -167,6 +167,8 @@ function renderEnumInput(props: RenderProps): ReactNode {
         return <MantineText id={id}>{enumValue || "\u2014"}</MantineText>;
     }
 
+    const enumValues = props.tree.type === "enum" ? props.tree.enumValues : [];
+
     return (
         <MantineSelect
             id={id}
@@ -175,14 +177,14 @@ function renderEnumInput(props: RenderProps): ReactNode {
             onChange={(v: unknown) => {
                 if (typeof v === "string") props.onChange(v);
             }}
-            data={(props.enumValues ?? []).map((v) => ({ value: v, label: v }))}
+            data={enumValues.map((v) => ({ value: v, label: v }))}
         />
     );
 }
 
 function renderObjectContainer(props: RenderProps): ReactNode {
-    const fields = props.fields;
-    if (fields === undefined) return null;
+    if (props.tree.type !== "object") return null;
+    const fields = props.tree.fields;
 
     const obj = isObject(props.value) ? props.value : {};
 

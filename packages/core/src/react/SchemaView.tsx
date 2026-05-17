@@ -1,9 +1,12 @@
 /**
  * React Server Component for read-only schema rendering.
  *
- * This component has zero hooks — no `useContext`, no `useMemo`,
- * no `useCallback`. It can run in a React Server Component environment
- * without the `"use client"` directive.
+ * Uses no React state, context, or effects — no `useContext`, `useMemo`,
+ * `useCallback`, `useState`, or `useEffect`. The single hook called is
+ * `useId()`, which is one of the few hooks permitted inside a React
+ * Server Component (it is RSC-safe by design) and is used solely to
+ * derive a stable per-instance `idPrefix`. The component therefore runs
+ * in an RSC environment without the `"use client"` directive.
  *
  * **Read-only only.** For interactive forms with `onChange`, use
  * `<SchemaComponent>` (which requires `"use client"`).
@@ -25,7 +28,11 @@
 
 import { createElement, isValidElement, useId, type ReactNode } from "react";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
-import { mergeResolvers, getRenderFunction } from "../core/renderer.ts";
+import {
+    buildRenderProps,
+    getRenderFunction,
+    mergeResolvers,
+} from "../core/renderer.ts";
 import {
     joinPath,
     sanitisePrefix,
@@ -80,12 +87,9 @@ export interface SchemaViewProps {
 // Component
 // ---------------------------------------------------------------------------
 
-function noop() {
-    /* intentional no-op */
-}
-
 /**
- * Server-safe schema renderer — no hooks, no context, no state.
+ * Server-safe schema renderer — no context and no state. The only hook
+ * called is `useId()`, which is RSC-safe.
  *
  * Always renders in read-only mode. For editable forms, use
  * `<SchemaComponent>` with `"use client"`.
@@ -224,28 +228,28 @@ function renderFieldServer(
             "renderFieldServer requires a non-empty path. Pass ROOT_PATH at the root and join children via joinPath()."
         );
     }
+    // Adapt the read-only renderChild (3-arg) to the RenderProps shape
+    // (4-arg). SchemaView discards child onChange because the tree is
+    // rendered read-only.
+    const adaptedRenderChild: RenderProps["renderChild"] = (
+        childTree,
+        childValue,
+        _childOnChange,
+        pathSuffix
+    ) => renderChild(childTree, childValue, pathSuffix);
+
     // Check widgets before resolver — instance widgets take priority
     const componentHint = tree.meta.component;
     if (typeof componentHint === "string") {
         const widget = widgets?.get(componentHint);
         if (widget !== undefined) {
-            const wrapRenderChild: RenderProps["renderChild"] = (
-                childTree,
-                childValue,
-                _childOnChange,
-                pathSuffix
-            ) => renderChild(childTree, childValue, pathSuffix);
-            const props: RenderProps = {
-                value,
-                onChange: noop,
-                readOnly: true,
-                writeOnly: false,
-                meta: tree.meta,
-                constraints: tree.constraints,
-                path,
+            const props = buildRenderProps(
                 tree,
-                renderChild: wrapRenderChild,
-            };
+                value,
+                undefined,
+                adaptedRenderChild,
+                path
+            );
             const result: unknown = widget(props);
             if (result !== undefined && result !== null) {
                 if (isValidElement(result)) return result;
@@ -258,41 +262,13 @@ function renderFieldServer(
     const renderFn = getRenderFunction(tree.type, resolver);
 
     if (renderFn !== undefined) {
-        const props: RenderProps = {
-            value,
-            onChange: noop,
-            readOnly: true,
-            writeOnly: false,
-            meta: tree.meta,
-            constraints: tree.constraints,
-            path,
+        const props = buildRenderProps(
             tree,
-            renderChild: (
-                childTree: WalkedField,
-                childValue: unknown,
-                _childOnChange: (v: unknown) => void,
-                pathSuffix?: string
-            ) => renderChild(childTree, childValue, pathSuffix),
-        };
-        if (tree.type === "enum") props.enumValues = tree.enumValues;
-        if (tree.type === "array" && tree.element !== undefined)
-            props.element = tree.element;
-        if (tree.type === "object") props.fields = tree.fields;
-        if (tree.type === "union" || tree.type === "discriminatedUnion")
-            props.options = tree.options;
-        if (tree.type === "discriminatedUnion")
-            props.discriminator = tree.discriminator;
-        if (tree.type === "record") props.keyType = tree.keyType;
-        if (tree.type === "record") props.valueType = tree.valueType;
-        if (tree.type === "tuple") props.prefixItems = tree.prefixItems;
-        if (tree.type === "conditional") props.ifClause = tree.ifClause;
-        if (tree.type === "conditional" && tree.thenClause !== undefined)
-            props.thenClause = tree.thenClause;
-        if (tree.type === "conditional" && tree.elseClause !== undefined)
-            props.elseClause = tree.elseClause;
-        if (tree.type === "negation") props.negated = tree.negated;
-        if (tree.type === "recursive") props.refTarget = tree.refTarget;
-        if (tree.type === "literal") props.literalValues = tree.literalValues;
+            value,
+            undefined,
+            adaptedRenderChild,
+            path
+        );
 
         try {
             const result: unknown = renderFn(props);

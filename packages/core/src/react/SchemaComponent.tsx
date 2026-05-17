@@ -27,7 +27,11 @@ import {
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import { normaliseSchema } from "../core/adapter.ts";
-import { getRenderFunction, mergeResolvers } from "../core/renderer.ts";
+import {
+    buildRenderProps,
+    getRenderFunction,
+    mergeResolvers,
+} from "../core/renderer.ts";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import type {
     FieldOverride,
@@ -504,53 +508,7 @@ export function renderField(
     );
 }
 
-function buildRenderProps(
-    tree: WalkedField,
-    value: unknown,
-    onChange: (v: unknown) => void,
-    renderChild: (
-        tree: WalkedField,
-        value: unknown,
-        onChange: (v: unknown) => void,
-        pathSuffix?: string
-    ) => ReactNode,
-    path: string
-): RenderProps {
-    const props: RenderProps = {
-        value,
-        onChange,
-        readOnly: tree.editability === "presentation",
-        writeOnly: tree.editability === "input",
-        meta: tree.meta,
-        constraints: tree.constraints,
-        path,
-        tree,
-        renderChild,
-    };
-    if (tree.type === "enum") props.enumValues = tree.enumValues;
-    if (tree.type === "array" && tree.element !== undefined)
-        props.element = tree.element;
-    if (tree.type === "object") props.fields = tree.fields;
-    if (tree.type === "union" || tree.type === "discriminatedUnion")
-        props.options = tree.options;
-    if (tree.type === "discriminatedUnion")
-        props.discriminator = tree.discriminator;
-    if (tree.type === "record") props.keyType = tree.keyType;
-    if (tree.type === "record") props.valueType = tree.valueType;
-    if (tree.type === "tuple") props.prefixItems = tree.prefixItems;
-    if (tree.type === "conditional") props.ifClause = tree.ifClause;
-    if (tree.type === "conditional" && tree.thenClause !== undefined)
-        props.thenClause = tree.thenClause;
-    if (tree.type === "conditional" && tree.elseClause !== undefined)
-        props.elseClause = tree.elseClause;
-    if (tree.type === "negation") props.negated = tree.negated;
-    if (tree.type === "recursive") props.refTarget = tree.refTarget;
-    if (tree.type === "literal") props.literalValues = tree.literalValues;
-    if (tree.examples !== undefined) props.examples = tree.examples;
-    return props;
-}
-
-// mergeResolvers imported from core/renderer.ts
+// buildRenderProps and mergeResolvers imported from core/renderer.ts
 
 // ---------------------------------------------------------------------------
 // <SchemaField> — renders a single field from a schema by path

@@ -191,18 +191,20 @@ function renderEnumInput(props: RenderProps): ReactNode {
             {...ariaRequired(props.tree)}
         >
             <MuiMenuItem value="">Select{"\u2026"}</MuiMenuItem>
-            {(props.enumValues ?? []).map((v) => (
-                <MuiMenuItem key={v} value={v}>
-                    {v}
-                </MuiMenuItem>
-            ))}
+            {(props.tree.type === "enum" ? props.tree.enumValues : []).map(
+                (v) => (
+                    <MuiMenuItem key={v} value={v}>
+                        {v}
+                    </MuiMenuItem>
+                )
+            )}
         </MuiTextField>
     );
 }
 
 function renderObjectContainer(props: RenderProps): ReactNode {
-    const fields = props.fields;
-    if (fields === undefined) return null;
+    if (props.tree.type !== "object") return null;
+    const fields = props.tree.fields;
 
     const obj = isObject(props.value) ? props.value : {};
 
@@ -242,7 +244,8 @@ function renderObjectContainer(props: RenderProps): ReactNode {
 
 function renderArrayContainer(props: RenderProps): ReactNode {
     const arr = Array.isArray(props.value) ? props.value : [];
-    const element = props.element;
+    if (props.tree.type !== "array") return null;
+    const element = props.tree.element;
     if (element === undefined) return null;
 
     return (

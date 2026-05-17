@@ -172,8 +172,8 @@ function renderBooleanInput(props: RenderProps): ReactNode {
 }
 
 function renderObjectContainer(props: RenderProps): ReactNode {
-    const fields = props.fields;
-    if (fields === undefined) return null;
+    if (props.tree.type !== "object") return null;
+    const fields = props.tree.fields;
 
     const obj =
         typeof props.value === "object" &&
@@ -225,7 +225,8 @@ function renderObjectContainer(props: RenderProps): ReactNode {
 
 function renderArrayContainer(props: RenderProps): ReactNode {
     const arr = Array.isArray(props.value) ? props.value : [];
-    const element = props.element;
+    if (props.tree.type !== "array") return null;
+    const element = props.tree.element;
     if (element === undefined) return null;
 
     return (
@@ -281,15 +282,21 @@ function renderEnumInput(props: RenderProps): ReactNode {
             }}
         >
             <option value="">Select{"…"}</option>
-            {props.enumValues?.map((v) => {
-                const display =
-                    v === null ? "null" : typeof v === "string" ? v : String(v);
-                return (
-                    <option key={display} value={display}>
-                        {display}
-                    </option>
-                );
-            })}
+            {props.tree.type === "enum"
+                ? props.tree.enumValues.map((v) => {
+                      const display =
+                          v === null
+                              ? "null"
+                              : typeof v === "string"
+                                ? v
+                                : String(v);
+                      return (
+                          <option key={display} value={display}>
+                              {display}
+                          </option>
+                      );
+                  })
+                : null}
         </select>
     );
 }
