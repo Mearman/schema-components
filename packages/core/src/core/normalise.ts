@@ -715,33 +715,229 @@ export function normaliseJsonSchema(
     diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
     const ctx: NodeContext = { diagnostics, pointer: "" };
+    let normalised: Record<string, unknown>;
     switch (draft) {
         case "draft-04":
-            return deepNormaliseWithContext(
+            normalised = deepNormaliseWithContext(
                 schema,
                 normaliseDraft04NodeWithContext,
                 ctx
             );
+            break;
         case "draft-2019-09":
-            return deepNormaliseWithContext(
+            normalised = deepNormaliseWithContext(
                 schema,
                 normaliseDraft201909NodeWithContext,
                 ctx
             );
+            break;
         case "draft-2020-12":
-            return deepNormaliseWithContext(
+            normalised = deepNormaliseWithContext(
                 schema,
                 normaliseDynamicRefNodeWithContext,
                 ctx
             );
+            break;
         case "draft-06":
         case "draft-07":
-            return deepNormaliseWithContext(
+            normalised = deepNormaliseWithContext(
                 schema,
                 normaliseDraft06Or07NodeWithContext,
                 ctx
             );
+            break;
     }
+
+    // Resolve relative `$ref`s against enclosing `$id` base URIs. Runs
+    // after the draft-specific pass so Draft 04 `id`→`$id` rewrites are
+    // already in place. The function is a no-op when the document has
+    // no `$id` URI or no relative refs.
+    return resolveRelativeRefs(normalised, diagnostics);
+}
+
+// ---------------------------------------------------------------------------
+// Base-URI resolution for relative $refs
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a string as an absolute URI, returning `undefined` when it has
+ * no scheme. Used to detect whether an `$id` value defines a base URI.
+ */
+function parseAbsoluteUri(value: unknown): URL | undefined {
+    if (typeof value !== "string" || value.length === 0) return undefined;
+    try {
+        const url = new URL(value);
+        if (url.protocol.length === 0) return undefined;
+        return url;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Resolve a relative reference against a base URI. Returns `undefined`
+ * when the reference cannot be resolved (e.g. malformed input).
+ */
+function resolveAgainst(ref: string, base: string): URL | undefined {
+    try {
+        return new URL(ref, base);
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Strip the fragment portion from a URL, returning the canonical
+ * `scheme://authority/path?query` form. Used to compare a resolved
+ * `$ref` URI against the document's `$id` base.
+ */
+function stripFragment(url: URL): string {
+    const clone = new URL(url.toString());
+    clone.hash = "";
+    return clone.toString();
+}
+
+/**
+ * Recursively rewrite relative `$ref`s in a schema so they resolve
+ * correctly under the JSON Schema base-URI rules (RFC 3986 + JSON
+ * Schema §8.2). Refs that resolve to the document's own `$id` are
+ * rewritten to fragment-only form so the existing dereferencer can
+ * handle them; refs that resolve outside the document are left as
+ * absolute URIs (handled by the external resolver path).
+ *
+ * Returns the input unchanged when the document has no base URI or
+ * no relative refs.
+ */
+function resolveRelativeRefs(
+    schema: Record<string, unknown>,
+    diagnostics: DiagnosticsOptions | undefined
+): Record<string, unknown> {
+    const docBaseUrl = parseAbsoluteUri(schema.$id);
+    if (docBaseUrl === undefined) return schema;
+    const docBase = stripFragment(docBaseUrl);
+    return rewriteRelativeRefsNode(schema, docBase, docBase, "", diagnostics);
+}
+
+function rewriteRelativeRefsNode(
+    node: Record<string, unknown>,
+    currentBase: string,
+    docBase: string,
+    pointer: string,
+    diagnostics: DiagnosticsOptions | undefined
+): Record<string, unknown> {
+    // Update the current base when this node introduces a new `$id`.
+    let nextBase = currentBase;
+    const nodeId = node.$id;
+    if (typeof nodeId === "string" && nodeId.length > 0) {
+        const resolved = resolveAgainst(nodeId, currentBase);
+        if (resolved !== undefined) {
+            nextBase = stripFragment(resolved);
+        }
+    }
+
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) {
+        if (key === "$ref" && typeof value === "string") {
+            result[key] = rewriteRef(
+                value,
+                nextBase,
+                docBase,
+                appendPointer(pointer, key),
+                diagnostics
+            );
+            continue;
+        }
+        result[key] = rewriteRelativeRefsValue(
+            value,
+            key,
+            nextBase,
+            docBase,
+            appendPointer(pointer, key),
+            diagnostics
+        );
+    }
+    return result;
+}
+
+function rewriteRelativeRefsValue(
+    value: unknown,
+    parentKey: string,
+    currentBase: string,
+    docBase: string,
+    pointer: string,
+    diagnostics: DiagnosticsOptions | undefined
+): unknown {
+    if (Array.isArray(value)) {
+        return value.map((item, i) =>
+            rewriteRelativeRefsValue(
+                item,
+                parentKey,
+                currentBase,
+                docBase,
+                appendPointer(pointer, String(i)),
+                diagnostics
+            )
+        );
+    }
+    if (isObject(value)) {
+        return rewriteRelativeRefsNode(
+            value,
+            currentBase,
+            docBase,
+            pointer,
+            diagnostics
+        );
+    }
+    return value;
+}
+
+/**
+ * Rewrite a single `$ref` string. Fragment-only refs and refs that
+ * already include a scheme are returned unchanged. Relative refs are
+ * resolved against `currentBase`; if the result lives in the same
+ * document as `docBase`, the ref is rewritten to fragment form.
+ */
+function rewriteRef(
+    ref: string,
+    currentBase: string,
+    docBase: string,
+    pointer: string,
+    diagnostics: DiagnosticsOptions | undefined
+): string {
+    // Fragment-only refs are already document-local.
+    if (ref.startsWith("#")) return ref;
+    // Refs with an explicit scheme are absolute — let the external
+    // resolver or unresolved-ref diagnostic path handle them.
+    if (/^[a-z][a-z0-9+\-.]*:/i.test(ref)) return ref;
+
+    const resolved = resolveAgainst(ref, currentBase);
+    if (resolved === undefined) return ref;
+
+    const resolvedNoFragment = stripFragment(resolved);
+    if (resolvedNoFragment === docBase) {
+        // Same document: convert to a fragment-only ref so the existing
+        // dereferencer handles it. RFC 6901 empty fragment means the
+        // document root.
+        const fragment = resolved.hash === "" ? "#" : resolved.hash;
+        emitDiagnostic(diagnostics, {
+            code: "relative-ref-resolved",
+            message: `Relative $ref "${ref}" resolved to "${fragment}" against base "${currentBase}"`,
+            pointer,
+            detail: { ref, base: currentBase, resolved: fragment },
+        });
+        return fragment;
+    }
+
+    // Different document — return the absolute URI so the external
+    // resolver (or the unresolved-ref diagnostic) can handle it.
+    const absolute = resolved.toString();
+    emitDiagnostic(diagnostics, {
+        code: "relative-ref-resolved",
+        message: `Relative $ref "${ref}" resolved to "${absolute}" against base "${currentBase}"`,
+        pointer,
+        detail: { ref, base: currentBase, resolved: absolute },
+    });
+    return absolute;
 }
 
 // ---------------------------------------------------------------------------

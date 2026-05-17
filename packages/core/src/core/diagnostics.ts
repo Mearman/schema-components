@@ -39,7 +39,12 @@ export type DiagnosticCode =
     | "divisible-by-conflict"
     | "legacy-dependencies-split"
     | "dependent-required-invalid"
-    | "unknown-json-schema-dialect";
+    | "unknown-json-schema-dialect"
+    | "relative-ref-resolved"
+    | "bare-exclusive-bound"
+    | "enum-value-filtered"
+    | "required-non-string"
+    | "pattern-invalid";
 
 // ---------------------------------------------------------------------------
 // Diagnostic structure

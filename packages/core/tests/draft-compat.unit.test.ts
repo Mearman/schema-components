@@ -20,6 +20,8 @@ import { walk } from "../src/core/walker.ts";
 import { normaliseSchema } from "../src/core/adapter.ts";
 import { normaliseJsonSchema } from "../src/core/normalise.ts";
 import { detectJsonSchemaDraft } from "../src/core/version.ts";
+import type { Diagnostic } from "../src/core/diagnostics.ts";
+import { isObject } from "../src/core/guards.ts";
 
 // ---------------------------------------------------------------------------
 // Draft 04: exclusiveMinimum/exclusiveMaximum boolean form
@@ -225,6 +227,149 @@ describe("Draft 04", () => {
                 "name"
             ).type
         ).toBe("string");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Draft 04: nested relative `$ref` resolved against enclosing `$id`
+// ---------------------------------------------------------------------------
+
+describe("Draft 04 $id base-URI resolution", () => {
+    it("resolves a relative $ref against the document's $id (via legacy id)", () => {
+        const schema = {
+            $schema: "http://json-schema.org/draft-04/schema#",
+            id: "http://example.com/foo",
+            type: "object",
+            properties: {
+                x: { $ref: "foo#/definitions/Bar" },
+            },
+            definitions: {
+                Bar: { type: "string" },
+            },
+        } as Record<string, unknown>;
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const properties = normalised.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const x = properties.x;
+        if (!isObject(x)) throw new Error("expected x");
+        // The ref was resolved relative to the document's $id, recognised
+        // as the same document, and rewritten to the fragment-only form
+        // so the existing dereferencer can handle it.
+        expect(x.$ref).toBe("#/definitions/Bar");
+        const resolvedDiag = diagnostics.find(
+            (d) => d.code === "relative-ref-resolved"
+        );
+        expect(resolvedDiag).toBeDefined();
+    });
+
+    it("rewrites a non-fragment relative $ref to an absolute external URI", () => {
+        const schema = {
+            $schema: "http://json-schema.org/draft-04/schema#",
+            id: "http://example.com/foo",
+            type: "object",
+            properties: {
+                x: { $ref: "bar" },
+            },
+        } as Record<string, unknown>;
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const properties = normalised.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const x = properties.x;
+        if (!isObject(x)) throw new Error("expected x");
+        // "bar" is a different document under the same authority — the
+        // ref is rewritten to the absolute URI so the external resolver
+        // (or the unresolved-ref diagnostic) can pick it up.
+        expect(x.$ref).toBe("http://example.com/bar");
+        const resolvedDiag = diagnostics.find(
+            (d) => d.code === "relative-ref-resolved"
+        );
+        expect(resolvedDiag).toBeDefined();
+        expect(resolvedDiag?.detail?.resolved).toBe("http://example.com/bar");
+    });
+
+    it("leaves fragment-only $refs unchanged", () => {
+        const schema = {
+            $schema: "http://json-schema.org/draft-04/schema#",
+            id: "http://example.com/foo",
+            type: "object",
+            properties: {
+                x: { $ref: "#/definitions/Bar" },
+            },
+            definitions: {
+                Bar: { type: "string" },
+            },
+        } as Record<string, unknown>;
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const properties = normalised.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const x = properties.x;
+        if (!isObject(x)) throw new Error("expected x");
+        expect(x.$ref).toBe("#/definitions/Bar");
+        expect(
+            diagnostics.filter((d) => d.code === "relative-ref-resolved").length
+        ).toBe(0);
+    });
+
+    it("respects a nested $id when resolving relative $refs", () => {
+        const schema = {
+            $schema: "http://json-schema.org/draft-04/schema#",
+            id: "http://example.com/foo",
+            type: "object",
+            properties: {
+                nested: {
+                    id: "http://other.example.com/baz",
+                    properties: {
+                        x: { $ref: "qux" },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+        const normalised = normaliseJsonSchema(schema, "draft-04");
+        const properties = normalised.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const nested = properties.nested;
+        if (!isObject(nested)) throw new Error("expected nested");
+        const nestedProps = nested.properties;
+        if (!isObject(nestedProps))
+            throw new Error("expected nested.properties");
+        const x = nestedProps.x;
+        if (!isObject(x)) throw new Error("expected x");
+        // "qux" resolved against the nested $id base.
+        expect(x.$ref).toBe("http://other.example.com/qux");
+    });
+
+    it("is a no-op when the document has no $id", () => {
+        const schema = {
+            $schema: "http://json-schema.org/draft-04/schema#",
+            type: "object",
+            properties: {
+                x: { $ref: "#/definitions/Bar" },
+            },
+            definitions: {
+                Bar: { type: "string" },
+            },
+        } as Record<string, unknown>;
+        const diagnostics: Diagnostic[] = [];
+        const normalised = normaliseJsonSchema(schema, "draft-04", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const properties = normalised.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const x = properties.x;
+        if (!isObject(x)) throw new Error("expected x");
+        expect(x.$ref).toBe("#/definitions/Bar");
+        expect(
+            diagnostics.filter((d) => d.code === "relative-ref-resolved").length
+        ).toBe(0);
     });
 });
 
