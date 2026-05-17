@@ -195,16 +195,51 @@ export function deepNormalise(
  * Carries the diagnostics sink and the JSON Pointer to the current
  * node so per-node transforms can emit pointer-accurate diagnostics
  * when they translate or reject legacy constructs.
+ *
+ * `documentHasDynamicAnchor` is set once at the entry point by scanning
+ * the input for any `$dynamicAnchor`/`$recursiveAnchor` keyword. Per-
+ * node transforms read it to decide whether a `$dynamicRef`/`$recursiveRef`
+ * rewrite needs a `dynamic-ref-degraded` diagnostic — a ref pointing at
+ * an anchor in the document body cannot be statically resolved without
+ * losing dynamic-scope semantics, while a document with no dynamic
+ * anchors at all has no semantics to lose.
+ *
+ * `documentHasRecursiveAnchor` is the same idea for Draft 2019-09's
+ * `$recursiveAnchor` keyword.
+ *
+ * `declaredDraft` carries the draft the normaliser is operating under
+ * (when known) so per-node transforms can emit `keyword-out-of-draft`
+ * diagnostics for keywords introduced in a later draft.
  */
 export interface NodeContext {
     diagnostics: DiagnosticsOptions | undefined;
     pointer: string;
+    documentHasDynamicAnchor: boolean;
+    documentHasRecursiveAnchor: boolean;
+    declaredDraft: JsonSchemaDraft | undefined;
 }
 
 export type NodeTransformWithContext = (
     node: Record<string, unknown>,
     ctx: NodeContext
 ) => Record<string, unknown>;
+
+/**
+ * Construct a child {@link NodeContext} that descends to `segment`,
+ * preserving document-level flags (`documentHasDynamicAnchor`,
+ * `documentHasRecursiveAnchor`, `declaredDraft`). Centralising the copy
+ * keeps the recursion in `deepNormaliseWithContext` from drifting from
+ * the {@link NodeContext} shape.
+ */
+function childContext(ctx: NodeContext, segment: string): NodeContext {
+    return {
+        diagnostics: ctx.diagnostics,
+        pointer: appendPointer(ctx.pointer, segment),
+        documentHasDynamicAnchor: ctx.documentHasDynamicAnchor,
+        documentHasRecursiveAnchor: ctx.documentHasRecursiveAnchor,
+        declaredDraft: ctx.declaredDraft,
+    };
+}
 
 function normaliseArrayWithContext(
     items: unknown[],
@@ -216,10 +251,11 @@ function normaliseArrayWithContext(
         const item = items[i];
         if (isObject(item)) {
             result.push(
-                deepNormaliseWithContext(item, transform, {
-                    diagnostics: ctx.diagnostics,
-                    pointer: appendPointer(ctx.pointer, String(i)),
-                })
+                deepNormaliseWithContext(
+                    item,
+                    transform,
+                    childContext(ctx, String(i))
+                )
             );
         } else {
             result.push(item);
@@ -236,10 +272,11 @@ function normaliseSubSchemaMapWithContext(
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(map)) {
         if (isObject(v)) {
-            result[k] = deepNormaliseWithContext(v, transform, {
-                diagnostics: ctx.diagnostics,
-                pointer: appendPointer(ctx.pointer, k),
-            });
+            result[k] = deepNormaliseWithContext(
+                v,
+                transform,
+                childContext(ctx, k)
+            );
         } else {
             result[k] = v;
         }
@@ -267,31 +304,36 @@ export function deepNormaliseWithContext(
 
     for (const [key, value] of Object.entries(node)) {
         if (isObject(value) && OBJECT_SUBSCHEMA_KEYS.has(key)) {
-            result[key] = normaliseSubSchemaMapWithContext(value, transform, {
-                diagnostics: ctx.diagnostics,
-                pointer: appendPointer(ctx.pointer, key),
-            });
+            result[key] = normaliseSubSchemaMapWithContext(
+                value,
+                transform,
+                childContext(ctx, key)
+            );
         } else if (Array.isArray(value) && ARRAY_SUBSCHEMA_KEYS.has(key)) {
-            result[key] = normaliseArrayWithContext(value, transform, {
-                diagnostics: ctx.diagnostics,
-                pointer: appendPointer(ctx.pointer, key),
-            });
+            result[key] = normaliseArrayWithContext(
+                value,
+                transform,
+                childContext(ctx, key)
+            );
         } else if (isObject(value) && SINGLE_SUBSCHEMA_KEYS.has(key)) {
-            result[key] = deepNormaliseWithContext(value, transform, {
-                diagnostics: ctx.diagnostics,
-                pointer: appendPointer(ctx.pointer, key),
-            });
+            result[key] = deepNormaliseWithContext(
+                value,
+                transform,
+                childContext(ctx, key)
+            );
         } else if (key === "items") {
             if (Array.isArray(value)) {
-                result[key] = normaliseArrayWithContext(value, transform, {
-                    diagnostics: ctx.diagnostics,
-                    pointer: appendPointer(ctx.pointer, key),
-                });
+                result[key] = normaliseArrayWithContext(
+                    value,
+                    transform,
+                    childContext(ctx, key)
+                );
             } else if (isObject(value)) {
-                result[key] = deepNormaliseWithContext(value, transform, {
-                    diagnostics: ctx.diagnostics,
-                    pointer: appendPointer(ctx.pointer, key),
-                });
+                result[key] = deepNormaliseWithContext(
+                    value,
+                    transform,
+                    childContext(ctx, key)
+                );
             } else {
                 result[key] = value;
             }
@@ -300,13 +342,14 @@ export function deepNormaliseWithContext(
             // normalisation in case the parent transform left them in
             // place (e.g. for the 2019-09 path which does not split).
             const normalised: Record<string, unknown> = {};
-            const depsPointer = appendPointer(ctx.pointer, key);
+            const depsContext = childContext(ctx, key);
             for (const [dk, dv] of Object.entries(value)) {
                 if (isObject(dv)) {
-                    normalised[dk] = deepNormaliseWithContext(dv, transform, {
-                        diagnostics: ctx.diagnostics,
-                        pointer: appendPointer(depsPointer, dk),
-                    });
+                    normalised[dk] = deepNormaliseWithContext(
+                        dv,
+                        transform,
+                        childContext(depsContext, dk)
+                    );
                 } else {
                     normalised[dk] = dv;
                 }
@@ -704,11 +747,25 @@ function normaliseDraft201909NodeWithContext(
     node: Record<string, unknown>,
     ctx: NodeContext
 ): Record<string, unknown> {
-    if (typeof node.$recursiveRef === "string") {
+    const recursiveRef = node.$recursiveRef;
+    if (typeof recursiveRef === "string") {
+        // Cross-document `$recursiveRef`s (anything that is not a fragment-
+        // only reference) carry dynamic-scope semantics the static `$ref`
+        // rewrite cannot preserve. Surface that loss before the rewrite so
+        // consumers can audit the schema; the rewrite still runs because
+        // static resolution is the only behaviour we can offer.
+        if (!recursiveRef.startsWith("#")) {
+            emitDiagnostic(ctx.diagnostics, {
+                code: "dynamic-ref-degraded",
+                message: `Cross-document \`$recursiveRef\` "${recursiveRef}" rewritten to a static \`$ref\`; dynamic-scope resolution is not preserved`,
+                pointer: appendPointer(ctx.pointer, "$recursiveRef"),
+                detail: { keyword: "$recursiveRef", ref: recursiveRef },
+            });
+        }
         // Preserve the original ref string — anchored forms such as
         // "#meta" must round-trip into `$ref` unchanged so $anchor
         // resolution can find the matching `$recursiveAnchor`.
-        node.$ref = node.$recursiveRef;
+        node.$ref = recursiveRef;
         delete node.$recursiveRef;
     }
     if (node.$recursiveAnchor === true) {
@@ -725,8 +782,11 @@ function normaliseDraft201909NodeWithContext(
         delete node.$recursiveAnchor;
     }
     // Draft 2019-09 introduced dependentRequired/dependentSchemas but
-    // still permits the legacy `dependencies` keyword. Validate any
-    // pre-existing dependentRequired entries the author migrated to.
+    // still permits the legacy `dependencies` keyword. Issue 10:
+    // split it into `dependentRequired`/`dependentSchemas` so the walker
+    // can process the constraints uniformly. The split runs without the
+    // legacy diagnostic — the keyword is expected on this draft path.
+    splitDependencies(node, ctx, false);
     validateDependentRequired(node, ctx);
     return node;
 }
@@ -739,13 +799,30 @@ function normaliseDynamicRefNodeWithContext(
     node: Record<string, unknown>,
     ctx: NodeContext
 ): Record<string, unknown> {
-    if (typeof node.$dynamicRef === "string") {
+    const dynamicRef = node.$dynamicRef;
+    if (typeof dynamicRef === "string") {
         // $dynamicRef resolves to the $dynamicAnchor in the dynamic scope.
-        // Convert to a standard $ref that the walker can resolve.
-        const fragment = node.$dynamicRef;
+        // Convert to a standard $ref that the walker can resolve. Static
+        // resolution loses the dynamic-scope semantics that $dynamicRef
+        // exists to express — surface the loss whenever the document
+        // body contains a `$dynamicAnchor` (the only construct
+        // `$dynamicRef` was designed to interact with). Cross-document
+        // refs always lose dynamic scope. The rewrite still runs because
+        // static resolution is the best fall-back we can offer.
+        const crossDocument = !dynamicRef.startsWith("#");
+        if (crossDocument || ctx.documentHasDynamicAnchor) {
+            emitDiagnostic(ctx.diagnostics, {
+                code: "dynamic-ref-degraded",
+                message: crossDocument
+                    ? `Cross-document \`$dynamicRef\` "${dynamicRef}" rewritten to a static \`$ref\`; dynamic-scope resolution is not preserved`
+                    : `\`$dynamicRef\` "${dynamicRef}" rewritten to a static \`$ref\` in a document declaring \`$dynamicAnchor\`; dynamic-scope resolution is not preserved`,
+                pointer: appendPointer(ctx.pointer, "$dynamicRef"),
+                detail: { keyword: "$dynamicRef", ref: dynamicRef },
+            });
+        }
         // If it's just "#", point to root. If it's "#SomeName", keep it
         // so $anchor resolution can find the matching $dynamicAnchor.
-        node.$ref = fragment;
+        node.$ref = dynamicRef;
         delete node.$dynamicRef;
     }
     // $dynamicAnchor → $anchor so ref.ts can find it
@@ -795,6 +872,67 @@ export function selectDraftTransform(
 }
 
 /**
+ * Scan a JSON document body for the presence of a named keyword
+ * anywhere in the structure. Walks both arrays and objects without
+ * regard to schema-vs-data position — the caller is responsible for
+ * passing a keyword whose presence is meaningful at any depth.
+ *
+ * Cycle-safe: cyclic references introduced by the OpenAPI bundler's
+ * `structuredClone` of external refs are short-circuited via the
+ * `visited` set so the scan terminates.
+ */
+function documentContainsKeyword(
+    value: unknown,
+    keyword: string,
+    visited: WeakSet<object> = new WeakSet<object>()
+): boolean {
+    if (Array.isArray(value)) {
+        if (visited.has(value)) return false;
+        visited.add(value);
+        for (const item of value) {
+            if (documentContainsKeyword(item, keyword, visited)) return true;
+        }
+        return false;
+    }
+    if (isObject(value)) {
+        if (visited.has(value)) return false;
+        visited.add(value);
+        if (keyword in value) return true;
+        for (const v of Object.values(value)) {
+            if (documentContainsKeyword(v, keyword, visited)) return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+/**
+ * Build a root {@link NodeContext} for a document being normalised.
+ * Pre-scans for `$dynamicAnchor` and `$recursiveAnchor` so per-node
+ * transforms can decide whether a `$dynamicRef`/`$recursiveRef`
+ * rewrite needs a `dynamic-ref-degraded` diagnostic.
+ */
+function buildRootContext(
+    schema: Record<string, unknown>,
+    diagnostics: DiagnosticsOptions | undefined,
+    declaredDraft: JsonSchemaDraft | undefined
+): NodeContext {
+    return {
+        diagnostics,
+        pointer: "",
+        documentHasDynamicAnchor: documentContainsKeyword(
+            schema,
+            "$dynamicAnchor"
+        ),
+        documentHasRecursiveAnchor: documentContainsKeyword(
+            schema,
+            "$recursiveAnchor"
+        ),
+        declaredDraft,
+    };
+}
+
+/**
  * Normalise a JSON Schema to canonical Draft 2020-12 form.
  * Deep-clones the input — the original is never mutated.
  *
@@ -808,7 +946,7 @@ export function normaliseJsonSchema(
     draft: JsonSchemaDraft,
     diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
-    const ctx: NodeContext = { diagnostics, pointer: "" };
+    const ctx = buildRootContext(schema, diagnostics, draft);
     const normalised = deepNormaliseWithContext(
         schema,
         selectDraftTransform(draft),
@@ -1154,7 +1292,7 @@ export function normaliseOpenApiSchemas(
             intermediate = deepNormaliseWithContext(
                 intermediate,
                 selectDraftTransform(dialectDraft),
-                { diagnostics, pointer: "" }
+                buildRootContext(intermediate, diagnostics, dialectDraft)
             );
         }
         return resolveRelativeRefs(
