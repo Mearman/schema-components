@@ -195,8 +195,6 @@ export interface ArrayConstraints {
     minItems?: number;
     maxItems?: number;
     uniqueItems?: boolean;
-    /** Schema that at least one array item must match. */
-    contains?: Record<string, unknown>;
     minContains?: number;
     maxContains?: number;
     /** Constraint schema for unevaluated items. */
@@ -313,6 +311,12 @@ export interface ArrayField extends FieldBase {
     constraints: ArrayConstraints;
     /** The element sub-schema. */
     element?: WalkedField;
+    /**
+     * Walked schema that at least one array item must match
+     * (`contains` keyword). Constrains element membership at runtime;
+     * paired with `minContains`/`maxContains` for cardinality.
+     */
+    contains?: WalkedField;
     /** Walked schema for unevaluated items. */
     unevaluatedItems?: WalkedField;
 }
@@ -328,6 +332,12 @@ export interface TupleField extends FieldBase {
      * absent, additional items are permitted but unconstrained.
      */
     restItems?: WalkedField;
+    /**
+     * Walked schema that at least one array item must match
+     * (`contains` keyword). Tuples may declare it alongside positional
+     * element schemas to require the presence of a specific element.
+     */
+    contains?: WalkedField;
 }
 
 export interface RecordField extends FieldBase {

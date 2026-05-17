@@ -205,7 +205,7 @@ describe("not (negation)", () => {
 // ---------------------------------------------------------------------------
 
 describe("contains / minContains / maxContains", () => {
-    it("extracts contains schema", () => {
+    it("walks the contains schema as a WalkedField on the array field", () => {
         const tree = walk(
             {
                 type: "array",
@@ -215,10 +215,13 @@ describe("contains / minContains / maxContains", () => {
             {}
         );
         expect(tree.type).toBe("array");
-        expect(arrayConstraintsOf(tree)?.contains).toStrictEqual({
-            type: "number",
-            minimum: 10,
-        });
+        if (tree.type !== "array") return;
+        const contains = tree.contains;
+        expect(contains).toBeDefined();
+        if (contains === undefined) return;
+        expect(contains.type).toBe("number");
+        if (contains.type !== "number") return;
+        expect(contains.constraints.minimum).toBe(10);
     });
 
     it("extracts minContains and maxContains", () => {
@@ -238,7 +241,9 @@ describe("contains / minContains / maxContains", () => {
 
     it("omits contains when absent", () => {
         const tree = walk({ type: "array", items: { type: "number" } }, {});
-        expect(arrayConstraintsOf(tree)?.contains).toBe(undefined);
+        expect(tree.type).toBe("array");
+        if (tree.type !== "array") return;
+        expect(tree.contains).toBe(undefined);
         expect(arrayConstraintsOf(tree)?.minContains).toBe(undefined);
         expect(arrayConstraintsOf(tree)?.maxContains).toBe(undefined);
     });

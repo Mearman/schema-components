@@ -749,6 +749,12 @@ function walkArray(
     schema: Record<string, unknown>,
     ctx: WalkContext
 ): ArrayField | TupleField {
+    // `contains` may be a boolean schema (Draft 06+) or an object; route
+    // through `walkSubSchema` so booleans surface as `unknown`/`never`
+    // rather than being silently dropped.
+    const walkedContains: WalkedField | undefined =
+        "contains" in schema ? walkSubSchema(schema.contains, ctx) : undefined;
+
     // prefixItems -> tuple type (Draft 2020-12)
     const prefixItems = getArray(schema, "prefixItems");
     if (prefixItems !== undefined) {
@@ -766,6 +772,9 @@ function walkArray(
             constraints: extractArrayConstraints(schema),
             prefixItems: walkedItems,
             ...(restItems !== undefined ? { restItems } : {}),
+            ...(walkedContains !== undefined
+                ? { contains: walkedContains }
+                : {}),
         };
     }
 
@@ -790,6 +799,9 @@ function walkArray(
             ...(walkedUnevaluatedItems !== undefined
                 ? { unevaluatedItems: walkedUnevaluatedItems }
                 : {}),
+            ...(walkedContains !== undefined
+                ? { contains: walkedContains }
+                : {}),
         };
     }
 
@@ -800,6 +812,7 @@ function walkArray(
         ...(walkedUnevaluatedItems !== undefined
             ? { unevaluatedItems: walkedUnevaluatedItems }
             : {}),
+        ...(walkedContains !== undefined ? { contains: walkedContains } : {}),
     };
 }
 

@@ -109,8 +109,12 @@ export function extractArrayConstraints(
     const maxItems = getNumber(schema, "maxItems");
     if (maxItems !== undefined) c.maxItems = maxItems;
     if (schema.uniqueItems === true) c.uniqueItems = true;
-    const contains = getObject(schema, "contains");
-    if (contains !== undefined) c.contains = contains;
+    // `contains` is exposed on `ArrayField`/`TupleField` directly as a
+    // walked `WalkedField` (mirroring `unevaluatedItems`) so the
+    // sub-schema is processed by the walker rather than handed to
+    // consumers as a raw JSON Schema object. The cardinality keywords
+    // (`minContains`/`maxContains`) stay in constraints because they
+    // are plain numbers with no sub-structure to walk.
     const minContains = getNumber(schema, "minContains");
     if (minContains !== undefined) c.minContains = minContains;
     const maxContains = getNumber(schema, "maxContains");

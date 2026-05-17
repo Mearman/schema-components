@@ -572,6 +572,60 @@ describe("walk — allOf", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Walker — contains schema walked onto ArrayField/TupleField
+// ---------------------------------------------------------------------------
+
+describe("walk — contains schema", () => {
+    it("walks contains into an ArrayField.contains WalkedField", () => {
+        const tree = walk(
+            {
+                type: "array",
+                items: { type: "number" },
+                contains: { type: "number", minimum: 10 },
+            },
+            {}
+        );
+        expect(tree.type).toBe("array");
+        if (tree.type !== "array") return;
+        const contains = tree.contains;
+        expect(contains).toBeDefined();
+        if (contains === undefined) return;
+        expect(contains.type).toBe("number");
+    });
+
+    it("walks contains into a TupleField.contains WalkedField", () => {
+        const tree = walk(
+            {
+                type: "array",
+                prefixItems: [{ type: "string" }],
+                contains: { const: "required-marker" },
+            },
+            {}
+        );
+        expect(tree.type).toBe("tuple");
+        if (tree.type !== "tuple") return;
+        const contains = tree.contains;
+        expect(contains).toBeDefined();
+        if (contains === undefined) return;
+        expect(contains.type).toBe("literal");
+    });
+
+    it("handles a boolean contains schema", () => {
+        const tree = walk(
+            {
+                type: "array",
+                items: { type: "string" },
+                contains: false,
+            },
+            {}
+        );
+        expect(tree.type).toBe("array");
+        if (tree.type !== "array") return;
+        expect(tree.contains?.type).toBe("never");
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Walker — oneOf [T, null] nullable detection
 // ---------------------------------------------------------------------------
 
