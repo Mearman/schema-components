@@ -1361,3 +1361,153 @@ describe("Swagger 2.0 response headers conversion", () => {
         expect(schema.type).toBe("integer");
     });
 });
+
+describe("OpenAPI 3.1 Schema Object $id base-URI resolution", () => {
+    it("resolves a relative $ref against an enclosing Schema Object $id", () => {
+        // The Schema Object at components/schemas/User carries its own
+        // `$id`, establishing a base URI. The nested `$ref: "user#/$defs/Name"`
+        // is relative — under JSON Schema §8.2 it must resolve against the
+        // enclosing `$id`, which makes it document-local. Without
+        // base-URI resolution on the OpenAPI 3.1 path the relative ref
+        // would survive unchanged and the walker would treat it as an
+        // unresolved external reference.
+        const doc: JsonObject = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {},
+            components: {
+                schemas: {
+                    User: {
+                        $id: "https://example.com/schemas/user",
+                        type: "object",
+                        properties: {
+                            name: { $ref: "user#/$defs/Name" },
+                        },
+                        $defs: {
+                            Name: { type: "string", minLength: 1 },
+                        },
+                    },
+                },
+            },
+        };
+
+        const diagnostics: Diagnostic[] = [];
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version, {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+
+        const components = normalised.components;
+        if (!isObject(components)) throw new Error("expected components");
+        const schemas = components.schemas;
+        if (!isObject(schemas)) throw new Error("expected schemas");
+        const user = schemas.User;
+        if (!isObject(user)) throw new Error("expected User schema");
+        const properties = user.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const name = properties.name;
+        if (!isObject(name)) throw new Error("expected name property");
+
+        // The relative ref was resolved against the User schema's $id,
+        // recognised as document-local, and rewritten to a fragment-only
+        // ref so the existing dereferencer can handle it.
+        expect(name.$ref).toBe("#/$defs/Name");
+
+        const resolved = diagnostics.find(
+            (d) => d.code === "relative-ref-resolved"
+        );
+        expect(resolved).toBeDefined();
+    });
+
+    it("rewrites a non-fragment relative $ref to an absolute external URI", () => {
+        // When the relative ref resolves to a different document under
+        // the same authority, the rewrite produces an absolute URI for
+        // the external resolver — not a fragment-only ref.
+        const doc: JsonObject = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {},
+            components: {
+                schemas: {
+                    User: {
+                        $id: "https://example.com/schemas/user",
+                        type: "object",
+                        properties: {
+                            address: { $ref: "address" },
+                        },
+                    },
+                },
+            },
+        };
+
+        const diagnostics: Diagnostic[] = [];
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version, {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+
+        const components = normalised.components;
+        if (!isObject(components)) throw new Error("expected components");
+        const schemas = components.schemas;
+        if (!isObject(schemas)) throw new Error("expected schemas");
+        const user = schemas.User;
+        if (!isObject(user)) throw new Error("expected User schema");
+        const properties = user.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const address = properties.address;
+        if (!isObject(address)) throw new Error("expected address property");
+
+        expect(address.$ref).toBe("https://example.com/schemas/address");
+
+        const resolved = diagnostics.find(
+            (d) => d.code === "relative-ref-resolved"
+        );
+        expect(resolved).toBeDefined();
+        expect(resolved?.detail?.resolved).toBe(
+            "https://example.com/schemas/address"
+        );
+    });
+
+    it("leaves fragment-only $refs unchanged on the OpenAPI 3.1 path", () => {
+        // No `$id` on the schema — `resolveRelativeRefs` is a no-op and
+        // existing fragment-only refs pass through untouched.
+        const doc: JsonObject = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {},
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            name: { $ref: "#/components/schemas/Name" },
+                        },
+                    },
+                    Name: { type: "string" },
+                },
+            },
+        };
+
+        const diagnostics: Diagnostic[] = [];
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version, {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+
+        const components = normalised.components;
+        if (!isObject(components)) throw new Error("expected components");
+        const schemas = components.schemas;
+        if (!isObject(schemas)) throw new Error("expected schemas");
+        const user = schemas.User;
+        if (!isObject(user)) throw new Error("expected User schema");
+        const properties = user.properties;
+        if (!isObject(properties)) throw new Error("expected properties");
+        const name = properties.name;
+        if (!isObject(name)) throw new Error("expected name property");
+
+        expect(name.$ref).toBe("#/components/schemas/Name");
+        expect(
+            diagnostics.filter((d) => d.code === "relative-ref-resolved").length
+        ).toBe(0);
+    });
+});

@@ -1058,7 +1058,17 @@ export function normaliseOpenApiSchemas(
         }
     }
 
+    // Apply `$id` base-URI resolution per Schema Object — OpenAPI 3.1
+    // Schema Objects may carry `$id` to establish a base URI for nested
+    // relative `$ref`s (JSON Schema §8.2). Scope the rewrite to schemas
+    // surfaced by `deepNormaliseOpenApiDoc` (components/schemas and
+    // inline operation/parameter/response/header/requestBody schemas),
+    // leaving OpenAPI-level Reference Objects untouched — those use the
+    // OpenAPI ref semantics handled by `openapi/resolve.ts`.
     return deepNormaliseOpenApiDoc(doc, (schema) =>
-        deepNormalise(schema, normaliseOpenApi30Discriminator)
+        resolveRelativeRefs(
+            deepNormalise(schema, normaliseOpenApi30Discriminator),
+            diagnostics
+        )
     );
 }
