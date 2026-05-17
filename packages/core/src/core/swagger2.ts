@@ -117,7 +117,9 @@ export function normaliseSwagger2Document(
             } else {
                 convertedParameters[name] = normaliseSwaggerParameter(
                     resolved,
-                    doc
+                    doc,
+                    diagnostics,
+                    appendPointer(appendPointer("", "parameters"), name)
                 );
             }
         }
@@ -268,8 +270,20 @@ function normaliseSwaggerPaths(
         // Path-level parameters
         const pathParams = pathItem.parameters;
         if (Array.isArray(pathParams)) {
-            normalisedPath.parameters = pathParams.map((p: unknown) =>
-                isObject(p) ? normaliseSwaggerParameter(p, doc) : p
+            const paramsPointer = appendPointer(
+                appendPointer(appendPointer("", "paths"), path),
+                "parameters"
+            );
+            normalisedPath.parameters = pathParams.map(
+                (p: unknown, index: number) =>
+                    isObject(p)
+                        ? normaliseSwaggerParameter(
+                              p,
+                              doc,
+                              diagnostics,
+                              appendPointer(paramsPointer, String(index))
+                          )
+                        : p
             );
         }
 
@@ -373,8 +387,23 @@ function normaliseSwaggerOperation(
                     usesFormData = true;
                 }
             } else {
+                const paramPointer = appendPointer(
+                    appendPointer(
+                        appendPointer(
+                            appendPointer(appendPointer("", "paths"), path),
+                            method
+                        ),
+                        "parameters"
+                    ),
+                    String(index)
+                );
                 nonBodyParams.push(
-                    normaliseSwaggerParameter(resolvedParam, doc)
+                    normaliseSwaggerParameter(
+                        resolvedParam,
+                        doc,
+                        diagnostics,
+                        paramPointer
+                    )
                 );
             }
         }
@@ -539,14 +568,21 @@ function resolveSwaggerParameter(
  */
 function normaliseSwaggerParameter(
     param: Record<string, unknown>,
-    doc: Record<string, unknown>
+    doc: Record<string, unknown>,
+    diagnostics?: DiagnosticsOptions,
+    pointer = ""
 ): Record<string, unknown> {
     // Resolve $ref before processing
     if (typeof param.$ref === "string") {
         const resolved = resolveSwaggerParameter(param, doc);
         // Avoid infinite recursion if the ref resolved to the same object
         if (resolved !== param) {
-            return normaliseSwaggerParameter(resolved, doc);
+            return normaliseSwaggerParameter(
+                resolved,
+                doc,
+                diagnostics,
+                pointer
+            );
         }
     }
 
@@ -566,8 +602,31 @@ function normaliseSwaggerParameter(
 
     // Build schema from type/format
     if (typeof param.type === "string") {
-        const schema = buildSchemaFromSwaggerParameterShape(param);
-        result.schema = schema;
+        // Swagger 2.0 allows `type: "file"` exclusively under `in:
+        // formData`. A non-formData parameter declaring `type: "file"`
+        // is malformed per the spec; surface a diagnostic and emit a
+        // best-effort fallback of `{ type: "string", format: "binary" }`
+        // (matching the formData file handling) so downstream renderers
+        // produce a sensible field.
+        if (param.type === "file" && param.in !== "formData") {
+            emitDiagnostic(diagnostics, {
+                code: "swagger-invalid-file-parameter",
+                message: `Swagger 2.0 type: "file" is only valid under in: formData; converting to { type: "string", format: "binary" }`,
+                pointer,
+                detail: {
+                    name: param.name,
+                    in: param.in,
+                },
+            });
+            const schema: Record<string, unknown> = {
+                type: "string",
+                format: "binary",
+            };
+            result.schema = schema;
+        } else {
+            const schema = buildSchemaFromSwaggerParameterShape(param);
+            result.schema = schema;
+        }
     }
 
     // collectionFormat → style + explode (OpenAPI 3.x)
