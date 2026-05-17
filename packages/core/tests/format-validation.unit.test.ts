@@ -8,7 +8,11 @@
 
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
-import { FORMAT_PATTERNS, validateFormat } from "../src/core/formats.ts";
+import {
+    FORMAT_PATTERNS,
+    MAX_REGEX_PATTERN_LENGTH,
+    validateFormat,
+} from "../src/core/formats.ts";
 import { normaliseSchema } from "../src/core/adapter.ts";
 import { walk } from "../src/core/walker.ts";
 import type { Diagnostic } from "../src/core/diagnostics.ts";
@@ -384,6 +388,60 @@ describe("predicate validators", () => {
         expect(validateFormat("{a:1}", "json-string")).toBe(false);
         expect(validateFormat("not json", "json-string")).toBe(false);
         expect(validateFormat("", "json-string")).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// ReDoS guard — regex format
+// ---------------------------------------------------------------------------
+
+describe("regex format ReDoS guard", () => {
+    it("emits pattern-invalid and rejects malformed patterns", () => {
+        const diagnostics: Diagnostic[] = [];
+        const result = validateFormat("[invalid", "regex", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        expect(result).toBe(false);
+        const diag = diagnostics.find((d) => d.code === "pattern-invalid");
+        expect(diag).toBeDefined();
+        expect(diag?.detail?.reason).toBe("compile-error");
+    });
+
+    it("emits pattern-invalid and rejects patterns over the length cap", () => {
+        const diagnostics: Diagnostic[] = [];
+        const longPattern = "a".repeat(MAX_REGEX_PATTERN_LENGTH + 1);
+        const result = validateFormat(longPattern, "regex", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        expect(result).toBe(false);
+        const diag = diagnostics.find((d) => d.code === "pattern-invalid");
+        expect(diag).toBeDefined();
+        expect(diag?.detail?.reason).toBe("length-exceeded");
+        expect(diag?.detail?.length).toBe(longPattern.length);
+        expect(diag?.detail?.maxLength).toBe(MAX_REGEX_PATTERN_LENGTH);
+    });
+
+    it("does not emit when a valid pattern under the cap is supplied", () => {
+        const diagnostics: Diagnostic[] = [];
+        const result = validateFormat("^[a-z]+$", "regex", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        expect(result).toBe(true);
+        expect(
+            diagnostics.filter((d) => d.code === "pattern-invalid").length
+        ).toBe(0);
+    });
+
+    it("treats a pattern exactly at the length cap as valid if syntactically correct", () => {
+        const diagnostics: Diagnostic[] = [];
+        const padding = "a".repeat(MAX_REGEX_PATTERN_LENGTH - 2);
+        const result = validateFormat(`^${padding}$`, "regex", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        expect(result).toBe(true);
+        expect(
+            diagnostics.filter((d) => d.code === "pattern-invalid").length
+        ).toBe(0);
     });
 });
 

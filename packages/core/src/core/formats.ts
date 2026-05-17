@@ -13,6 +13,22 @@
  * `formatPattern` is exposed as a separate field for renderers.
  */
 
+import type { DiagnosticsOptions } from "./diagnostics.ts";
+import { emitDiagnostic } from "./diagnostics.ts";
+
+// ---------------------------------------------------------------------------
+// ReDoS guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Maximum length of a string that will be compiled by `new RegExp(...)`.
+ * Patterns that exceed this cap are rejected without compilation. A
+ * pathological pattern (e.g. `(a+)+`) doesn't need to be long to hang,
+ * but the cap is cheap defence and stops obviously hostile input before
+ * it reaches the regex engine.
+ */
+export const MAX_REGEX_PATTERN_LENGTH = 500;
+
 // ---------------------------------------------------------------------------
 // Validator type
 // ---------------------------------------------------------------------------
@@ -110,6 +126,10 @@ export const FORMAT_PATTERNS: Readonly<Record<string, RegExp>> = {
 /**
  * Format validators that use predicate functions instead of regex.
  * These are checked in `validateFormat` when no regex pattern exists.
+ *
+ * The `regex` format is intentionally absent here — it requires a
+ * length cap and structured diagnostic emission and is handled via
+ * {@link validateRegexFormat} directly from {@link validateFormat}.
  */
 const PREDICATE_VALIDATORS: Readonly<
     Record<string, (value: string) => boolean>
@@ -134,6 +154,10 @@ const PREDICATE_VALIDATORS: Readonly<
         }
     },
     regex: (value: string): boolean => {
+        // Simple syntax-only check kept for the FORMAT_PATTERNS lookup
+        // surface. Callers that need ReDoS protection should route through
+        // `validateRegexFormat` defined below, which adds a length cap and
+        // emits diagnostics on compile failure.
         try {
             new RegExp(value);
             return true;
@@ -156,6 +180,52 @@ const PREDICATE_VALIDATORS: Readonly<
     },
 };
 
+/**
+ * Validate that a string is a syntactically valid regular expression.
+ *
+ * Hardened against ReDoS-style abuse:
+ * - Values longer than {@link MAX_REGEX_PATTERN_LENGTH} are treated as
+ *   "format unmatched" without ever being compiled.
+ * - Any `SyntaxError` thrown by `new RegExp(...)` (malformed pattern,
+ *   invalid flags, unbalanced groups) is caught and treated as "format
+ *   unmatched".
+ *
+ * In both cases a diagnostic is emitted when a sink is supplied so
+ * callers can surface the offending value to the schema author.
+ */
+function validateRegexFormat(
+    value: string,
+    diagnostics: DiagnosticsOptions | undefined,
+    pointer: string
+): boolean {
+    if (value.length > MAX_REGEX_PATTERN_LENGTH) {
+        emitDiagnostic(diagnostics, {
+            code: "pattern-invalid",
+            message: `Pattern length (${String(value.length)}) exceeds maximum (${String(MAX_REGEX_PATTERN_LENGTH)}); treating as unmatched`,
+            pointer,
+            detail: {
+                reason: "length-exceeded",
+                length: value.length,
+                maxLength: MAX_REGEX_PATTERN_LENGTH,
+            },
+        });
+        return false;
+    }
+    try {
+        new RegExp(value);
+        return true;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        emitDiagnostic(diagnostics, {
+            code: "pattern-invalid",
+            message: `Failed to compile pattern as RegExp: ${message}; treating as unmatched`,
+            pointer,
+            detail: { reason: "compile-error", error: message },
+        });
+        return false;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Validation helper
 // ---------------------------------------------------------------------------
@@ -165,13 +235,23 @@ const PREDICATE_VALIDATORS: Readonly<
  * Returns `true` when the value matches the format,
  * `false` when it does not, and `undefined` when the format
  * is not recognised (no validator available).
+ *
+ * `diagnostics` and `pointer` are forwarded to validators that can
+ * surface structured diagnostics — currently the `regex` format, which
+ * emits `pattern-invalid` for over-length or malformed input.
  */
 export function validateFormat(
     value: string,
-    format: string
+    format: string,
+    diagnostics?: DiagnosticsOptions,
+    pointer = ""
 ): boolean | undefined {
     const pattern = FORMAT_PATTERNS[format];
     if (pattern !== undefined) return pattern.test(value);
+
+    if (format === "regex") {
+        return validateRegexFormat(value, diagnostics, pointer);
+    }
 
     const predicate = PREDICATE_VALIDATORS[format];
     if (predicate !== undefined) return predicate(value);
