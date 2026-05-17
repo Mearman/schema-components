@@ -52,12 +52,24 @@ function getString(
  */
 export function countDistinctRefs(root: Record<string, unknown>): number {
     const refs = new Set<string>();
-    collectRefs(root, refs);
+    collectRefs(root, refs, new WeakSet<object>());
     return Math.max(refs.size, 1);
 }
 
-function collectRefs(node: unknown, refs: Set<string>): void {
+/**
+ * The OpenAPI bundler (`bundleOpenApiDoc`) inlines external refs via
+ * `structuredClone`, which preserves shared object references and cycles.
+ * Without the `visited` set this walk would recurse forever on cyclic or
+ * diamond-shaped input. The set is a no-op for tree-shaped documents.
+ */
+function collectRefs(
+    node: unknown,
+    refs: Set<string>,
+    visited: WeakSet<object>
+): void {
     if (!isObject(node)) return;
+    if (visited.has(node)) return;
+    visited.add(node);
 
     const ref = node.$ref;
     if (typeof ref === "string") {
@@ -66,10 +78,12 @@ function collectRefs(node: unknown, refs: Set<string>): void {
 
     for (const value of Object.values(node)) {
         if (isObject(value)) {
-            collectRefs(value, refs);
+            collectRefs(value, refs, visited);
         } else if (Array.isArray(value)) {
+            if (visited.has(value)) continue;
+            visited.add(value);
             for (const item of value) {
-                collectRefs(item, refs);
+                collectRefs(item, refs, visited);
             }
         }
     }
@@ -253,23 +267,33 @@ export function dereference(
 /**
  * Recursively scan a schema document for a `$anchor` matching the given name.
  * Returns the schema object containing the anchor, or undefined.
+ *
+ * The optional `visited` set guards against shared object references and
+ * cycles introduced by the OpenAPI bundler's `structuredClone`-based
+ * inlining of external refs. Without it a recursive document would stack
+ * overflow before reaching the matching anchor.
  */
 export function findAnchor(
     node: unknown,
-    anchorName: string
+    anchorName: string,
+    visited: WeakSet<object> = new WeakSet<object>()
 ): Record<string, unknown> | undefined {
     if (!isObject(node)) return undefined;
+    if (visited.has(node)) return undefined;
+    visited.add(node);
     if (node.$anchor === anchorName) return node;
 
     // Recurse into known sub-schema locations
     for (const value of Object.values(node)) {
         if (isObject(value)) {
-            const found = findAnchor(value, anchorName);
+            const found = findAnchor(value, anchorName, visited);
             if (found !== undefined) return found;
         }
         if (Array.isArray(value)) {
+            if (visited.has(value)) continue;
+            visited.add(value);
             for (const item of value) {
-                const found = findAnchor(item, anchorName);
+                const found = findAnchor(item, anchorName, visited);
                 if (found !== undefined) return found;
             }
         }

@@ -85,10 +85,16 @@ export type NodeTransform = (
  * Normalise each element of an unknown array by applying deepNormalise
  * to object elements and passing others through unchanged.
  */
-function normaliseArray(items: unknown[], transform: NodeTransform): unknown[] {
+function normaliseArray(
+    items: unknown[],
+    transform: NodeTransform,
+    visited: WeakSet<object>
+): unknown[] {
     const result: unknown[] = [];
     for (const item of items) {
-        result.push(isObject(item) ? deepNormalise(item, transform) : item);
+        result.push(
+            isObject(item) ? deepNormalise(item, transform, visited) : item
+        );
     }
     return result;
 }
@@ -98,11 +104,12 @@ function normaliseArray(items: unknown[], transform: NodeTransform): unknown[] {
  */
 function normaliseSubSchemaMap(
     map: Record<string, unknown>,
-    transform: NodeTransform
+    transform: NodeTransform,
+    visited: WeakSet<object>
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(map)) {
-        result[k] = isObject(v) ? deepNormalise(v, transform) : v;
+        result[k] = isObject(v) ? deepNormalise(v, transform, visited) : v;
     }
     return result;
 }
@@ -110,11 +117,21 @@ function normaliseSubSchemaMap(
 /**
  * Deep-normalise a JSON Schema object by applying a per-node transform
  * and recursing into every sub-schema location.
+ *
+ * The optional `visited` set guards against shared object references and
+ * cycles introduced upstream (e.g. by the OpenAPI bundler's
+ * `structuredClone`-based inlining of external refs). The walk skips
+ * already-seen nodes by returning the original reference rather than
+ * recursing forever.
  */
 export function deepNormalise(
     schema: Record<string, unknown>,
-    transform: NodeTransform
+    transform: NodeTransform,
+    visited: WeakSet<object> = new WeakSet<object>()
 ): Record<string, unknown> {
+    if (visited.has(schema)) return schema;
+    visited.add(schema);
+
     // Apply the per-node transform first
     const node = transform({ ...schema });
 
@@ -123,22 +140,22 @@ export function deepNormalise(
     for (const [key, value] of Object.entries(node)) {
         // Record<string, SubSchema>
         if (isObject(value) && OBJECT_SUBSCHEMA_KEYS.has(key)) {
-            result[key] = normaliseSubSchemaMap(value, transform);
+            result[key] = normaliseSubSchemaMap(value, transform, visited);
         }
         // SubSchema[]
         else if (Array.isArray(value) && ARRAY_SUBSCHEMA_KEYS.has(key)) {
-            result[key] = normaliseArray(value, transform);
+            result[key] = normaliseArray(value, transform, visited);
         }
         // Single SubSchema
         else if (isObject(value) && SINGLE_SUBSCHEMA_KEYS.has(key)) {
-            result[key] = deepNormalise(value, transform);
+            result[key] = deepNormalise(value, transform, visited);
         }
         // items: can be a single sub-schema OR an array (Draft 04 tuples)
         else if (key === "items") {
             if (Array.isArray(value)) {
-                result[key] = normaliseArray(value, transform);
+                result[key] = normaliseArray(value, transform, visited);
             } else if (isObject(value)) {
-                result[key] = deepNormalise(value, transform);
+                result[key] = deepNormalise(value, transform, visited);
             } else {
                 result[key] = value;
             }
@@ -152,7 +169,7 @@ export function deepNormalise(
             const normalised: Record<string, unknown> = {};
             for (const [dk, dv] of Object.entries(value)) {
                 if (isObject(dv)) {
-                    normalised[dk] = deepNormalise(dv, transform);
+                    normalised[dk] = deepNormalise(dv, transform, visited);
                 } else {
                     normalised[dk] = dv;
                 }
@@ -869,16 +886,37 @@ function resolveRelativeRefs(
     const docBaseUrl = parseAbsoluteUri(schema.$id);
     if (docBaseUrl === undefined) return schema;
     const docBase = stripFragment(docBaseUrl);
-    return rewriteRelativeRefsNode(schema, docBase, docBase, "", diagnostics);
+    return rewriteRelativeRefsNode(
+        schema,
+        docBase,
+        docBase,
+        "",
+        diagnostics,
+        new WeakSet<object>()
+    );
 }
 
+/**
+ * Rewrite relative `$ref`s in a single node, recursing into sub-schemas.
+ *
+ * The `visited` set guards against shared object references and cycles
+ * introduced upstream (e.g. by the OpenAPI bundler's `structuredClone`
+ * inlining of external refs). When a node is re-encountered the rewrite
+ * is short-circuited — returning the original reference unchanged is
+ * sound because every relative `$ref` in the subtree was already
+ * rewritten on the first visit.
+ */
 function rewriteRelativeRefsNode(
     node: Record<string, unknown>,
     currentBase: string,
     docBase: string,
     pointer: string,
-    diagnostics: DiagnosticsOptions | undefined
+    diagnostics: DiagnosticsOptions | undefined,
+    visited: WeakSet<object>
 ): Record<string, unknown> {
+    if (visited.has(node)) return node;
+    visited.add(node);
+
     // Update the current base when this node introduces a new `$id`.
     let nextBase = currentBase;
     const nodeId = node.$id;
@@ -906,7 +944,8 @@ function rewriteRelativeRefsNode(
             nextBase,
             docBase,
             appendPointer(pointer, key),
-            diagnostics
+            diagnostics,
+            visited
         );
     }
     return result;
@@ -917,16 +956,20 @@ function rewriteRelativeRefsValue(
     currentBase: string,
     docBase: string,
     pointer: string,
-    diagnostics: DiagnosticsOptions | undefined
+    diagnostics: DiagnosticsOptions | undefined,
+    visited: WeakSet<object>
 ): unknown {
     if (Array.isArray(value)) {
+        if (visited.has(value)) return value;
+        visited.add(value);
         return value.map((item, i) =>
             rewriteRelativeRefsValue(
                 item,
                 currentBase,
                 docBase,
                 appendPointer(pointer, String(i)),
-                diagnostics
+                diagnostics,
+                visited
             )
         );
     }
@@ -936,7 +979,8 @@ function rewriteRelativeRefsValue(
             currentBase,
             docBase,
             pointer,
-            diagnostics
+            diagnostics,
+            visited
         );
     }
     return value;
