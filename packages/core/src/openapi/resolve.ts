@@ -90,6 +90,9 @@ export function getParsed(
         version !== undefined
             ? normaliseOpenApiSchemas(doc, version, diagnostics)
             : doc;
+    if (diagnostics !== undefined) {
+        validateSecuritySchemeTypes(normalisedDoc, diagnostics);
+    }
     const parsed = parseOpenApiDocument(normalisedDoc);
     // Only populate the cache for the no-diagnostics path. Caching a
     // diagnostics-bearing parse would let later non-diagnostics callers
@@ -121,6 +124,59 @@ export function getParsed(
  */
 export function toDoc(value: unknown): Record<string, unknown> | undefined {
     return isObject(value) ? value : undefined;
+}
+
+/**
+ * Known security scheme types per the OpenAPI 3.0/3.1 specification.
+ * `mutualTLS` was added in OpenAPI 3.1. Unknown values surface a
+ * `unknown-security-scheme-type` diagnostic so authors notice typos
+ * (e.g. `mutalTLS`) that would otherwise render with no warning.
+ */
+const KNOWN_SECURITY_SCHEME_TYPES = new Set([
+    "apiKey",
+    "http",
+    "oauth2",
+    "openIdConnect",
+    "mutualTLS",
+]);
+
+/**
+ * Validate every `components.securitySchemes.<name>.type` against the
+ * canonical OpenAPI security scheme types and emit
+ * `unknown-security-scheme-type` for each entry whose type is not
+ * recognised. Runs after normalisation so Swagger 2.0 documents (which
+ * are already translated to OAS 3.x shapes by `translateSwaggerSecurityScheme`)
+ * are validated alongside native 3.x documents.
+ */
+function validateSecuritySchemeTypes(
+    doc: Record<string, unknown>,
+    diagnostics: DiagnosticsOptions
+): void {
+    const components = doc.components;
+    if (!isObject(components)) return;
+    const schemes = components.securitySchemes;
+    if (!isObject(schemes)) return;
+    for (const [name, scheme] of Object.entries(schemes)) {
+        if (!isObject(scheme)) continue;
+        const type = scheme.type;
+        if (typeof type !== "string") {
+            emitDiagnostic(diagnostics, {
+                code: "unknown-security-scheme-type",
+                message: `Security scheme "${name}" has no type or a non-string type`,
+                pointer: `/components/securitySchemes/${name}/type`,
+                detail: { name, type },
+            });
+            continue;
+        }
+        if (!KNOWN_SECURITY_SCHEME_TYPES.has(type)) {
+            emitDiagnostic(diagnostics, {
+                code: "unknown-security-scheme-type",
+                message: `Security scheme "${name}" declares unknown type "${type}"`,
+                pointer: `/components/securitySchemes/${name}/type`,
+                detail: { name, type },
+            });
+        }
+    }
 }
 
 /**

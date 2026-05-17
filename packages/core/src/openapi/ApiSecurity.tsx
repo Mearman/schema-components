@@ -44,6 +44,19 @@ const OAUTH_FLOW_KEYS = [
     "authorizationCode",
 ] as const;
 
+/**
+ * Known Security Scheme `type` values per the OpenAPI 3.0/3.1 spec.
+ * Used to flag unknown values in the rendered output so authors can
+ * spot typos like `mutalTLS` without consulting the diagnostic sink.
+ */
+const KNOWN_SECURITY_SCHEME_TYPES = new Set([
+    "apiKey",
+    "http",
+    "oauth2",
+    "openIdConnect",
+    "mutualTLS",
+]);
+
 type OAuthFlowKey = (typeof OAUTH_FLOW_KEYS)[number];
 
 interface OAuthFlow {
@@ -133,10 +146,21 @@ interface SchemeDetailsProps {
 
 function SchemeDetails({ scheme }: SchemeDetailsProps): ReactNode {
     const flows = extractFlows(scheme.flows);
+    const isKnownType =
+        scheme.type !== undefined &&
+        KNOWN_SECURITY_SCHEME_TYPES.has(scheme.type);
     return (
         <>
             {scheme.type !== undefined && (
-                <span data-security-type>{scheme.type}</span>
+                <span
+                    data-security-type
+                    data-security-type-unknown={
+                        isKnownType ? undefined : "true"
+                    }
+                >
+                    {scheme.type}
+                    {!isKnownType && " (unknown type)"}
+                </span>
             )}
             {scheme.description !== undefined && (
                 <span data-security-description>{scheme.description}</span>
