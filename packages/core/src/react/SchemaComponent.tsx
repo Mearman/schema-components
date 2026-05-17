@@ -401,12 +401,41 @@ export function SchemaComponent<
     const handleChange = useCallback(
         (nextValue: unknown) => {
             if (validate) {
-                const error = runValidation(
-                    zodSchema,
-                    jsonSchema,
-                    nextValue,
-                    onDiagnostic
-                );
+                let error: unknown;
+                try {
+                    error = runValidation(
+                        zodSchema,
+                        jsonSchema,
+                        nextValue,
+                        onDiagnostic
+                    );
+                } catch (err: unknown) {
+                    // `runValidation` only throws when the JSON Schema → Zod
+                    // fallback path is taken AND no diagnostic sink is wired
+                    // up. Route the structured error through `onError` if
+                    // the consumer supplied one (mirroring the normalisation
+                    // failure path above); otherwise re-throw so the failure
+                    // surfaces in the host (event handler stack, error
+                    // boundary, or test harness) rather than being silently
+                    // swallowed.
+                    const normalised =
+                        err instanceof SchemaNormalisationError
+                            ? err
+                            : new SchemaNormalisationError(
+                                  err instanceof Error
+                                      ? err.message
+                                      : "Fallback validation failed",
+                                  schemaInput,
+                                  "zod-conversion-failed",
+                                  undefined,
+                                  err
+                              );
+                    if (onError !== undefined) {
+                        onError(normalised);
+                        return;
+                    }
+                    throw normalised;
+                }
                 if (error !== undefined) {
                     // Root-level error callback
                     onValidationError?.(error);
@@ -424,6 +453,8 @@ export function SchemaComponent<
             onValidationError,
             fields,
             onDiagnostic,
+            onError,
+            schemaInput,
         ]
     );
 
@@ -521,6 +552,21 @@ export function sanitisePrefix(value: string): string {
 // Validation
 // ---------------------------------------------------------------------------
 
+/**
+ * Run validation against the supplied value.
+ *
+ * Returns the validation error (Zod error or equivalent) on failure, or
+ * `undefined` when the value is valid OR when the fallback validation
+ * path was skipped because a diagnostic sink absorbed the conversion
+ * failure.
+ *
+ * Throws `SchemaNormalisationError` (kind `zod-conversion-failed`) when
+ * the JSON-Schema → Zod fallback is taken AND no diagnostic sink is
+ * wired up. The project's no-silent-fallback rule requires the failure
+ * to surface somewhere — diagnostics if the consumer opted in, an error
+ * otherwise — so the caller can route it through `onError` / an error
+ * boundary rather than have validation quietly disappear.
+ */
 function runValidation(
     zodSchema: unknown,
     jsonSchema: Record<string, unknown>,
@@ -546,18 +592,43 @@ function runValidation(
     // Fallback: convert JSON Schema to Zod for validation. `z.fromJSONSchema`
     // throws synchronously for JSON Schema features Zod refuses to round-trip
     // (e.g. `not`, certain `allOf` shapes, `patternProperties`,
-    // `dependentSchemas`). Validation is a best-effort enhancement, not core
-    // rendering — surface the failure via the diagnostics channel and skip
-    // validation rather than letting the throw escape into the React render
-    // and crash the tree. The render itself succeeds because it only
-    // depends on the (already-normalised) JSON Schema, not on the Zod
-    // round-trip.
+    // `dependentSchemas`). The render itself only depends on the
+    // (already-normalised) JSON Schema, so the failure is isolated to the
+    // validation step — but it must not be silently dropped. When a
+    // diagnostic sink is wired up, emit `unsupported-type` and skip the
+    // validation step. Otherwise raise a structured error so the caller
+    // can route it via `onError` or an error boundary.
     let parsed: unknown;
     try {
         parsed = z.fromJSONSchema(jsonSchema);
     } catch (err) {
-        emitFromJsonSchemaDiagnostic(err, onDiagnostic);
-        return undefined;
+        if (onDiagnostic !== undefined) {
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : "z.fromJSONSchema threw a non-Error value";
+            onDiagnostic({
+                code: "unsupported-type",
+                message:
+                    "Skipping fallback validation: z.fromJSONSchema could not " +
+                    `round-trip the normalised JSON Schema. Original message: ${message}`,
+                pointer: "",
+                detail: { source: "z.fromJSONSchema" },
+            });
+            return undefined;
+        }
+        const message =
+            err instanceof Error
+                ? err.message
+                : "z.fromJSONSchema threw a non-Error value";
+        throw new SchemaNormalisationError(
+            "Fallback validation failed: z.fromJSONSchema could not " +
+                `round-trip the normalised JSON Schema. Original message: ${message}`,
+            jsonSchema,
+            "zod-conversion-failed",
+            undefined,
+            err
+        );
     }
     if (isObject(parsed)) {
         const safeParseFn = parsed.safeParse;
@@ -574,37 +645,6 @@ function runValidation(
     }
 
     return undefined;
-}
-
-/**
- * Emit a diagnostic when `z.fromJSONSchema` refuses to round-trip the
- * already-normalised JSON Schema. The diagnostic reuses the existing
- * `unsupported-type` code because the failure mode is the same — a
- * keyword/structure Zod cannot represent — and the consumer should be
- * able to opt in to noticing it via the existing diagnostics channel.
- *
- * Best-effort: when no `onDiagnostic` sink is configured we still swallow
- * the throw (the alternative would crash the React render for a
- * non-essential validation step), matching the silent-fallback contract
- * the rest of the diagnostics system uses.
- */
-function emitFromJsonSchemaDiagnostic(
-    err: unknown,
-    onDiagnostic: ((diagnostic: Diagnostic) => void) | undefined
-): void {
-    if (onDiagnostic === undefined) return;
-    const message =
-        err instanceof Error
-            ? err.message
-            : "z.fromJSONSchema threw a non-Error value";
-    onDiagnostic({
-        code: "unsupported-type",
-        message:
-            "Skipping fallback validation: z.fromJSONSchema could not " +
-            `round-trip the normalised JSON Schema. Original message: ${message}`,
-        pointer: "",
-        detail: { source: "z.fromJSONSchema" },
-    });
 }
 
 // ---------------------------------------------------------------------------

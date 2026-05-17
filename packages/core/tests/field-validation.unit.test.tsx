@@ -251,38 +251,7 @@ describe("z.fromJSONSchema fallback guard", () => {
         expect(onValidationError).not.toHaveBeenCalled();
     });
 
-    it("silently swallows the fromJSONSchema failure when no diagnostic sink is configured", () => {
-        // No diagnostics callback wired up — the throw must still not
-        // escape into the render. The diagnostic system contract is that
-        // failures degrade silently when no sink is configured, matching
-        // the behaviour of every other emitDiagnostic call site.
-        // `dependentSchemas` makes `z.fromJSONSchema` throw
-        // ("dependentSchemas and dependentRequired are not supported")
-        // while the schema-components walker handles it fine — so the
-        // render proceeds normally and only the fallback validation step
-        // hits the unsupported feature.
-        const jsonSchema = {
-            type: "object" as const,
-            properties: {
-                name: { type: "string" as const },
-            },
-            dependentSchemas: {
-                name: { required: ["email"] as const },
-            },
-        };
-
-        render(
-            createElement(SchemaComponent, {
-                schema: jsonSchema,
-                value: { name: "Ada" },
-                validate: true,
-                onChange: noop,
-            })
-        );
-
-        const input = screen.getByDisplayValue("Ada");
-        expect(() => {
-            fireEvent.change(input, { target: { value: "Lovelace" } });
-        }).not.toThrow();
-    });
+    // Detailed contract tests for the no-sink/onError paths live in
+    // `validation-fallback-no-sink.unit.test.tsx` — the new behaviour
+    // (raise rather than silently skip) is covered in that suite.
 });
