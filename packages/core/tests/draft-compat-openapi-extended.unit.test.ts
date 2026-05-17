@@ -1114,3 +1114,118 @@ describe("Swagger 2.0 duplicate body parameter", () => {
         ).toBeUndefined();
     });
 });
+
+// ---------------------------------------------------------------------------
+// Swagger 2.0: formData honours `application/x-www-form-urlencoded` consumes
+// ---------------------------------------------------------------------------
+
+describe("Swagger 2.0 formData urlencoded consumes", () => {
+    it("uses application/x-www-form-urlencoded when document-level consumes lists it", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            consumes: ["application/x-www-form-urlencoded"],
+            paths: {
+                "/login": {
+                    post: {
+                        parameters: [
+                            {
+                                name: "username",
+                                in: "formData",
+                                type: "string",
+                                required: true,
+                            },
+                            {
+                                name: "password",
+                                in: "formData",
+                                type: "string",
+                                required: true,
+                            },
+                        ],
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+        const paths = normalised.paths as Record<string, unknown>;
+        const login = paths["/login"] as Record<string, unknown>;
+        const post = login.post as Record<string, unknown>;
+        const requestBody = post.requestBody as Record<string, unknown>;
+        const content = requestBody.content as Record<string, unknown>;
+
+        expect("application/x-www-form-urlencoded" in content).toBe(true);
+        expect("multipart/form-data" in content).toBe(false);
+    });
+
+    it("uses application/x-www-form-urlencoded when operation-level consumes lists it", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            consumes: ["application/json"],
+            paths: {
+                "/login": {
+                    post: {
+                        consumes: ["application/x-www-form-urlencoded"],
+                        parameters: [
+                            {
+                                name: "username",
+                                in: "formData",
+                                type: "string",
+                            },
+                        ],
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+        const paths = normalised.paths as Record<string, unknown>;
+        const login = paths["/login"] as Record<string, unknown>;
+        const post = login.post as Record<string, unknown>;
+        const requestBody = post.requestBody as Record<string, unknown>;
+        const content = requestBody.content as Record<string, unknown>;
+
+        expect("application/x-www-form-urlencoded" in content).toBe(true);
+        expect("multipart/form-data" in content).toBe(false);
+    });
+
+    it("defaults to multipart/form-data when consumes omits urlencoded", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            paths: {
+                "/upload": {
+                    post: {
+                        parameters: [
+                            {
+                                name: "file",
+                                in: "formData",
+                                type: "file",
+                            },
+                        ],
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+        const paths = normalised.paths as Record<string, unknown>;
+        const upload = paths["/upload"] as Record<string, unknown>;
+        const post = upload.post as Record<string, unknown>;
+        const requestBody = post.requestBody as Record<string, unknown>;
+        const content = requestBody.content as Record<string, unknown>;
+
+        expect("multipart/form-data" in content).toBe(true);
+        expect("application/x-www-form-urlencoded" in content).toBe(false);
+    });
+});

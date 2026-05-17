@@ -107,10 +107,12 @@ export function normaliseSwagger2Document(
                 );
             } else if (location === "formData") {
                 // A standalone formData entry under components.parameters is
-                // unusual; convert it to a single-property multipart body.
+                // unusual; convert it to a single-property body, honouring the
+                // document-level consumes when it includes
+                // `application/x-www-form-urlencoded`.
                 requestBodies[name] = buildRequestBody(
                     buildFormDataBody(resolved, [resolved]),
-                    ["multipart/form-data"]
+                    formDataContentTypes(globalConsumes)
                 );
             } else {
                 convertedParameters[name] = normaliseSwaggerParameter(
@@ -344,9 +346,13 @@ function normaliseSwaggerOperation(
                         ? resolvedParam.name
                         : undefined;
             } else if (location === "formData") {
-                // Convert formData to request body with multipart
-                bodyParam = buildFormDataBody(resolvedParam, params);
-                usesFormData = true;
+                // Convert formData to request body. The first formData parameter
+                // triggers conversion; subsequent ones are collated by
+                // buildFormDataBody itself (it walks `params`).
+                if (!usesFormData) {
+                    bodyParam = buildFormDataBody(resolvedParam, params);
+                    usesFormData = true;
+                }
             } else {
                 nonBodyParams.push(
                     normaliseSwaggerParameter(resolvedParam, doc)
@@ -361,7 +367,7 @@ function normaliseSwaggerOperation(
         if (bodyParam !== undefined) {
             result.requestBody = buildRequestBody(
                 bodyParam,
-                usesFormData ? ["multipart/form-data"] : consumes
+                usesFormData ? formDataContentTypes(consumes) : consumes
             );
         }
     }
@@ -373,6 +379,27 @@ function normaliseSwaggerOperation(
     }
 
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// formData media-type selection
+// ---------------------------------------------------------------------------
+
+/**
+ * Determine the request body media type for a Swagger 2.0 formData operation.
+ *
+ * Per the OAS 3 conversion rules, `application/x-www-form-urlencoded` is
+ * preferred when the operation- or document-level `consumes` includes it;
+ * otherwise `multipart/form-data` is the default. File uploads (Swagger 2.0
+ * `type: file`) still require `multipart/form-data`, but the formData body
+ * schema-builder normalises them to `string` + `format: binary` either way
+ * and the choice of media type is left to the source document.
+ */
+function formDataContentTypes(consumes: unknown[]): string[] {
+    if (consumes.includes("application/x-www-form-urlencoded")) {
+        return ["application/x-www-form-urlencoded"];
+    }
+    return ["multipart/form-data"];
 }
 
 // ---------------------------------------------------------------------------
