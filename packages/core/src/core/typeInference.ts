@@ -600,29 +600,58 @@ type ParameterNamesOf<Doc, Path extends string, Method extends string> =
         : never;
 
 /**
+ * Detect whether a document is Swagger 2.0 (OpenAPI 2.0).
+ *
+ * SOURCE-OF-TRUTH: mirrors runtime `isSwagger2` in
+ * `packages/core/src/core/version.ts`, which checks for `swagger: "2.0"`.
+ * The runtime path also recognises top-level `definitions` / parameters in
+ * the body location, but `swagger: "2.0"` is the canonical marker.
+ *
+ * Type-level Swagger 2.0 documents cannot be fully normalised at compile
+ * time — the rewrite reorders the document tree (definitions →
+ * components/schemas, body parameters → requestBody, etc.) in ways
+ * TypeScript's mapped-type machinery cannot express. Detecting the
+ * version is tractable, so we surface `__SchemaInferenceFellBack`
+ * deliberately rather than silently producing `unknown`.
+ */
+type IsSwagger2Doc<Doc> = Doc extends { swagger: "2.0" } ? true : false;
+
+/**
  * Infer the TypeScript type of an OpenAPI operation's request body.
+ *
+ * Swagger 2.0 documents are not normalised at the type level. When the
+ * input is Swagger 2.0, this returns `__SchemaInferenceFellBack` so
+ * callers can detect the fallback explicitly via a conditional type.
  */
 export type OpenAPIRequestBodyType<
     Doc,
     Path extends string,
     Method extends string,
-> = ResolveMaybeRef<
-    Doc,
-    RequestBodySchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>>
->;
+> = IsSwagger2Doc<Doc> extends true
+    ? __SchemaInferenceFellBack
+    : ResolveMaybeRef<
+          Doc,
+          RequestBodySchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>>
+      >;
 
 /**
  * Infer the TypeScript type of an OpenAPI operation's response.
+ *
+ * Swagger 2.0 documents are not normalised at the type level. When the
+ * input is Swagger 2.0, this returns `__SchemaInferenceFellBack` so
+ * callers can detect the fallback explicitly via a conditional type.
  */
 export type OpenAPIResponseType<
     Doc,
     Path extends string,
     Method extends string,
     Status extends string,
-> = ResolveMaybeRef<
-    Doc,
-    ResponseSchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>, Status>
->;
+> = IsSwagger2Doc<Doc> extends true
+    ? __SchemaInferenceFellBack
+    : ResolveMaybeRef<
+          Doc,
+          ResponseSchemaOf<OperationOf<PathItemOf<Doc, Path>, Method>, Status>
+      >;
 
 /**
  * Infer the fields prop type for ApiRequestBody.

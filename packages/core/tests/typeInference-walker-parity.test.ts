@@ -27,6 +27,8 @@
 import { describe, it, expectTypeOf } from "vitest";
 import type {
     FromJSONSchema,
+    OpenAPIRequestBodyType,
+    OpenAPIResponseType,
     ResolveOpenAPIRef,
     __SchemaInferenceFellBack,
 } from "../src/core/typeInference.ts";
@@ -200,5 +202,55 @@ describe("OpenAPI $ref resolution into components/schemas", () => {
     it("Resolved is structurally equivalent to the expected object", () => {
         expectTypeOf<Expected>().toExtend<Resolved>();
         expectTypeOf<Resolved>().toExtend<Expected>();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Swagger 2.0 fallback parity
+// ---------------------------------------------------------------------------
+//
+// The runtime path normalises Swagger 2.0 documents into OpenAPI 3.1 shape
+// before walking (see `normaliseSwagger2Document` in `swagger2.ts`). That
+// transformation reorders the document tree in ways TypeScript's mapped
+// types cannot replicate. Rather than silently produce `unknown`, the
+// type-level path detects `swagger: "2.0"` and emits the
+// `__SchemaInferenceFellBack` brand so callers can detect the fallback.
+// ---------------------------------------------------------------------------
+
+describe("Swagger 2.0 documents: typeInference surfaces __SchemaInferenceFellBack", () => {
+    interface Swagger2DocBase {
+        readonly swagger: "2.0";
+        readonly paths: {
+            readonly "/pets": {
+                readonly post: {
+                    readonly parameters: readonly [
+                        {
+                            readonly name: "body";
+                            readonly in: "body";
+                            readonly schema: { readonly type: "string" };
+                        },
+                    ];
+                };
+                readonly get: {
+                    readonly responses: {
+                        readonly "200": {
+                            readonly schema: { readonly type: "string" };
+                        };
+                    };
+                };
+            };
+        };
+    }
+    type Swagger2Doc = Swagger2DocBase & Record<string, unknown>;
+
+    type ReqBody = OpenAPIRequestBodyType<Swagger2Doc, "/pets", "post">;
+    type Resp = OpenAPIResponseType<Swagger2Doc, "/pets", "get", "200">;
+
+    it("OpenAPIRequestBodyType returns __SchemaInferenceFellBack", () => {
+        expectTypeOf<ReqBody>().toEqualTypeOf<__SchemaInferenceFellBack>();
+    });
+
+    it("OpenAPIResponseType returns __SchemaInferenceFellBack", () => {
+        expectTypeOf<Resp>().toEqualTypeOf<__SchemaInferenceFellBack>();
     });
 });
