@@ -39,6 +39,36 @@ const DRAFT_URIS: ReadonlyMap<string, JsonSchemaDraft> = new Map([
 ]);
 
 /**
+ * Match a `$schema` URI string to a known draft. Returns `undefined`
+ * when the URI matches none of the documented Draft 04 – Draft 2020-12
+ * schema URIs (including the known prefix patterns) — callers can use
+ * this to distinguish an authoritative match from a silent fallback.
+ */
+export function matchJsonSchemaDraftUri(
+    uri: string
+): JsonSchemaDraft | undefined {
+    // Exact match first
+    const exact = DRAFT_URIS.get(uri);
+    if (exact !== undefined) return exact;
+
+    // Prefix match for variations (trailing #, with/without fragment)
+    for (const [draftUri, draft] of DRAFT_URIS) {
+        if (uri.startsWith(draftUri) || uri === draftUri) {
+            return draft;
+        }
+    }
+
+    // Known prefix patterns embedded in custom meta-schema URIs
+    if (uri.includes("/draft/2020-12/")) return "draft-2020-12";
+    if (uri.includes("/draft/2019-09/")) return "draft-2019-09";
+    if (uri.includes("/draft-07")) return "draft-07";
+    if (uri.includes("/draft-06")) return "draft-06";
+    if (uri.includes("/draft-04")) return "draft-04";
+
+    return undefined;
+}
+
+/**
  * Detect the JSON Schema draft version from a schema's `$schema` URI.
  * When `$schema` is absent, uses heuristic keyword detection via
  * `inferJsonSchemaDraft` to guess the draft version.
@@ -50,24 +80,8 @@ export function detectJsonSchemaDraft(
 ): JsonSchemaDraft {
     const $schema = schema.$schema;
     if (typeof $schema === "string") {
-        // Exact match first
-        const exact = DRAFT_URIS.get($schema);
-        if (exact !== undefined) return exact;
-
-        // Prefix match for variations (trailing #, with/without fragment)
-        for (const [uri, draft] of DRAFT_URIS) {
-            if ($schema.startsWith(uri) || $schema === uri) {
-                return draft;
-            }
-        }
-
-        // Known prefix patterns
-        if ($schema.includes("/draft/2020-12/")) return "draft-2020-12";
-        if ($schema.includes("/draft/2019-09/")) return "draft-2019-09";
-        if ($schema.includes("/draft-07")) return "draft-07";
-        if ($schema.includes("/draft-06")) return "draft-06";
-        if ($schema.includes("/draft-04")) return "draft-04";
-
+        const matched = matchJsonSchemaDraftUri($schema);
+        if (matched !== undefined) return matched;
         return "draft-2020-12";
     }
 

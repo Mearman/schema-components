@@ -18,8 +18,8 @@ import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { emitDiagnostic } from "./diagnostics.ts";
 import type { JsonSchemaDraft } from "./version.ts";
 import {
-    detectJsonSchemaDraft,
     inferJsonSchemaDraftWithReason,
+    matchJsonSchemaDraftUri,
     detectOpenApiVersion,
     isSwagger2,
 } from "./version.ts";
@@ -171,8 +171,9 @@ function normaliseJsonSchema(
     diagnostics?: DiagnosticsOptions
 ): NormalisedSchema {
     let draft: JsonSchemaDraft;
+    const $schema = jsonSchema.$schema;
 
-    if (typeof jsonSchema.$schema !== "string") {
+    if (typeof $schema !== "string") {
         const inferred = inferJsonSchemaDraftWithReason(jsonSchema);
         draft = inferred.draft;
         emitDiagnostic(diagnostics, {
@@ -185,7 +186,26 @@ function normaliseJsonSchema(
             },
         });
     } else {
-        draft = detectJsonSchemaDraft(jsonSchema);
+        const matched = matchJsonSchemaDraftUri($schema);
+        if (matched === undefined) {
+            // `$schema` is present but unrecognised — fall back to the
+            // 2020-12 normaliser (matching `detectJsonSchemaDraft`) and
+            // surface the assumption so callers can act on it. Mirrors
+            // the missing-$schema diagnostic path.
+            draft = "draft-2020-12";
+            emitDiagnostic(diagnostics, {
+                code: "assumed-draft",
+                message: `Unknown $schema URI "${$schema}"; assuming draft-2020-12`,
+                pointer: "",
+                detail: {
+                    inferredFrom: "unknown-uri",
+                    draft,
+                    uri: $schema,
+                },
+            });
+        } else {
+            draft = matched;
+        }
     }
 
     const normalised = normaliseForDraft(jsonSchema, draft);

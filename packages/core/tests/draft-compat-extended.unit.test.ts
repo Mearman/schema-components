@@ -16,6 +16,7 @@ import { walk } from "../src/core/walker.ts";
 import { normaliseSchema } from "../src/core/adapter.ts";
 import { normaliseJsonSchema } from "../src/core/normalise.ts";
 import { isObject } from "../src/core/guards.ts";
+import type { Diagnostic } from "../src/core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // type as array
@@ -265,6 +266,54 @@ describe("Draft 2019-09 $recursiveRef value preservation", () => {
         expect(self.$ref).toBe("#");
         // Bare `true` $recursiveAnchor still becomes the canonical marker
         expect(normalised.$anchor).toBe("__recursive__");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Unknown $schema URI: emit assumed-draft diagnostic
+// ---------------------------------------------------------------------------
+
+describe("unknown $schema URI assumed-draft diagnostic", () => {
+    it("emits assumed-draft with the unknown URI in the detail", () => {
+        const diagnostics: Diagnostic[] = [];
+        normaliseSchema(
+            {
+                $schema: "http://example.com/schemas/v999",
+                type: "string",
+            },
+            undefined,
+            {
+                diagnostics: {
+                    diagnostics: (d) => diagnostics.push(d),
+                },
+            }
+        );
+        const assumed = diagnostics.filter((d) => d.code === "assumed-draft");
+        expect(assumed.length).toBe(1);
+        const diag = assumed[0];
+        if (diag === undefined) throw new Error("expected assumed-draft");
+        expect(diag.detail?.draft).toBe("draft-2020-12");
+        expect(diag.detail?.inferredFrom).toBe("unknown-uri");
+        expect(diag.detail?.uri).toBe("http://example.com/schemas/v999");
+    });
+
+    it("does not emit assumed-draft for a recognised $schema URI", () => {
+        const diagnostics: Diagnostic[] = [];
+        normaliseSchema(
+            {
+                $schema: "http://json-schema.org/draft-07/schema#",
+                type: "string",
+            },
+            undefined,
+            {
+                diagnostics: {
+                    diagnostics: (d) => diagnostics.push(d),
+                },
+            }
+        );
+        expect(
+            diagnostics.filter((d) => d.code === "assumed-draft").length
+        ).toBe(0);
     });
 });
 
