@@ -236,41 +236,89 @@ export interface ResolvedOperation {
  */
 function lookupPathItemNode(
     parsed: OpenApiDocument,
-    path: string
+    path: string,
+    diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> | undefined {
     const paths = getProperty(parsed.doc, "paths");
-    const fromPaths = resolvePathItemNode(parsed, getProperty(paths, path));
+    const fromPaths = resolvePathItemNode(
+        parsed,
+        getProperty(paths, path),
+        diagnostics
+    );
     if (fromPaths !== undefined) return fromPaths;
     // OpenAPI 3.1 webhook fallback: identifiers without a leading `/`
     // can address `webhooks/<name>` directly, so the same accessors and
     // path-item metadata extractors work for both maps.
     const webhooks = getProperty(parsed.doc, "webhooks");
-    return resolvePathItemNode(parsed, getProperty(webhooks, path));
+    return resolvePathItemNode(
+        parsed,
+        getProperty(webhooks, path),
+        diagnostics
+    );
 }
+
+/**
+ * Maximum number of `$ref` hops the Path Item resolver will follow
+ * before bailing with a `path-item-ref-too-deep` diagnostic. Mirrors
+ * the conservative depth caps used elsewhere in the resolver — a
+ * legitimate Path Item Object should resolve in one or two hops; a
+ * deeper chain almost always indicates author error or a malicious
+ * document attempting to exhaust the resolver.
+ */
+const MAX_PATH_ITEM_REF_HOPS = 8;
 
 function resolvePathItemNode(
     parsed: OpenApiDocument,
-    pathItem: unknown
+    pathItem: unknown,
+    diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> | undefined {
     if (!isObject(pathItem)) return undefined;
-    const ref = getProperty(pathItem, "$ref");
-    if (typeof ref !== "string") return pathItem;
-    // Single hop into `components/pathItems/<Name>` — multi-step
-    // resolution is the parser's responsibility for schemas.
-    if (!ref.startsWith("#/")) return pathItem;
-    const parts = ref.slice(2).split("/");
-    let current: unknown = parsed.doc;
-    for (const part of parts) {
-        if (!isObject(current)) return undefined;
-        const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
-        // Reject prototype-polluting segments (`__proto__`, `constructor`,
-        // `prototype`). Walking into any of these reads `Object.prototype`
-        // and lets a crafted pathItems `$ref` smuggle properties from the
-        // runtime prototype chain into the resolved Path Item Object.
-        if (isPrototypePollutingKey(decoded)) return undefined;
-        current = current[decoded];
+
+    // Multi-hop `$ref` resolution: follow each `$ref` until we land on
+    // a non-ref Path Item Object, detect a cycle, or hit the depth cap.
+    // OpenAPI 3.1 explicitly permits `pathItems` references through
+    // `components/pathItems`, but allows chains of refs — a single-hop
+    // resolver silently rendered nothing for chains of length > 1.
+    const visited = new Set<string>();
+    let current: Record<string, unknown> = pathItem;
+    for (let hop = 0; hop < MAX_PATH_ITEM_REF_HOPS; hop++) {
+        const ref = getProperty(current, "$ref");
+        if (typeof ref !== "string") return current;
+        if (!ref.startsWith("#/")) return current;
+        if (visited.has(ref)) {
+            emitDiagnostic(diagnostics, {
+                code: "cyclic-path-item-ref",
+                message: `Cyclic Path Item Object $ref "${ref}"`,
+                pointer: ref,
+                detail: { ref },
+            });
+            return undefined;
+        }
+        visited.add(ref);
+        const parts = ref.slice(2).split("/");
+        let node: unknown = parsed.doc;
+        for (const part of parts) {
+            if (!isObject(node)) return undefined;
+            const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
+            // Reject prototype-polluting segments (`__proto__`,
+            // `constructor`, `prototype`). Walking into any of these
+            // reads `Object.prototype` and lets a crafted pathItems
+            // `$ref` smuggle properties from the runtime prototype
+            // chain into the resolved Path Item Object.
+            if (isPrototypePollutingKey(decoded)) return undefined;
+            node = node[decoded];
+        }
+        if (!isObject(node)) return current;
+        current = node;
     }
-    return isObject(current) ? current : pathItem;
+    // Exceeded the hop cap — surface a diagnostic and bail.
+    emitDiagnostic(diagnostics, {
+        code: "path-item-ref-too-deep",
+        message: `Path Item Object $ref chain exceeded ${String(MAX_PATH_ITEM_REF_HOPS)} hops`,
+        pointer: "",
+        detail: { maxHops: MAX_PATH_ITEM_REF_HOPS },
+    });
+    return undefined;
 }
 
 function extractPathItemInfo(pathItem: Record<string, unknown>): PathItemInfo {
@@ -295,8 +343,16 @@ function extractPathItemInfo(pathItem: Record<string, unknown>): PathItemInfo {
 export function resolveOperationFromParsed(
     parsed: OpenApiDocument,
     path: string,
-    method: string
+    method: string,
+    diagnostics?: DiagnosticsOptions
 ): ResolvedOperation {
+    // Run path-item lookup first so multi-hop diagnostics
+    // (cyclic-path-item-ref, path-item-ref-too-deep) surface before
+    // the operation-not-found error. Without this, a Path Item with a
+    // broken ref chain throws Operation not found and the underlying
+    // cause never reaches the diagnostic sink.
+    const pathItemNode = lookupPathItemNode(parsed, path, diagnostics);
+
     // Match against both `paths` and OpenAPI 3.1 `webhooks` — every
     // downstream accessor (`getParameters`, `getRequestBody`,
     // `getResponses`) already resolves either through `lookupPathItem`,
@@ -313,12 +369,12 @@ export function resolveOperationFromParsed(
         throw new Error(`Operation not found: ${method.toUpperCase()} ${path}`);
     }
 
-    const pathItemNode = lookupPathItemNode(parsed, path);
     if (pathItemNode === undefined) {
         // listOperations / listWebhooks found the operation by iterating
         // the document, so the path or webhook entry must exist and
         // resolve to an object. Reaching this branch means an upstream
-        // invariant has broken.
+        // invariant has broken (or a multi-hop ref chain was rejected,
+        // which already emitted a diagnostic above).
         throw new Error(
             `Path item missing for ${method.toUpperCase()} ${path}`
         );
@@ -347,7 +403,7 @@ export function resolveOperation(
     diagnostics?: DiagnosticsOptions
 ): ResolvedOperation {
     const parsed = getParsed(doc, diagnostics);
-    return resolveOperationFromParsed(parsed, path, method);
+    return resolveOperationFromParsed(parsed, path, method, diagnostics);
 }
 
 // ---------------------------------------------------------------------------

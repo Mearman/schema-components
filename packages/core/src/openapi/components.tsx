@@ -300,7 +300,12 @@ export function ApiOperation<
     // Diagnostics emit during normalisation, so a second `getParsed` with
     // the same sink would double-fire every event.
     const parsed = getParsed(rootDoc, diagnostics);
-    const resolved = resolveOperationFromParsed(parsed, path, method);
+    const resolved = resolveOperationFromParsed(
+        parsed,
+        path,
+        method,
+        diagnostics
+    );
     const securityReqs = getSecurityRequirements(parsed, path, method);
     const securitySchemes = getSecuritySchemes(parsed);
     const callbacks = listCallbacks(parsed, path, method);

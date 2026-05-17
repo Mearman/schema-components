@@ -192,15 +192,39 @@ const METHODS = [
  * (OpenAPI 3.1) if present. Returns `undefined` when the value is not a
  * path item, the ref is malformed, or the target does not resolve.
  */
+/**
+ * Maximum number of `$ref` hops the parser-level Path Item resolver
+ * will follow. Matches the cap used by `resolve.ts` so cycle and
+ * depth-cap diagnostics surface from the same boundary regardless of
+ * which entry point a caller uses.
+ */
+const MAX_PATH_ITEM_REF_HOPS = 8;
+
+/**
+ * Follow Path Item Object `$ref` chains (up to MAX_PATH_ITEM_REF_HOPS).
+ * Returns the resolved Path Item, or `undefined` when the chain cycles,
+ * exceeds the cap, or any intermediate ref fails to resolve. The
+ * detailed diagnostics for cycle and depth-cap are emitted by the
+ * mirroring resolver in `resolve.ts` — this parser-side resolver simply
+ * stops walking.
+ */
 function resolvePathItem(
     parsed: OpenApiDocument,
     pathItem: unknown
 ): JsonObject | undefined {
     if (!isObject(pathItem)) return undefined;
-    const ref = getString(pathItem, "$ref");
-    if (ref === undefined) return pathItem;
-    const target = resolveRefInDoc(parsed.doc, ref);
-    return target ?? undefined;
+    const visited = new Set<string>();
+    let current: JsonObject = pathItem;
+    for (let hop = 0; hop < MAX_PATH_ITEM_REF_HOPS; hop++) {
+        const ref = getString(current, "$ref");
+        if (ref === undefined) return current;
+        if (visited.has(ref)) return undefined;
+        visited.add(ref);
+        const target = resolveRefInDoc(parsed.doc, ref);
+        if (target === undefined) return undefined;
+        current = target;
+    }
+    return undefined;
 }
 
 function lookupPathItem(
