@@ -255,9 +255,13 @@ export function getParameters(
     // Merge path-level and operation-level parameters
     // Operation-level overrides path-level for same name+in
     const pathParams = extractParameterList(
+        parsed.doc,
         getProperty(pathItem, "parameters")
     );
-    const opParams = extractParameterList(getProperty(operation, "parameters"));
+    const opParams = extractParameterList(
+        parsed.doc,
+        getProperty(operation, "parameters")
+    );
 
     // Build map: name+in → ParameterInfo, operation-level wins
     const map = new Map<string, ParameterInfo>();
@@ -271,19 +275,23 @@ export function getParameters(
     return [...map.values()];
 }
 
-function extractParameterList(parameters: unknown): ParameterInfo[] {
+function extractParameterList(
+    doc: JsonObject,
+    parameters: unknown
+): ParameterInfo[] {
     if (!Array.isArray(parameters)) return [];
 
     const result: ParameterInfo[] = [];
     for (const param of parameters) {
         if (!isObject(param)) continue;
 
-        const name = getProperty(param, "name");
-        const location = getProperty(param, "in");
-        if (typeof name !== "string" || typeof location !== "string") continue;
+        // Resolve $ref on the parameter first — a $ref'd entry has no
+        // `name`/`in` of its own; those live on the referenced component.
+        const resolved = resolveParam(doc, param);
 
-        // Resolve $ref on the parameter itself
-        const resolved = resolveParam(param);
+        const name = getProperty(resolved, "name");
+        const location = getProperty(resolved, "in");
+        if (typeof name !== "string" || typeof location !== "string") continue;
 
         // The schema might be a $ref too — leave it for the walker
         const schema = getProperty(resolved, "schema");
@@ -300,11 +308,11 @@ function extractParameterList(parameters: unknown): ParameterInfo[] {
     return result;
 }
 
-function resolveParam(param: JsonObject): JsonObject {
+function resolveParam(doc: JsonObject, param: JsonObject): JsonObject {
     const ref = getProperty(param, "$ref");
     if (typeof ref === "string" && ref.startsWith("#/")) {
-        // Resolve to components/parameters/Name
-        const resolved = resolveRefInDoc(param, ref);
+        // Resolve against the document root — e.g. `#/components/parameters/Name`.
+        const resolved = resolveRefInDoc(doc, ref);
         if (resolved !== undefined) return resolved;
     }
     return param;

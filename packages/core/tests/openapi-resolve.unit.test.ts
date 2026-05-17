@@ -220,6 +220,80 @@ describe("resolveParameters", () => {
         const params = resolveParameters(petStore, "/pets", "post");
         expect(params).toStrictEqual([]);
     });
+
+    it("resolves a $ref parameter against the document root", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Refs", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: {
+                        operationId: "listItems",
+                        parameters: [
+                            { $ref: "#/components/parameters/PageSize" },
+                        ],
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            components: {
+                parameters: {
+                    PageSize: {
+                        name: "pageSize",
+                        in: "query",
+                        required: true,
+                        description: "Number of items per page",
+                        schema: { type: "integer", minimum: 1, maximum: 100 },
+                    },
+                },
+            },
+        };
+
+        const params = resolveParameters(doc, "/items", "get");
+        expect(params.length).toBe(1);
+        const param = assertDefined(params[0], "ref param");
+        expect(param.name).toBe("pageSize");
+        expect(param.location).toBe("query");
+        expect(param.required).toBe(true);
+        expect(param.description).toBe("Number of items per page");
+        expect(param.schema).toStrictEqual({
+            type: "integer",
+            minimum: 1,
+            maximum: 100,
+        });
+    });
+
+    it("resolves $ref parameters declared at the path-item level", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Refs", version: "1.0" },
+            paths: {
+                "/items": {
+                    parameters: [{ $ref: "#/components/parameters/PageSize" }],
+                    get: {
+                        operationId: "listItems",
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            components: {
+                parameters: {
+                    PageSize: {
+                        name: "pageSize",
+                        in: "query",
+                        required: false,
+                        schema: { type: "integer" },
+                    },
+                },
+            },
+        };
+
+        const params = resolveParameters(doc, "/items", "get");
+        expect(params.length).toBe(1);
+        const param = assertDefined(params[0], "path-item ref param");
+        expect(param.name).toBe("pageSize");
+        expect(param.location).toBe("query");
+    });
 });
 
 // ---------------------------------------------------------------------------
