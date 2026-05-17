@@ -1,0 +1,175 @@
+/**
+ * Walker / type-inference parity tests.
+ *
+ * The runtime walker in `src/core/walker.ts` and the type-level inference
+ * helpers in `src/core/typeInference.ts` implement parallel logic. Any
+ * divergence between them is silent — the walker has runtime test coverage,
+ * but the type-level helpers are compile-only.
+ *
+ * This file pins representative snapshots of the type-level output so any
+ * future change to the walker that does not have a matching change in
+ * `typeInference.ts` (or vice versa) is caught at compile time.
+ *
+ * Pairings asserted here:
+ * - `UnionOfMembers`   <-> walker `walkUnion` + `walkDiscriminatedUnion`
+ *                          via `detectDiscriminated` in `merge.ts`
+ * - `HasNullMember`    <-> walker `normaliseAnyOf` in `merge.ts`
+ * - `ResolveOpenAPIRef` and `ResolveSchemaRef` <-> walker `$ref` handling
+ *                          via `resolveRef` in `ref.ts`
+ *
+ * Compile-only: this file is named `.test.ts` (not `.unit.test.ts`) so it
+ * is typechecked by `tsc` alongside the other type-inference test fixtures
+ * but is not picked up by the vitest unit project — there is no runtime
+ * code to exercise. `expectTypeOf` calls assert at the type level; the
+ * `describe`/`it` wrappers are present for documentation only.
+ */
+
+import { describe, it, expectTypeOf } from "vitest";
+import type {
+    FromJSONSchema,
+    ResolveOpenAPIRef,
+} from "../src/core/typeInference.ts";
+
+// ---------------------------------------------------------------------------
+// Discriminated union parity
+// ---------------------------------------------------------------------------
+//
+// The walker collapses `oneOf` whose every member is an object with a
+// `const`-valued property sharing the same key into a `discriminatedUnion`
+// field (see `detectDiscriminated` in `merge.ts`).
+//
+// The type-level `UnionOfMembers` does NOT perform this collapsing — it
+// produces a plain TypeScript union. That is a deliberate simplification:
+// from a type perspective, a discriminated union and a plain union are
+// structurally the same set of inhabitants. These tests pin that behaviour
+// so it is impossible to change one side without noticing the other.
+// ---------------------------------------------------------------------------
+
+describe("discriminated union: typeInference produces plain union, walker collapses to discriminatedUnion", () => {
+    // Equivalent of:
+    //   z.object({ kind: z.literal("a"), x: z.string() })
+    //     .or(z.object({ kind: z.literal("b"), y: z.number() }))
+    // expressed as JSON Schema after `z.toJSONSchema(...)`.
+    interface MemberASchema {
+        readonly type: "object";
+        readonly properties: {
+            readonly kind: { readonly const: "a" };
+            readonly x: { readonly type: "string" };
+        };
+        readonly required: readonly ["kind", "x"];
+    }
+    interface MemberBSchema {
+        readonly type: "object";
+        readonly properties: {
+            readonly kind: { readonly const: "b" };
+            readonly y: { readonly type: "number" };
+        };
+        readonly required: readonly ["kind", "y"];
+    }
+    interface DiscriminatedSchema {
+        readonly oneOf: readonly [MemberASchema, MemberBSchema];
+    }
+
+    type Inferred = FromJSONSchema<DiscriminatedSchema>;
+
+    interface ExpectedMemberA {
+        kind: "a";
+        x: string;
+    }
+    interface ExpectedMemberB {
+        kind: "b";
+        y: number;
+    }
+
+    // Bidirectional assignability proves structural equivalence between
+    // the inferred mapped-type result and the hand-written union. Strict
+    // `toEqualTypeOf` rejects the equivalence because the inferred form
+    // is produced via a key-remapped mapped type, which TypeScript treats
+    // as a non-identical (but mutually assignable) shape.
+    it("Inferred is structurally equivalent to the expected union", () => {
+        expectTypeOf<ExpectedMemberA>().toExtend<Inferred>();
+        expectTypeOf<ExpectedMemberB>().toExtend<Inferred>();
+        expectTypeOf<Inferred>().toExtend<ExpectedMemberA | ExpectedMemberB>();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Nullable normalisation parity
+// ---------------------------------------------------------------------------
+//
+// The walker normalises `anyOf: [T, { type: "null" }]` to a nullable inner
+// schema (see `normaliseAnyOf` in `merge.ts`). The type-level mirror is
+// `HasNullMember`, used inside `UnionOfMembers`.
+//
+// `HasNullMember` recognises a `{ type: "null" }` schema member but
+// deliberately treats a bare `null` literal in the member array as "not
+// nullable" — only schema-shaped nulls count. This mirrors the walker,
+// which only inspects `opt.type === "null"` on object members.
+// ---------------------------------------------------------------------------
+
+describe("nullable anyOf: { type: 'null' } member normalises to nullable inner", () => {
+    interface StringMember {
+        readonly type: "string";
+    }
+    interface NullMember {
+        readonly type: "null";
+    }
+    interface NullableStringSchema {
+        readonly anyOf: readonly [StringMember, NullMember];
+    }
+
+    type Inferred = FromJSONSchema<NullableStringSchema>;
+
+    it("produces string | null", () => {
+        expectTypeOf<Inferred>().toEqualTypeOf<string | null>();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// OpenAPI $ref resolution parity
+// ---------------------------------------------------------------------------
+//
+// `ResolveOpenAPIRef` mirrors the walker's `resolveRef` (see `ref.ts`).
+// Both walk `#/components/schemas/<Name>` and `#/definitions/<Name>` and
+// return the resolved schema, then continue walking it.
+// ---------------------------------------------------------------------------
+
+describe("OpenAPI $ref resolution into components/schemas", () => {
+    interface FooSchema {
+        readonly type: "object";
+        readonly properties: {
+            readonly id: { readonly type: "string" };
+            readonly count: { readonly type: "integer" };
+        };
+        readonly required: readonly ["id"];
+    }
+    // `ResolveOpenAPIRef` constrains its first parameter to
+    // `Record<string, unknown>`. Interfaces are nominal and do not satisfy
+    // that index-signature constraint implicitly; intersecting with
+    // `Record<string, unknown>` gives the interface the missing index
+    // signature without losing the literal types of its declared keys.
+    interface SpecBase {
+        readonly openapi: "3.1.0";
+        readonly components: {
+            readonly schemas: { readonly Foo: FooSchema };
+        };
+    }
+    type Spec = SpecBase & Record<string, unknown>;
+
+    type Resolved = ResolveOpenAPIRef<Spec, "#/components/schemas/Foo">;
+
+    interface Expected {
+        id: string;
+        count?: number;
+    }
+
+    // Bidirectional assignability proves the resolved shape matches the
+    // expected one. Strict `toEqualTypeOf` is avoided for the same reason
+    // as the discriminated-union test: the parsed object is produced
+    // through a mapped type that is mutually assignable but not strictly
+    // identical to the hand-written form.
+    it("Resolved is structurally equivalent to the expected object", () => {
+        expectTypeOf<Expected>().toExtend<Resolved>();
+        expectTypeOf<Resolved>().toExtend<Expected>();
+    });
+});

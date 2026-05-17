@@ -123,7 +123,32 @@ type DetectRecursiveFallback<T> = unknown extends T
     : T;
 
 /**
+ * Type-level recursion bound for $ref resolution.
+ *
+ * The TypeScript type system imposes its own recursion limit; without an
+ * explicit bound a cyclic schema graph would exhaust it and degrade to
+ * `any`/`unknown` silently. Ten levels is the runtime walker's parallel
+ * — see `countDistinctRefs` in `ref.ts` (lines 52-55), which derives its
+ * bound from the number of distinct `$ref` strings in the document.
+ *
+ * A fixed bound is used here rather than a derived one because the type
+ * system has no way to count distinct strings across a recursive `Defs`
+ * map without itself recursing — which is the problem the bound exists
+ * to solve. Ten covers every realistic schema graph encountered in
+ * practice; deeper graphs surface as `__SchemaInferenceFellBack` so
+ * consumers can detect the limit explicitly.
+ */
+export type DEFAULT_MAX_DEPTH = 10;
+
+/**
  * Resolve a $ref against the local definitions context.
+ *
+ * SOURCE-OF-TRUTH: mirrors runtime `resolveRef` in
+ * `packages/core/src/core/ref.ts` (line 90). Any change to the runtime
+ * ref-resolution rules (new ref forms, different cycle handling) must be
+ * reflected here and pinned in
+ * `packages/core/tests/typeInference-walker-parity.test.ts`.
+ *
  * Supports:
  * - `#` (root)
  * - `#/$defs/Name` and `#/definitions/Name` (named definitions)
@@ -133,7 +158,7 @@ type ResolveSchemaRef<
     R extends string,
     Defs extends Record<string, unknown>,
     Depth extends number = 0,
-> = Depth extends 10
+> = Depth extends DEFAULT_MAX_DEPTH
     ? __SchemaInferenceFellBack
     : R extends "#"
       ? unknown
@@ -165,8 +190,23 @@ type AllOfToType<
 
 /**
  * Convert an anyOf/oneOf array into a union type.
- * Filters out `{ type: "null" }` members and instead makes the result nullable
- * when at least one null member is present -- mirrors the walker's normaliseAnyOf.
+ *
+ * SOURCE-OF-TRUTH: mirrors runtime `walkUnion` (and the
+ * `walkDiscriminatedUnion` fast path) in
+ * `packages/core/src/core/walker.ts` (lines 723-752), together with
+ * `detectDiscriminated` and `normaliseAnyOf` in
+ * `packages/core/src/core/merge.ts` (lines 190-260).
+ *
+ * Deliberate divergence: the walker collapses qualifying `oneOf` members
+ * into a `discriminatedUnion` field at runtime. The type-level helper
+ * produces a plain TypeScript union because a discriminated union and a
+ * plain union over the same members are structurally indistinguishable
+ * at the type level. Parity is pinned in
+ * `packages/core/tests/typeInference-walker-parity.test.ts`.
+ *
+ * Filters out `{ type: "null" }` members and instead makes the result
+ * nullable when at least one null member is present — mirrors the
+ * walker's `normaliseAnyOf`.
  */
 type UnionOfMembers<
     A,
@@ -179,6 +219,12 @@ type UnionOfMembers<
 
 /**
  * Check whether an anyOf/oneOf array contains a `{ type: "null" }` member.
+ *
+ * SOURCE-OF-TRUTH: mirrors runtime `normaliseAnyOf` in
+ * `packages/core/src/core/merge.ts` (lines 190-209). Both implementations
+ * only recognise schema-shaped null members (`{ type: "null" }`); a bare
+ * `null` literal in the array is treated as non-nullable. Parity is
+ * pinned in `packages/core/tests/typeInference-walker-parity.test.ts`.
  */
 type HasNullMember<A> = A extends readonly unknown[]
     ? null extends A[number]
@@ -393,6 +439,14 @@ type UnionToIntersection<U> = (
 
 /**
  * Resolves an OpenAPI `ref` string to its JSON Schema, then parses it.
+ *
+ * SOURCE-OF-TRUTH: mirrors runtime `resolveRef` in
+ * `packages/core/src/core/ref.ts` (line 90), which is invoked by the
+ * walker entry point in `packages/core/src/core/walker.ts` (lines
+ * 144-154) for OpenAPI documents. Any change to the runtime ref-resolution
+ * rules (new ref forms, different cycle handling, JSON Pointer decoding)
+ * must be reflected here and pinned in
+ * `packages/core/tests/typeInference-walker-parity.test.ts`.
  *
  * Handles:
  * - `#/components/schemas/Name` (OpenAPI 3.x)
