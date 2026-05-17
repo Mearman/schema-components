@@ -12,7 +12,7 @@
  * SchemaComponent to avoid deferred-conditional-type compatibility issues.
  */
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { OperationInfo, ParameterInfo, ResponseInfo } from "./parser.ts";
 import {
     listCallbacks,
@@ -21,7 +21,11 @@ import {
     getLinks,
 } from "./parser.ts";
 import { normaliseSchema } from "../core/adapter.ts";
-import { ROOT_PATH, joinPath, renderField } from "../react/SchemaComponent.tsx";
+import {
+    joinPath,
+    renderField,
+    sanitisePrefix,
+} from "../react/SchemaComponent.tsx";
 import type { FieldOverride, SchemaMeta, WalkedField } from "../core/types.ts";
 import type {
     InferParameterOverrides,
@@ -63,6 +67,12 @@ function renderSchema(
         meta?: SchemaMeta | undefined;
         readOnly?: boolean | undefined;
         widgets?: WidgetMap | undefined;
+        /**
+         * Per-call root path. Callers must derive a unique value (typically
+         * `useId()` joined with a route token) so generated DOM ids stay
+         * unique when multiple operations render side-by-side.
+         */
+        rootPath: string;
     }
 ): ReactNode {
     let jsonSchema: Record<string, unknown>;
@@ -121,8 +131,8 @@ function renderSchema(
         options.value,
         options.onChange ?? noop,
         undefined,
-        makeRenderChild(ROOT_PATH),
-        ROOT_PATH,
+        makeRenderChild(options.rootPath),
+        options.rootPath,
         options.widgets
     );
 }
@@ -176,6 +186,7 @@ export function ApiOperation<
     const securityReqs = getSecurityRequirements(parsed, path, method);
     const securitySchemes = getSecuritySchemes(parsed);
     const callbacks = listCallbacks(parsed, path, method);
+    const instancePrefix = sanitisePrefix(useId());
 
     return (
         <section data-operation={`${method.toUpperCase()} ${path}`}>
@@ -193,6 +204,7 @@ export function ApiOperation<
                         rootDoc={rootDoc}
                         meta={meta}
                         widgets={widgets}
+                        idPrefix={joinPath(instancePrefix, "params")}
                     />
                 </section>
             )}
@@ -218,6 +230,7 @@ export function ApiOperation<
                         fields: requestBodyFields,
                         meta,
                         widgets,
+                        rootPath: joinPath(instancePrefix, "requestBody"),
                     })}
                 </section>
             )}
@@ -234,6 +247,10 @@ export function ApiOperation<
                             widgets={widgets}
                             path={path}
                             method={method}
+                            idPrefix={joinPath(
+                                instancePrefix,
+                                `response-${response.statusCode}`
+                            )}
                         />
                     ))}
                 </section>
@@ -276,6 +293,7 @@ export function ApiParameters<
 }: ApiParametersProps<Doc, Path, Method>): ReactNode {
     const rootDoc = toDoc(doc);
     const params = resolveParameters(rootDoc, path, method);
+    const instancePrefix = sanitisePrefix(useId());
 
     if (params.length === 0) return null;
 
@@ -288,6 +306,7 @@ export function ApiParameters<
                 overrides={overrides}
                 meta={meta}
                 widgets={widgets}
+                idPrefix={instancePrefix}
             />
         </section>
     );
@@ -331,6 +350,7 @@ export function ApiRequestBody<
 }: ApiRequestBodyProps<Doc, Path, Method>): ReactNode {
     const rootDoc = toDoc(doc);
     const requestBody = resolveRequestBody(rootDoc, path, method);
+    const instancePrefix = sanitisePrefix(useId());
 
     if (requestBody?.schema === undefined) {
         return null;
@@ -352,6 +372,7 @@ export function ApiRequestBody<
                 fields,
                 meta,
                 widgets,
+                rootPath: instancePrefix,
             })}
         </section>
     );
@@ -397,6 +418,7 @@ export function ApiResponse<
 }: ApiResponseProps<Doc, Path, Method, Status>): ReactNode {
     const rootDoc = toDoc(doc);
     const response = resolveResponse(rootDoc, path, method, status);
+    const instancePrefix = sanitisePrefix(useId());
 
     if (response.schema === undefined) {
         return (
@@ -420,6 +442,7 @@ export function ApiResponse<
             widgets={widgets}
             path={path}
             method={method}
+            idPrefix={instancePrefix}
         />
     );
 }
@@ -450,12 +473,14 @@ function ParameterList({
     overrides,
     meta,
     widgets,
+    idPrefix,
 }: {
     parameters: ParameterInfo[];
     rootDoc: Record<string, unknown>;
     overrides?: unknown;
     meta?: SchemaMeta | undefined;
     widgets?: WidgetMap | undefined;
+    idPrefix: string;
 }): ReactNode {
     return (
         <>
@@ -471,6 +496,7 @@ function ParameterList({
                     {renderSchema(param.schema ?? { type: "string" }, rootDoc, {
                         meta: buildParamMeta(param, overrides, meta),
                         widgets,
+                        rootPath: joinPath(idPrefix, param.name),
                     })}
                 </div>
             ))}
@@ -487,6 +513,7 @@ function ResponseCard({
     widgets,
     path,
     method,
+    idPrefix,
 }: {
     response: ResponseInfo;
     rootDoc: Record<string, unknown>;
@@ -496,6 +523,7 @@ function ResponseCard({
     widgets?: WidgetMap | undefined;
     path?: string;
     method?: string;
+    idPrefix: string;
 }): ReactNode {
     if (response.schema === undefined) {
         return (
@@ -529,6 +557,7 @@ function ResponseCard({
                 fields,
                 meta: { readOnly: true, ...meta },
                 widgets,
+                rootPath: idPrefix,
             })}
             <ApiResponseHeaders headers={response.headers} />
             <ApiLinks links={links} />

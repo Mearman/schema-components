@@ -23,10 +23,14 @@
  * is passed explicitly.
  */
 
-import { createElement, isValidElement, type ReactNode } from "react";
+import { createElement, isValidElement, useId, type ReactNode } from "react";
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { mergeResolvers, getRenderFunction } from "../core/renderer.ts";
-import { ROOT_PATH, joinPath, type WidgetMap } from "./SchemaComponent.tsx";
+import {
+    joinPath,
+    sanitisePrefix,
+    type WidgetMap,
+} from "./SchemaComponent.tsx";
 import { headlessResolver } from "./headless.tsx";
 import { normaliseSchema } from "../core/adapter.ts";
 import { walk } from "../core/walker.ts";
@@ -64,6 +68,12 @@ export interface SchemaViewProps {
     onDiagnostic?: (diagnostic: Diagnostic) => void;
     /** When true, any diagnostic becomes a thrown error. */
     strict?: boolean;
+    /**
+     * Prefix used for every input `id`/label `htmlFor` in this view subtree.
+     * Defaults to a per-instance value from `useId()`; pass a deterministic
+     * value when stable ids matter (e.g. snapshot tests).
+     */
+    idPrefix?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +101,10 @@ export function SchemaView({
     widgets,
     onDiagnostic,
     strict,
+    idPrefix,
 }: SchemaViewProps): ReactNode {
+    const generatedId = useId();
+    const rootPath = idPrefix ?? sanitisePrefix(generatedId);
     const mergedMeta: SchemaMeta = { ...componentMeta, readOnly: true };
     if (description !== undefined) mergedMeta.description = description;
 
@@ -177,14 +190,14 @@ export function SchemaView({
             );
         };
 
-    const renderChild = makeRenderChild(0, ROOT_PATH);
+    const renderChild = makeRenderChild(0, rootPath);
 
     return renderFieldServer(
         tree,
         value ?? tree.defaultValue,
         userResolver,
         renderChild,
-        ROOT_PATH,
+        rootPath,
         widgets
     );
 }
