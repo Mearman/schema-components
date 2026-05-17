@@ -339,8 +339,15 @@ export function getRequestBody(
 ): RequestBodyInfo | undefined {
     const pathItem = lookupPathItem(parsed, path);
     const operation = getProperty(pathItem, method);
-    const requestBody = getProperty(operation, "requestBody");
-    if (!isObject(requestBody)) return undefined;
+    const requestBodyRaw = getProperty(operation, "requestBody");
+    if (!isObject(requestBodyRaw)) return undefined;
+
+    // OAS 3.0/3.1 allow `requestBody: { $ref: "#/components/requestBodies/X" }`.
+    // Resolve a single hop against the document root before reading
+    // `content`/`required`/`description`, otherwise the referenced
+    // request body's fields would be silently ignored.
+    const requestBody = resolveWrapperRef(parsed.doc, requestBodyRaw);
+    if (requestBody === undefined) return undefined;
 
     const content = getProperty(requestBody, "content");
     if (!isObject(content)) {
@@ -378,8 +385,15 @@ export function getResponses(
     if (!isObject(responses)) return [];
 
     const result: ResponseInfo[] = [];
-    for (const [statusCode, response] of Object.entries(responses)) {
-        if (!isObject(response)) continue;
+    for (const [statusCode, responseRaw] of Object.entries(responses)) {
+        if (!isObject(responseRaw)) continue;
+
+        // OAS 3.0/3.1 allow `responses["200"]: { $ref: "#/components/responses/X" }`.
+        // Resolve a single hop against the document root before reading
+        // `content`/`description`/`headers`, otherwise the referenced
+        // response's fields would be silently ignored.
+        const response = resolveWrapperRef(parsed.doc, responseRaw);
+        if (response === undefined) continue;
 
         const content = getProperty(response, "content");
         const contentTypes = isObject(content) ? Object.keys(content) : [];
@@ -397,6 +411,23 @@ export function getResponses(
         });
     }
     return result;
+}
+
+/**
+ * Resolve a single-hop `$ref` on a wrapper object — Response Object,
+ * Request Body Object, etc. — against the document root. Returns the
+ * referenced node when the wrapper is a `$ref`, the wrapper itself when
+ * it has no `$ref`, or `undefined` when the `$ref` is malformed or
+ * cannot be resolved (so the caller skips the entry rather than reading
+ * stale fields from the bare `{ $ref }` envelope).
+ */
+function resolveWrapperRef(
+    doc: JsonObject,
+    wrapper: JsonObject
+): JsonObject | undefined {
+    const ref = getString(wrapper, "$ref");
+    if (ref === undefined) return wrapper;
+    return resolveRefInDoc(doc, ref);
 }
 
 // ---------------------------------------------------------------------------

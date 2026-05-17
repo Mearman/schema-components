@@ -584,6 +584,111 @@ describe("parser edge cases", () => {
         expect(notFound?.description).toBe("Not found");
     });
 
+    it("resolves $ref on a response object to components/responses (OAS 3.1)", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/items": {
+                    get: {
+                        responses: {
+                            "200": { $ref: "#/components/responses/OkItems" },
+                            "404": {
+                                $ref: "#/components/responses/NotFound",
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                responses: {
+                    OkItems: {
+                        description: "A list of items",
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "array",
+                                    items: { type: "string" },
+                                },
+                            },
+                        },
+                        headers: {
+                            "X-Total": { schema: { type: "integer" } },
+                        },
+                    },
+                    NotFound: {
+                        description: "Item missing",
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+        const responses = getResponses(parsed, "/items", "get");
+        expect(responses.length).toBe(2);
+
+        const ok = responses.find((r) => r.statusCode === "200");
+        expect(ok?.description).toBe("A list of items");
+        expect(ok?.contentTypes).toEqual(["application/json"]);
+        expect(ok?.schema).toEqual({
+            type: "array",
+            items: { type: "string" },
+        });
+        expect(ok?.headers.has("X-Total")).toBe(true);
+
+        const notFound = responses.find((r) => r.statusCode === "404");
+        expect(notFound?.description).toBe("Item missing");
+        expect(notFound?.schema).toBeUndefined();
+    });
+
+    it("resolves $ref on a requestBody object to components/requestBodies (OAS 3.1)", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/items": {
+                    post: {
+                        requestBody: {
+                            $ref: "#/components/requestBodies/CreateItem",
+                        },
+                        responses: { "201": { description: "Created" } },
+                    },
+                },
+            },
+            components: {
+                requestBodies: {
+                    CreateItem: {
+                        required: true,
+                        description: "Item payload",
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        name: { type: "string" },
+                                    },
+                                    required: ["name"],
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+        const body = getRequestBody(parsed, "/items", "post");
+        expect(body).toBeDefined();
+        expect(body?.required).toBe(true);
+        expect(body?.description).toBe("Item payload");
+        expect(body?.contentTypes).toEqual(["application/json"]);
+        expect(body?.schema).toEqual({
+            type: "object",
+            properties: { name: { type: "string" } },
+            required: ["name"],
+        });
+    });
+
     it("handles non-json content type", () => {
         const doc = {
             openapi: "3.1.0",
