@@ -39,11 +39,18 @@ export function joinPath(parent: string, suffix: string | undefined): string {
 
 /**
  * Normalise a path into the id segment used after the `sc-` prefix.
- * Dots (object nesting) and brackets (array indices) become hyphens so
- * the id remains a valid CSS selector and matches test query semantics.
+ *
+ * Whitelist-based: every character outside `[A-Za-z0-9_-]` collapses to
+ * a single hyphen. A blacklist that only stripped `.[]` would still leak
+ * spaces, slashes, and other punctuation through into ids when a path
+ * is sourced from a free-text field like `meta.description` — producing
+ * structurally invalid CSS selectors and `aria-labelledby` references.
+ *
+ * Trailing hyphens are trimmed so e.g. `tags[0]` → `tags-0` (not
+ * `tags-0-`).
  */
 function normaliseIdSegment(value: string): string {
-    return value.replace(/[.[\]]+/g, "-").replace(/-+$/g, "");
+    return value.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/-+$/g, "");
 }
 
 /**

@@ -7,12 +7,27 @@
  * - Record: opening tag, one chunk per entry, closing tag
  * - Union / DiscriminatedUnion: matched option content
  * - Leaf types: rendered entirely as one chunk
+ *
+ * All container generators thread `currentDepth` so cyclic walked-field
+ * graphs (e.g. `z.lazy` schemas) terminate at `MAX_HTML_DEPTH` with a
+ * recursion sentinel rather than overflowing the stack. The cap is
+ * shared with the synchronous renderer in `renderToHtml.ts`.
+ *
+ * Container generators also thread `diagnostics`. When a value's shape
+ * disagrees with the field type (e.g. an object schema receives an
+ * array value), a `type-mismatch` diagnostic is emitted and a visible
+ * placeholder element is rendered in place — streaming never silently
+ * coerces to `{}` / `[]` and never stops producing output.
  */
 
 import type { WalkedField } from "../core/types.ts";
 import { isObject } from "../core/guards.ts";
 import { getHtmlRenderFn } from "../core/renderer.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
+import {
+    emitDiagnostic,
+    type DiagnosticsOptions,
+} from "../core/diagnostics.ts";
 import {
     h,
     serialize,
@@ -28,7 +43,9 @@ import {
     buildHintElement,
     requiredIndicator,
     ariaLabelAttrs,
+    joinPath,
 } from "./a11y.ts";
+import { MAX_HTML_DEPTH, recursionSentinelHtml } from "./renderToHtml.ts";
 
 // ---------------------------------------------------------------------------
 // Yield helpers (passed from the parent module)
@@ -75,9 +92,7 @@ export function renderLeaf(
 
     // Fallback for unhandled types
     if (value === undefined || value === null) {
-        return serialize(
-            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
-        );
+        return serialize(h("span", { class: "sc-value sc-value--empty" }, "—"));
     }
     return serialize(
         h(
@@ -97,10 +112,20 @@ export function renderFieldSync(
     value: unknown,
     mergedResolver: HtmlResolver,
     path: string,
-    rawResolver: HtmlResolver
+    rawResolver: HtmlResolver,
+    currentDepth: number,
+    diagnostics: DiagnosticsOptions | undefined
 ): string {
     const chunks = [
-        ...streamField(tree, value, mergedResolver, path, rawResolver),
+        ...streamField(
+            tree,
+            value,
+            mergedResolver,
+            path,
+            rawResolver,
+            currentDepth,
+            diagnostics
+        ),
     ];
     return chunks.join("");
 }
@@ -132,6 +157,29 @@ export function matchUnionOption(
 }
 
 // ---------------------------------------------------------------------------
+// Type-mismatch placeholder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a visible placeholder element used when a value does not match
+ * the shape implied by its field type. The expected-shape label is
+ * passed verbatim into `h()` so the serialiser escapes it.
+ *
+ * Streaming must keep producing output, so we never throw here — the
+ * diagnostic surfaces the problem to the caller (when a sink is wired)
+ * while the rendered output remains structurally valid.
+ */
+function typeMismatchPlaceholder(expectedShape: string): string {
+    return serialize(
+        h(
+            "span",
+            { class: "sc-value sc-value--invalid", role: "alert" },
+            `invalid value (expected ${expectedShape})`
+        )
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Chunked field rendering — yields at natural boundaries
 // ---------------------------------------------------------------------------
 
@@ -140,8 +188,22 @@ export function* streamField(
     value: unknown,
     mergedResolver: HtmlResolver,
     path: string,
-    rawResolver: HtmlResolver
+    rawResolver: HtmlResolver,
+    currentDepth = 0,
+    diagnostics?: DiagnosticsOptions
 ): Iterable<string, void, undefined> {
+    // Recursion guard: cyclic walked-field graphs (z.lazy, mutually
+    // recursive $ref) would otherwise overflow the stack. Mirrors the
+    // sync renderer in `renderToHtml.ts`.
+    if (currentDepth >= MAX_HTML_DEPTH) {
+        const label =
+            typeof tree.meta.description === "string"
+                ? tree.meta.description
+                : "schema";
+        yield recursionSentinelHtml(label);
+        return;
+    }
+
     const effectiveValue = value ?? tree.defaultValue;
     const type = tree.type;
 
@@ -166,7 +228,9 @@ export function* streamField(
             effectiveValue,
             mergedResolver,
             path,
-            rawResolver
+            rawResolver,
+            currentDepth,
+            diagnostics
         );
         return;
     }
@@ -178,26 +242,52 @@ export function* streamField(
             value,
             mergedResolver,
             path,
-            rawResolver
+            rawResolver,
+            currentDepth,
+            diagnostics
         );
         return;
     }
 
     // Object — chunk per field
     if (type === "object") {
-        yield* streamObject(tree, value, mergedResolver, path, rawResolver);
+        yield* streamObject(
+            tree,
+            value,
+            mergedResolver,
+            path,
+            rawResolver,
+            currentDepth,
+            diagnostics
+        );
         return;
     }
 
     // Array — chunk per item
     if (type === "array") {
-        yield* streamArray(tree, value, mergedResolver, path, rawResolver);
+        yield* streamArray(
+            tree,
+            value,
+            mergedResolver,
+            path,
+            rawResolver,
+            currentDepth,
+            diagnostics
+        );
         return;
     }
 
     // Record — chunk per entry
     if (type === "record") {
-        yield* streamRecord(tree, value, mergedResolver, path, rawResolver);
+        yield* streamRecord(
+            tree,
+            value,
+            mergedResolver,
+            path,
+            rawResolver,
+            currentDepth,
+            diagnostics
+        );
         return;
     }
 
@@ -214,12 +304,29 @@ function* streamObject(
     value: unknown,
     mergedResolver: HtmlResolver,
     path: string,
-    rawResolver: HtmlResolver
+    rawResolver: HtmlResolver,
+    currentDepth: number,
+    diagnostics: DiagnosticsOptions | undefined
 ): Iterable<string, void, undefined> {
     if (tree.type !== "object") return;
     const fields = tree.fields;
 
-    const obj = isObject(value) ? value : {};
+    // A defined value with the wrong shape is a real disagreement — surface
+    // it via diagnostics and render a placeholder. An absent value (undefined
+    // / null) is treated as "no data" and falls through to an empty object so
+    // the structure still renders.
+    if (value !== undefined && value !== null && !isObject(value)) {
+        emitDiagnostic(diagnostics, {
+            code: "type-mismatch",
+            message:
+                "Object schema received non-object value during streaming render",
+            pointer: path === "" ? "/" : `/${path}`,
+            detail: { expected: "object", actualType: typeof value, path },
+        });
+        yield typeMismatchPlaceholder("object");
+        return;
+    }
+    const obj: Record<string, unknown> = isObject(value) ? value : {};
     const readOnly = tree.editability === "presentation";
     const descriptionText =
         typeof tree.meta.description === "string"
@@ -246,12 +353,15 @@ function* streamObject(
                     ? field.meta.description
                     : key;
             const childValue = obj[key];
+            const childPath = joinPath(path, key);
             const childHtml = renderFieldSync(
                 field,
                 childValue,
                 mergedResolver,
-                key,
-                rawResolver
+                childPath,
+                rawResolver,
+                currentDepth + 1,
+                diagnostics
             );
             const dt = serialize(h("dt", { class: "sc-label" }, label));
             const dd = serialize(
@@ -280,13 +390,16 @@ function* streamObject(
                     : key;
             const fieldId = buildInputId(path, key);
             const childValue = obj[key];
+            const childPath = joinPath(path, key);
             const childChunks = [
                 ...streamField(
                     field,
                     childValue,
                     mergedResolver,
-                    key,
-                    rawResolver
+                    childPath,
+                    rawResolver,
+                    currentDepth + 1,
+                    diagnostics
                 ),
             ].join("");
 
@@ -323,30 +436,50 @@ function* streamArray(
     value: unknown,
     mergedResolver: HtmlResolver,
     path: string,
-    rawResolver: HtmlResolver
+    rawResolver: HtmlResolver,
+    currentDepth: number,
+    diagnostics: DiagnosticsOptions | undefined
 ): Iterable<string, void, undefined> {
-    const arr = Array.isArray(value) ? value : [];
     if (tree.type !== "array") return;
     const element = tree.element;
     if (element === undefined) return;
 
-    const readOnly = tree.editability === "presentation";
+    // Defined-but-wrong-shape: emit diagnostic + placeholder. Absent
+    // values fall through to an empty list so the container still renders.
+    if (value !== undefined && value !== null && !Array.isArray(value)) {
+        emitDiagnostic(diagnostics, {
+            code: "type-mismatch",
+            message:
+                "Array schema received non-array value during streaming render",
+            pointer: path === "" ? "/" : `/${path}`,
+            detail: { expected: "array", actualType: typeof value, path },
+        });
+        yield typeMismatchPlaceholder("array");
+        return;
+    }
+    // `Array.isArray` narrows to `any[]` rather than `unknown[]`, so type
+    // the iterable explicitly to keep elements as `unknown`.
+    const arr: readonly unknown[] = Array.isArray(value) ? value : [];
 
-    const elementPath =
-        typeof element.meta.description === "string"
-            ? element.meta.description
-            : "";
+    const readOnly = tree.editability === "presentation";
 
     if (readOnly) {
         const ul = h("ul", { class: "sc-array" });
         yield yieldOpen(ul);
-        for (const item of arr) {
+        for (const [i, item] of arr.entries()) {
+            // Derive per-item path from the index, not from the element's
+            // description. Description-as-path collides across items and
+            // produces structurally invalid id segments when it contains
+            // spaces or punctuation.
+            const elementPath = joinPath(path, `[${String(i)}]`);
             const childHtml = renderFieldSync(
                 element,
                 item,
                 mergedResolver,
                 elementPath,
-                rawResolver
+                rawResolver,
+                currentDepth + 1,
+                diagnostics
             );
             yield serialize(h("li", { class: "sc-item" }, raw(childHtml)));
         }
@@ -354,13 +487,16 @@ function* streamArray(
     } else {
         const div = h("div", { class: "sc-array" });
         yield yieldOpen(div);
-        for (const item of arr) {
+        for (const [i, item] of arr.entries()) {
+            const elementPath = joinPath(path, `[${String(i)}]`);
             const childHtml = renderFieldSync(
                 element,
                 item,
                 mergedResolver,
                 elementPath,
-                rawResolver
+                rawResolver,
+                currentDepth + 1,
+                diagnostics
             );
             yield serialize(h("div", {}, raw(childHtml)));
         }
@@ -377,11 +513,27 @@ function* streamRecord(
     value: unknown,
     mergedResolver: HtmlResolver,
     path: string,
-    rawResolver: HtmlResolver
+    rawResolver: HtmlResolver,
+    currentDepth: number,
+    diagnostics: DiagnosticsOptions | undefined
 ): Iterable<string, void, undefined> {
-    const obj = isObject(value) ? value : {};
     if (tree.type !== "record") return;
     const valueType = tree.valueType;
+
+    // Defined-but-wrong-shape: emit diagnostic + placeholder. Absent
+    // values fall through to an empty record so the container still renders.
+    if (value !== undefined && value !== null && !isObject(value)) {
+        emitDiagnostic(diagnostics, {
+            code: "type-mismatch",
+            message:
+                "Record schema received non-object value during streaming render",
+            pointer: path === "" ? "/" : `/${path}`,
+            detail: { expected: "object", actualType: typeof value, path },
+        });
+        yield typeMismatchPlaceholder("object");
+        return;
+    }
+    const obj: Record<string, unknown> = isObject(value) ? value : {};
 
     const readOnly = tree.editability === "presentation";
     const attrs: HtmlAttributes = { class: "sc-record", role: "group" };
@@ -390,12 +542,15 @@ function* streamRecord(
         const dl = h("dl", attrs);
         yield yieldOpen(dl);
         for (const [key, val] of Object.entries(obj)) {
+            const childPath = joinPath(path, key);
             const childHtml = renderFieldSync(
                 valueType,
                 val,
                 mergedResolver,
-                key,
-                rawResolver
+                childPath,
+                rawResolver,
+                currentDepth + 1,
+                diagnostics
             );
             const dt = serialize(h("dt", { class: "sc-label" }, key));
             const dd = serialize(
@@ -408,12 +563,15 @@ function* streamRecord(
         const container = h("div", attrs);
         yield yieldOpen(container);
         for (const [key, val] of Object.entries(obj)) {
+            const childPath = joinPath(path, key);
             const childHtml = renderFieldSync(
                 valueType,
                 val,
                 mergedResolver,
-                key,
-                rawResolver
+                childPath,
+                rawResolver,
+                currentDepth + 1,
+                diagnostics
             );
             yield serialize(
                 h(
@@ -437,13 +595,15 @@ function* streamUnion(
     value: unknown,
     mergedResolver: HtmlResolver,
     path: string,
-    rawResolver: HtmlResolver
+    rawResolver: HtmlResolver,
+    currentDepth: number,
+    diagnostics: DiagnosticsOptions | undefined
 ): Iterable<string, void, undefined> {
     const options = tree.type === "union" ? tree.options : undefined;
     if (options === undefined || options.length === 0) {
         if (value === undefined || value === null) {
             yield serialize(
-                h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+                h("span", { class: "sc-value sc-value--empty" }, "—")
             );
         } else {
             yield serialize(
@@ -456,21 +616,21 @@ function* streamUnion(
     const matched = matchUnionOption(options, value);
     const target = matched ?? options[0];
     if (target !== undefined) {
-        const targetPath =
-            typeof target.meta.description === "string"
-                ? target.meta.description
-                : "";
+        // Union options are transparent wrappers — inherit the parent path
+        // so child input ids match the non-streaming renderer (which calls
+        // `renderChild(target, value)` without a suffix, leaving the path
+        // unchanged via `joinPath`).
         yield* streamField(
             target,
             value,
             mergedResolver,
-            targetPath,
-            rawResolver
+            path,
+            rawResolver,
+            currentDepth + 1,
+            diagnostics
         );
     } else {
-        yield serialize(
-            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
-        );
+        yield serialize(h("span", { class: "sc-value sc-value--empty" }, "—"));
     }
 }
 
@@ -479,7 +639,9 @@ function* streamDiscriminatedUnion(
     value: unknown,
     mergedResolver: HtmlResolver,
     path: string,
-    rawResolver: HtmlResolver
+    rawResolver: HtmlResolver,
+    currentDepth: number,
+    diagnostics: DiagnosticsOptions | undefined
 ): Iterable<string, void, undefined> {
     const options =
         tree.type === "discriminatedUnion" ? tree.options : undefined;
@@ -488,7 +650,7 @@ function* streamDiscriminatedUnion(
     if (options === undefined || options.length === 0) {
         if (value === undefined || value === null) {
             yield serialize(
-                h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+                h("span", { class: "sc-value sc-value--empty" }, "—")
             );
         } else {
             yield serialize(
@@ -498,9 +660,7 @@ function* streamDiscriminatedUnion(
         return;
     }
 
-    const isRecord = (v: unknown): v is Record<string, unknown> =>
-        typeof v === "object" && v !== null && !Array.isArray(v);
-    const obj = isRecord(value) ? value : {};
+    const obj: Record<string, unknown> = isObject(value) ? value : {};
     const discKey = discriminator ?? "";
     const currentDiscriminatorValue =
         typeof obj[discKey] === "string" ? obj[discKey] : undefined;
@@ -527,16 +687,15 @@ function* streamDiscriminatedUnion(
 
     if (isPresentation) {
         if (activeOption !== undefined) {
-            const targetPath =
-                typeof activeOption.meta.description === "string"
-                    ? activeOption.meta.description
-                    : "";
+            // Inherit parent path — see streamUnion comment above.
             yield* streamField(
                 activeOption,
                 value,
                 mergedResolver,
-                targetPath,
-                rawResolver
+                path,
+                rawResolver,
+                currentDepth + 1,
+                diagnostics
             );
         }
         return;
@@ -582,16 +741,15 @@ function* streamDiscriminatedUnion(
 
     // Active option content
     if (activeOption !== undefined) {
-        const targetPath =
-            typeof activeOption.meta.description === "string"
-                ? activeOption.meta.description
-                : "";
+        // Inherit parent path — see streamUnion comment above.
         yield* streamField(
             activeOption,
             value,
             mergedResolver,
-            targetPath,
-            rawResolver
+            path,
+            rawResolver,
+            currentDepth + 1,
+            diagnostics
         );
     }
 
