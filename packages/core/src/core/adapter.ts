@@ -660,29 +660,61 @@ const COMPILED_CLASSIFIER_RULES: readonly {
 }));
 
 /**
- * Walk an arbitrary value looking for Zod 3 markers (`_def.typeName`).
- * Zod 4 schemas always carry a `_zod.def`; Zod 3 schemas carry `_def`
- * with a `typeName` field. Presence of the latter anywhere in the tree
- * means a Zod 3 schema was nested inside a Zod 4 input, which is what
- * trips the V8 `"Cannot read properties of undefined"` failure.
+ * Maximum recursion depth for {@link containsNestedZod3}. Mirrors the
+ * type-level `DEFAULT_MAX_DEPTH` in `typeInference.ts` (currently `64`) so
+ * the runtime walk and the compile-time walker agree on the limit. The
+ * constant is duplicated here rather than imported because
+ * `typeInference.ts` exports the value as a TypeScript type only — there
+ * is no runtime export to consume.
+ */
+const NESTED_ZOD3_MAX_DEPTH = 64;
+
+/**
+ * Walk an arbitrary value looking for Zod 3 markers (`_def` without
+ * `_zod`). Zod 4 schemas always carry `_zod.def`; Zod 3 schemas carry
+ * `_def` (with or without a `typeName` field — third-party Zod-3-style
+ * libraries occasionally omit `typeName`). Presence of `_def` without
+ * `_zod` anywhere in the tree means a Zod 3 (or Zod-3-like) schema was
+ * nested inside a Zod 4 input, which is what trips the V8
+ * `"Cannot read properties of undefined"` failure.
  *
  * Engine-agnostic by construction — the detector inspects schema shape
  * instead of pattern-matching against the runtime's TypeError message,
  * so it works equivalently under V8, JavaScriptCore (Bun/Safari), and
  * SpiderMonkey (Firefox) — none of which agree on the wording.
  *
- * The walk is bounded by an explicit `visited` set so cyclical references
- * cannot cause stack overflow. The recursion follows both array elements
- * and own enumerable properties of every object encountered.
+ * Performance shortcuts:
+ *
+ * - **Targeted descent into Zod 4 nodes.** Once a node is identified as a
+ *   Zod 4 schema (`_zod.def` is an object), the only branch that can
+ *   carry user-supplied sub-schemas is `_zod.def` itself. Zod's other
+ *   internal members (`_zod.traits`, `_zod.parse`, `_zod.bag`, etc.) are
+ *   implementation surface and never contain user schemas, so walking
+ *   them on every conversion failure is wasted work. Switching to a
+ *   targeted descent (only `_zod.def` plus the schema root's `_def`
+ *   field) trims the walk dramatically.
+ * - **Depth cap.** Recursion is bounded by {@link NESTED_ZOD3_MAX_DEPTH}
+ *   so a pathological schema graph cannot cause stack overflow. The
+ *   `visited` set still defends against cyclic references; the depth
+ *   cap defends against deep-but-acyclic trees.
  */
 function containsNestedZod3(value: unknown, visited: Set<object>): boolean {
+    return containsNestedZod3Inner(value, visited, 0);
+}
+
+function containsNestedZod3Inner(
+    value: unknown,
+    visited: Set<object>,
+    depth: number
+): boolean {
+    if (depth >= NESTED_ZOD3_MAX_DEPTH) return false;
     if (value === null || typeof value !== "object") return false;
     if (visited.has(value)) return false;
     visited.add(value);
 
     if (Array.isArray(value)) {
         for (const item of value) {
-            if (containsNestedZod3(item, visited)) return true;
+            if (containsNestedZod3Inner(item, visited, depth + 1)) return true;
         }
         return false;
     }
@@ -694,16 +726,29 @@ function containsNestedZod3(value: unknown, visited: Set<object>): boolean {
 
     const def = value._def;
     const zod = value._zod;
-    if (
-        zod === undefined &&
-        isObject(def) &&
-        typeof def.typeName === "string"
-    ) {
+
+    // Zod 3 marker: `_def` without `_zod`. Issue 8 — `typeName` is no
+    // longer required because third-party Zod-3-style schema libraries
+    // sometimes omit it; any `_def`-bearing object without `_zod` is
+    // treated as evidence of nested Zod 3 / unsupported schema.
+    if (zod === undefined && isObject(def)) {
         return true;
     }
 
+    // Targeted descent for Zod 4 nodes. All user-supplied child schemas
+    // live under `_zod.def`; walking the other `_zod.*` members would
+    // descend into traits Sets, parser closures, and back-pointers that
+    // never contain Zod 3 schemas. Recurse only into `_zod.def`.
+    if (isObject(zod) && isObject(zod.def)) {
+        return containsNestedZod3Inner(zod.def, visited, depth + 1);
+    }
+
+    // Non-Zod nodes — walk every own key. This branch handles plain
+    // objects/arrays that wrap or contain schemas (e.g. user-supplied
+    // option objects, the shape map of a Zod object, etc.).
     for (const key of Object.keys(value)) {
-        if (containsNestedZod3(value[key], visited)) return true;
+        if (containsNestedZod3Inner(value[key], visited, depth + 1))
+            return true;
     }
     return false;
 }
