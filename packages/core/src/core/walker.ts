@@ -481,17 +481,30 @@ function walkEnum(
     enumValues: unknown[],
     ctx: WalkContext
 ): EnumField {
+    const accepted: (string | number | boolean | null)[] = [];
+    for (let i = 0; i < enumValues.length; i++) {
+        const v = enumValues[i];
+        if (isPrimitive(v)) {
+            accepted.push(v);
+            continue;
+        }
+        // Non-primitive enum values (objects, arrays, undefined) cannot
+        // be represented in the EnumField. Surface the drop so callers
+        // can fix the source schema rather than silently lose values.
+        emitDiagnostic(ctx.diagnostics, {
+            code: "enum-value-filtered",
+            message: `enum value at index ${String(i)} is not a primitive (${
+                v === undefined ? "undefined" : typeof v
+            }); dropping the entry`,
+            pointer: appendPointer(ctx.pointer, `enum/${String(i)}`),
+            detail: { index: i, value: v },
+        });
+    }
     return {
         ...buildBase(schema, ctx),
         type: "enum",
         constraints: {},
-        enumValues: enumValues.filter(
-            (v): v is string | number | boolean | null =>
-                typeof v === "string" ||
-                typeof v === "number" ||
-                typeof v === "boolean" ||
-                v === null
-        ),
+        enumValues: accepted,
     };
 }
 
@@ -515,8 +528,27 @@ function walkObject(
     ctx: WalkContext
 ): ObjectField {
     const required = getArray(schema, "required");
-    const requiredFields: string[] =
-        required?.filter((r): r is string => typeof r === "string") ?? [];
+    const requiredFields: string[] = [];
+    if (required !== undefined) {
+        for (let i = 0; i < required.length; i++) {
+            const r = required[i];
+            if (typeof r === "string") {
+                requiredFields.push(r);
+                continue;
+            }
+            // `required` is defined as an array of property-name strings.
+            // Non-string entries cannot identify a property; surface the
+            // drop so callers can fix the source schema.
+            emitDiagnostic(ctx.diagnostics, {
+                code: "required-non-string",
+                message: `required[${String(i)}] is not a string (${
+                    r === null ? "null" : typeof r
+                }); dropping the entry`,
+                pointer: appendPointer(ctx.pointer, `required/${String(i)}`),
+                detail: { index: i, value: r },
+            });
+        }
+    }
 
     const fields: Record<string, WalkedField> = {};
     for (const [key, propSchema] of Object.entries(properties)) {

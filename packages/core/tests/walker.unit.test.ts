@@ -18,6 +18,7 @@ import {
 
 import { describe, it, expect } from "vitest";
 import { resolveEditability } from "../src/core/types.ts";
+import type { Diagnostic } from "../src/core/diagnostics.ts";
 import { walk } from "../src/core/walker.ts";
 import { assertDefined, getField } from "./helpers.ts";
 
@@ -743,5 +744,81 @@ describe("walk — recursive cycle detection", () => {
             "expected nested element"
         );
         expect(nestedElement).toBe(element);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// walk — silent filter diagnostics
+// ---------------------------------------------------------------------------
+
+describe("walk — enum and required filtering diagnostics", () => {
+    it("emits enum-value-filtered for each non-primitive enum entry", () => {
+        const diagnostics: Diagnostic[] = [];
+        const tree = walk(
+            {
+                enum: ["ok", { nested: true }, [1, 2], "fine"],
+            },
+            {
+                diagnostics: { diagnostics: (d) => diagnostics.push(d) },
+            }
+        );
+        expect(tree.type).toBe("enum");
+        expect(enumValuesOf(tree)).toEqual(["ok", "fine"]);
+        const filtered = diagnostics.filter(
+            (d) => d.code === "enum-value-filtered"
+        );
+        expect(filtered.length).toBe(2);
+        expect(filtered[0]?.detail?.index).toBe(1);
+        expect(filtered[1]?.detail?.index).toBe(2);
+    });
+
+    it("does not emit enum-value-filtered when every entry is a primitive", () => {
+        const diagnostics: Diagnostic[] = [];
+        walk(
+            { enum: ["a", "b", 1, null, true] },
+            { diagnostics: { diagnostics: (d) => diagnostics.push(d) } }
+        );
+        expect(
+            diagnostics.filter((d) => d.code === "enum-value-filtered").length
+        ).toBe(0);
+    });
+
+    it("emits required-non-string for each non-string `required` entry", () => {
+        const diagnostics: Diagnostic[] = [];
+        const tree = walk(
+            {
+                type: "object",
+                properties: {
+                    name: { type: "string" },
+                    age: { type: "number" },
+                },
+                required: ["name", 7, null, "age"],
+            },
+            { diagnostics: { diagnostics: (d) => diagnostics.push(d) } }
+        );
+        expect(tree.type).toBe("object");
+        if (tree.type !== "object") return;
+        expect(tree.requiredFields).toEqual(["name", "age"]);
+        const filtered = diagnostics.filter(
+            (d) => d.code === "required-non-string"
+        );
+        expect(filtered.length).toBe(2);
+        expect(filtered[0]?.detail?.index).toBe(1);
+        expect(filtered[1]?.detail?.index).toBe(2);
+    });
+
+    it("does not emit required-non-string when every entry is a string", () => {
+        const diagnostics: Diagnostic[] = [];
+        walk(
+            {
+                type: "object",
+                properties: { name: { type: "string" } },
+                required: ["name"],
+            },
+            { diagnostics: { diagnostics: (d) => diagnostics.push(d) } }
+        );
+        expect(
+            diagnostics.filter((d) => d.code === "required-non-string").length
+        ).toBe(0);
     });
 });
