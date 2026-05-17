@@ -59,21 +59,71 @@ export interface UnrepresentableZodSchemaError {
 }
 
 /**
+ * Recursively unwrap Zod 4 wrappers that hold an inner schema —
+ * `ZodOptional`, `ZodNullable`, `ZodReadonly`, `ZodLazy`, and `ZodPipe`.
+ *
+ * The runtime conversion still throws for `z.optional(z.bigint())`,
+ * `z.lazy(() => z.bigint())`, `z.nullable(z.bigint())`,
+ * `z.bigint().readonly()`, and `z.bigint().pipe(z.bigint())` because
+ * `z.toJSONSchema()` walks into the wrapped schema before reporting the
+ * unrepresentable type. The compile-time rejection must therefore peel
+ * those wrappers off before checking against the rejection list, or the
+ * brand would never surface for wrapped inputs.
+ *
+ * `ZodCodec` is short-circuited at the top because it is itself listed
+ * in {@link UnrepresentableZodType}. It extends `ZodPipe` structurally,
+ * so without the early exit the `ZodPipe` branch would unwrap a bare
+ * codec into its two sides and the rejection would no longer fire for
+ * `z.codec(...)`.
+ *
+ * `ZodPipe` (non-codec) has two slots (`in` and `out`); both are
+ * unwrapped into a union so a single unrepresentable side surfaces via
+ * {@link AnyMemberIsUnrepresentable}.
+ */
+type UnwrapZodWrapper<T> = T extends z.ZodCodec
+    ? T
+    : T extends z.ZodOptional<infer Inner>
+      ? UnwrapZodWrapper<Inner>
+      : T extends z.ZodNullable<infer Inner>
+        ? UnwrapZodWrapper<Inner>
+        : T extends z.ZodReadonly<infer Inner>
+          ? UnwrapZodWrapper<Inner>
+          : T extends z.ZodLazy<infer Inner>
+            ? UnwrapZodWrapper<Inner>
+            : T extends z.ZodPipe<infer InnerIn, infer InnerOut>
+              ? UnwrapZodWrapper<InnerIn> | UnwrapZodWrapper<InnerOut>
+              : T;
+
+/**
+ * True when any member of the (possibly unioned) input extends one of
+ * the unrepresentable Zod types. Distribution over the union ensures a
+ * single unrepresentable member triggers true — matching runtime
+ * semantics for `ZodPipe`, whose two sides expand to a union via
+ * {@link UnwrapZodWrapper}.
+ */
+type AnyMemberIsUnrepresentable<T> = (
+    T extends UnrepresentableZodType ? true : false
+) extends false
+    ? false
+    : true;
+
+/**
  * Reject Zod 4 inputs whose runtime conversion is known to throw.
  *
- * - When `T` is one of the {@link UnrepresentableZodType} variants, the
- *   resolved type is {@link UnrepresentableZodSchemaError}, which is
- *   not assignable from any legitimate Zod / JSON Schema / OpenAPI
- *   input — so the prop fails to typecheck.
+ * - When `T` (or any inner schema wrapped by `ZodOptional`,
+ *   `ZodNullable`, `ZodReadonly`, `ZodLazy`, or `ZodPipe`) is one of
+ *   the {@link UnrepresentableZodType} variants, the resolved type is
+ *   {@link UnrepresentableZodSchemaError}, which is not assignable from
+ *   any legitimate Zod / JSON Schema / OpenAPI input — so the prop
+ *   fails to typecheck.
  * - Anything else (Zod 4 schemas that DO convert, JSON Schema literals,
  *   OpenAPI documents, `unknown` for runtime inputs) passes through
  *   unchanged.
- *
- * Wrapped in a tuple to suppress distribution over union types.
  */
-export type RejectUnrepresentableZod<T> = [T] extends [UnrepresentableZodType]
-    ? UnrepresentableZodSchemaError
-    : T;
+export type RejectUnrepresentableZod<T> =
+    AnyMemberIsUnrepresentable<UnwrapZodWrapper<T>> extends true
+        ? UnrepresentableZodSchemaError
+        : T;
 
 // ---------------------------------------------------------------------------
 // Type-level JSON Schema parser (for `as const` literals)

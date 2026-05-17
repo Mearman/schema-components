@@ -708,4 +708,50 @@ describe("RejectUnrepresentableZod: static rejection of Zod 4 types without JSON
         const _stringProps: StringProps = { schema: stringSchema };
         void _stringProps;
     });
+
+    // `z.toJSONSchema()` walks into wrappers (`ZodOptional`, `ZodNullable`,
+    // `ZodReadonly`, `ZodLazy`, `ZodPipe`) before reporting the
+    // unrepresentable inner type, so the runtime still throws for any of
+    // these wrapping a rejected primitive. The compile-time rejection has
+    // to mirror that — otherwise `z.optional(z.bigint())` would typecheck
+    // and only fail on first render.
+    it("ZodOptional around a rejected type is rejected", () => {
+        type Rejected = RejectUnrepresentableZod<z.ZodOptional<z.ZodBigInt>>;
+        expectTypeOf<Rejected>().toEqualTypeOf<UnrepresentableZodSchemaError>();
+    });
+
+    it("ZodNullable around a rejected type is rejected", () => {
+        type Rejected = RejectUnrepresentableZod<z.ZodNullable<z.ZodBigInt>>;
+        expectTypeOf<Rejected>().toEqualTypeOf<UnrepresentableZodSchemaError>();
+    });
+
+    it("ZodReadonly around a rejected type is rejected", () => {
+        type Rejected = RejectUnrepresentableZod<z.ZodReadonly<z.ZodBigInt>>;
+        expectTypeOf<Rejected>().toEqualTypeOf<UnrepresentableZodSchemaError>();
+    });
+
+    it("ZodLazy around a rejected type is rejected", () => {
+        type Rejected = RejectUnrepresentableZod<z.ZodLazy<z.ZodBigInt>>;
+        expectTypeOf<Rejected>().toEqualTypeOf<UnrepresentableZodSchemaError>();
+    });
+
+    // A pipe with an unrepresentable type on either side throws at
+    // runtime because `z.toJSONSchema()` walks both halves. The
+    // type-level rejection therefore fires when either side carries an
+    // unrepresentable inner.
+    it("ZodPipe with a rejected type on either side is rejected", () => {
+        type RejectedBothSides = RejectUnrepresentableZod<
+            z.ZodPipe<z.ZodBigInt, z.ZodBigInt>
+        >;
+        expectTypeOf<RejectedBothSides>().toEqualTypeOf<UnrepresentableZodSchemaError>();
+    });
+
+    // Representable wrappers must still pass through — the rejection
+    // only fires when something inside the wrapper is itself rejected.
+    it("ZodOptional around a representable type passes through unchanged", () => {
+        type Wrapped = z.ZodOptional<z.ZodString>;
+        expectTypeOf<
+            RejectUnrepresentableZod<Wrapped>
+        >().toEqualTypeOf<Wrapped>();
+    });
 });
