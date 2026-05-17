@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card as RadixCard, Theme as RadixTheme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import { CssBaseline } from "@mui/material";
@@ -17,8 +17,8 @@ import "./mantine-setup.ts";
 import "./mui-setup.ts";
 import "./radix-setup.ts";
 import "./tailwind.css";
+import { useThemeClass } from "./useThemeClass.ts";
 
-const muiTheme = createTheme({ palette: { mode: "light" } });
 const mantineTheme = createMantineTheme({});
 
 export type ThemeName = "headless" | "mui" | "mantine" | "radix" | "shadcn";
@@ -43,6 +43,11 @@ export function ThemeSchemaDemo({
     value: unknown;
 }) {
     const [currentValue, setCurrentValue] = useState<unknown>(value);
+    const scheme = useThemeClass();
+    const muiTheme = useMemo(
+        () => createTheme({ palette: { mode: scheme } }),
+        [scheme]
+    );
     const component = (
         <SchemaComponent
             schema={schema}
@@ -71,7 +76,7 @@ export function ThemeSchemaDemo({
 
     if (theme === "mantine") {
         return (
-            <MantineProvider theme={mantineTheme} defaultColorScheme="light">
+            <MantineProvider theme={mantineTheme} forceColorScheme={scheme}>
                 <SchemaProvider resolver={mantineResolver}>
                     {component}
                 </SchemaProvider>
@@ -81,7 +86,11 @@ export function ThemeSchemaDemo({
 
     if (theme === "radix") {
         return (
-            <RadixTheme appearance="light" accentColor="blue" radius="medium">
+            <RadixTheme
+                appearance={scheme}
+                accentColor="blue"
+                radius="medium"
+            >
                 <RadixCard>
                     <SchemaProvider resolver={radixResolver}>
                         {component}
@@ -93,7 +102,7 @@ export function ThemeSchemaDemo({
 
     return (
         <SchemaProvider resolver={shadcnResolver}>
-            <div className="max-w-xl space-y-4 rounded-lg border border-slate-200 bg-white p-6">
+            <div className="max-w-xl space-y-4 rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
                 {component}
             </div>
         </SchemaProvider>

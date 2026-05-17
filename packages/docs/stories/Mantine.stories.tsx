@@ -11,6 +11,7 @@ import { SchemaProvider } from "schema-components/react/SchemaComponent";
 import { mantineResolver } from "schema-components/themes/mantine";
 
 import "../src/mantine-setup.ts";
+import { useThemeClass } from "../src/useThemeClass.ts";
 
 const mantineTheme = createTheme({});
 
@@ -60,9 +61,10 @@ function MantinePreview({
     readOnly: boolean;
 }) {
     const [value, setValue] = useState<unknown>(data);
+    const colorScheme = useThemeClass();
 
     return (
-        <MantineProvider theme={mantineTheme} defaultColorScheme="light">
+        <MantineProvider theme={mantineTheme} forceColorScheme={colorScheme}>
             <SchemaProvider resolver={mantineResolver}>
                 <div style={{ maxWidth: "36rem" }}>
                     <SchemaComponent

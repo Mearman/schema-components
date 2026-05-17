@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/*
+ * Tailwind v4 defaults the `dark:` variant to prefers-color-scheme. The
+ * Storybook toolbar toggle puts `.dark-theme` on <html> instead, so re-bind
+ * `dark:` to that class. Keep the prefers-color-scheme fallback for OS-driven
+ * dark mode when no class is set by the decorator.
+ */
+@custom-variant dark (&:where(.dark-theme, .dark-theme *));

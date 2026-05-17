@@ -11,6 +11,7 @@ import { SchemaProvider } from "schema-components/react/SchemaComponent";
 import { radixResolver } from "schema-components/themes/radix";
 
 import "../src/radix-setup.ts";
+import { useThemeClass } from "../src/useThemeClass.ts";
 
 const profileSchema = z.object({
     name: z.string().min(1).meta({ description: "Full name" }),
@@ -58,9 +59,10 @@ function RadixPreview({
     readOnly: boolean;
 }) {
     const [value, setValue] = useState<unknown>(data);
+    const appearance = useThemeClass();
 
     return (
-        <Theme appearance="light" accentColor="blue" radius="medium">
+        <Theme appearance={appearance} accentColor="blue" radius="medium">
             <Card style={{ maxWidth: "36rem" }}>
                 <SchemaProvider resolver={radixResolver}>
                     <SchemaComponent

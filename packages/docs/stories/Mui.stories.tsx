@@ -1,7 +1,7 @@
 /**
  * Stories for the MUI theme adapter with real Material UI components.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { z } from "zod";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
@@ -11,12 +11,7 @@ import { SchemaProvider } from "schema-components/react/SchemaComponent";
 import { muiResolver } from "schema-components/themes/mui";
 
 import "../src/mui-setup.ts";
-
-const theme = createTheme({
-    palette: {
-        mode: "light",
-    },
-});
+import { useThemeClass } from "../src/useThemeClass.ts";
 
 const profileSchema = z.object({
     name: z.string().min(1).meta({ description: "Full name" }),
@@ -64,6 +59,8 @@ function MuiPreview({
     readOnly: boolean;
 }) {
     const [value, setValue] = useState<unknown>(data);
+    const mode = useThemeClass();
+    const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
 
     return (
         <ThemeProvider theme={theme}>

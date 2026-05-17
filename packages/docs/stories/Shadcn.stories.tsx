@@ -59,7 +59,7 @@ function ShadcnPreview({
 
     return (
         <SchemaProvider resolver={shadcnResolver}>
-            <div className="max-w-xl space-y-4 rounded-lg border border-slate-200 p-6">
+            <div className="max-w-xl space-y-4 rounded-lg border border-slate-200 p-6 dark:border-slate-700">
                 <SchemaComponent
                     schema={schema}
                     value={value}
