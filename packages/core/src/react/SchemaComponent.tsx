@@ -239,11 +239,18 @@ export function SchemaComponent<
         rootMeta = normalised.rootMeta;
         rootDocument = normalised.rootDocument;
     } catch (err: unknown) {
-        const error = new SchemaNormalisationError(
-            err instanceof Error ? err.message : "Failed to normalise schema",
-            schemaInput,
-            detectNormalisationKind(err)
-        );
+        // normaliseSchema already throws SchemaNormalisationError with the
+        // correct kind. Only wrap genuinely unknown errors.
+        const error =
+            err instanceof SchemaNormalisationError
+                ? err
+                : new SchemaNormalisationError(
+                      err instanceof Error
+                          ? err.message
+                          : "Failed to normalise schema",
+                      schemaInput,
+                      "unknown"
+                  );
         if (onError !== undefined) {
             onError(error);
             return null;
@@ -582,12 +589,14 @@ export function SchemaField<
         rootMeta = normalised.rootMeta;
         rootDocument = normalised.rootDocument;
     } catch (err: unknown) {
-        const error = new SchemaNormalisationError(
+        // normaliseSchema already throws SchemaNormalisationError with the
+        // correct kind. Only wrap genuinely unknown errors.
+        if (err instanceof SchemaNormalisationError) throw err;
+        throw new SchemaNormalisationError(
             err instanceof Error ? err.message : "Failed to normalise schema",
             schemaInput,
-            detectNormalisationKind(err)
+            "unknown"
         );
-        throw error;
     }
 
     const walkOptions: WalkOptions = {
@@ -739,22 +748,4 @@ function isFieldErrorCallback(
 
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
     return typeof value === "function";
-}
-
-// ---------------------------------------------------------------------------
-// Error classification
-// ---------------------------------------------------------------------------
-
-function detectNormalisationKind(
-    err: unknown
-): import("../core/errors.ts").SchemaNormalisationError["kind"] {
-    if (err instanceof Error) {
-        const msg = err.message;
-        if (msg.includes("Zod 3")) return "zod3-unsupported";
-        if (msg.includes("Invalid Zod 4")) return "invalid-zod";
-        if (msg.includes("OpenAPI ref not found")) return "openapi-missing-ref";
-        if (msg.includes("OpenAPI")) return "openapi-invalid";
-        if (msg.includes("JSON Schema")) return "invalid-json-schema";
-    }
-    return "unknown";
 }

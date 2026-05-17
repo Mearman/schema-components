@@ -16,6 +16,7 @@ import { hasProperty, isObject, getProperty } from "./guards.ts";
 import { dereference } from "./ref.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { emitDiagnostic } from "./diagnostics.ts";
+import { SchemaNormalisationError } from "./errors.ts";
 import type { JsonSchemaDraft } from "./version.ts";
 import {
     inferJsonSchemaDraftWithReason,
@@ -121,14 +122,26 @@ export function normaliseSchema(
             result = normaliseZod4(input);
             break;
         case "zod3":
-            result = normaliseZod3();
+            result = normaliseZod3(input);
             break;
         case "openapi":
-            if (!isObject(input)) throw new Error("Invalid OpenAPI document");
+            if (!isObject(input)) {
+                throw new SchemaNormalisationError(
+                    "Invalid OpenAPI document",
+                    input,
+                    "openapi-invalid"
+                );
+            }
             result = normaliseOpenApi(input, ref, options);
             break;
         case "jsonSchema":
-            if (!isObject(input)) throw new Error("Invalid JSON Schema");
+            if (!isObject(input)) {
+                throw new SchemaNormalisationError(
+                    "Invalid JSON Schema",
+                    input,
+                    "invalid-json-schema"
+                );
+            }
             result = normaliseJsonSchema(input, options?.diagnostics);
             break;
     }
@@ -146,16 +159,30 @@ function normaliseZod4(input: unknown): NormalisedSchema {
     // detectSchemaKind confirmed _zod is present.
     const zod = getProperty(input, "_zod");
     if (!isObject(zod)) {
-        throw new Error("Invalid Zod 4 schema: missing _zod property");
+        throw new SchemaNormalisationError(
+            "Invalid Zod 4 schema: missing _zod property",
+            input,
+            "invalid-zod"
+        );
     }
     if (!("def" in zod)) {
-        throw new Error("Invalid Zod 4 schema: missing _zod.def");
+        throw new SchemaNormalisationError(
+            "Invalid Zod 4 schema: missing _zod.def",
+            input,
+            "invalid-zod"
+        );
     }
 
     // Call toJSONSchema with the validated schema.
+    // callToJsonSchema classifies any thrown exception into a
+    // SchemaNormalisationError before it leaves this function.
     const jsonSchema: unknown = callToJsonSchema(input);
     if (!isObject(jsonSchema)) {
-        throw new Error("z.toJSONSchema() did not produce an object");
+        throw new SchemaNormalisationError(
+            "z.toJSONSchema() did not produce an object",
+            input,
+            "invalid-zod"
+        );
     }
 
     return {
@@ -216,12 +243,14 @@ function normaliseJsonSchema(
     };
 }
 
-function normaliseZod3(): never {
-    throw new Error(
+function normaliseZod3(input: unknown): never {
+    throw new SchemaNormalisationError(
         "Zod 3 schemas are not supported. schema-components requires Zod 4. " +
             "Detected: Zod 3 (has _def without _zod). " +
             "See the Zod 4 migration guide at https://zod.dev/v4/migration or " +
-            "run: pnpm add zod@^4"
+            "run: pnpm add zod@^4",
+        input,
+        "zod3-unsupported"
     );
 }
 

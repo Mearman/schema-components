@@ -78,6 +78,19 @@ describe("Normalisation errors", () => {
         expect(() => renderToHtml(zod3Schema)).toThrow(/Zod 3/);
     });
 
+    it("throws SchemaNormalisationError(kind=zod3-unsupported) for Zod 3", () => {
+        const zod3Schema = { _def: { type: "string" } };
+        try {
+            renderToHtml(zod3Schema);
+            expect.unreachable("Expected renderToHtml to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod3-unsupported");
+            }
+        }
+    });
+
     it("throws for missing OpenAPI ref", () => {
         const doc = {
             openapi: "3.1.0",

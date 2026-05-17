@@ -136,6 +136,9 @@ export function SchemaView({
         rootMeta = normalised.rootMeta;
         rootDocument = normalised.rootDocument;
     } catch (err: unknown) {
+        // normaliseSchema already throws SchemaNormalisationError with the
+        // correct kind. Only wrap genuinely unknown errors.
+        if (err instanceof SchemaNormalisationError) throw err;
         throw new SchemaNormalisationError(
             err instanceof Error ? err.message : "Failed to normalise schema",
             schemaInput,

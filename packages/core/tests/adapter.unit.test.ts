@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { detectSchemaKind, normaliseSchema } from "../src/core/adapter.ts";
+import { SchemaNormalisationError } from "../src/core/errors.ts";
 
 // ---------------------------------------------------------------------------
 // detectSchemaKind
@@ -269,5 +270,18 @@ describe("Zod 3 error message", () => {
     it("suggests the install command in the error message", () => {
         const fakeZod3 = { _def: { typeName: "ZodString" } };
         expect(() => normaliseSchema(fakeZod3)).toThrow(/pnpm add zod@\^4/);
+    });
+
+    it("throws a SchemaNormalisationError with kind zod3-unsupported", () => {
+        const fakeZod3 = { _def: { typeName: "ZodString" } };
+        try {
+            normaliseSchema(fakeZod3);
+            expect.unreachable("Expected normaliseSchema to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod3-unsupported");
+            }
+        }
     });
 });
