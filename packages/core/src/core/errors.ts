@@ -58,16 +58,26 @@ export class SchemaNormalisationError extends SchemaError {
      */
     readonly zodType: string | undefined;
 
+    /**
+     * The original underlying error, when this normalisation error wraps
+     * another exception (typically the error thrown by `z.toJSONSchema()`).
+     * Preserves the source stack trace so the root cause is not lost when
+     * the classifier translates the message.
+     */
+    readonly cause: unknown;
+
     constructor(
         message: string,
         schema: unknown,
         kind: SchemaNormalisationError["kind"],
-        zodType?: string
+        zodType?: string,
+        cause?: unknown
     ) {
         super(message, schema);
         this.name = "SchemaNormalisationError";
         this.kind = kind;
         this.zodType = zodType;
+        this.cause = cause;
     }
 }
 

@@ -136,7 +136,9 @@ function classifyZodConversionError(
                 "See the Zod 4 migration guide at https://zod.dev/v4/migration " +
                 "or run: pnpm add zod@^4",
             schema,
-            "zod3-unsupported"
+            "zod3-unsupported",
+            undefined,
+            err
         );
     }
 
@@ -147,7 +149,9 @@ function classifyZodConversionError(
                 "Remove the .transform() call, or pre-transform the input before " +
                 "passing it to the component.",
             schema,
-            "zod-transform-unsupported"
+            "zod-transform-unsupported",
+            undefined,
+            err
         );
     }
 
@@ -159,7 +163,8 @@ function classifyZodConversionError(
                     `Original message: ${message}`,
                 schema,
                 "zod-type-unrepresentable",
-                typeName
+                typeName,
+                err
             );
         }
     }
@@ -168,7 +173,9 @@ function classifyZodConversionError(
     return new SchemaNormalisationError(
         `z.toJSONSchema() failed: ${message}`,
         schema,
-        "zod-conversion-failed"
+        "zod-conversion-failed",
+        undefined,
+        err
     );
 }
 

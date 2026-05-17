@@ -44,6 +44,27 @@ describe("SchemaNormalisationError", () => {
         const err = new SchemaNormalisationError("msg", schema, "unknown");
         expect(err.schema).toBe(schema);
     });
+
+    it("preserves the optional underlying cause", () => {
+        const underlying = new Error("zod blew up");
+        const err = new SchemaNormalisationError(
+            "wrapped",
+            {},
+            "zod-conversion-failed",
+            undefined,
+            underlying
+        );
+        expect(err.cause).toBe(underlying);
+    });
+
+    it("leaves cause undefined when not supplied", () => {
+        const err = new SchemaNormalisationError(
+            "no underlying error",
+            {},
+            "invalid-zod"
+        );
+        expect(err.cause).toBeUndefined();
+    });
 });
 
 describe("SchemaRenderError", () => {
@@ -100,6 +121,14 @@ describe("Normalisation errors", () => {
             expect(err).toBeInstanceOf(SchemaNormalisationError);
             if (err instanceof SchemaNormalisationError) {
                 expect(err.kind).toBe("zod-transform-unsupported");
+                // The original Zod exception must be preserved so the stack
+                // trace and underlying message remain accessible.
+                expect(err.cause).toBeInstanceOf(Error);
+                if (err.cause instanceof Error) {
+                    expect(err.cause.message).toContain(
+                        "Transforms cannot be represented"
+                    );
+                }
             }
         }
     });
@@ -114,6 +143,12 @@ describe("Normalisation errors", () => {
             if (err instanceof SchemaNormalisationError) {
                 expect(err.kind).toBe("zod-type-unrepresentable");
                 expect(err.zodType).toBe("bigint");
+                expect(err.cause).toBeInstanceOf(Error);
+                if (err.cause instanceof Error) {
+                    expect(err.cause.message).toContain(
+                        "BigInt cannot be represented"
+                    );
+                }
             }
         }
     });
