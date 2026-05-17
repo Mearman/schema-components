@@ -24,6 +24,7 @@
  */
 
 import { isObject } from "../core/guards.ts";
+import { isPrototypePollutingKey } from "../core/uri.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -201,6 +202,11 @@ function resolveFragment(
     for (const part of parts) {
         if (!isObject(current)) return undefined;
         const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
+        // Reject prototype-polluting segments (`__proto__`, `constructor`,
+        // `prototype`). Walking into any of these reads `Object.prototype`
+        // and lets a crafted `$ref` smuggle properties from the runtime
+        // prototype chain into the inlined bundle.
+        if (isPrototypePollutingKey(decoded)) return undefined;
         current = current[decoded];
     }
 
