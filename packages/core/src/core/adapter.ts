@@ -527,7 +527,8 @@ function resolveOpenApiRef(
     }
 
     // /path/method — extract request body schema
-    const pathMatch = /^\/(.+)\/(get|post|put|patch|delete)$/.exec(ref);
+    const pathMatch =
+        /^\/(.+)\/(get|post|put|patch|delete|head|options|trace)$/.exec(ref);
     if (pathMatch?.[1] !== undefined && pathMatch[2] !== undefined) {
         const pathStr = pathMatch[1];
         const method = pathMatch[2];

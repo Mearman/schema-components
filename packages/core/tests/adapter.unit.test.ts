@@ -199,6 +199,50 @@ describe("normaliseSchema — OpenAPI", () => {
         expect(result.jsonSchema.properties).toBeTruthy();
     });
 
+    it.each(["head", "options", "trace"] as const)(
+        "resolves path/method ref for %s with a request body",
+        (method) => {
+            // Round-3's parser fix taught `listOperations` to enumerate
+            // head/options/trace, but the adapter's `/path/method` regex
+            // was missed. A schema-bearing requestBody is unusual for HEAD
+            // but valid syntactically; the regex must still route it.
+            const doc = {
+                openapi: "3.1.0",
+                info: { title: "Test", version: "1.0" },
+                paths: {
+                    "/probes": {
+                        [method]: {
+                            requestBody: {
+                                content: {
+                                    "application/json": {
+                                        schema: {
+                                            type: "object" as const,
+                                            properties: {
+                                                marker: {
+                                                    type: "string" as const,
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                            responses: { "200": { description: "OK" } },
+                        },
+                    },
+                },
+            };
+            const result = normaliseSchema(doc, `/probes/${method}`);
+            expect(result.jsonSchema.type).toBe("object");
+            const properties = result.jsonSchema.properties;
+            expect(
+                typeof properties === "object" && properties !== null
+            ).toBeTruthy();
+            if (typeof properties === "object" && properties !== null) {
+                expect("marker" in properties).toBe(true);
+            }
+        }
+    );
+
     it("resolves JSON Pointer ref into paths (OpenAPI 3.0 response schema)", () => {
         const doc = {
             openapi: "3.0.3",
