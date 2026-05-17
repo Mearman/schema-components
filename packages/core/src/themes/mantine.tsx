@@ -20,7 +20,7 @@
 
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { headlessResolver } from "../react/headless.tsx";
-import { toReactNode } from "../react/headlessRenderers.tsx";
+import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { isObject } from "../core/guards.ts";
 import type { ReactNode } from "react";
 
@@ -53,10 +53,17 @@ let MantineSelect: React.ElementType = (props: Record<string, unknown>) => (
 let MantineFieldset: React.ElementType = (props: Record<string, unknown>) => (
     <fieldset {...props} />
 );
+let MantineText: React.ElementType = (props: Record<string, unknown>) => (
+    <span {...props} />
+);
 
 /**
  * Register real Mantine components for the resolver to use.
  * Call once at app startup before rendering.
+ *
+ * `Text` is required so read-only scalars render as a styled Mantine
+ * `<Text>` element instead of a bare `<span>`, matching the visual
+ * weight of the editable variants.
  */
 export function registerMantineComponents(components: {
     TextInput: React.ElementType;
@@ -64,12 +71,14 @@ export function registerMantineComponents(components: {
     Switch: React.ElementType;
     Select: React.ElementType;
     Fieldset: React.ElementType;
+    Text: React.ElementType;
 }): void {
     MantineTextInput = components.TextInput;
     MantineNumberInput = components.NumberInput;
     MantineSwitch = components.Switch;
     MantineSelect = components.Select;
     MantineFieldset = components.Fieldset;
+    MantineText = components.Text;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,13 +88,15 @@ export function registerMantineComponents(components: {
 function renderStringInput(props: RenderProps): ReactNode {
     const strValue = typeof props.value === "string" ? props.value : "";
     const label = getLabel(props);
+    const id = inputId(props.path);
 
     if (props.readOnly) {
-        return <span>{strValue || "\u2014"}</span>;
+        return <MantineText id={id}>{strValue || "\u2014"}</MantineText>;
     }
 
     return (
         <MantineTextInput
+            id={id}
             label={label}
             value={props.writeOnly ? "" : strValue}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -97,14 +108,19 @@ function renderStringInput(props: RenderProps): ReactNode {
 
 function renderNumberInput(props: RenderProps): ReactNode {
     const label = getLabel(props);
+    const id = inputId(props.path);
 
     if (props.readOnly) {
-        if (typeof props.value !== "number") return <span>{"\u2014"}</span>;
-        return <span>{props.value.toLocaleString()}</span>;
+        if (typeof props.value !== "number")
+            return <MantineText id={id}>{"\u2014"}</MantineText>;
+        return (
+            <MantineText id={id}>{props.value.toLocaleString()}</MantineText>
+        );
     }
 
     return (
         <MantineNumberInput
+            id={id}
             label={label}
             value={
                 props.writeOnly
@@ -122,14 +138,17 @@ function renderNumberInput(props: RenderProps): ReactNode {
 
 function renderBooleanInput(props: RenderProps): ReactNode {
     const label = getLabel(props);
+    const id = inputId(props.path);
 
     if (props.readOnly) {
-        if (typeof props.value !== "boolean") return <span>{"\u2014"}</span>;
-        return <span>{props.value ? "Yes" : "No"}</span>;
+        if (typeof props.value !== "boolean")
+            return <MantineText id={id}>{"\u2014"}</MantineText>;
+        return <MantineText id={id}>{props.value ? "Yes" : "No"}</MantineText>;
     }
 
     return (
         <MantineSwitch
+            id={id}
             label={label}
             checked={props.writeOnly ? false : props.value === true}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,13 +161,15 @@ function renderBooleanInput(props: RenderProps): ReactNode {
 function renderEnumInput(props: RenderProps): ReactNode {
     const enumValue = typeof props.value === "string" ? props.value : "";
     const label = getLabel(props);
+    const id = inputId(props.path);
 
     if (props.readOnly) {
-        return <span>{enumValue || "\u2014"}</span>;
+        return <MantineText id={id}>{enumValue || "\u2014"}</MantineText>;
     }
 
     return (
         <MantineSelect
+            id={id}
             label={label}
             value={props.writeOnly ? null : enumValue || null}
             onChange={(v: unknown) => {
@@ -185,7 +206,8 @@ function renderObjectContainer(props: RenderProps): ReactNode {
                                 props.renderChild(
                                     field,
                                     childValue,
-                                    childOnChange
+                                    childOnChange,
+                                    key
                                 )
                             )}
                         </div>
