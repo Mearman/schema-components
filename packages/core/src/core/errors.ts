@@ -44,19 +44,30 @@ export class SchemaNormalisationError extends SchemaError {
     readonly kind:
         | "invalid-zod"
         | "zod3-unsupported"
+        | "zod-transform-unsupported"
+        | "zod-type-unrepresentable"
+        | "zod-conversion-failed"
         | "invalid-json-schema"
         | "openapi-missing-ref"
         | "openapi-invalid"
         | "unknown";
 
+    /**
+     * For `zod-type-unrepresentable`, the offending Zod type name
+     * (e.g. "bigint", "date", "map", "set"). `undefined` for other kinds.
+     */
+    readonly zodType: string | undefined;
+
     constructor(
         message: string,
         schema: unknown,
-        kind: SchemaNormalisationError["kind"]
+        kind: SchemaNormalisationError["kind"],
+        zodType?: string
     ) {
         super(message, schema);
         this.name = "SchemaNormalisationError";
         this.kind = kind;
+        this.zodType = zodType;
     }
 }
 

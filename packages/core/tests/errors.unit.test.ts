@@ -91,6 +91,33 @@ describe("Normalisation errors", () => {
         }
     });
 
+    it("classifies Zod transforms with kind zod-transform-unsupported", () => {
+        const schema = z.string().transform((s) => s.length);
+        try {
+            renderToHtml(schema);
+            expect.unreachable("Expected renderToHtml to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod-transform-unsupported");
+            }
+        }
+    });
+
+    it("classifies unrepresentable Zod types with kind zod-type-unrepresentable", () => {
+        const schema = z.bigint();
+        try {
+            renderToHtml(schema);
+            expect.unreachable("Expected renderToHtml to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod-type-unrepresentable");
+                expect(err.zodType).toBe("bigint");
+            }
+        }
+    });
+
     it("throws for missing OpenAPI ref", () => {
         const doc = {
             openapi: "3.1.0",

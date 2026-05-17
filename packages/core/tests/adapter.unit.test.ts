@@ -285,3 +285,74 @@ describe("Zod 3 error message", () => {
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// Nested Zod 3 inside a Zod 4 schema
+// ---------------------------------------------------------------------------
+
+describe("Nested Zod 3 inside Zod 4", () => {
+    it("classifies the cryptic conversion failure as zod3-unsupported", () => {
+        // A Zod 4 object containing a fake Zod 3 sub-schema (no _zod.def).
+        // z.toJSONSchema crashes with "Cannot read properties of undefined".
+        const fakeZod3 = { _def: { typeName: "ZodString" } };
+        const nested = z.object({
+            // Cast through unknown — we deliberately mix shapes to simulate
+            // a real-world Zod-3-inside-Zod-4 mistake. The runtime catch-wrap
+            // is the unit under test.
+            inner: fakeZod3 as unknown as z.ZodType,
+        });
+        try {
+            normaliseSchema(nested);
+            expect.unreachable("Expected normaliseSchema to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod3-unsupported");
+                expect(err.message).toMatch(/Zod 3/);
+                expect(err.message).toMatch(
+                    /https:\/\/zod\.dev\/v4\/migration/
+                );
+            }
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Unrepresentable Zod 4 features
+// ---------------------------------------------------------------------------
+
+describe("Unrepresentable Zod 4 features", () => {
+    it("classifies transforms as zod-transform-unsupported", () => {
+        const schema = z.string().transform((s) => s.length);
+        try {
+            normaliseSchema(schema);
+            expect.unreachable("Expected normaliseSchema to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod-transform-unsupported");
+            }
+        }
+    });
+
+    it.each([
+        ["bigint", () => z.bigint()],
+        ["date", () => z.date()],
+        ["map", () => z.map(z.string(), z.number())],
+        ["set", () => z.set(z.string())],
+        ["symbol", () => z.symbol()],
+        ["function", () => z.function()],
+        ["undefined", () => z.undefined()],
+    ])("classifies %s as zod-type-unrepresentable", (typeName, build) => {
+        try {
+            normaliseSchema(build());
+            expect.unreachable("Expected normaliseSchema to throw");
+        } catch (err) {
+            expect(err).toBeInstanceOf(SchemaNormalisationError);
+            if (err instanceof SchemaNormalisationError) {
+                expect(err.kind).toBe("zod-type-unrepresentable");
+                expect(err.zodType).toBe(typeName);
+            }
+        }
+    });
+});

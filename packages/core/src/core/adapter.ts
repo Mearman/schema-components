@@ -74,11 +74,102 @@ export function detectSchemaKind(input: unknown): SchemaKind {
  * but TypeScript cannot represent "has _zod.def" as the $ZodType parameter
  * that z.toJSONSchema expects. This is the library boundary equivalent of
  * object → Record<string, unknown> — the type mismatch is genuinely unavoidable.
+ *
+ * Any exception thrown by z.toJSONSchema is classified into a
+ * SchemaNormalisationError so the caller does not have to re-parse error
+ * message strings. The classification covers:
+ *
+ * - Nested Zod 3 schemas inside a Zod 4 tree (which surface as
+ *   "Cannot read properties of undefined (reading 'def')") → zod3-unsupported
+ * - Transforms ("Transforms cannot be represented") → zod-transform-unsupported
+ * - Unrepresentable types ("BigInt cannot be represented", "Date cannot be
+ *   represented", etc.) → zod-type-unrepresentable
+ * - Anything else → zod-conversion-failed
  */
 function callToJsonSchema(schema: unknown): unknown {
-    // @ts-expect-error — Library boundary: z.toJSONSchema requires $ZodType
-    // but we have unknown validated by _zod guard. See function JSDoc.
-    return z.toJSONSchema(schema);
+    try {
+        // @ts-expect-error — Library boundary: z.toJSONSchema requires $ZodType
+        // but we have unknown validated by _zod guard. See function JSDoc.
+        return z.toJSONSchema(schema);
+    } catch (err) {
+        throw classifyZodConversionError(err, schema);
+    }
+}
+
+/**
+ * Error messages emitted by Zod 4's z.toJSONSchema for unrepresentable types.
+ * Mapping is exact-prefix on the message and the corresponding Zod type name
+ * surfaced to the consumer via SchemaNormalisationError.zodType.
+ *
+ * Source: zod/src/v4/core/to-json-schema.ts ("cannot be represented" messages).
+ */
+const UNREPRESENTABLE_ZOD_TYPES: readonly (readonly [string, string])[] = [
+    ["BigInt cannot be represented", "bigint"],
+    ["Date cannot be represented", "date"],
+    ["Map cannot be represented", "map"],
+    ["Set cannot be represented", "set"],
+    ["Symbols cannot be represented", "symbol"],
+    ["Function types cannot be represented", "function"],
+    ["Undefined cannot be represented", "undefined"],
+    ["Void cannot be represented", "void"],
+    ["NaN cannot be represented", "nan"],
+];
+
+/**
+ * The cryptic error produced when z.toJSONSchema encounters a nested Zod 3
+ * schema (one without `_zod.def`). Reproduced verbatim from Node's TypeError
+ * for property access on undefined.
+ */
+const NESTED_ZOD3_MARKER = "Cannot read properties of undefined";
+
+function classifyZodConversionError(
+    err: unknown,
+    schema: unknown
+): SchemaNormalisationError {
+    const message = err instanceof Error ? err.message : String(err);
+
+    // Nested Zod 3 schema inside a Zod 4 tree.
+    if (message.includes(NESTED_ZOD3_MARKER)) {
+        return new SchemaNormalisationError(
+            "A nested Zod 3 schema was found inside a Zod 4 schema. " +
+                "schema-components requires Zod 4 throughout the schema tree. " +
+                "See the Zod 4 migration guide at https://zod.dev/v4/migration " +
+                "or run: pnpm add zod@^4",
+            schema,
+            "zod3-unsupported"
+        );
+    }
+
+    // Transforms — emitted as "Transforms cannot be represented in JSON Schema".
+    if (message.includes("Transforms cannot be represented")) {
+        return new SchemaNormalisationError(
+            "Zod transforms cannot be represented in JSON Schema. " +
+                "Remove the .transform() call, or pre-transform the input before " +
+                "passing it to the component.",
+            schema,
+            "zod-transform-unsupported"
+        );
+    }
+
+    // Unrepresentable Zod 4 types — bigint, date, map, set, symbol, function, etc.
+    for (const [prefix, typeName] of UNREPRESENTABLE_ZOD_TYPES) {
+        if (message.includes(prefix)) {
+            return new SchemaNormalisationError(
+                `Zod type ${typeName} cannot be represented in JSON Schema and is not supported by schema-components. ` +
+                    `Original message: ${message}`,
+                schema,
+                "zod-type-unrepresentable",
+                typeName
+            );
+        }
+    }
+
+    // Anything else — preserve the original message but classify it.
+    return new SchemaNormalisationError(
+        `z.toJSONSchema() failed: ${message}`,
+        schema,
+        "zod-conversion-failed"
+    );
 }
 
 // ---------------------------------------------------------------------------
