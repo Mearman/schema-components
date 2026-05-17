@@ -175,7 +175,16 @@ export function getSchema(
 // Operation extraction
 // ---------------------------------------------------------------------------
 
-const METHODS = ["get", "post", "put", "patch", "delete"] as const;
+const METHODS = [
+    "get",
+    "post",
+    "put",
+    "patch",
+    "delete",
+    "head",
+    "options",
+    "trace",
+] as const;
 
 /**
  * Resolve a path item, following a `$ref` to `components/pathItems/<Name>`

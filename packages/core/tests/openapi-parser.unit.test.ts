@@ -502,6 +502,88 @@ describe("parser edge cases", () => {
         expect(params[0]?.location).toBe("path");
     });
 
+    it("enumerates head, options, and trace operations via listOperations", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/foo": {
+                    head: {
+                        operationId: "headFoo",
+                        summary: "Probe foo",
+                        responses: { "200": { description: "OK" } },
+                    },
+                    options: {
+                        operationId: "optionsFoo",
+                        summary: "Describe foo",
+                        responses: { "200": { description: "OK" } },
+                    },
+                    trace: {
+                        operationId: "traceFoo",
+                        summary: "Trace foo",
+                        deprecated: true,
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+        const operations = listOperations(parsed);
+
+        expect(operations.length).toBe(3);
+
+        const head = operations.find((o) => o.method === "head");
+        expect(head).toBeDefined();
+        expect(head?.path).toBe("/foo");
+        expect(head?.operationId).toBe("headFoo");
+        expect(head?.summary).toBe("Probe foo");
+        expect(head?.deprecated).toBe(false);
+
+        const options = operations.find((o) => o.method === "options");
+        expect(options).toBeDefined();
+        expect(options?.operationId).toBe("optionsFoo");
+        expect(options?.summary).toBe("Describe foo");
+
+        const trace = operations.find((o) => o.method === "trace");
+        expect(trace).toBeDefined();
+        expect(trace?.operationId).toBe("traceFoo");
+        expect(trace?.deprecated).toBe(true);
+    });
+
+    it("returns responses for a HEAD operation via getResponses", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/foo": {
+                    head: {
+                        operationId: "headFoo",
+                        responses: {
+                            "200": {
+                                description: "OK",
+                                headers: {
+                                    "X-Total": { schema: { type: "integer" } },
+                                },
+                            },
+                            "404": { description: "Not found" },
+                        },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+        const responses = getResponses(parsed, "/foo", "head");
+
+        expect(responses.length).toBe(2);
+        const ok = responses.find((r) => r.statusCode === "200");
+        expect(ok?.description).toBe("OK");
+        expect(ok?.headers.has("X-Total")).toBe(true);
+        const notFound = responses.find((r) => r.statusCode === "404");
+        expect(notFound?.description).toBe("Not found");
+    });
+
     it("handles non-json content type", () => {
         const doc = {
             openapi: "3.1.0",
