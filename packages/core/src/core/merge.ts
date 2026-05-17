@@ -41,14 +41,32 @@ function getObject(
  * Structural equality for arbitrary JSON-like values. Used to decide
  * whether a duplicated keyword across `allOf` branches genuinely
  * conflicts (different values) or is benign (identical values).
+ *
+ * Cycle-safe: bundling external $refs via `structuredClone` preserves
+ * object cycles, so constraint values reaching this comparator can be
+ * cyclic. The co-recursive convention applies — when a pair of objects
+ * (or arrays) is re-encountered during the same comparison we assume
+ * equality holds and return true, letting any genuine inequality
+ * elsewhere in the structure surface naturally without recursing
+ * forever.
  */
 function deepEqual(a: unknown, b: unknown): boolean {
+    return deepEqualInner(a, b, new WeakMap());
+}
+
+function deepEqualInner(
+    a: unknown,
+    b: unknown,
+    seen: WeakMap<object, WeakSet<object>>
+): boolean {
     if (a === b) return true;
     if (typeof a !== typeof b) return false;
     if (Array.isArray(a)) {
         if (!Array.isArray(b) || a.length !== b.length) return false;
+        if (hasSeenPair(seen, a, b)) return true;
+        recordPair(seen, a, b);
         for (let i = 0; i < a.length; i++) {
-            if (!deepEqual(a[i], b[i])) return false;
+            if (!deepEqualInner(a[i], b[i], seen)) return false;
         }
         return true;
     }
@@ -56,13 +74,38 @@ function deepEqual(a: unknown, b: unknown): boolean {
         const keysA = Object.keys(a);
         const keysB = Object.keys(b);
         if (keysA.length !== keysB.length) return false;
+        if (hasSeenPair(seen, a, b)) return true;
+        recordPair(seen, a, b);
         for (const key of keysA) {
             if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
-            if (!deepEqual(a[key], b[key])) return false;
+            if (!deepEqualInner(a[key], b[key], seen)) return false;
         }
         return true;
     }
     return false;
+}
+
+function hasSeenPair(
+    seen: WeakMap<object, WeakSet<object>>,
+    a: object,
+    b: object
+): boolean {
+    return seen.get(a)?.has(b) === true;
+}
+
+function recordPair(
+    seen: WeakMap<object, WeakSet<object>>,
+    a: object,
+    b: object
+): void {
+    const existing = seen.get(a);
+    if (existing === undefined) {
+        const partners = new WeakSet<object>();
+        partners.add(b);
+        seen.set(a, partners);
+        return;
+    }
+    existing.add(b);
 }
 
 // ---------------------------------------------------------------------------

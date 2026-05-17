@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { walk } from "../src/core/walker.ts";
 import { normaliseSchema } from "../src/core/adapter.ts";
+import { mergeAllOf } from "../src/core/merge.ts";
 import type { Diagnostic, DiagnosticSink } from "../src/core/diagnostics.ts";
 import { assertDefined } from "./helpers.ts";
 
@@ -301,6 +302,52 @@ describe("allOf merge diagnostics", () => {
             );
         });
         expect(diags.filter((d) => d.code === "allof-conflict").length).toBe(0);
+    });
+
+    // -----------------------------------------------------------------
+    // Cyclic constraint values must not overflow the deepEqual stack.
+    // `bundleOpenApiDoc` inlines external refs via `structuredClone`,
+    // which preserves cycles — so cyclic constraint values can reach
+    // `mergeAllOf` legitimately and the comparator must terminate.
+    // -----------------------------------------------------------------
+    it("does not overflow on structurally equal cyclic constraint values", () => {
+        const a: Record<string, unknown> = { x: 1 };
+        a.self = a;
+        const b: Record<string, unknown> = { x: 1 };
+        b.self = b;
+
+        const diags: Diagnostic[] = [];
+        expect(() => {
+            mergeAllOf([{ examples: [a] }, { examples: [b] }], {
+                diagnostics: (d) => diags.push(d),
+            });
+        }).not.toThrow();
+
+        // Co-recursive equality: two cyclic graphs with identical
+        // observable structure are equal, so no conflict is reported.
+        expect(diags.filter((d) => d.code === "allof-conflict").length).toBe(0);
+    });
+
+    it("reports a conflict for cyclic-but-structurally-different constraint values", () => {
+        const a: Record<string, unknown> = { x: 1 };
+        a.self = a;
+        // `b` has a different observable scalar at the cycle root, so
+        // the comparator must reach the difference before re-visiting
+        // the cycle and report the values as unequal.
+        const b: Record<string, unknown> = { x: 2 };
+        b.self = b;
+
+        const diags: Diagnostic[] = [];
+        expect(() => {
+            mergeAllOf([{ examples: [a] }, { examples: [b] }], {
+                diagnostics: (d) => diags.push(d),
+            });
+        }).not.toThrow();
+
+        const conflicts = diags.filter((d) => d.code === "allof-conflict");
+        expect(conflicts.length).toBe(1);
+        const conflict = assertDefined(conflicts[0], "expected allof-conflict");
+        expect(conflict.detail?.key).toBe("examples");
     });
 });
 
