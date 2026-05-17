@@ -79,15 +79,71 @@ export function normaliseSwagger2Document(
     }
 
     // parameters → components/parameters
+    //
+    // Swagger 2.0 parameters may sit at the body/formData locations,
+    // which OpenAPI 3.x does not permit under `components.parameters`.
+    // We lift those into a synthesised `components.requestBodies` map
+    // and deep-normalise the remainder. Non-body/non-formData entries
+    // are converted (type/format → schema, collectionFormat → style/
+    // explode) so consumers see OpenAPI 3.x-shaped parameters.
     const parameters = doc.parameters;
+    const requestBodies: Record<string, unknown> = {};
     if (isObject(parameters)) {
-        components.parameters = { ...parameters };
+        const globalConsumes: unknown[] = Array.isArray(doc.consumes)
+            ? doc.consumes
+            : ["application/json"];
+        const convertedParameters: Record<string, unknown> = {};
+        for (const [name, param] of Object.entries(parameters)) {
+            if (!isObject(param)) {
+                convertedParameters[name] = param;
+                continue;
+            }
+            const resolved = resolveSwaggerParameter(param, doc);
+            const location = resolved.in;
+            if (location === "body") {
+                requestBodies[name] = buildRequestBody(
+                    resolved,
+                    globalConsumes
+                );
+            } else if (location === "formData") {
+                // A standalone formData entry under components.parameters is
+                // unusual; convert it to a single-property multipart body.
+                requestBodies[name] = buildRequestBody(
+                    buildFormDataBody(resolved, [resolved]),
+                    ["multipart/form-data"]
+                );
+            } else {
+                convertedParameters[name] = normaliseSwaggerParameter(
+                    resolved,
+                    doc
+                );
+            }
+        }
+        if (Object.keys(convertedParameters).length > 0) {
+            components.parameters = convertedParameters;
+        }
     }
 
     // responses → components/responses
+    //
+    // Swagger 2.0 responses carry a top-level `schema` field that must be
+    // wrapped in `content` keyed by produces media types for OpenAPI 3.x.
     const responses = doc.responses;
     if (isObject(responses)) {
-        components.responses = { ...responses };
+        const globalProduces: unknown[] = Array.isArray(doc.produces)
+            ? doc.produces
+            : ["application/json"];
+        const convertedResponses: Record<string, unknown> = {};
+        for (const [name, response] of Object.entries(responses)) {
+            convertedResponses[name] = isObject(response)
+                ? normaliseSwaggerSingleResponse(response, doc, globalProduces)
+                : response;
+        }
+        components.responses = convertedResponses;
+    }
+
+    if (Object.keys(requestBodies).length > 0) {
+        components.requestBodies = requestBodies;
     }
 
     // securityDefinitions → components/securitySchemes
@@ -507,37 +563,53 @@ function normaliseSwaggerResponses(
             result[code] = response;
             continue;
         }
-
-        // Resolve $ref to #/responses/Name
-        const resolved = resolveSwaggerResponse(response, doc);
-
-        const normalised: Record<string, unknown> = {};
-
-        // Copy non-schema fields
-        for (const [key, value] of Object.entries(resolved)) {
-            if (key !== "schema") {
-                normalised[key] = value;
-            }
-        }
-
-        // Wrap schema in content with produces content types
-        const schema = resolved.schema;
-        if (isObject(schema)) {
-            const content: Record<string, unknown> = {};
-            const contentTypes =
-                produces.length > 0 ? produces : ["application/json"];
-            for (const ct of contentTypes) {
-                if (typeof ct === "string") {
-                    content[ct] = { schema };
-                }
-            }
-            normalised.content = content;
-        }
-
-        result[code] = normalised;
+        result[code] = normaliseSwaggerSingleResponse(response, doc, produces);
     }
 
     return result;
+}
+
+/**
+ * Normalise a single Swagger 2.0 response object — resolves any `$ref` to
+ * `#/responses/<Name>` and wraps a top-level `schema` in an OpenAPI 3.x
+ * `content` map keyed by the supplied media types.
+ *
+ * Extracted so the same logic applies whether the response sits inside an
+ * operation’s `responses` map or under document-level `responses`
+ * (now `components.responses`).
+ */
+function normaliseSwaggerSingleResponse(
+    response: Record<string, unknown>,
+    doc: Record<string, unknown>,
+    produces: unknown[]
+): Record<string, unknown> {
+    // Resolve $ref to #/responses/Name
+    const resolved = resolveSwaggerResponse(response, doc);
+
+    const normalised: Record<string, unknown> = {};
+
+    // Copy non-schema fields
+    for (const [key, value] of Object.entries(resolved)) {
+        if (key !== "schema") {
+            normalised[key] = value;
+        }
+    }
+
+    // Wrap schema in content with produces content types
+    const schema = resolved.schema;
+    if (isObject(schema)) {
+        const content: Record<string, unknown> = {};
+        const contentTypes =
+            produces.length > 0 ? produces : ["application/json"];
+        for (const ct of contentTypes) {
+            if (typeof ct === "string") {
+                content[ct] = { schema };
+            }
+        }
+        normalised.content = content;
+    }
+
+    return normalised;
 }
 
 // ---------------------------------------------------------------------------

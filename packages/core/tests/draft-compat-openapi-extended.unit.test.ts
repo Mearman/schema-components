@@ -16,6 +16,8 @@ import { detectOpenApiVersion } from "../src/core/version.ts";
 import {
     parseOpenApiDocument,
     getSecurityRequirements,
+    getRequestBody,
+    getResponses,
 } from "../src/openapi/parser.ts";
 import type { JsonObject } from "../src/core/types.ts";
 
@@ -687,5 +689,201 @@ describe("Swagger 2.0 top-level security", () => {
         expect(getSecurityRequirements(parsed, "/open", "get")).toStrictEqual(
             []
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Swagger 2.0: components.parameters body and shared parameters
+// ---------------------------------------------------------------------------
+
+describe("Swagger 2.0 components.parameters deep normalisation", () => {
+    it("converts a shared body parameter to a synthesised requestBody", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            consumes: ["application/json"],
+            parameters: {
+                Body: {
+                    name: "body",
+                    in: "body",
+                    required: true,
+                    description: "Shared payload",
+                    schema: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string" },
+                        },
+                        required: ["name"],
+                    },
+                },
+            },
+            paths: {
+                "/items": {
+                    post: {
+                        parameters: [{ $ref: "#/parameters/Body" }],
+                        responses: { "201": { description: "Created" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+
+        // The shared body parameter must not survive under components.parameters
+        // because OpenAPI 3.x parameters cannot have `in: "body"`.
+        const components = normalised.components as Record<string, unknown>;
+        const componentParameters = components.parameters;
+        if (isObject(componentParameters)) {
+            expect("Body" in componentParameters).toBe(false);
+        }
+
+        // It should appear instead under components.requestBodies, fully
+        // converted to OpenAPI 3.x shape.
+        const requestBodies = components.requestBodies;
+        expect(isObject(requestBodies)).toBe(true);
+        if (!isObject(requestBodies)) throw new Error("requestBodies missing");
+        const body = requestBodies.Body;
+        expect(isObject(body)).toBe(true);
+        if (!isObject(body)) throw new Error("Body missing");
+        expect(body.required).toBe(true);
+        expect(body.description).toBe("Shared payload");
+        const content = body.content;
+        expect(isObject(content)).toBe(true);
+        if (!isObject(content)) throw new Error("content missing");
+        expect("application/json" in content).toBe(true);
+
+        // The operation already inlines the body, so the parser should also
+        // surface a request body for the operation.
+        const parsed = parseOpenApiDocument(normalised);
+        const opBody = getRequestBody(parsed, "/items", "post");
+        expect(opBody).toBeDefined();
+        if (opBody === undefined) throw new Error("operation body missing");
+        expect(opBody.required).toBe(true);
+        expect(opBody.contentTypes).toContain("application/json");
+        expect(isObject(opBody.schema)).toBe(true);
+    });
+
+    it("normalises a shared query parameter to OpenAPI 3.x shape", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            parameters: {
+                Limit: {
+                    name: "limit",
+                    in: "query",
+                    type: "integer",
+                    format: "int32",
+                    default: 20,
+                    minimum: 1,
+                    maximum: 100,
+                },
+            },
+            paths: {
+                "/items": {
+                    get: {
+                        parameters: [{ $ref: "#/parameters/Limit" }],
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+
+        const components = normalised.components as Record<string, unknown>;
+        const componentParameters = components.parameters as Record<
+            string,
+            unknown
+        >;
+        const limit = componentParameters.Limit as Record<string, unknown>;
+
+        // `type`/`format` should be wrapped into `schema`, not left at the
+        // parameter root.
+        expect("type" in limit).toBe(false);
+        expect("format" in limit).toBe(false);
+        const schema = limit.schema as Record<string, unknown>;
+        expect(schema.type).toBe("integer");
+        expect(schema.format).toBe("int32");
+        expect(schema.default).toBe(20);
+        expect(schema.minimum).toBe(1);
+        expect(schema.maximum).toBe(100);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Swagger 2.0: components.responses deep normalisation
+// ---------------------------------------------------------------------------
+
+describe("Swagger 2.0 components.responses deep normalisation", () => {
+    it("wraps a shared response schema in content", () => {
+        const doc: JsonObject = {
+            swagger: "2.0",
+            info: { title: "API", version: "1.0" },
+            produces: ["application/json"],
+            responses: {
+                NotFound: {
+                    description: "Not found",
+                    schema: {
+                        type: "object",
+                        properties: {
+                            message: { type: "string" },
+                        },
+                    },
+                },
+            },
+            paths: {
+                "/items/{id}": {
+                    get: {
+                        parameters: [
+                            {
+                                name: "id",
+                                in: "path",
+                                required: true,
+                                type: "string",
+                            },
+                        ],
+                        responses: {
+                            "200": { description: "OK" },
+                            "404": { $ref: "#/responses/NotFound" },
+                        },
+                    },
+                },
+            },
+            definitions: {},
+        };
+
+        const version = assertDefined(detectOpenApiVersion(doc), "version");
+        const normalised = normaliseOpenApiSchemas(doc, version);
+
+        const components = normalised.components as Record<string, unknown>;
+        const componentResponses = components.responses as Record<
+            string,
+            unknown
+        >;
+        const notFound = componentResponses.NotFound as Record<string, unknown>;
+
+        // `schema` should be wrapped in `content` per OpenAPI 3.x.
+        expect("schema" in notFound).toBe(false);
+        expect(notFound.description).toBe("Not found");
+        const content = notFound.content as Record<string, unknown>;
+        expect(isObject(content)).toBe(true);
+        expect("application/json" in content).toBe(true);
+        const media = content["application/json"] as Record<string, unknown>;
+        expect(isObject(media.schema)).toBe(true);
+
+        // The parser should surface the response for the operation.
+        const parsed = parseOpenApiDocument(normalised);
+        const responses = getResponses(parsed, "/items/{id}", "get");
+        const fourOhFour = assertDefined(
+            responses.find((r) => r.statusCode === "404"),
+            "404 response"
+        );
+        expect(fourOhFour.description).toBe("Not found");
+        expect(fourOhFour.contentTypes).toContain("application/json");
+        expect(isObject(fourOhFour.schema)).toBe(true);
     });
 });
