@@ -103,10 +103,6 @@ function isLikelyOtherSchemaLib(input: unknown): boolean {
 // Zod toJSONSchema wrapper
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Zod toJSONSchema wrapper
-// ---------------------------------------------------------------------------
-
 /**
  * Wraps z.toJSONSchema() for a runtime-validated Zod schema.
  *
@@ -114,6 +110,28 @@ function isLikelyOtherSchemaLib(input: unknown): boolean {
  * but TypeScript cannot represent "has _zod.def" as the $ZodType parameter
  * that z.toJSONSchema expects. This is the library boundary equivalent of
  * object → Record<string, unknown> — the type mismatch is genuinely unavoidable.
+ *
+ * # Options
+ *
+ * `z.toJSONSchema` is invoked with an explicit options object rather than
+ * Zod's defaults so the conversion contract is pinned and stable:
+ *
+ * - `target: "draft-2020-12"` — matches the walker's draft target.
+ * - `unrepresentable: "throw"` — keeps the unrepresentable-type rules in
+ *   the classifier table firing instead of silently emitting `{}`.
+ * - `cycles: "ref"` — converts cyclic graphs into $ref pairs rather than
+ *   throwing. Cycles in user schemas surface through the walker's $ref
+ *   resolution rather than the adapter.
+ * - `io: "output"` — convert the OUTPUT side of every transform / pipe /
+ *   codec. The input side is invisible to the converted schema, even
+ *   though `safeParse` on the same Zod schema consumes the input shape.
+ *   For transforms this divergence is fatal and the call throws via
+ *   `Transforms cannot be represented`; for `z.codec(...)` the call
+ *   succeeds but only the output side is rendered. Consumers receive a
+ *   `zod-codec-output-only` diagnostic in the codec case so the
+ *   asymmetry is visible — see `screenPreConversion`.
+ *
+ * # Error classification
  *
  * Any exception thrown by z.toJSONSchema is classified into a
  * SchemaNormalisationError so the caller does not have to re-parse error
@@ -154,10 +172,115 @@ function callToJsonSchema(schema: unknown): unknown {
     try {
         // @ts-expect-error — Library boundary: z.toJSONSchema requires $ZodType
         // but we have unknown validated by _zod guard. See function JSDoc.
-        return z.toJSONSchema(schema);
+        return z.toJSONSchema(schema, {
+            target: "draft-2020-12",
+            unrepresentable: "throw",
+            cycles: "ref",
+            io: "output",
+        });
     } catch (err) {
         throw classifyZodConversionError(err, schema);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Pre-conversion screening
+// ---------------------------------------------------------------------------
+
+/**
+ * Zod `def.type` tags that have no useful JSON Schema representation but
+ * do NOT throw when passed through `z.toJSONSchema`. Each tag is handled
+ * by Zod with a processor that silently rewrites the output:
+ *
+ * - `promise` — `promiseProcessor` unwraps the inner type, dropping the
+ *   `Promise<...>` wrapper without any error. (`json-schema-processors.ts`,
+ *   the body of `promiseProcessor` calls `process(def.innerType, ...)`.)
+ *   schema-components considers this a silent shape mismatch — the input
+ *   tree advertised a `Promise<T>` and the consumer would render `T`
+ *   without ever being told the wrapping was lost.
+ *
+ * Detection happens BEFORE the call to `z.toJSONSchema` so the response is
+ * an immediate `SchemaNormalisationError` with `kind:
+ * "zod-type-unrepresentable"`, matching the philosophy of
+ * `UnrepresentableZodType` in `typeInference.ts` — these types are
+ * rejected, not coerced.
+ */
+const PRECONVERSION_UNREPRESENTABLE_TAGS: ReadonlyMap<string, string> = new Map(
+    [
+        [
+            "promise",
+            "z.promise(T) cannot be represented in JSON Schema. Zod silently " +
+                "unwraps it to the inner type, which would leave the rendered " +
+                "schema out of sync with the source. Resolve the promise at the " +
+                "data boundary before passing the value to the component.",
+        ],
+    ]
+);
+
+/**
+ * Pre-conversion screening. Inspects the root `_zod.def.type` tag for
+ * known-problematic types that either silently misrender (handled via
+ * {@link PRECONVERSION_UNREPRESENTABLE_TAGS}, raising a
+ * `SchemaNormalisationError`) or render correctly but with consumer-visible
+ * caveats (codecs, raising a `zod-codec-output-only` diagnostic).
+ *
+ * Design choice: `z.never()` is NOT classified here. The Zod processor for
+ * `never` already produces `{ not: {} }`, which the walker understands via
+ * its `walkBooleanSchema(false)` branch (`walker.ts` boolean-schema
+ * handling). Throwing a `zod-type-unrepresentable` for `never` would break
+ * the legitimate "this field cannot hold any value" use case that the
+ * walker already supports. Documented for posterity so future passes do
+ * not "fix" it.
+ */
+function screenPreConversion(
+    input: unknown,
+    def: Record<string, unknown>,
+    diagnostics: DiagnosticsOptions | undefined
+): void {
+    const tag = def.type;
+    if (typeof tag !== "string") return;
+
+    const unrepresentableMessage = PRECONVERSION_UNREPRESENTABLE_TAGS.get(tag);
+    if (unrepresentableMessage !== undefined) {
+        throw new SchemaNormalisationError(
+            unrepresentableMessage,
+            input,
+            "zod-type-unrepresentable",
+            tag
+        );
+    }
+
+    // Codec detection. Zod implements codecs as a specialised pipe — the
+    // `def.type` is `"pipe"` and the schema's traits set contains
+    // `"$ZodCodec"` (see `to-json-schema.ts` `isTransforming`). The
+    // conversion succeeds with output-side semantics; the diagnostic
+    // makes the asymmetry visible to consumers.
+    if (tag === "pipe" && isCodecSchema(input)) {
+        emitDiagnostic(diagnostics, {
+            code: "zod-codec-output-only",
+            message:
+                "z.codec(...) was passed at the schema root. Only the OUTPUT " +
+                "side is rendered by schema-components; the input side may " +
+                "differ. If you intend to render the input side instead, " +
+                "restructure the codec so the input type is the rendered shape.",
+            pointer: "",
+            detail: { zodType: "codec" },
+        });
+    }
+}
+
+/**
+ * True when `input` is a `z.codec(...)` instance. Detection looks for the
+ * `$ZodCodec` entry in `_zod.traits` — the same marker `z.toJSONSchema`'s
+ * own `isTransforming` helper uses to distinguish codecs from generic
+ * pipes.
+ */
+function isCodecSchema(input: unknown): boolean {
+    const zod = getProperty(input, "_zod");
+    if (!isObject(zod)) return false;
+    const traits = zod.traits;
+    if (traits instanceof Set) return traits.has("$ZodCodec");
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -458,11 +581,11 @@ const CLASSIFIER_RULES: readonly ClassifierRule[] = [
             const path = trailing.split(/\s+/)[0] ?? "";
             return new SchemaNormalisationError(
                 `Zod detected a cycle in the schema graph at ${path}. ` +
-                    `Cycles can only be converted when z.toJSONSchema is called with ` +
-                    `{ cycles: "ref" } — schema-components calls it without options ` +
-                    `for cache safety, so the cycle surfaces as an error. ` +
-                    `Restructure the schema to break the cycle, or use a $ref-based ` +
-                    `definition. Original message: ${full}`,
+                    `schema-components calls z.toJSONSchema with { cycles: "ref" } ` +
+                    `so legitimate cyclic graphs convert to $ref pairs; this error ` +
+                    `surfaces only when Zod is unable to break the cycle even under ` +
+                    `the "ref" policy. Restructure the schema to break the cycle, ` +
+                    `or use an explicit $ref-based definition. Original message: ${full}`,
                 schema,
                 "zod-cycle-detected",
                 undefined,
@@ -688,7 +811,7 @@ export function normaliseSchema(
 
     switch (kind) {
         case "zod4":
-            result = normaliseZod4(input);
+            result = normaliseZod4(input, options?.diagnostics);
             break;
         case "zod3":
             result = normaliseZod3(input);
@@ -738,7 +861,10 @@ export function normaliseSchema(
     return result;
 }
 
-function normaliseZod4(input: unknown): NormalisedSchema {
+function normaliseZod4(
+    input: unknown,
+    diagnostics?: DiagnosticsOptions
+): NormalisedSchema {
     // z.toJSONSchema() converts Zod → JSON Schema losslessly.
     // detectSchemaKind confirmed _zod is present, but the marker may be a
     // half-constructed sentinel (e.g. a test double of the form
@@ -769,6 +895,14 @@ function normaliseZod4(input: unknown): NormalisedSchema {
             "unsupported-schema"
         );
     }
+
+    // Detect unrepresentable or warning-only Zod types BEFORE handing the
+    // schema to `z.toJSONSchema`. Some types (e.g. `z.promise(T)`) are
+    // silently unwrapped by Zod's processors — the output would lose the
+    // wrapping without any error fired, leaving consumers with a
+    // shape-mismatched schema. Pre-conversion classification surfaces the
+    // mismatch loudly. See `screenPreConversion` JSDoc.
+    screenPreConversion(input, def, diagnostics);
 
     // Call toJSONSchema with the validated schema.
     // callToJsonSchema classifies any thrown exception into a

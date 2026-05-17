@@ -50,7 +50,8 @@ export type DiagnosticCode =
     | "required-non-string"
     | "pattern-invalid"
     | "duplicate-body-parameter"
-    | "prototype-polluting-property";
+    | "prototype-polluting-property"
+    | "zod-codec-output-only";
 
 // ---------------------------------------------------------------------------
 // Diagnostic structure
