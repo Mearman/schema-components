@@ -772,6 +772,29 @@ function normaliseDynamicRefNodeWithContext(
 // ---------------------------------------------------------------------------
 
 /**
+ * Pick the per-node transform that normalises a single Schema Object to
+ * canonical Draft 2020-12 form for the supplied draft. Exposed so the
+ * OpenAPI 3.1 path can honour a non-default `jsonSchemaDialect`
+ * declaration by routing each Schema Object through the matching
+ * transform without re-implementing the dispatch.
+ */
+export function selectDraftTransform(
+    draft: JsonSchemaDraft
+): NodeTransformWithContext {
+    switch (draft) {
+        case "draft-04":
+            return normaliseDraft04NodeWithContext;
+        case "draft-06":
+        case "draft-07":
+            return normaliseDraft06Or07NodeWithContext;
+        case "draft-2019-09":
+            return normaliseDraft201909NodeWithContext;
+        case "draft-2020-12":
+            return normaliseDynamicRefNodeWithContext;
+    }
+}
+
+/**
  * Normalise a JSON Schema to canonical Draft 2020-12 form.
  * Deep-clones the input — the original is never mutated.
  *
@@ -786,38 +809,11 @@ export function normaliseJsonSchema(
     diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
     const ctx: NodeContext = { diagnostics, pointer: "" };
-    let normalised: Record<string, unknown>;
-    switch (draft) {
-        case "draft-04":
-            normalised = deepNormaliseWithContext(
-                schema,
-                normaliseDraft04NodeWithContext,
-                ctx
-            );
-            break;
-        case "draft-2019-09":
-            normalised = deepNormaliseWithContext(
-                schema,
-                normaliseDraft201909NodeWithContext,
-                ctx
-            );
-            break;
-        case "draft-2020-12":
-            normalised = deepNormaliseWithContext(
-                schema,
-                normaliseDynamicRefNodeWithContext,
-                ctx
-            );
-            break;
-        case "draft-06":
-        case "draft-07":
-            normalised = deepNormaliseWithContext(
-                schema,
-                normaliseDraft06Or07NodeWithContext,
-                ctx
-            );
-            break;
-    }
+    const normalised = deepNormaliseWithContext(
+        schema,
+        selectDraftTransform(draft),
+        ctx
+    );
 
     // Resolve relative `$ref`s against enclosing `$id` base URIs. Runs
     // after the draft-specific pass so Draft 04 `id`→`$id` rewrites are
@@ -1115,22 +1111,12 @@ export function normaliseOpenApiSchemas(
     // 3.0 producing identical walker input for the same logical
     // discriminated union — and 3.1 does not have boolean `nullable`,
     // so the rest of the 3.0 combined transform must not run here.
+    // Resolve the declared dialect once so the schema-level callback can
+    // route through the matching per-node transform. The default
+    // (`absent`/`unknown`/known 2020-12) stays on the 2020-12 pipeline;
+    // a known older draft hands off to its per-node transform too.
+    let dialectDraft: JsonSchemaDraft | undefined;
     if (isOpenApi31(version)) {
-        // OpenAPI 3.1 added the top-level `jsonSchemaDialect` keyword
-        // that may declare a non-default JSON Schema dialect for the
-        // document's Schema Objects. Most real-world 3.1 documents omit
-        // it and inherit the spec-defined Draft 2020-12 default — the
-        // walker assumes 2020-12 unconditionally. When the keyword
-        // declares an unknown URI, surface that via a diagnostic so
-        // consumers can audit whether the assumption holds.
-        //
-        // Routing to a different per-node transform based on a known
-        // dialect is intentionally not implemented here: the OpenAPI
-        // 3.1 spec scopes `jsonSchemaDialect` to be the default for the
-        // whole document, and the published meta-schema for 3.1 already
-        // requires Draft 2020-12 semantics. Cases where authors set the
-        // keyword to an older draft URI are pathological — flag them
-        // and continue with the 2020-12 pipeline.
         const dialect = readJsonSchemaDialect(doc);
         if (dialect.kind === "unknown") {
             emitDiagnostic(diagnostics, {
@@ -1139,6 +1125,8 @@ export function normaliseOpenApiSchemas(
                 pointer: "/jsonSchemaDialect",
                 detail: { uri: dialect.uri },
             });
+        } else if (dialect.kind === "known") {
+            dialectDraft = dialect.draft;
         }
     }
 
@@ -1153,10 +1141,25 @@ export function normaliseOpenApiSchemas(
     // inline operation/parameter/response/header/requestBody schemas),
     // leaving OpenAPI-level Reference Objects untouched — those use the
     // OpenAPI ref semantics handled by `openapi/resolve.ts`.
-    return deepNormaliseOpenApiDoc(hoisted, (schema) =>
-        resolveRelativeRefs(
-            deepNormalise(schema, normaliseOpenApi30Discriminator),
+    //
+    // When the document declared a non-default `jsonSchemaDialect` that
+    // names a supported older draft, also run that draft's per-node
+    // transform first so Draft 04 boolean exclusive-min/max, Draft
+    // 04/06/07 tuple-form `items`, Draft 04–07 `dependencies` splitting
+    // and Draft 2019-09 `$recursiveRef` rewrites happen before the
+    // discriminator transform.
+    return deepNormaliseOpenApiDoc(hoisted, (schema) => {
+        let intermediate = schema;
+        if (dialectDraft !== undefined && dialectDraft !== "draft-2020-12") {
+            intermediate = deepNormaliseWithContext(
+                intermediate,
+                selectDraftTransform(dialectDraft),
+                { diagnostics, pointer: "" }
+            );
+        }
+        return resolveRelativeRefs(
+            deepNormalise(intermediate, normaliseOpenApi30Discriminator),
             diagnostics
-        )
-    );
+        );
+    });
 }
