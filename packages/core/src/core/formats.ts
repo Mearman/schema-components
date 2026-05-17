@@ -45,6 +45,27 @@ export type FormatValidator = RegExp | ((value: string) => boolean);
 /**
  * Recognised JSON Schema formats with their validation patterns.
  * Unknown formats emit an `unknown-format` diagnostic and skip derivation.
+ *
+ * Draft origin reference — formats first standardised by each draft:
+ *
+ * - Draft 04: `date-time`, `email`, `hostname`, `ipv4`, `ipv6`, `uri`
+ * - Draft 06: `uri-reference`, `uri-template`, `json-pointer`
+ * - Draft 07: `date`, `time`, `idn-email`, `idn-hostname`, `iri`,
+ *   `iri-reference`, `regex`, `relative-json-pointer`
+ * - Draft 2019-09: `duration`, `uuid`
+ * - Vocabulary extensions / non-standard: `binary` (OpenAPI), and the
+ *   Zod-emitted formats `cuid`, `cuid2`, `nanoid`, `cidrv4`, `cidrv6`,
+ *   `base64`, `base64url`, `e164`, `emoji`, `ulid`, `xid`, `ksuid`,
+ *   `lowercase`, `uppercase`, `jwt`, `json-string`
+ *
+ * Policy: schema-components accepts ALL formats in ALL drafts. We do
+ * not reject (e.g.) `uri-reference` on a Draft 04 schema or `uuid` on
+ * a Draft 06 schema, even though the spec did not standardise those
+ * names until a later draft. This matches the behaviour of every
+ * mainstream JSON Schema validator (Ajv, jsonschema, etc.) and avoids
+ * spurious failures on legitimate real-world schemas that pre-date or
+ * post-date the dialect they declare. Authors who want strict draft-
+ * locked behaviour should validate with a dedicated meta-schema tool.
  */
 /**
  * Email format pattern, exported as a named const so callers that need a
