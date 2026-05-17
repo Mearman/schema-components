@@ -27,98 +27,92 @@ const paymentSchema = z.object({
     sortCode: z.string().meta({ description: "Sort code" }),
 });
 
-const meta: Meta = {
+const meta = {
     title: "Objects & Layout/Visibility & Ordering",
+    component: SchemaComponent,
     tags: ["editable", "readonly", "zod"],
-};
+} satisfies Meta<typeof SchemaComponent>;
 export default meta;
+type Story = StoryObj<typeof meta>;
 
 // ---------------------------------------------------------------------------
 // Visibility
 // ---------------------------------------------------------------------------
 
-export const AllFieldsVisible: StoryObj = {
+export const AllFieldsVisible: Story = {
     name: "All fields visible (default)",
-    render: () => (
-        <SchemaComponent schema={userSchema} value={value} readOnly />
-    ),
+    args: {
+        schema: userSchema,
+        value: value,
+        readOnly: true,
+    },
 };
 
-export const HideRole: StoryObj = {
+export const HideRole: Story = {
     name: "Hide role field",
-    render: () => (
-        <SchemaComponent
-            schema={userSchema}
-            value={value}
-            readOnly
-            fields={{ role: { visible: false } }}
-        />
-    ),
+    args: {
+        schema: userSchema,
+        value: value,
+        readOnly: true,
+        fields: { role: { visible: false } },
+    },
 };
 
-export const HideMultipleFields: StoryObj = {
+export const HideMultipleFields: Story = {
     name: "Hide multiple fields",
-    render: () => (
-        <SchemaComponent
-            schema={userSchema}
-            value={value}
-            readOnly
-            fields={{ email: { visible: false }, active: { visible: false } }}
-        />
-    ),
+    args: {
+        schema: userSchema,
+        value: value,
+        readOnly: true,
+        fields: { email: { visible: false }, active: { visible: false } },
+    },
 };
 
-export const ConditionalPayment: StoryObj = {
+export const ConditionalPayment: Story = {
     name: "Conditional payment fields",
-    render: () => (
-        <SchemaComponent
-            schema={paymentSchema}
-            value={{
-                method: "card",
-                cardNumber: "4111 **** **** 1234",
-                expiry: "12/28",
-                accountNumber: "",
-                sortCode: "",
-            }}
-            readOnly
-            fields={{
-                accountNumber: { visible: false },
-                sortCode: { visible: false },
-            }}
-        />
-    ),
+    args: {
+        schema: paymentSchema,
+        value: {
+            method: "card",
+            cardNumber: "4111 **** **** 1234",
+            expiry: "12/28",
+            accountNumber: "",
+            sortCode: "",
+        },
+        readOnly: true,
+        fields: {
+            accountNumber: { visible: false },
+            sortCode: { visible: false },
+        },
+    },
 };
 
-export const ConditionalPaymentBank: StoryObj = {
+export const ConditionalPaymentBank: Story = {
     name: "Conditional payment fields (bank)",
-    render: () => (
-        <SchemaComponent
-            schema={paymentSchema}
-            value={{
-                method: "bank",
-                cardNumber: "",
-                expiry: "",
-                accountNumber: "12345678",
-                sortCode: "00-00-00",
-            }}
-            readOnly
-            fields={{
-                cardNumber: { visible: false },
-                expiry: { visible: false },
-            }}
-        />
-    ),
+    args: {
+        schema: paymentSchema,
+        value: {
+            method: "bank",
+            cardNumber: "",
+            expiry: "",
+            accountNumber: "12345678",
+            sortCode: "00-00-00",
+        },
+        readOnly: true,
+        fields: {
+            cardNumber: { visible: false },
+            expiry: { visible: false },
+        },
+    },
 };
 
-export const HideInEditable: StoryObj = {
+export const HideInEditable: Story = {
     name: "Hidden field in editable form",
-    render: () => (
-        <SchemaComponent
-            schema={userSchema}
-            value={value}
-            fields={{ role: { visible: false } }}
-        />
-    ),
+    args: {
+        schema: userSchema,
+        value: value,
+        fields: { role: { visible: false } },
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -139,60 +133,56 @@ const contactValue = {
     address: "17 Bond Street, London",
 };
 
-export const DefaultOrder: StoryObj = {
+export const DefaultOrder: Story = {
     name: "Default order (insertion)",
-    render: () => (
-        <SchemaComponent schema={contactSchema} value={contactValue} readOnly />
-    ),
+    args: {
+        schema: contactSchema,
+        value: contactValue,
+        readOnly: true,
+    },
 };
 
-export const Reordered: StoryObj = {
+export const Reordered: Story = {
     name: "Reordered fields",
-    render: () => (
-        <SchemaComponent
-            schema={contactSchema}
-            value={contactValue}
-            readOnly
-            fields={{
-                phone: { order: 1 },
-                email: { order: 2 },
-                address: { order: 3 },
-                name: { order: 4 },
-            }}
-        />
-    ),
+    args: {
+        schema: contactSchema,
+        value: contactValue,
+        readOnly: true,
+        fields: {
+            phone: { order: 1 },
+            email: { order: 2 },
+            address: { order: 3 },
+            name: { order: 4 },
+        },
+    },
 };
 
-export const PartiallyOrdered: StoryObj = {
+export const PartiallyOrdered: Story = {
     name: "Partially ordered (email first, rest default)",
-    render: () => (
-        <SchemaComponent
-            schema={contactSchema}
-            value={contactValue}
-            readOnly
-            fields={{
-                email: { order: 1 },
-            }}
-        />
-    ),
+    args: {
+        schema: contactSchema,
+        value: contactValue,
+        readOnly: true,
+        fields: {
+            email: { order: 1 },
+        },
+    },
 };
 
 // ---------------------------------------------------------------------------
 // Combined: visibility + ordering
 // ---------------------------------------------------------------------------
 
-export const ReorderedWithHidden: StoryObj = {
+export const ReorderedWithHidden: Story = {
     name: "Reordered with hidden field",
-    render: () => (
-        <SchemaComponent
-            schema={contactSchema}
-            value={contactValue}
-            readOnly
-            fields={{
-                address: { order: 1 },
-                name: { order: 2 },
-                phone: { visible: false },
-            }}
-        />
-    ),
+    args: {
+        schema: contactSchema,
+        value: contactValue,
+        readOnly: true,
+        fields: {
+            address: { order: 1 },
+            name: { order: 2 },
+            phone: { visible: false },
+        },
+    },
 };
