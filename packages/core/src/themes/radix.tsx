@@ -85,8 +85,12 @@ let RadixTextField: React.ElementType = (props: Record<string, unknown>) => (
 );
 
 /**
- * Register real Radix Themes components for the resolver to use.
- * Call once at app startup before rendering.
+ * Inject real Radix Themes element types into the resolver. Call once
+ * at application startup before rendering any schema-driven component
+ * so that {@link radixResolver}'s renderers delegate to the supplied
+ * Radix primitives.
+ *
+ * @group Themes
  */
 export function registerRadixComponents(components: {
     Box: React.ElementType;
@@ -324,4 +328,37 @@ function buildResolver(): ComponentResolver {
     return resolver;
 }
 
+/**
+ * Component resolver mapping schema field types to Radix Themes
+ * primitives — `Box`, `Checkbox`, `Flex`, `Select.*`, `Text`,
+ * `TextField`.
+ *
+ * Pass to `SchemaProvider` to render schema-driven UI through Radix
+ * Themes. Requires `@radix-ui/themes` installed in the consuming
+ * project and a one-time call to {@link registerRadixComponents} to
+ * inject the actual Radix element types.
+ *
+ * @group Themes
+ * @example
+ * ```tsx
+ * import * as Radix from "@radix-ui/themes";
+ * import { radixResolver, registerRadixComponents } from "schema-components/themes/radix";
+ *
+ * registerRadixComponents({
+ *   Box: Radix.Box,
+ *   Checkbox: Radix.Checkbox,
+ *   Flex: Radix.Flex,
+ *   SelectRoot: Radix.Select.Root,
+ *   SelectTrigger: Radix.Select.Trigger,
+ *   SelectContent: Radix.Select.Content,
+ *   SelectItem: Radix.Select.Item,
+ *   Text: Radix.Text,
+ *   TextField: Radix.TextField.Root,
+ * });
+ *
+ * <SchemaProvider resolver={radixResolver}>
+ *   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+ * </SchemaProvider>
+ * ```
+ */
 export const radixResolver: ComponentResolver = buildResolver();

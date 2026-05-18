@@ -324,4 +324,25 @@ function buildResolver(): ComponentResolver {
     return resolver;
 }
 
+/**
+ * Component resolver mapping schema field types to shadcn/ui components.
+ *
+ * Pass to `SchemaProvider` to render every `<SchemaComponent>` /
+ * `<SchemaView>` in the subtree with shadcn/ui inputs, selects, and
+ * cards. Built on top of the headless resolver so any field types the
+ * theme does not override fall back to plain HTML.
+ *
+ * Requires `shadcn/ui` components installed in the consuming project.
+ *
+ * @group Themes
+ * @example
+ * ```tsx
+ * import { SchemaProvider } from "schema-components/react/SchemaComponent";
+ * import { shadcnResolver } from "schema-components/themes/shadcn";
+ *
+ * <SchemaProvider resolver={shadcnResolver}>
+ *   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+ * </SchemaProvider>
+ * ```
+ */
 export const shadcnResolver: ComponentResolver = buildResolver();

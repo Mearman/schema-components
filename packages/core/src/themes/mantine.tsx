@@ -59,12 +59,16 @@ let MantineText: React.ElementType = (props: Record<string, unknown>) => (
 );
 
 /**
- * Register real Mantine components for the resolver to use.
- * Call once at app startup before rendering.
+ * Inject real Mantine element types into the resolver. Call once at
+ * application startup before rendering any schema-driven component so
+ * that {@link mantineResolver}'s renderers delegate to the supplied
+ * Mantine primitives.
  *
  * `Text` is required so read-only scalars render as a styled Mantine
  * `<Text>` element instead of a bare `<span>`, matching the visual
  * weight of the editable variants.
+ *
+ * @group Themes
  */
 export function registerMantineComponents(components: {
     TextInput: React.ElementType;
@@ -249,4 +253,26 @@ function buildResolver(): ComponentResolver {
     return resolver;
 }
 
+/**
+ * Component resolver mapping schema field types to Mantine primitives —
+ * `TextInput`, `NumberInput`, `Switch`, `Select`, `Fieldset`, `Text`.
+ *
+ * Pass to `SchemaProvider` to render schema-driven UI through Mantine.
+ * Requires `@mantine/core` installed in the consuming project and a
+ * one-time call to {@link registerMantineComponents} to inject the
+ * actual Mantine element types.
+ *
+ * @group Themes
+ * @example
+ * ```tsx
+ * import { TextInput, NumberInput, Switch, Select, Fieldset, Text } from "@mantine/core";
+ * import { mantineResolver, registerMantineComponents } from "schema-components/themes/mantine";
+ *
+ * registerMantineComponents({ TextInput, NumberInput, Switch, Select, Fieldset, Text });
+ *
+ * <SchemaProvider resolver={mantineResolver}>
+ *   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+ * </SchemaProvider>
+ * ```
+ */
 export const mantineResolver: ComponentResolver = buildResolver();

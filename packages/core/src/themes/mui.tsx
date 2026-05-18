@@ -339,7 +339,12 @@ let MuiFormControlLabel: React.ElementType = (
 };
 
 /**
- * Register real MUI components. Call once at app startup.
+ * Inject real MUI element types into the resolver. Call once at
+ * application startup before rendering any schema-driven component so
+ * that {@link muiResolver}'s renderers delegate to the supplied MUI
+ * primitives.
+ *
+ * @group Themes
  */
 export function registerMuiComponents(components: {
     TextField: React.ElementType;
@@ -385,4 +390,26 @@ function buildResolver(): ComponentResolver {
     return resolver;
 }
 
+/**
+ * Component resolver mapping schema field types to MUI (Material UI)
+ * primitives — `TextField`, `Checkbox`, `Typography`, etc.
+ *
+ * Pass to `SchemaProvider` to render schema-driven UI through MUI.
+ * Requires `@mui/material` installed in the consuming project and a
+ * one-time call to {@link registerMuiComponents} to inject the actual
+ * MUI element types.
+ *
+ * @group Themes
+ * @example
+ * ```tsx
+ * import { TextField, Checkbox, Typography, Box, MenuItem, FormControlLabel } from "@mui/material";
+ * import { muiResolver, registerMuiComponents } from "schema-components/themes/mui";
+ *
+ * registerMuiComponents({ TextField, Checkbox, Typography, Box, MenuItem, FormControlLabel });
+ *
+ * <SchemaProvider resolver={muiResolver}>
+ *   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+ * </SchemaProvider>
+ * ```
+ */
 export const muiResolver: ComponentResolver = buildResolver();

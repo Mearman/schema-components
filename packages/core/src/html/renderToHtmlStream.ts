@@ -26,6 +26,13 @@ import { streamField } from "./streamRenderers.ts";
 // Options
 // ---------------------------------------------------------------------------
 
+/**
+ * Options accepted by the streaming HTML renderers
+ * ({@link renderToHtmlChunks}, {@link renderToHtmlStream},
+ * {@link renderToHtmlReadable}).
+ *
+ * @group HTML
+ */
 export interface StreamRenderOptions {
     /** The data value to render. */
     value?: unknown;
@@ -50,8 +57,20 @@ export interface StreamRenderOptions {
 // ---------------------------------------------------------------------------
 
 /**
- * Render a schema as an iterable of HTML string chunks.
- * Each chunk is a self-contained HTML fragment.
+ * Render a schema as a synchronous iterable of HTML string chunks. Each
+ * chunk is a self-contained HTML fragment, ready to write to a stream
+ * or concatenate into a single string. Use when the host can flush
+ * output incrementally but does not need cooperative scheduling.
+ *
+ * @group HTML
+ * @example
+ * ```tsx
+ * import { renderToHtmlChunks } from "schema-components/html/renderToHtmlStream";
+ *
+ * for (const chunk of renderToHtmlChunks(userSchema, { value: user })) {
+ *   response.write(chunk);
+ * }
+ * ```
  */
 export function renderToHtmlChunks(
     schema: unknown,
@@ -69,9 +88,11 @@ export function renderToHtmlChunks(
 // ---------------------------------------------------------------------------
 
 /**
- * Render a schema as an async iterable of HTML string chunks.
- * Yields `undefined` between chunks to allow the event loop to process
- * other tasks (cooperative scheduling).
+ * Render a schema as an async iterable of HTML string chunks. Yields
+ * back to the event loop between chunks via a microtask so other tasks
+ * (queued I/O, timers) can run between fragments.
+ *
+ * @group HTML
  */
 export async function* renderToHtmlStream(
     schema: unknown,
@@ -98,8 +119,19 @@ export async function* renderToHtmlStream(
 // ---------------------------------------------------------------------------
 
 /**
- * Render a schema as a web `ReadableStream<string>`.
- * Uses the async rendering pipeline internally.
+ * Render a schema as a web `ReadableStream<string>` so it can be piped
+ * into a `Response` body. Pulls chunks lazily from the synchronous
+ * chunk iterator under the hood.
+ *
+ * @group HTML
+ * @example
+ * ```tsx
+ * import { renderToHtmlReadable } from "schema-components/html/renderToHtmlStream";
+ *
+ * return new Response(renderToHtmlReadable(userSchema, { value: user }), {
+ *   headers: { "content-type": "text/html" },
+ * });
+ * ```
  */
 export function renderToHtmlReadable(
     schema: unknown,

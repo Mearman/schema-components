@@ -31,10 +31,13 @@ import { joinPath } from "./a11y.ts";
 import { h, serialize } from "./html.ts";
 
 /**
- * Build the recursion-cap sentinel element. The label is interpolated
- * via `h()` + `serialize` so any HTML in `meta.description` (which is
+ * Build the recursion-cap sentinel element used when the renderer
+ * encounters circular schema references. The label is interpolated via
+ * `h()` + `serialize` so any HTML in `meta.description` (which is
  * schema-author content but can equally be sourced from user-supplied
  * JSON Schema input) is escaped — never interpolated into raw markup.
+ *
+ * @group HTML
  */
 export function recursionSentinelHtml(label: string): string {
     return serialize(
@@ -53,6 +56,11 @@ export function recursionSentinelHtml(label: string): string {
 // HtmlRenderProps, HtmlRenderFunction, HtmlResolver are in core/renderer.ts.
 // Import directly: import type { HtmlRenderProps } from "schema-components/core/renderer";
 
+/**
+ * Options accepted by {@link renderToHtml}.
+ *
+ * @group HTML
+ */
 export interface RenderToHtmlOptions {
     /** The data value to render. */
     value?: unknown;
@@ -77,11 +85,23 @@ export interface RenderToHtmlOptions {
 // ---------------------------------------------------------------------------
 
 /**
- * Render a schema to an HTML string.
+ * Render a schema to a semantic HTML string.
  *
+ * Framework-agnostic alternative to the React rendering pipeline.
+ * Shares the same normalise → walk → render pipeline, but emits
+ * escaped HTML with `sc-` prefixed classes rather than ReactNodes.
+ * Pass `resolver` to plug in a custom HTML renderer.
+ *
+ * @group HTML
  * @param schema - Zod schema, JSON Schema, or OpenAPI document
  * @param options - Value, overrides, and resolver options
  * @returns Semantic HTML string with `sc-` prefixed classes
+ * @example
+ * ```tsx
+ * import { renderToHtml } from "schema-components/html/renderToHtml";
+ *
+ * const html = renderToHtml(userSchema, { value: user, readOnly: true });
+ * ```
  */
 export function renderToHtml(
     schema: unknown,
