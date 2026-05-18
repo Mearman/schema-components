@@ -1,3 +1,23 @@
+## [1.25.0](https://github.com/Mearman/schema-components/compare/v1.24.0...v1.25.0) (2026-05-18)
+
+### Features
+
+* **core:** thread io through normaliseSchema and normaliseZod4 ([6b366ec](https://github.com/Mearman/schema-components/commit/6b366ec86ffbffb6ad3500d55a727d6c55309b03))
+* **react:** add io prop and retype value/onChange on SchemaComponent and SchemaView ([c64c887](https://github.com/Mearman/schema-components/commit/c64c887addebd7433aeed3a8cd06bd1fc751edee))
+
+### Refactoring
+
+* **core:** export isCodecSchema from adapter and reuse in SchemaComponent ([86f612c](https://github.com/Mearman/schema-components/commit/86f612cc612f7050d237a8fdbe419b89bf7b8fb2))
+
+### Tests
+
+* **react:** pin io prop rendering and validation contract ([51624f4](https://github.com/Mearman/schema-components/commit/51624f46315e66a7954f1a30e5b7a49404987e91))
+* **react:** type io-direction codec fixture as unknown for compile-time access ([15040fa](https://github.com/Mearman/schema-components/commit/15040fa4d143482597188c0d5b74140ad8a35970))
+
+### Chores
+
+* **core:** drop round-7 prefix from io-direction test ([ad1ea64](https://github.com/Mearman/schema-components/commit/ad1ea644c7a20e5494d9dda011f88dc1bedc799b))
+
 ## [1.24.0](https://github.com/Mearman/schema-components/compare/v1.23.0...v1.24.0) (2026-05-18)
 
 ### Features
