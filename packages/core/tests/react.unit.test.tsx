@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  *
- * Round-7 fix-cycle regression tests for SchemaComponent / SchemaView /
+ * fix-cycle regression tests for SchemaComponent / SchemaView /
  * headlessRenderers.
  *
  * Each `describe` pins one of the regressions documented in the fix

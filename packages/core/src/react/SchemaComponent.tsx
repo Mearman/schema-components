@@ -278,7 +278,7 @@ export interface SchemaComponentProps<
      *
      * TODO(round7-integration): promote to
      * `NarrowAtPath<InferSchemaValue<T, Ref, "output">, P>` once the
-     * round-7 test fixtures (headless union, discriminated union,
+     * test fixtures (headless union, discriminated union,
      * schemaview equivalence, type-inference issue fixes) are
      * migrated to either narrow their fixtures or accept the loose
      * boundary. The retype cascades through call sites that

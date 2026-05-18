@@ -1,7 +1,7 @@
 /**
- * Round-7 streaming-HTML fix coverage.
+ * streaming-HTML fix coverage.
  *
- * Each suite below targets a specific defect addressed in the round-7
+ * Each suite below targets a specific defect addressed in this
  * fix cycle. Tests assert behaviour at the renderer boundary so a
  * regression surfaces as a failing user-visible expectation rather
  * than a private implementation detail.

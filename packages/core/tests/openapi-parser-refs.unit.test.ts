@@ -1,6 +1,6 @@
 /**
- * Round-7 OpenAPI parser fixes — covers the regressions identified in the
- * round-7 OpenAPI compatibility review:
+ * OpenAPI parser fixes — covers the regressions identified in the
+ * OpenAPI compatibility review:
  *
  * - Webhook with `$ref` Path Item resolves operations.
  * - OAS 3.1 Reference Object sibling `description`/`summary` overrides the

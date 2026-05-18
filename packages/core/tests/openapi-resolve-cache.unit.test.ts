@@ -1,7 +1,7 @@
 /**
- * Round-7 regression tests for `openapi/resolve.ts`.
+ * regression tests for `openapi/resolve.ts`.
  *
- * Covers the four fixes landed in the round-7 cycle:
+ * Covers the four fixes landed in the cycle:
  *
  *  1. ApiWebhooks-style fan-out — multiple `getParsed(doc, sink)` calls
  *     against the same document must emit each doc-level diagnostic at

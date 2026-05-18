@@ -1,7 +1,7 @@
 /**
- * Round-7 Swagger 2.0 → OpenAPI 3.x normalisation fixes.
+ * Swagger 2.0 → OpenAPI 3.x normalisation fixes.
  *
- * Captures the behaviours introduced by the round-7 fix cycle:
+ * Captures the behaviours introduced by the fix cycle:
  *
  * 1. `collectionFormat: "tsv"` is dropped (no invalid `tabDelimited`
  *    style synthesised) and emits `swagger-collection-format-dropped`.
@@ -42,7 +42,7 @@ function collect(doc: Record<string, unknown>): {
     return { result, diagnostics };
 }
 
-describe("Swagger 2.0 round-7 collectionFormat:tsv handling", () => {
+describe("Swagger 2.0 collectionFormat:tsv handling", () => {
     it("drops tsv on a parameter and emits a diagnostic with location: parameter", () => {
         const doc: Record<string, unknown> = {
             swagger: "2.0",
@@ -139,7 +139,7 @@ describe("Swagger 2.0 round-7 collectionFormat:tsv handling", () => {
     });
 });
 
-describe("Swagger 2.0 round-7 collectionFormat:csv per-location mapping", () => {
+describe("Swagger 2.0 collectionFormat:csv per-location mapping", () => {
     it("maps csv on a query parameter to style: form", () => {
         const doc: Record<string, unknown> = {
             swagger: "2.0",
@@ -244,7 +244,7 @@ describe("Swagger 2.0 round-7 collectionFormat:csv per-location mapping", () => 
     });
 });
 
-describe("Swagger 2.0 round-7 explicit empty consumes preservation", () => {
+describe("Swagger 2.0 explicit empty consumes preservation", () => {
     it("preserves an empty content map and emits the explicitly-cleared diagnostic", () => {
         const doc: Record<string, unknown> = {
             swagger: "2.0",
@@ -322,7 +322,7 @@ describe("Swagger 2.0 round-7 explicit empty consumes preservation", () => {
     });
 });
 
-describe("Swagger 2.0 round-7 oauth2 missing flow", () => {
+describe("Swagger 2.0 oauth2 missing flow", () => {
     it("emits swagger-malformed-oauth-flow when oauth2.flow is absent", () => {
         const doc: Record<string, unknown> = {
             swagger: "2.0",
@@ -364,7 +364,7 @@ describe("Swagger 2.0 round-7 oauth2 missing flow", () => {
     });
 });
 
-describe("Swagger 2.0 round-7 cyclic parameter ref via shared resolveRefChain", () => {
+describe("Swagger 2.0 cyclic parameter ref via shared resolveRefChain", () => {
     it("still emits swagger-cyclic-parameter-ref on a self-cycle", () => {
         const doc: Record<string, unknown> = {
             swagger: "2.0",

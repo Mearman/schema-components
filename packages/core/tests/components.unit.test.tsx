@@ -1,5 +1,5 @@
 /**
- * Round 7 — runtime tests for `openapi/components.tsx` and the helpers
+ * — runtime tests for `openapi/components.tsx` and the helpers
  * its components depend on.
  *
  * Covers:
@@ -25,7 +25,7 @@ import type { Diagnostic } from "../src/core/diagnostics.ts";
 // detectOpenApiVersion — malformed strings return undefined
 // ---------------------------------------------------------------------------
 
-describe("detectOpenApiVersion (round 7)", () => {
+describe("detectOpenApiVersion", () => {
     it("returns undefined for a malformed `openapi` string", () => {
         const result = detectOpenApiVersion({ openapi: "v3" });
         expect(result).toBeUndefined();
@@ -60,7 +60,7 @@ describe("detectOpenApiVersion (round 7)", () => {
 // <ApiParameters> — parameter-missing-schema diagnostic
 // ---------------------------------------------------------------------------
 
-describe("ApiParameters (round 7)", () => {
+describe("ApiParameters", () => {
     it("emits parameter-missing-schema and skips render when schema is absent", () => {
         const diagnostics: Diagnostic[] = [];
         const doc = {
@@ -115,7 +115,7 @@ describe("ApiParameters (round 7)", () => {
 // Root meta extraction — `examples` and `default` are surfaced
 // ---------------------------------------------------------------------------
 
-describe("response body root metadata (round 7)", () => {
+describe("response body root metadata", () => {
     it("extractRootMetaFromJson surfaces examples and default", () => {
         // The components.tsx renderer used to call a private
         // extractRootMetaFromSchema that dropped these keys. Replacing

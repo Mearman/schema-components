@@ -1,8 +1,8 @@
 /**
- * Round 7 (Agent D) — walker behaviour for boolean sub-schemas and
+ * (Agent D) — walker behaviour for boolean sub-schemas and
  * non-primitive `enum`/`const` values.
  *
- * Covers the spec-correctness fixes from JSON Schema review round 7:
+ * Covers the spec-correctness fixes from JSON Schema review :
  *
  *   1. `items: true` / `items: false` route through `walkSubSchema`
  *      rather than `getObject` (Draft 06+).

@@ -1,5 +1,5 @@
 /**
- * Round-7 issues — nested Zod construct screening, Standard Schema
+ * issues — nested Zod construct screening, Standard Schema
  * vendor identification, and root meta extraction completeness.
  *
  * Background
@@ -10,7 +10,7 @@
  * rewritten to their output side by Zod's JSON Schema processors. When
  * those constructs live nested inside a Zod tree, the silent rewrite
  * leaves consumers with a schema whose shape no longer matches the
- * source. Round 7 widens the screen to walk the entire tree.
+ * source. widens the screen to walk the entire tree.
  *
  * The Zod 3 detector also missed `z.lazy(() => zod3Schema)` because the
  * recursion descended through `_zod.def` only; lazy schemas hide the
@@ -50,7 +50,7 @@ function collectDiagnostics(): CollectedDiagnostics {
     };
 }
 
-describe("screenPreConversion — nested z.promise (round 7 issue 1)", () => {
+describe("screenPreConversion — nested z.promise ( issue 1)", () => {
     it("emits zod-promise-nested-unwrap for a nested promise and rejects", () => {
         const schema = z.object({ p: z.promise(z.string()) });
         const { diagnostics, sink } = collectDiagnostics();
@@ -103,7 +103,7 @@ describe("screenPreConversion — nested z.promise (round 7 issue 1)", () => {
     });
 });
 
-describe("screenPreConversion — nested z.codec (round 7 issue 2)", () => {
+describe("screenPreConversion — nested z.codec ( issue 2)", () => {
     it("emits zod-codec-nested-output-only for a codec inside an object", () => {
         const codec = z.codec(z.string(), z.number(), {
             decode: (s) => Number.parseFloat(s),
@@ -129,7 +129,7 @@ describe("screenPreConversion — nested z.codec (round 7 issue 2)", () => {
     });
 
     it("keeps emitting zod-codec-output-only for a root-level codec", () => {
-        // Round 7 widening must not regress the existing root-only
+        // widening must not regress the existing root-only
         // diagnostic — it stays distinct from the nested code so
         // consumers can branch on root vs nested.
         const codec = z.codec(z.string(), z.number(), {
@@ -155,7 +155,7 @@ describe("screenPreConversion — nested z.codec (round 7 issue 2)", () => {
     });
 });
 
-describe("containsNestedZod3 — z.lazy(() => zod3Schema) (round 7 issue 3)", () => {
+describe("containsNestedZod3 — z.lazy(() => zod3Schema) ( issue 3)", () => {
     it("classifies a Zod 3 schema returned by a lazy getter as zod3-unsupported", () => {
         // A Zod-3-style schema returned by the getter must be detected.
         // Previously the recursion stopped at the function value and the
@@ -208,7 +208,7 @@ describe("containsNestedZod3 — z.lazy(() => zod3Schema) (round 7 issue 3)", ()
     });
 });
 
-describe("screenPreConversion — z.preprocess (round 7 issue 4)", () => {
+describe("screenPreConversion — z.preprocess ( issue 4)", () => {
     it("emits zod-preprocess-output-only for a root-level preprocess", () => {
         const schema = z.preprocess((v) => String(v), z.string());
         const { diagnostics, sink } = collectDiagnostics();
@@ -251,7 +251,7 @@ describe("screenPreConversion — z.preprocess (round 7 issue 4)", () => {
     });
 });
 
-describe("isLikelyOtherSchemaLib — Standard Schema vendor (round 7 issue 5/7)", () => {
+describe("isLikelyOtherSchemaLib — Standard Schema vendor ( issue 5/7)", () => {
     it("detects a pure Standard Schema input and includes the vendor in the error", () => {
         // A valibot-like Standard Schema implementation: no `.parse`,
         // no `.safeParse`, only the `~standard` namespace.
@@ -301,9 +301,9 @@ describe("isLikelyOtherSchemaLib — Standard Schema vendor (round 7 issue 5/7)"
     });
 });
 
-describe("extractRootMetaFromJson — examples / default (round 7 issue 8)", () => {
+describe("extractRootMetaFromJson — examples / default ( issue 8)", () => {
     // The core extraction is exercised in adapter-root-meta.unit.test.ts;
-    // this test re-pins the contract from the round-7 perspective so a
+    // this test re-pins the contract from the perspective so a
     // regression that drops examples/default surfaces here too.
     it("surfaces both examples and default in a single normalisation", () => {
         const jsonSchema = {

@@ -170,7 +170,7 @@ function extractStandardSchemaVendor(input: unknown): string | undefined {
  *   "Cannot read properties of undefined".
  * - Transforms → zod-transform-unsupported. This also catches `z.codec(…)`
  *   because Zod implements codecs as a pipe + transform internally, so
- *   they trip the same processor when round-tripping is forced. (Plain
+ * they trip the same processor when round-tripping is forced. (Plain
  *   `z.toJSONSchema(codec)` itself does NOT throw because Zod picks one
  *   side of the codec; the static rejection in `typeInference.ts` is the
  *   compile-time guard.)

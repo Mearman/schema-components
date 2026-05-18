@@ -1,5 +1,5 @@
 /**
- * Round 7 — compile-time type tests for `openapi/components.tsx`.
+ * — compile-time type tests for `openapi/components.tsx`.
  *
  * Pure compile-time checks. If this file typechecks, the tests pass.
  * Run: `pnpm --filter schema-components _typecheck`.

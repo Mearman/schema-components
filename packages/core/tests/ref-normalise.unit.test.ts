@@ -1,8 +1,8 @@
 /**
- * Round-7 fixes — JSON Schema review findings spanning ref.ts,
+ * fixes — JSON Schema review findings spanning ref.ts,
  * normalise.ts, and merge.ts.
  *
- * Each block covers one finding from the round-7 brief:
+ * Each block covers one finding from the brief:
  *   1. `$ref` to a boolean sub-schema resolves correctly.
  *   2. Draft 2019-09 `dependencies` emits a legacy-split diagnostic.
  *   3. `findAnchor` respects `$id`-scoped resource boundaries.
