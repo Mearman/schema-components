@@ -274,6 +274,25 @@ export function listOperations(
 
     if (!isObject(paths)) return operations;
 
+    // OAS requires `operationId` to be unique across the entire document.
+    // Track the first sighting of each id so subsequent occurrences emit
+    // a `duplicate-operation-id` diagnostic with both locations. The
+    // duplicates still surface in the operation list — the diagnostic
+    // surfaces the violation without changing the returned shape, so
+    // consumers continue to render every declared operation.
+    //
+    // TODO(round7-integration): extend cross-checking to include
+    // `webhooks` (also `listWebhooks`) once the integrator wires the
+    // shared visited-set through both listings. The current call sites
+    // invoke `listOperations` and `listWebhooks` separately, so
+    // collisions BETWEEN the two are missed.
+    //
+    // TODO(round7-integration): emit `path-webhook-name-collision` for
+    // documents that declare the same identifier under both `paths.<id>`
+    // and `webhooks.<id>`. The lookup-side check belongs in
+    // `openapi/resolve.ts:lookupPathItemNode` (Agent B's territory).
+    const seenIds = new Map<string, string>();
+
     for (const [path, rawPathItem] of Object.entries(paths)) {
         const pathItem = resolvePathItem(parsed, rawPathItem, diagnostics);
         if (pathItem === undefined) continue;
@@ -282,10 +301,29 @@ export function listOperations(
             const operation = getProperty(pathItem, method);
             if (!isObject(operation)) continue;
 
+            const operationId = getString(operation, "operationId");
+            if (operationId !== undefined) {
+                const firstSeenAt = seenIds.get(operationId);
+                if (firstSeenAt !== undefined) {
+                    emitDiagnostic(diagnostics, {
+                        code: "duplicate-operation-id",
+                        message: `operationId "${operationId}" is declared more than once (first at ${firstSeenAt}, again at ${method.toUpperCase()} ${path})`,
+                        pointer: `/paths/${jsonPointerEscape(path)}/${method}/operationId`,
+                        detail: {
+                            operationId,
+                            firstSeenAt,
+                            duplicateAt: `${method.toUpperCase()} ${path}`,
+                        },
+                    });
+                } else {
+                    seenIds.set(operationId, `${method.toUpperCase()} ${path}`);
+                }
+            }
+
             operations.push({
                 path,
                 method,
-                operationId: getString(operation, "operationId"),
+                operationId,
                 summary: getString(operation, "summary"),
                 description: getString(operation, "description"),
                 deprecated: getProperty(operation, "deprecated") === true,
