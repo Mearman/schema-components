@@ -10,6 +10,7 @@
     "excludePrivate": true,
     "excludeProtected": false,
     "excludeInternal": true,
+    "excludeExternals": true,
     "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
     "plugin": ["typedoc-plugin-missing-exports"],
     "highlightLanguages": [
