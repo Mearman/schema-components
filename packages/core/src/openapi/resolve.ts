@@ -22,7 +22,10 @@ import { getProperty, isObject } from "../core/guards.ts";
 import { MAX_PATH_ITEM_REF_HOPS } from "../core/limits.ts";
 import { isPrototypePollutingKey } from "../core/uri.ts";
 import { detectOpenApiVersion } from "../core/version.ts";
-import { normaliseOpenApiSchemas } from "../core/normalise.ts";
+import {
+    documentContainsKeyword,
+    normaliseOpenApiSchemas,
+} from "../core/normalise.ts";
 import type { DiagnosticsOptions } from "../core/diagnostics.ts";
 import { emitDiagnostic } from "../core/diagnostics.ts";
 
@@ -75,10 +78,12 @@ export function getParsed(
     // share the same Schema Object that includes the same `xml` keyword
     // and have no renderer surface for it. Emit a single diagnostic per
     // document so consumers can audit silent feature drops without spam.
+    // `documentContainsKeyword` is the canonical cycle-safe scanner
+    // (visited-set protected) shared with the normalisation pipeline.
     if (
         diagnostics !== undefined &&
         version?.major === 3 &&
-        docHasXmlAnywhere(doc)
+        documentContainsKeyword(doc, "xml")
     ) {
         emitDiagnostic(diagnostics, {
             code: "dropped-swagger-feature",
@@ -235,30 +240,6 @@ function detectUnsupportedCrossSchemaRefs(
         }
     };
     walk(doc, "");
-}
-
-/**
- * Recursively check whether any node in an OpenAPI document carries an
- * `xml` annotation. Walks both objects and arrays so the check works
- * for schemas in `components/schemas`, inline `paths`/`webhooks`
- * schemas, request bodies, responses, headers, and parameters. Used
- * by `getParsed` to surface the dropped-feature diagnostic for OAS
- * 3.0/3.1 — the Swagger 2.0 path has its own detection in
- * `swagger2.ts`.
- */
-function docHasXmlAnywhere(node: unknown): boolean {
-    if (Array.isArray(node)) {
-        for (const item of node) {
-            if (docHasXmlAnywhere(item)) return true;
-        }
-        return false;
-    }
-    if (!isObject(node)) return false;
-    if ("xml" in node && isObject(node.xml)) return true;
-    for (const value of Object.values(node)) {
-        if (docHasXmlAnywhere(value)) return true;
-    }
-    return false;
 }
 
 // ---------------------------------------------------------------------------
