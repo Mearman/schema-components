@@ -35,6 +35,14 @@
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "typedoc.json", "../../README.md"],
             "outputs": ["typedoc-static/**"]
         },
+        "_api-urls": {
+            "dependsOn": ["_typedoc"],
+            "inputs": [
+                "scripts/build-api-urls.mjs",
+                "typedoc-static/project.json"
+            ],
+            "outputs": ["../docs/src/generated/api-urls.ts"]
+        },
         "_readme": {
             "dependsOn": ["_typedoc"],
             "inputs": [
@@ -70,12 +78,15 @@
         "typedoc": {
             "dependsOn": ["_typedoc"]
         },
+        "api-urls": {
+            "dependsOn": ["_api-urls"]
+        },
         "readme": {
             "dependsOn": ["_readme"]
         },
         "test-storybook": {},
         "build-storybook": {
-            "dependsOn": ["^build"],
+            "dependsOn": ["^build", "^_api-urls"],
             "outputs": ["storybook-static/**"]
         }
     }
