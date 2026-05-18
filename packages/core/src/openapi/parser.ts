@@ -916,7 +916,8 @@ export function getXmlInfo(schema: JsonObject): XmlInfo | undefined {
 export function listCallbacks(
     parsed: OpenApiDocument,
     path: string,
-    method: string
+    method: string,
+    diagnostics?: DiagnosticsOptions
 ): CallbackInfo[] {
     const pathItem = lookupPathItem(parsed, path);
     const operation = getProperty(pathItem, method);
@@ -930,29 +931,33 @@ export function listCallbacks(
         if (!isObject(callbackItem)) continue;
 
         const operations: OperationInfo[] = [];
-        for (const [cbPath, cbPathItem] of Object.entries(callbackItem)) {
-            if (!isObject(cbPathItem)) continue;
+        for (const [cbPath, rawCbPathItem] of Object.entries(callbackItem)) {
+            // Each callback expression maps to a Path Item Object that
+            // may itself be a Reference Object (OAS 3.1 permits Path Item
+            // `$ref` to `#/components/pathItems/<Name>`). Resolve the
+            // chain via the multi-hop resolver so nested refs do not
+            // silently render zero operations. Mirrors the fix applied
+            // to `listOperations` / `listWebhooks`.
+            const cbPathItem = resolvePathItem(
+                parsed,
+                rawCbPathItem,
+                diagnostics
+            );
+            if (cbPathItem === undefined) continue;
 
             // Callback path items may contain nested methods
             for (const cbMethod of HTTP_METHODS) {
                 const cbOp = getProperty(cbPathItem, cbMethod);
                 if (!isObject(cbOp)) continue;
 
-                // Callbacks may use $ref to reuse paths
-                const ref = getString(cbOp, "$ref");
-                const resolved =
-                    ref !== undefined
-                        ? (resolveRefInDoc(parsed.doc, ref) ?? cbOp)
-                        : cbOp;
-
                 operations.push({
                     path: `${name}/${cbPath}`,
                     method: cbMethod,
-                    operationId: getString(resolved, "operationId"),
-                    summary: getString(resolved, "summary"),
-                    description: getString(resolved, "description"),
-                    deprecated: getProperty(resolved, "deprecated") === true,
-                    operation: isObject(resolved) ? resolved : cbOp,
+                    operationId: getString(cbOp, "operationId"),
+                    summary: getString(cbOp, "summary"),
+                    description: getString(cbOp, "description"),
+                    deprecated: getProperty(cbOp, "deprecated") === true,
+                    operation: cbOp,
                 });
             }
         }
