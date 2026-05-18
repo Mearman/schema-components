@@ -14,6 +14,7 @@
 import type { JsonObject } from "../core/types.ts";
 import { getProperty, isObject } from "../core/guards.ts";
 import { MAX_PATH_ITEM_REF_HOPS } from "../core/limits.ts";
+import { HTTP_METHODS } from "../core/openapiConstants.ts";
 import { isPrototypePollutingKey } from "../core/uri.ts";
 
 // Type guards imported from core/guards.ts
@@ -177,17 +178,6 @@ export function getSchema(
 // Operation extraction
 // ---------------------------------------------------------------------------
 
-const METHODS = [
-    "get",
-    "post",
-    "put",
-    "patch",
-    "delete",
-    "head",
-    "options",
-    "trace",
-] as const;
-
 /**
  * Resolve a path item, following a `$ref` to `components/pathItems/<Name>`
  * (OpenAPI 3.1) if present. Returns `undefined` when the value is not a
@@ -246,7 +236,7 @@ export function listOperations(parsed: OpenApiDocument): OperationInfo[] {
         const pathItem = resolvePathItem(parsed, rawPathItem);
         if (pathItem === undefined) continue;
 
-        for (const method of METHODS) {
+        for (const method of HTTP_METHODS) {
             const operation = getProperty(pathItem, method);
             if (!isObject(operation)) continue;
 
@@ -654,7 +644,7 @@ export function listWebhooks(parsed: OpenApiDocument): WebhookInfo[] {
         if (!isObject(hookItem)) continue;
 
         const operations: OperationInfo[] = [];
-        for (const method of METHODS) {
+        for (const method of HTTP_METHODS) {
             const operation = getProperty(hookItem, method);
             if (!isObject(operation)) continue;
 
@@ -730,7 +720,7 @@ export function listCallbacks(
             if (!isObject(cbPathItem)) continue;
 
             // Callback path items may contain nested methods
-            for (const cbMethod of METHODS) {
+            for (const cbMethod of HTTP_METHODS) {
                 const cbOp = getProperty(cbPathItem, cbMethod);
                 if (!isObject(cbOp)) continue;
 
