@@ -17,6 +17,12 @@ const config: StorybookConfig = {
         autodocs: "tag",
     },
     staticDirs: [{ from: "../../core/dist", to: "/" }],
+    viteFinal: (viteConfig) => {
+        if (process.env.STORYBOOK_BASE_PATH) {
+            viteConfig.base = process.env.STORYBOOK_BASE_PATH;
+        }
+        return viteConfig;
+    },
 };
 
 export default config;
