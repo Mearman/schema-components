@@ -56,8 +56,8 @@ import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
 /**
  * Props accepted by {@link SchemaView}.
  *
- * Mirrors {@link SchemaComponentProps} for the read-only / RSC path —
- * no `onChange`, no `validate`, and the theme is supplied via the
+ * Mirrors `SchemaComponentProps` for the read-only / RSC path — no
+ * `onChange`, no `validate`, and the theme is supplied via the
  * `resolver` prop because Server Components cannot read React context.
  *
  * @group Components
@@ -130,10 +130,10 @@ export interface SchemaViewProps<
  *
  * Uses no context, state, or effects — the only hook called is
  * `useId()`, which is RSC-safe. Always renders read-only; pair with
- * {@link SchemaComponent} (which requires `"use client"`) when an
- * editable form is required. Because Server Components cannot read
- * React context, the theme adapter is passed via the `resolver` prop
- * rather than {@link SchemaProvider}.
+ * `SchemaComponent` (which requires `"use client"`) when an editable
+ * form is required. Because Server Components cannot read React
+ * context, the theme adapter is passed via the `resolver` prop rather
+ * than `SchemaProvider`.
  *
  * @group Components
  * @example

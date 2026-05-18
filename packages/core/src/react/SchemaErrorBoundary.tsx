@@ -53,7 +53,7 @@ interface ErrorBoundaryState {
 
 /**
  * React error boundary that catches rendering errors from
- * {@link SchemaComponent}, theme adapters, and any descendant.
+ * `SchemaComponent`, theme adapters, and any descendant.
  *
  * Provides a `reset` callback that clears the error state, allowing
  * the children to re-render (e.g. after fixing a bad schema prop).

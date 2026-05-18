@@ -13,6 +13,11 @@ import type { SchemaMeta } from "../core/types.ts";
 // Props
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link ApiLinks}.
+ *
+ * @group OpenAPI
+ */
 export interface ApiLinksProps {
     /** Link definitions for a response. */
     links: LinkInfo[];
@@ -24,6 +29,13 @@ export interface ApiLinksProps {
 // Component
 // ---------------------------------------------------------------------------
 
+/**
+ * Render OpenAPI link definitions attached to a response. Displays each
+ * link's name, target operation (`operationId` or `operationRef`),
+ * description, and parameter mappings. Read-only.
+ *
+ * @group OpenAPI
+ */
 export function ApiLinks({ links }: ApiLinksProps): ReactNode {
     if (links.length === 0) return null;
 

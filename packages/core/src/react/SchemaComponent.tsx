@@ -92,10 +92,9 @@ const WidgetsContext = createContext<WidgetMap | undefined>(undefined);
  *
  * Wrap an application (or a region of it) with `<SchemaProvider>` so a
  * single theme — typically one of the bundled adapters
- * ({@link shadcnResolver}, {@link muiResolver}, {@link mantineResolver},
- * {@link radixResolver}) or a custom one — drives every schema render.
- * Without a provider, schema-components fall back to the headless HTML
- * renderer.
+ * (`shadcnResolver`, `muiResolver`, `mantineResolver`, `radixResolver`)
+ * or a custom one — drives every schema render. Without a provider,
+ * schema-components fall back to the headless HTML renderer.
  *
  * @group Components
  * @example

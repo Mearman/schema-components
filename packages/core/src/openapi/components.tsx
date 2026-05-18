@@ -503,6 +503,11 @@ function SchemaXmlFootnote({ xml }: { xml: XmlInfo | undefined }): ReactNode {
 // <ApiOperation>
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link ApiOperation}.
+ *
+ * @group OpenAPI
+ */
 export interface ApiOperationProps<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
@@ -538,6 +543,25 @@ export interface ApiOperationProps<
     widgets?: WidgetMap;
 }
 
+/**
+ * Render a single OpenAPI operation — header, parameters, request body,
+ * responses, callbacks, security, and external docs — picked out of a
+ * supplied document by `path` and `method`.
+ *
+ * When `schema` is typed `as const`, `requestBodyFields` autocomplete
+ * resolves from the operation's request body schema. The component
+ * works with OpenAPI 2.0, 3.0, and 3.1 inputs (Swagger 2.0 documents
+ * are normalised to 3.1 internally) and also resolves OpenAPI 3.1
+ * webhooks under the same code path.
+ *
+ * @group OpenAPI
+ * @example
+ * ```tsx
+ * import { ApiOperation } from "schema-components/openapi/components";
+ *
+ * <ApiOperation schema={petStore} path="/pets" method="post" />
+ * ```
+ */
 export function ApiOperation<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
@@ -664,6 +688,11 @@ export function ApiOperation<
 // <ApiParameters>
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link ApiParameters}.
+ *
+ * @group OpenAPI
+ */
 export interface ApiParametersProps<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
@@ -680,6 +709,14 @@ export interface ApiParametersProps<
     widgets?: WidgetMap;
 }
 
+/**
+ * Render the `parameters` of a single OpenAPI operation — path, query,
+ * header, and cookie parameters — picked out of `schema` by `path` and
+ * `method`. When the document is typed `as const`, the `overrides` prop
+ * autocompletes on each parameter name.
+ *
+ * @group OpenAPI
+ */
 export function ApiParameters<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
@@ -724,6 +761,11 @@ export function ApiParameters<
 // <ApiRequestBody>
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link ApiRequestBody}.
+ *
+ * @group OpenAPI
+ */
 export interface ApiRequestBodyProps<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
@@ -756,6 +798,17 @@ export interface ApiRequestBodyProps<
     widgets?: WidgetMap;
 }
 
+/**
+ * Render the request body of a single OpenAPI operation, picked out of
+ * `schema` by `path` and `method`. Returns `null` when the operation
+ * declares no request body or no resolvable schema.
+ *
+ * When `schema` is typed `as const`, `fields` autocomplete resolves
+ * from the request body schema; pass `contentType` to narrow inference
+ * to a specific media type.
+ *
+ * @group OpenAPI
+ */
 export function ApiRequestBody<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
@@ -814,6 +867,11 @@ export function ApiRequestBody<
 // <ApiResponse>
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link ApiResponse}.
+ *
+ * @group OpenAPI
+ */
 export interface ApiResponseProps<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
@@ -852,6 +910,18 @@ export interface ApiResponseProps<
     widgets?: WidgetMap;
 }
 
+/**
+ * Render the response schema for a single OpenAPI operation status —
+ * picked out of `schema` by `path`, `method`, and `status`.
+ *
+ * Status resolution follows the OpenAPI priority order: concrete code
+ * (e.g. `"200"`) > class wildcard (e.g. `"2XX"`) > `"default"`. When
+ * `schema` is typed `as const`, `fields` autocomplete resolves from
+ * the response schema; pass `contentType` to narrow inference to a
+ * specific media type.
+ *
+ * @group OpenAPI
+ */
 export function ApiResponse<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,

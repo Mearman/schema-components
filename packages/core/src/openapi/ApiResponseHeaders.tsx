@@ -13,6 +13,11 @@ import type { SchemaMeta } from "../core/types.ts";
 // Props
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link ApiResponseHeaders}.
+ *
+ * @group OpenAPI
+ */
 export interface ApiResponseHeadersProps {
     /** Header definitions for a response. */
     headers: Map<string, HeaderInfo>;
@@ -24,6 +29,13 @@ export interface ApiResponseHeadersProps {
 // Component
 // ---------------------------------------------------------------------------
 
+/**
+ * Render the header definitions declared on an OpenAPI response. Shows
+ * each header's name, description, type, required flag, and deprecation
+ * marker. Read-only.
+ *
+ * @group OpenAPI
+ */
 export function ApiResponseHeaders({
     headers,
 }: ApiResponseHeadersProps): ReactNode {

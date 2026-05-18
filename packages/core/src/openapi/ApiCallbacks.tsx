@@ -13,6 +13,11 @@ import type { SchemaMeta } from "../core/types.ts";
 // Props
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link ApiCallbacks}.
+ *
+ * @group OpenAPI
+ */
 export interface ApiCallbacksProps {
     /** Callback definitions for this operation. */
     callbacks: CallbackInfo[];
@@ -24,6 +29,13 @@ export interface ApiCallbacksProps {
 // Component
 // ---------------------------------------------------------------------------
 
+/**
+ * Render OpenAPI callback definitions declared on an operation. Each
+ * callback name is displayed alongside its operations. Read-only —
+ * intended for documentation rather than interactive editing.
+ *
+ * @group OpenAPI
+ */
 export function ApiCallbacks({ callbacks }: ApiCallbacksProps): ReactNode {
     if (callbacks.length === 0) return null;
 

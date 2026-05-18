@@ -20,6 +20,11 @@ import { isObject } from "../core/guards.ts";
 // Props
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link ApiSecurity}.
+ *
+ * @group OpenAPI
+ */
 export interface ApiSecurityProps {
     /** Security requirements for this operation. */
     requirements: SecurityRequirement[];
@@ -104,6 +109,14 @@ function extractFlows(flows: JsonObject | undefined): OAuthFlow[] {
 // Component
 // ---------------------------------------------------------------------------
 
+/**
+ * Render the security requirements that apply to an OpenAPI operation,
+ * resolved against the document's component security schemes. Displays
+ * each scheme's type, description, location, scopes, and the full set
+ * of OAuth 2 flows when applicable. Read-only.
+ *
+ * @group OpenAPI
+ */
 export function ApiSecurity({
     requirements,
     schemes,
