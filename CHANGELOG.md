@@ -1,3 +1,13 @@
+## [1.28.1](https://github.com/Mearman/schema-components/compare/v1.28.0...v1.28.1) (2026-05-18)
+
+### Documentation
+
+* **core:** rewrite [@link](https://github.com/link) to internal helpers as code references ([c306837](https://github.com/Mearman/schema-components/commit/c30683715b138f4811ecc991adb6caac95b9e959))
+
+### Chores
+
+* **core:** silence remaining TypeDoc warnings ([9b7ef5f](https://github.com/Mearman/schema-components/commit/9b7ef5fa5f6cfa1e550a5e3e916444d0b6eb6c35))
+
 ## [1.28.0](https://github.com/Mearman/schema-components/compare/v1.27.0...v1.28.0) (2026-05-18)
 
 ### Features
