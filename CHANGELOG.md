@@ -1,3 +1,14 @@
+## [1.24.0](https://github.com/Mearman/schema-components/compare/v1.23.0...v1.24.0) (2026-05-18)
+
+### Features
+
+* **openapi:** dedicated ref-chain codes and cross-list duplicate detection ([2bfc4bc](https://github.com/Mearman/schema-components/commit/2bfc4bcf9f4afb964c71abc6a182a011fe2f61e5))
+
+### Chores
+
+* **core:** drop round-7 prefix from test filenames ([3ca7186](https://github.com/Mearman/schema-components/commit/3ca718621c583f5fd2bb94e5f4e48868890a7404))
+* **core:** retire round-7 integration TODOs ([854ecbe](https://github.com/Mearman/schema-components/commit/854ecbee6652af0835e5d63817840f51b7ee6d77))
+
 ## [1.23.0](https://github.com/Mearman/schema-components/compare/v1.22.0...v1.23.0) (2026-05-18)
 
 ### Features
