@@ -1,3 +1,75 @@
+## [1.23.0](https://github.com/Mearman/schema-components/compare/v1.22.0...v1.23.0) (2026-05-18)
+
+### Features
+
+* **openapi:** emit duplicate-operation-id diagnostic from listOperations ([6cf7cee](https://github.com/Mearman/schema-components/commit/6cf7ceea9e86fde0cb488a30f4fc8872c61b4935))
+
+### Bug Fixes
+
+* **core:** collapse mergeAllOf incompatible type intersections to never ([a14a031](https://github.com/Mearman/schema-components/commit/a14a031aa8c4178d078d137293fcd51766f5c5fb))
+* **core:** correct Swagger 2.0 collectionFormat conversion to OAS 3.x ([a9e8b95](https://github.com/Mearman/schema-components/commit/a9e8b9507fa8cb532a5582cd53375984cf3aed4d))
+* **core:** emit swagger-malformed-oauth-flow for oauth2 missing flow ([0c5c0a3](https://github.com/Mearman/schema-components/commit/0c5c0a35f067d310359d1d408d8175789b96b93a))
+* **core:** preserve explicit empty consumes in Swagger 2.0 body lift ([af87f61](https://github.com/Mearman/schema-components/commit/af87f61d5178aa49c661bd815efab8962452aeff))
+* **core:** preserve non-primitive enum and const values per spec ([2eab3f7](https://github.com/Mearman/schema-components/commit/2eab3f74d0f9468c0a2d3e0083510168f6a1a6de))
+* **core:** preserve ref siblings, dedup null branches, share example lift ([4758b45](https://github.com/Mearman/schema-components/commit/4758b45ebea2965d6b773ce21d78f0d568c23c43))
+* **core:** resolve boolean $ref targets, percent-decode pointers, scope anchors ([dc176dc](https://github.com/Mearman/schema-components/commit/dc176dcc456c37100808eb17a9a4800ea582378c))
+* **core:** return undefined for malformed OpenAPI version strings ([6da6266](https://github.com/Mearman/schema-components/commit/6da62661b2631c236cd2f37fae5a54c10a19581f))
+* **core:** surface dependencies splits, honour per-schema $schema, defend tuple items ([9595497](https://github.com/Mearman/schema-components/commit/95954977c8a9f682db4f87d516deb0a989e39db5))
+* **core:** walk boolean items/prefixItems, surface tuple unevaluatedItems ([62377c4](https://github.com/Mearman/schema-components/commit/62377c4ab0262eb3da7b57488688aafe24c9e8a2))
+* **core:** widen Zod screen to handle nested promise/codec/preprocess/lazy ([638dee6](https://github.com/Mearman/schema-components/commit/638dee6b4bafe2357e560e9dff51c2949d79069d))
+* **html:** yield via queueMicrotask in async streaming scheduler ([ec309ea](https://github.com/Mearman/schema-components/commit/ec309ea6c516ac7fb52bcacb79dd186499829e9b))
+* **openapi:** cache normalisation once and replay diagnostics per sink ([308b3b0](https://github.com/Mearman/schema-components/commit/308b3b05b8ed6d51b3e9d687030743e7b2b6e32e))
+* **openapi:** de-duplicate replayed diagnostics per sink identity ([052ef14](https://github.com/Mearman/schema-components/commit/052ef141776d15f9fb8eb701a8ffaab57ea62800))
+* **openapi:** emit unknown-parameter-location and resolve Parameter $ref chains ([6e42404](https://github.com/Mearman/schema-components/commit/6e4240448e0b97f1c8e059577e7c7b2068b93246))
+* **openapi:** include webhooks in PathKeysOf and widen MethodKeysOf<unknown> ([868ab2d](https://github.com/Mearman/schema-components/commit/868ab2ddc408c6ab03acc73066429c33e58bc857))
+* **openapi:** match application/json with media-type parameters ([fe65ea0](https://github.com/Mearman/schema-components/commit/fe65ea0c36ebf32e50b36d007b87e656a85c71f8))
+* **openapi:** merge Reference Object summary/description siblings on OAS 3.1 ([7db6e89](https://github.com/Mearman/schema-components/commit/7db6e8920fa115fc44db285060571d1e6e69f38e))
+* **openapi:** multi-hop $ref for Header and Link Reference Objects ([538dc2c](https://github.com/Mearman/schema-components/commit/538dc2cc2f94573d40b495c2b9a430ed6e09844f))
+* **openapi:** resolve callback Path Item $ref via listCallbacks ([dda37df](https://github.com/Mearman/schema-components/commit/dda37df146a476b81cdbef438353a14aca4d5019))
+* **openapi:** resolve Path Item $ref on webhooks via listWebhooks ([f30c420](https://github.com/Mearman/schema-components/commit/f30c4200af1dd724adfb60df3a0860144714b4b2))
+* **openapi:** surface path-webhook name collision in lookupPathItemNode ([9c10944](https://github.com/Mearman/schema-components/commit/9c109442b9ba69e7cf02c0a56c7739c8b403749b))
+* **react:** gate Swagger 2.0 docs in SchemaComponent inference helpers ([8b6454c](https://github.com/Mearman/schema-components/commit/8b6454c56fa1b67a729b6f27e6a6bbfd654e7a68))
+* **react:** single setNestedValue per change, add SchemaView generics ([455441e](https://github.com/Mearman/schema-components/commit/455441e4a962ee1d15f47ca56b13411ed13d432c))
+* **react:** validate codec schemas via safeEncode against rendered output ([670af00](https://github.com/Mearman/schema-components/commit/670af00785840fd9ba070f0edc1847dc8db941c0))
+
+### Refactoring
+
+* **core:** add round-7 fix-cycle foundation modules ([911b73f](https://github.com/Mearman/schema-components/commit/911b73f15c0c8c727ce6b486587109af43a51034))
+* **core:** adopt shared swagger2 helpers from foundation modules ([7873caa](https://github.com/Mearman/schema-components/commit/7873caa39b5375dcf1bffa593e01055fa5922b52))
+* **core:** propagate widened enum/literal types to renderers ([d14a50a](https://github.com/Mearman/schema-components/commit/d14a50a5d7b3a43d11c78fe903d8ab5359a3b0ad))
+* **core:** tighten SchemaRenderError schemaType to SchemaType union ([62d99ef](https://github.com/Mearman/schema-components/commit/62d99ef68e5369035edefc3c4cbda65fd2b85812))
+* **core:** widen enum/literal values, add unevaluatedItemsClosed ([51fad39](https://github.com/Mearman/schema-components/commit/51fad392e3d5e0c853fb89c09eb56eb9f7411bf6))
+* **html:** delegate a11y id helpers to core/idPath foundation ([0352350](https://github.com/Mearman/schema-components/commit/035235028598615765f6ce33e8d55353bceb2bb7))
+* **html:** route streaming renderer through shared foundations and fix yieldOpen ([4829ac6](https://github.com/Mearman/schema-components/commit/4829ac6ff461b217d7f64c1ff57014134ba73d9b))
+* **html:** route sync renderer ids and helpers through core foundations ([bb38725](https://github.com/Mearman/schema-components/commit/bb38725a0bd8baadc354211054b8ad90d27b2398))
+* **openapi:** consolidate component imports and drop unsafeFields ([207418c](https://github.com/Mearman/schema-components/commit/207418c0a4dccb42067afa298125b7dc8820b529))
+* **openapi:** delegate path-item ref chain to resolveRefChain ([b11a921](https://github.com/Mearman/schema-components/commit/b11a921b8dda90d8c98a4fff946f56271e049c13))
+* **openapi:** use canonical documentContainsKeyword in resolve ([4fa562d](https://github.com/Mearman/schema-components/commit/4fa562d6f8ade07f97a9704f3a5c06b914e1550b))
+* **openapi:** use shared HTTP_METHODS in parser ([1164e46](https://github.com/Mearman/schema-components/commit/1164e46ff54a14458edcda132951e9b426da2cc0))
+* **react:** add a11y attribute helper mirroring html/a11y ([879d0f8](https://github.com/Mearman/schema-components/commit/879d0f85759f5523c2dcf365ff7cb19b60b7a84c))
+* **react:** adopt core foundation modules in headless renderers ([fe4ff36](https://github.com/Mearman/schema-components/commit/fe4ff3668810a69f403c8595fe0f8e413b0e57fc))
+* **react:** import canonical IsSwagger2Doc from typeInference ([45419b1](https://github.com/Mearman/schema-components/commit/45419b152a001b3babc8b714adf26d125ade40ce))
+
+### Documentation
+
+* **core:** align Zod 3 detection note with structural detector behaviour ([f6c3252](https://github.com/Mearman/schema-components/commit/f6c3252a30fdad6c8c37dc91ba18917d7c0d7957))
+
+### Tests
+
+* **core:** cover idPath helpers to meet coverage threshold ([8603070](https://github.com/Mearman/schema-components/commit/86030706cc8c69d3b5e47b689acb63f9e969485a))
+* **core:** cover round 7 walker fixes for boolean schemas and rich consts ([ecfe7bc](https://github.com/Mearman/schema-components/commit/ecfe7bc8b9309429b9dd6024e12de9454334ab38))
+* **core:** cover round-7 component runtime fixes ([0b34056](https://github.com/Mearman/schema-components/commit/0b34056fc69c252aafcea8991e22537246e14b2c))
+* **core:** cover round-7 nested Zod construct screening and vendor errors ([590c92a](https://github.com/Mearman/schema-components/commit/590c92a4c64fcaa1587496443d1798a33a5378af))
+* **core:** cover round-7 Swagger 2.0 normalisation fixes ([87c143a](https://github.com/Mearman/schema-components/commit/87c143adaf11919a52f117ca1c2b382b0d77e1e6))
+* **html:** cover round-7 streaming-HTML fixes ([b09e72e](https://github.com/Mearman/schema-components/commit/b09e72ed6b57b73496f7238066350fb1b8a38493))
+* **openapi:** cover round-7 parser fixes ([25d05fe](https://github.com/Mearman/schema-components/commit/25d05fea521a2d1721bf212bb686bbd62a0bdc89))
+* **openapi:** cover round-7 resolve.ts fixes ([5ac1fc6](https://github.com/Mearman/schema-components/commit/5ac1fc6fc1afc7b58c06e7ef6a25d64cac23839a))
+* **react:** pin the round-7 SchemaComponent / SchemaView regressions ([251595e](https://github.com/Mearman/schema-components/commit/251595e91c3e1aa3f52754f06342ae459ef156e0))
+
+### Chores
+
+* **ci:** mirror CI gates in pre-push hook ([f8521f0](https://github.com/Mearman/schema-components/commit/f8521f04f5fb47c63343f1b6f865b4ed40840c7d))
+
 ## [1.22.0](https://github.com/Mearman/schema-components/compare/v1.21.0...v1.22.0) (2026-05-17)
 
 ### Features
