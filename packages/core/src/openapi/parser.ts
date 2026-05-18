@@ -12,9 +12,12 @@
  */
 
 import type { JsonObject } from "../core/types.ts";
+import type { DiagnosticsOptions } from "../core/diagnostics.ts";
+import { emitDiagnostic } from "../core/diagnostics.ts";
 import { getProperty, isObject } from "../core/guards.ts";
 import { MAX_PATH_ITEM_REF_HOPS } from "../core/limits.ts";
 import { HTTP_METHODS } from "../core/openapiConstants.ts";
+import { resolveRefChain } from "../core/refChain.ts";
 import { isPrototypePollutingKey } from "../core/uri.ts";
 
 // Type guards imported from core/guards.ts
@@ -125,7 +128,23 @@ export interface LinkInfo {
     requestBody: string | undefined;
 }
 
-function toParameterLocation(value: unknown): ParameterLocation {
+/**
+ * Narrow an OpenAPI parameter `in` value to the canonical four-value
+ * `ParameterLocation` union. Returns `undefined` for any other value
+ * (including the Swagger 2.0 `body`/`formData` locations, which the
+ * Swagger 2.0 → OpenAPI 3.x normaliser is expected to have already
+ * lifted out of the parameter array). When `diagnostics` is supplied,
+ * emits an `unknown-parameter-location` diagnostic so the caller can
+ * audit silent drops; without a sink the function still returns
+ * `undefined` rather than coercing the value, so the parameter is
+ * excluded from the operation's parameter list either way.
+ */
+function toParameterLocation(
+    value: unknown,
+    parameterName: string | undefined,
+    pointer: string,
+    diagnostics: DiagnosticsOptions | undefined
+): ParameterLocation | undefined {
     if (
         value === "query" ||
         value === "path" ||
@@ -134,7 +153,16 @@ function toParameterLocation(value: unknown): ParameterLocation {
     ) {
         return value;
     }
-    return "query";
+    emitDiagnostic(diagnostics, {
+        code: "unknown-parameter-location",
+        message:
+            parameterName !== undefined
+                ? `Parameter "${parameterName}" declares unknown \`in\` value ${JSON.stringify(value)}; expected one of query, path, header, cookie`
+                : `Parameter declares unknown \`in\` value ${JSON.stringify(value)}; expected one of query, path, header, cookie`,
+        pointer,
+        detail: { name: parameterName, in: value },
+    });
+    return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -262,7 +290,8 @@ export function listOperations(parsed: OpenApiDocument): OperationInfo[] {
 export function getParameters(
     parsed: OpenApiDocument,
     path: string,
-    method: string
+    method: string,
+    diagnostics?: DiagnosticsOptions
 ): ParameterInfo[] {
     const pathItem = lookupPathItem(parsed, path);
     if (pathItem === undefined) return [];
@@ -274,11 +303,15 @@ export function getParameters(
     // Operation-level overrides path-level for same name+in
     const pathParams = extractParameterList(
         parsed.doc,
-        getProperty(pathItem, "parameters")
+        getProperty(pathItem, "parameters"),
+        `/paths/${jsonPointerEscape(path)}/parameters`,
+        diagnostics
     );
     const opParams = extractParameterList(
         parsed.doc,
-        getProperty(operation, "parameters")
+        getProperty(operation, "parameters"),
+        `/paths/${jsonPointerEscape(path)}/${method}/parameters`,
+        diagnostics
     );
 
     // Build map: name+in → ParameterInfo, operation-level wins
@@ -295,28 +328,43 @@ export function getParameters(
 
 function extractParameterList(
     doc: JsonObject,
-    parameters: unknown
+    parameters: unknown,
+    pointerBase: string,
+    diagnostics: DiagnosticsOptions | undefined
 ): ParameterInfo[] {
     if (!Array.isArray(parameters)) return [];
 
     const result: ParameterInfo[] = [];
-    for (const param of parameters) {
+    for (const [index, param] of parameters.entries()) {
         if (!isObject(param)) continue;
+
+        const entryPointer = `${pointerBase}/${String(index)}`;
 
         // Resolve $ref on the parameter first — a $ref'd entry has no
         // `name`/`in` of its own; those live on the referenced component.
-        const resolved = resolveParam(doc, param);
+        const resolved = resolveParam(doc, param, diagnostics);
+        if (resolved === undefined) continue;
 
         const name = getProperty(resolved, "name");
-        const location = getProperty(resolved, "in");
-        if (typeof name !== "string" || typeof location !== "string") continue;
+        const rawLocation = getProperty(resolved, "in");
+        if (typeof name !== "string" || typeof rawLocation !== "string") {
+            continue;
+        }
+
+        const location = toParameterLocation(
+            rawLocation,
+            name,
+            `${entryPointer}/in`,
+            diagnostics
+        );
+        if (location === undefined) continue;
 
         // The schema might be a $ref too — leave it for the walker
         const schema = getProperty(resolved, "schema");
 
         result.push({
             name,
-            location: toParameterLocation(location),
+            location,
             required: getProperty(resolved, "required") === true,
             deprecated: getProperty(resolved, "deprecated") === true,
             description: getString(resolved, "description"),
@@ -326,14 +374,64 @@ function extractParameterList(
     return result;
 }
 
-function resolveParam(doc: JsonObject, param: JsonObject): JsonObject {
-    const ref = getProperty(param, "$ref");
-    if (typeof ref === "string" && ref.startsWith("#/")) {
-        // Resolve against the document root — e.g. `#/components/parameters/Name`.
-        const resolved = resolveRefInDoc(doc, ref);
-        if (resolved !== undefined) return resolved;
-    }
-    return param;
+/**
+ * Resolve a Parameter Object `$ref` chain.
+ *
+ * OpenAPI 3.x permits a Parameter Object to be replaced by a Reference
+ * Object whose `$ref` itself points at another Reference Object — chains
+ * of arbitrary length are valid. The previous single-hop implementation
+ * silently rendered nothing for chains of length > 1. `resolveRefChain`
+ * centralises cycle and depth-cap protection.
+ *
+ * Cycles and over-deep chains reuse the existing `cyclic-path-item-ref`
+ * and `path-item-ref-too-deep` diagnostic codes with a
+ * `detail.kind: "parameter"` discriminator. There is no dedicated
+ * Parameter-Object code in the current `DiagnosticCode` union; consumers
+ * filter by `detail.kind` when they care to distinguish the source.
+ *
+ * TODO(round7-integration): consider adding dedicated
+ * `cyclic-parameter-ref` and `parameter-ref-too-deep` codes to
+ * `core/diagnostics.ts` so the kind discriminator on `detail` is not
+ * needed. The existing Swagger 2.0 path already uses a dedicated
+ * `swagger-cyclic-parameter-ref` for the equivalent failure mode.
+ */
+function resolveParam(
+    doc: JsonObject,
+    param: JsonObject,
+    diagnostics: DiagnosticsOptions | undefined
+): JsonObject | undefined {
+    return resolveRefChain<JsonObject>(param, {
+        lookup: (ref) =>
+            ref.startsWith("#/") ? resolveRefInDoc(doc, ref) : undefined,
+        onCycle: (ref) => {
+            emitDiagnostic(diagnostics, {
+                code: "cyclic-path-item-ref",
+                message: `Cyclic Parameter Object $ref "${ref}"`,
+                pointer: ref,
+                detail: { ref, kind: "parameter" },
+            });
+            return undefined;
+        },
+        onDepthExceeded: (ref) => {
+            emitDiagnostic(diagnostics, {
+                code: "path-item-ref-too-deep",
+                message: `Parameter Object $ref chain exceeded the hop cap starting from "${ref}"`,
+                pointer: ref,
+                detail: { ref, kind: "parameter" },
+            });
+            return undefined;
+        },
+    });
+}
+
+/**
+ * Encode a path segment for embedding in a JSON Pointer (RFC 6901).
+ * `~` → `~0`, `/` → `~1`. Used to build pointer fragments for diagnostics
+ * — the diagnostics layer does not currently re-encode segments inserted
+ * via template strings.
+ */
+function jsonPointerEscape(segment: string): string {
+    return segment.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 
 // ---------------------------------------------------------------------------
