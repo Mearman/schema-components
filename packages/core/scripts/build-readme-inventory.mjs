@@ -134,7 +134,13 @@ function renderStoriesCell(stories) {
 }
 
 function summaryOf(reflection) {
-    const parts = reflection.comment?.summary ?? [];
+    // For function / method reflections TypeDoc attaches the JSDoc block
+    // to the first signature, not the reflection itself. Fall back to the
+    // signature comment so functions are not all reported as undocumented.
+    const parts =
+        reflection.comment?.summary ??
+        reflection.signatures?.[0]?.comment?.summary ??
+        [];
     const text = parts
         .map((p) => p.text ?? "")
         .join("")
