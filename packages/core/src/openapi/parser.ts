@@ -208,36 +208,46 @@ export function getSchema(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve a path item, following a `$ref` to `components/pathItems/<Name>`
- * (OpenAPI 3.1) if present. Returns `undefined` when the value is not a
- * path item, the ref is malformed, or the target does not resolve.
- */
-
-/**
  * Follow Path Item Object `$ref` chains (up to MAX_PATH_ITEM_REF_HOPS).
  * Returns the resolved Path Item, or `undefined` when the chain cycles,
- * exceeds the cap, or any intermediate ref fails to resolve. The
- * detailed diagnostics for cycle and depth-cap are emitted by the
- * mirroring resolver in `resolve.ts` — this parser-side resolver simply
- * stops walking.
+ * exceeds the cap, or any intermediate ref fails to resolve.
+ *
+ * When `diagnostics` is supplied, cycle and depth-cap conditions emit
+ * `cyclic-path-item-ref` and `path-item-ref-too-deep` respectively. When
+ * `diagnostics` is omitted, the resolver still rejects cycles and
+ * over-deep chains silently — callers that wire their own resolver
+ * (notably `resolve.ts:resolvePathItemNode`) supply diagnostics to
+ * mirror this behaviour with full pointer information.
  */
 function resolvePathItem(
     parsed: OpenApiDocument,
-    pathItem: unknown
+    pathItem: unknown,
+    diagnostics?: DiagnosticsOptions
 ): JsonObject | undefined {
     if (!isObject(pathItem)) return undefined;
-    const visited = new Set<string>();
-    let current: JsonObject = pathItem;
-    for (let hop = 0; hop < MAX_PATH_ITEM_REF_HOPS; hop++) {
-        const ref = getString(current, "$ref");
-        if (ref === undefined) return current;
-        if (visited.has(ref)) return undefined;
-        visited.add(ref);
-        const target = resolveRefInDoc(parsed.doc, ref);
-        if (target === undefined) return undefined;
-        current = target;
-    }
-    return undefined;
+    return resolveRefChain<JsonObject>(pathItem, {
+        lookup: (ref) =>
+            ref.startsWith("#/") ? resolveRefInDoc(parsed.doc, ref) : undefined,
+        maxHops: MAX_PATH_ITEM_REF_HOPS,
+        onCycle: (ref) => {
+            emitDiagnostic(diagnostics, {
+                code: "cyclic-path-item-ref",
+                message: `Cyclic Path Item Object $ref "${ref}"`,
+                pointer: ref,
+                detail: { ref },
+            });
+            return undefined;
+        },
+        onDepthExceeded: (ref) => {
+            emitDiagnostic(diagnostics, {
+                code: "path-item-ref-too-deep",
+                message: `Path Item Object $ref chain exceeded ${String(MAX_PATH_ITEM_REF_HOPS)} hops`,
+                pointer: ref,
+                detail: { maxHops: MAX_PATH_ITEM_REF_HOPS, ref },
+            });
+            return undefined;
+        },
+    });
 }
 
 function lookupPathItem(
@@ -255,14 +265,17 @@ function lookupPathItem(
     return resolvePathItem(parsed, getProperty(webhooks, path));
 }
 
-export function listOperations(parsed: OpenApiDocument): OperationInfo[] {
+export function listOperations(
+    parsed: OpenApiDocument,
+    diagnostics?: DiagnosticsOptions
+): OperationInfo[] {
     const operations: OperationInfo[] = [];
     const paths = getProperty(parsed.doc, "paths");
 
     if (!isObject(paths)) return operations;
 
     for (const [path, rawPathItem] of Object.entries(paths)) {
-        const pathItem = resolvePathItem(parsed, rawPathItem);
+        const pathItem = resolvePathItem(parsed, rawPathItem, diagnostics);
         if (pathItem === undefined) continue;
 
         for (const method of HTTP_METHODS) {
@@ -825,14 +838,24 @@ export function getResponseHeaders(
 // Webhooks (OpenAPI 3.1)
 // ---------------------------------------------------------------------------
 
-export function listWebhooks(parsed: OpenApiDocument): WebhookInfo[] {
+export function listWebhooks(
+    parsed: OpenApiDocument,
+    diagnostics?: DiagnosticsOptions
+): WebhookInfo[] {
     const result: WebhookInfo[] = [];
     const webhooks = getProperty(parsed.doc, "webhooks");
 
     if (!isObject(webhooks)) return result;
 
-    for (const [name, hookItem] of Object.entries(webhooks)) {
-        if (!isObject(hookItem)) continue;
+    for (const [name, rawHookItem] of Object.entries(webhooks)) {
+        // Resolve `$ref`-based Path Item entries — OAS 3.1 webhooks may
+        // reference `#/components/pathItems/<Name>`. The previous
+        // implementation iterated the raw entry and read HTTP methods
+        // directly, so a webhook declared as `{ $ref: ... }` exposed no
+        // operations at all. Mirrors `listOperations` which already
+        // resolves via `resolvePathItem`.
+        const hookItem = resolvePathItem(parsed, rawHookItem, diagnostics);
+        if (hookItem === undefined) continue;
 
         const operations: OperationInfo[] = [];
         for (const method of HTTP_METHODS) {
