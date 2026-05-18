@@ -80,41 +80,131 @@ type HttpMethod =
  * Extract the literal path keys from a document type, or the broad
  * `string` fallback when the document is untyped at compile time.
  *
- * The `string extends keyof D["paths"]` guard distinguishes a typed
- * `as const` document (whose `paths` map has literal keys) from a
- * runtime `Record<string, unknown>` document (whose `keyof` collapses
- * to `string`). For the runtime case we surface `string` so callers
- * pass arbitrary path values without losing the existing freedom.
+ * For OpenAPI 3.1 documents the union includes keys from `webhooks`
+ * alongside `paths`, because `<ApiOperation>` / `<ApiRequestBody>` /
+ * `<ApiResponse>` resolve webhook names through the same code path as
+ * paths (see `lookupPathItem` in `openapi/resolve.ts`). Without the
+ * webhook keys, a typed `as const` 3.1 document that declares only
+ * webhooks would reject every `path` prop value at compile time
+ * ("Type 'string' is not assignable to type 'never'") despite working
+ * at runtime.
+ *
+ * When the document declares neither a `paths` nor a `webhooks` map
+ * the union falls back to `string` so untyped/foreign inputs keep
+ * working — the constraint is informational, not gating.
+ *
+ * The `string extends keyof P` guard distinguishes a typed `as const`
+ * document (whose `paths` map has literal keys) from a runtime
+ * `Record<string, unknown>` document (whose `keyof` collapses to
+ * `string`). For the runtime case we surface `string` so callers pass
+ * arbitrary path values without losing the existing freedom.
  */
-type PathKeysOf<D> = D extends { paths: infer P }
+type PathKeysOf<D> =
+    HasPathsOrWebhooks<D> extends true ? PathsKey<D> | WebhooksKey<D> : string;
+
+/**
+ * `true` when `D` declares either a `paths` or a `webhooks` object,
+ * so the `PathKeysOf` union can be derived from real document keys
+ * instead of falling back to `string`.
+ */
+type HasPathsOrWebhooks<D> = D extends { paths: Record<string, unknown> }
+    ? true
+    : D extends { webhooks: Record<string, unknown> }
+      ? true
+      : false;
+
+/**
+ * Literal `paths` keys, or `never` when the document does not declare
+ * a `paths` object. Runtime documents (whose `keyof` collapses to
+ * `string`) widen to `string` so callers retain prior freedom.
+ */
+type PathsKey<D> = D extends { paths: infer P }
     ? P extends Record<string, unknown>
         ? string extends keyof P
             ? string
             : Extract<keyof P, string>
-        : string
-    : string;
+        : never
+    : never;
 
 /**
- * Extract the methods declared on a specific path item, restricted to
- * the OpenAPI-recognised method set so non-method extension keys
- * (e.g. `summary`, `description`, `parameters`) do not pollute the
- * autocomplete.
+ * Literal `webhooks` keys, or `never` when the document does not
+ * declare a `webhooks` object (OpenAPI 3.1 only). Runtime documents
+ * widen to `string`.
+ */
+type WebhooksKey<D> = D extends { webhooks: infer W }
+    ? W extends Record<string, unknown>
+        ? string extends keyof W
+            ? string
+            : Extract<keyof W, string>
+        : never
+    : never;
+
+/**
+ * Extract the methods declared on a specific path or webhook item,
+ * restricted to the OpenAPI-recognised method set so non-method
+ * extension keys (e.g. `summary`, `description`, `parameters`) do not
+ * pollute the autocomplete.
  *
  * Runtime documents (typed `Record<string, unknown>`) widen back to
  * `string` so callers retain the freedom to pass arbitrary method
  * strings without surfacing an `HttpMethod` constraint at runtime
- * call sites.
+ * call sites. Untyped documents (`unknown`) also widen to `string` so
+ * consumers with no static doc info can supply extension methods —
+ * the canonical `HttpMethod` set is informational, not gating, when
+ * the document carries no structural information at all.
+ *
+ * When the document declares `paths` or `webhooks` but not the
+ * specific entry `P`, the union falls back to `HttpMethod` so callers
+ * can still target an authored operation that compile-time inference
+ * happens to miss (e.g. behind a deferred conditional type).
  */
 type MethodKeysOf<D, P extends string> =
     IsRuntimeDoc<D> extends true
         ? string
-        : D extends { paths: infer Paths }
-          ? Paths extends Record<string, unknown>
-              ? P extends keyof Paths
-                  ? Extract<keyof Paths[P], HttpMethod>
-                  : HttpMethod
-              : HttpMethod
-          : HttpMethod;
+        : unknown extends D
+          ? string
+          : HasPathsOrWebhooks<D> extends true
+            ? MethodKeysWithFallback<D, P>
+            : HttpMethod;
+
+/**
+ * Union of literal methods extracted from `paths[P]` and `webhooks[P]`,
+ * falling back to the canonical `HttpMethod` set when neither map
+ * declares the requested entry.
+ */
+type MethodKeysWithFallback<D, P extends string> = [
+    MethodKeysFromPaths<D, P> | MethodKeysFromWebhooks<D, P>,
+] extends [never]
+    ? HttpMethod
+    : MethodKeysFromPaths<D, P> | MethodKeysFromWebhooks<D, P>;
+
+/**
+ * Methods declared on `paths[P]`, restricted to `HttpMethod`.
+ * Returns `never` when the document has no matching path entry.
+ */
+type MethodKeysFromPaths<D, P extends string> = D extends {
+    paths: infer Paths;
+}
+    ? Paths extends Record<string, unknown>
+        ? P extends keyof Paths
+            ? Extract<keyof Paths[P], HttpMethod>
+            : never
+        : never
+    : never;
+
+/**
+ * Methods declared on `webhooks[P]`, restricted to `HttpMethod`.
+ * Returns `never` when the document has no matching webhook entry.
+ */
+type MethodKeysFromWebhooks<D, P extends string> = D extends {
+    webhooks: infer Webhooks;
+}
+    ? Webhooks extends Record<string, unknown>
+        ? P extends keyof Webhooks
+            ? Extract<keyof Webhooks[P], HttpMethod>
+            : never
+        : never
+    : never;
 
 /**
  * True for the runtime-document sentinel — a `Record<string, unknown>`
@@ -130,56 +220,63 @@ type IsRuntimeDoc<D> =
         : false;
 
 /**
+ * Generic "operation under a given map" extractor used by every
+ * downstream `xxKeysOf` helper. Returns the Operation Object for the
+ * given path-or-webhook name and method, or `never` when no such
+ * entry exists.
+ */
+type OperationAt<Map_, P extends string, M extends string> =
+    Map_ extends Record<string, unknown>
+        ? P extends keyof Map_
+            ? Map_[P] extends Record<string, unknown>
+                ? M extends keyof Map_[P]
+                    ? Map_[P][M]
+                    : never
+                : never
+            : never
+        : never;
+
+/**
+ * Locate the Operation Object for `path`/`method` across both `paths`
+ * and `webhooks`. The OpenAPI 3.1 spec assigns webhooks the same
+ * Path Item shape as `paths` entries, so structural inference is
+ * identical once the operation is resolved.
+ */
+type ResolveOperation<D, P extends string, M extends string> =
+    | (D extends { paths: infer Paths } ? OperationAt<Paths, P, M> : never)
+    | (D extends { webhooks: infer Webhooks }
+          ? OperationAt<Webhooks, P, M>
+          : never);
+
+/**
  * Extract the status-code keys declared by an operation's `responses`
  * map. Includes class wildcards (`2XX`, etc.) and the `default`
  * sentinel; runtime documents widen to `string`.
  */
-type StatusKeysOf<D, P extends string, M extends string> = D extends {
-    paths: infer Paths;
-}
-    ? Paths extends Record<string, unknown>
-        ? P extends keyof Paths
-            ? Paths[P] extends Record<string, unknown>
-                ? M extends keyof Paths[P]
-                    ? Paths[P][M] extends { responses: infer R }
-                        ? R extends Record<string, unknown>
-                            ? string extends keyof R
-                                ? string
-                                : Extract<keyof R, string>
-                            : string
-                        : string
-                    : string
-                : string
+type StatusKeysOf<D, P extends string, M extends string> =
+    ResolveOperation<D, P, M> extends { responses: infer R }
+        ? R extends Record<string, unknown>
+            ? string extends keyof R
+                ? string
+                : Extract<keyof R, string>
             : string
-        : string
-    : string;
+        : string;
 
 /**
  * Extract the content-type keys declared on a request body's
  * `content` map for the given path and method. Runtime documents
  * widen to `string`.
  */
-type RequestContentTypesOf<D, P extends string, M extends string> = D extends {
-    paths: infer Paths;
-}
-    ? Paths extends Record<string, unknown>
-        ? P extends keyof Paths
-            ? Paths[P] extends Record<string, unknown>
-                ? M extends keyof Paths[P]
-                    ? Paths[P][M] extends {
-                          requestBody: { content: infer C };
-                      }
-                        ? C extends Record<string, unknown>
-                            ? string extends keyof C
-                                ? string
-                                : Extract<keyof C, string>
-                            : string
-                        : string
-                    : string
-                : string
+type RequestContentTypesOf<D, P extends string, M extends string> =
+    ResolveOperation<D, P, M> extends {
+        requestBody: { content: infer C };
+    }
+        ? C extends Record<string, unknown>
+            ? string extends keyof C
+                ? string
+                : Extract<keyof C, string>
             : string
-        : string
-    : string;
+        : string;
 
 /**
  * Extract the content-type keys declared on a response entry's
@@ -191,29 +288,20 @@ type ResponseContentTypesOf<
     P extends string,
     M extends string,
     S extends string,
-> = D extends { paths: infer Paths }
-    ? Paths extends Record<string, unknown>
-        ? P extends keyof Paths
-            ? Paths[P] extends Record<string, unknown>
-                ? M extends keyof Paths[P]
-                    ? Paths[P][M] extends { responses: infer R }
-                        ? R extends Record<string, unknown>
-                            ? S extends keyof R
-                                ? R[S] extends { content: infer C }
-                                    ? C extends Record<string, unknown>
-                                        ? string extends keyof C
-                                            ? string
-                                            : Extract<keyof C, string>
-                                        : string
-                                    : string
-                                : string
-                            : string
+> =
+    ResolveOperation<D, P, M> extends { responses: infer R }
+        ? R extends Record<string, unknown>
+            ? S extends keyof R
+                ? R[S] extends { content: infer C }
+                    ? C extends Record<string, unknown>
+                        ? string extends keyof C
+                            ? string
+                            : Extract<keyof C, string>
                         : string
                     : string
                 : string
             : string
-        : string
-    : string;
+        : string;
 
 // ---------------------------------------------------------------------------
 // Shared diagnostics props
