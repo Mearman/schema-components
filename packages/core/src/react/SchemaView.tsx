@@ -62,7 +62,7 @@ export interface SchemaViewProps<
      * Zod schema, JSON Schema object, or OpenAPI document.
      *
      * Subject to the same compile-time rejection of unrepresentable
-     * Zod 4 types as {@link SchemaComponentProps.schema} — see
+     * Zod 4 types as the `schema` prop on `<SchemaComponent>` — see
      * {@link RejectUnrepresentableZod}.
      */
     schema: RejectUnrepresentableZod<T>;
