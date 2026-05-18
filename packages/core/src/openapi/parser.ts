@@ -542,10 +542,17 @@ function resolveWrapperRef(
 
 function extractSchemaFromContent(content: JsonObject): JsonObject | undefined {
     // Prefer the literal `application/json` content type — the most common
-    // JSON representation in OAS documents.
-    const json = getProperty(content, "application/json");
-    const jsonSchema = getProperty(json, "schema");
-    if (isObject(jsonSchema)) return jsonSchema;
+    // JSON representation in OAS documents. Iterate keys so a registered
+    // media-type carrying RFC 7231 parameters (`application/json;
+    // charset=utf-8`, `application/json; profile=...`) matches the same
+    // base type — `getProperty` would otherwise miss it entirely and fall
+    // through to a non-JSON entry.
+    for (const [mediaType, mediaObj] of Object.entries(content)) {
+        if (mediaTypeBase(mediaType) !== "application/json") continue;
+        if (!isObject(mediaObj)) continue;
+        const schema = getProperty(mediaObj, "schema");
+        if (isObject(schema)) return schema;
+    }
 
     // Fall back to any `application/*+json` structured-syntax-suffix
     // variant (RFC 6839): `application/vnd.api+json`,
@@ -575,17 +582,26 @@ function extractSchemaFromContent(content: JsonObject): JsonObject | undefined {
 }
 
 /**
+ * Return the lowercased media-type base — the type/subtype with any
+ * RFC 7231 parameters (`; charset=...`, `; profile=...`, etc.) stripped
+ * and surrounding whitespace trimmed. Returns the empty string when the
+ * input has no recognisable base (defensive against malformed entries).
+ */
+function mediaTypeBase(mediaType: string): string {
+    const lower = mediaType.toLowerCase();
+    return lower.split(";", 1)[0]?.trim() ?? "";
+}
+
+/**
  * Detect RFC 6839 structured-syntax-suffix media types that encode JSON.
  * Matches `application/<anything>+json`, optionally with parameters
  * (`; charset=utf-8`). Excludes the literal `application/json`, which
  * the caller checks separately to preserve preference order.
  */
 function isJsonSuffixMediaType(mediaType: string): boolean {
-    const lower = mediaType.toLowerCase();
-    if (lower === "application/json") return false;
-    // Strip any media-type parameters (`; charset=...`, `; profile=...`).
-    const baseType = lower.split(";", 1)[0]?.trim() ?? "";
-    return baseType.startsWith("application/") && baseType.endsWith("+json");
+    const base = mediaTypeBase(mediaType);
+    if (base === "application/json") return false;
+    return base.startsWith("application/") && base.endsWith("+json");
 }
 
 // ---------------------------------------------------------------------------
