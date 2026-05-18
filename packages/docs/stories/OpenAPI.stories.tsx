@@ -115,6 +115,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "OpenAPI/Schema Documents",
     component: SchemaComponent,
     tags: ["openapi", "editable", "readonly"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: { control: "boolean" },
     },

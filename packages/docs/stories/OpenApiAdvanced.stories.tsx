@@ -246,6 +246,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "OpenAPI/Advanced Features",
     component: SchemaComponent,
     tags: ["openapi", "composition"],
+    parameters: {
+        apiSymbols: ["SchemaComponent", "ApiOperation", "ApiRequestBody"],
+    },
 };
 export default meta;
 type Story = StoryObj<typeof meta>;

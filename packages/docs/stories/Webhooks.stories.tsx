@@ -14,6 +14,9 @@ import { getProperty, isObject } from "schema-components/core/guards";
 const meta: Meta = {
     title: "OpenAPI/Webhooks",
     tags: ["openapi"],
+    parameters: {
+        apiSymbols: ["parseOpenApiDocument", "listWebhooks", "SchemaComponent"],
+    },
 };
 export default meta;
 type Story = StoryObj<typeof meta>;

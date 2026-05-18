@@ -53,6 +53,14 @@ const meta = {
     title: "OpenAPI/Completeness",
     component: OpenApiCompleteness,
     tags: ["openapi"],
+    parameters: {
+        apiSymbols: [
+            "ApiOperation",
+            "ApiParameters",
+            "ApiRequestBody",
+            "ApiResponse",
+        ],
+    },
 } satisfies Meta<typeof OpenApiCompleteness>;
 
 export default meta;

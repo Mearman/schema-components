@@ -224,6 +224,9 @@ const meta: Meta<typeof ApiOperation> = {
     title: "OpenAPI/Callbacks & Links",
     component: ApiOperation,
     tags: ["openapi"],
+    parameters: {
+        apiSymbols: ["ApiOperation", "ApiRequestBody", "SchemaComponent"],
+    },
 };
 export default meta;
 type Story = StoryObj<typeof meta>;
