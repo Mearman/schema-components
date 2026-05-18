@@ -16,7 +16,9 @@ Peer dependencies: `zod@^4.0.0`, `react@^18.0.0 || ^19.0.0`.
 
 ### Zod version requirement
 
-schema-components requires **Zod 4**. If you are on Zod 3, see the [Zod 4 migration guide](https://zod.dev/v4/migration). If a Zod 3 schema is passed (detected via `_def.typeName`), a descriptive `SchemaNormalisationError` is raised pointing at the Zod 4 migration guide. Schemas from other Standard Schema libraries are not currently supported.
+schema-components requires **Zod 4**. If you are on Zod 3, see the [Zod 4 migration guide](https://zod.dev/v4/migration). Zod 3 schemas are detected structurally — any object exposing `_def` without the Zod 4 `_zod` marker is classified as Zod 3, with or without the historical `_def.typeName` field. (Some third-party Zod-3-style libraries omit `typeName`; the detector keys on the presence of `_def` alone.) A descriptive `SchemaNormalisationError` is raised pointing at the Zod 4 migration guide.
+
+Schemas from other libraries that conform to the [Standard Schema](https://standardschema.dev/) spec (valibot, arktype, ...) are also detected and rejected. When the input advertises a `~standard.vendor` field, the error message includes the vendor name so consumers know which library produced the input.
 
 ## `SchemaComponent`
 
