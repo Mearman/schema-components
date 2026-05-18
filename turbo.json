@@ -31,7 +31,7 @@
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json", "tsdown.config.ts", "package.json"],
             "outputs": ["dist/**"]
         },
-        "_docs": {
+        "_typedoc": {
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "typedoc.json", "../../README.md"],
             "outputs": ["typedoc-static/**"]
         },
@@ -56,8 +56,8 @@
         "test:coverage": {
             "dependsOn": ["_test:coverage"]
         },
-        "docs": {
-            "dependsOn": ["_docs"]
+        "typedoc": {
+            "dependsOn": ["_typedoc"]
         },
         "test-storybook": {},
         "build-storybook": {

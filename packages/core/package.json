@@ -40,7 +40,7 @@
         "_test:e2e": "vitest run --project=e2e",
         "_test:coverage": "vitest run --project=unit --coverage",
         "_build": "tsdown && cp src/html/styles.css dist/html/styles.css",
-        "_docs": "typedoc",
+        "_typedoc": "typedoc",
         "typecheck": "turbo run _typecheck",
         "lint": "turbo run _lint",
         "lint:fix": "turbo run _lint:fix",
@@ -49,7 +49,7 @@
         "check": "turbo run _check",
         "validate": "turbo run _validate",
         "build": "turbo run _build",
-        "docs": "turbo run _docs"
+        "typedoc": "turbo run _typedoc"
     },
     "keywords": [
         "react",

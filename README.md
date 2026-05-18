@@ -197,7 +197,7 @@ pnpm test               # Run unit tests
 pnpm test:coverage      # Run tests with coverage
 pnpm storybook          # Start Storybook dev server
 pnpm build-storybook    # Build static Storybook site
-pnpm docs               # Generate TypeDoc API reference
+pnpm typedoc            # Generate TypeDoc API reference
 ```
 
 ## Documentation site
