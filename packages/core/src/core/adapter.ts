@@ -1187,7 +1187,7 @@ function resolveOpenApiRef(
  * on `SchemaMeta` because that type lives in `types.ts` and is shared
  * with the walker; the index signature is the agreed extension point.
  */
-function extractRootMetaFromJson(
+export function extractRootMetaFromJson(
     jsonSchema: JsonObject
 ): SchemaMeta | undefined {
     const meta: SchemaMeta = {};

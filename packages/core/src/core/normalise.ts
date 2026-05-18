@@ -881,7 +881,7 @@ export function selectDraftTransform(
  * `structuredClone` of external refs are short-circuited via the
  * `visited` set so the scan terminates.
  */
-function documentContainsKeyword(
+export function documentContainsKeyword(
     value: unknown,
     keyword: string,
     visited: WeakSet<object> = new WeakSet<object>()

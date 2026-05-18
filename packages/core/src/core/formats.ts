@@ -30,6 +30,24 @@ import { emitDiagnostic } from "./diagnostics.ts";
 export const MAX_REGEX_PATTERN_LENGTH = 500;
 
 // ---------------------------------------------------------------------------
+// Date/time input type mapping
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a JSON Schema string `format` to the matching HTML `<input type="…">`
+ * value, or `undefined` when the format does not correspond to a date/time
+ * input. Shared by the HTML and headless React renderers so a single
+ * mapping table governs both pipelines.
+ */
+export function dateInputType(format: string | undefined): string | undefined {
+    if (format === "date") return "date";
+    if (format === "time") return "time";
+    if (format === "date-time" || format === "datetime")
+        return "datetime-local";
+    return undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Validator type
 // ---------------------------------------------------------------------------
 

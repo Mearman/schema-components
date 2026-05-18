@@ -8,6 +8,7 @@
 
 import type { WalkedField } from "../core/types.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
+import { dateInputType } from "../core/formats.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import { isSafeHyperlink, isSafeMailtoAddress } from "../core/uri.ts";
 import {
@@ -27,17 +28,7 @@ import {
     requiredIndicator,
 } from "./a11y.ts";
 
-// ---------------------------------------------------------------------------
-// Date/time input type mapping
-// ---------------------------------------------------------------------------
-
-export function dateInputType(format: string | undefined): string | undefined {
-    if (format === "date") return "date";
-    if (format === "time") return "time";
-    if (format === "date-time" || format === "datetime")
-        return "datetime-local";
-    return undefined;
-}
+export { dateInputType };
 
 // ---------------------------------------------------------------------------
 // ID normalisation — dots and brackets become hyphens for valid HTML IDs

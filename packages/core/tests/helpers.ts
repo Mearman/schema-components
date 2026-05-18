@@ -152,47 +152,6 @@ export function asNumberConstraints(
 }
 
 /**
- * Safely get .fields from any WalkedField. Returns undefined for non-object types.
- */
-export function getFields(
-    field: WalkedField
-): Record<string, WalkedField> | undefined {
-    return field.type === "object" ? field.fields : undefined;
-}
-
-/**
- * Safely get .options from any WalkedField.
- */
-export function getOptions(field: WalkedField): WalkedField[] | undefined {
-    if (field.type === "union" || field.type === "discriminatedUnion")
-        return field.options;
-    return undefined;
-}
-
-/**
- * Safely get .prefixItems from any WalkedField.
- */
-export function getPrefixItems(field: WalkedField): WalkedField[] | undefined {
-    return field.type === "tuple" ? field.prefixItems : undefined;
-}
-
-/**
- * Safely get .literalValues from any WalkedField.
- */
-export function getLiteralValues(
-    field: WalkedField
-): (string | number | boolean | null)[] | undefined {
-    return field.type === "literal" ? field.literalValues : undefined;
-}
-
-/**
- * Safely get .element from any WalkedField.
- */
-export function getElement(field: WalkedField): WalkedField | undefined {
-    return field.type === "array" ? field.element : undefined;
-}
-
-/**
  * Extract fields from any WalkedField using the "in" operator for narrowing.
  * These are test-only utilities that avoid needing type guards at every call site.
  */

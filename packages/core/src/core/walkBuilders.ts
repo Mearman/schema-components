@@ -202,19 +202,6 @@ export function buildBase(
         ctx.rootMeta
     );
 
-    // If this field explicitly overrides editability, suppress
-    // component-level meta for its subtree
-    const hasExplicitOverride =
-        (overrideMeta !== undefined &&
-            ("readOnly" in overrideMeta || "writeOnly" in overrideMeta)) ||
-        Boolean(propertyMeta.readOnly) ||
-        Boolean(propertyMeta.writeOnly);
-
-    // Mutate ctx to suppress component meta for subtree when overrides present
-    if (hasExplicitOverride && ctx.componentMeta !== undefined) {
-        ctx = { ...ctx, componentMeta: undefined };
-    }
-
     return {
         editability,
         meta: mergedMeta,

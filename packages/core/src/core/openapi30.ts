@@ -11,6 +11,40 @@ import type { NodeTransform } from "./normalise.ts";
 import { normaliseDraft04Node } from "./normalise.ts";
 
 // ---------------------------------------------------------------------------
+// Shared example → examples lift helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Lift OpenAPI 3.x singular `example` onto the plural `examples` key.
+ *
+ * Two output shapes are spec-correct depending on the parent object type:
+ *   - `"array"` — Schema Object: `examples: [example]` (Draft 2020-12 plural).
+ *   - `"map"`   — Parameter / Header / Media Type Object: an Examples Map
+ *                 keyed by name. The single value is wrapped under the
+ *                 synthetic key `default` to produce a valid one-entry map
+ *                 of one Example Object.
+ *
+ * When both `example` and `examples` coexist the spec declares them mutually
+ * exclusive — `example` is dropped and `examples` wins.
+ */
+export function liftExampleToExamples(
+    node: Record<string, unknown>,
+    shape: "array" | "map"
+): void {
+    if (!("example" in node)) return;
+    if ("examples" in node) {
+        delete node.example;
+        return;
+    }
+    if (shape === "array") {
+        node.examples = [node.example];
+    } else {
+        node.examples = { default: { value: node.example } };
+    }
+    delete node.example;
+}
+
+// ---------------------------------------------------------------------------
 // Re-exported node transforms (used by normalise.ts entry points)
 // ---------------------------------------------------------------------------
 

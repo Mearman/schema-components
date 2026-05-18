@@ -16,6 +16,7 @@ import {
     type ReactNode,
 } from "react";
 import type { RenderProps } from "../core/renderer.ts";
+import { dateInputType } from "../core/formats.ts";
 import { isObject } from "../core/guards.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import type { WalkedField } from "../core/types.ts";
@@ -64,18 +65,6 @@ function formatTime(value: unknown): string | undefined {
     const date = new Date(value);
     if (isNaN(date.getTime())) return undefined;
     return date.toLocaleTimeString();
-}
-
-// ---------------------------------------------------------------------------
-// Date/time input type mapping
-// ---------------------------------------------------------------------------
-
-function dateInputType(format: string | undefined): string | undefined {
-    if (format === "date") return "date";
-    if (format === "time") return "time";
-    if (format === "date-time" || format === "datetime")
-        return "datetime-local";
-    return undefined;
 }
 
 // ---------------------------------------------------------------------------

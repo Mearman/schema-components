@@ -516,10 +516,16 @@ export function SchemaComponent<
  * Append a child path suffix to a parent path. When the suffix is omitted
  * (e.g. transparent wrappers like union options), the parent path is
  * returned unchanged so the child inherits the parent's id.
+ *
+ * Bracketed array indices like `[0]` append directly so `tags` + `[0]`
+ * becomes `tags[0]` rather than `tags.[0]` — matching the canonical form
+ * used by `html/a11y.ts` `joinPath` and `react/fieldPath.ts` `resolvePath`,
+ * which already parses bracket notation when navigating WalkedField trees.
  */
 export function joinPath(parent: string, suffix: string | undefined): string {
     if (suffix === undefined || suffix.length === 0) return parent;
     if (parent.length === 0) return suffix;
+    if (suffix.startsWith("[")) return `${parent}${suffix}`;
     return `${parent}.${suffix}`;
 }
 
