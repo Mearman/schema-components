@@ -825,20 +825,42 @@ function normaliseSwaggerParameter(
     }
 
     // collectionFormat → style + explode (OpenAPI 3.x)
+    //
+    // OAS 3.x specifies different default styles per `in` location:
+    //   query/cookie → `form`
+    //   path/header  → `simple`
+    // `csv` therefore maps differently depending on the parameter
+    // location (the header normaliser at this file's lower edge
+    // already encodes the `simple` mapping for response headers).
+    //
+    // `tsv` has no equivalent style keyword in OAS 3.x; emit a
+    // diagnostic and drop the keyword rather than inventing the
+    // invalid `tabDelimited` value the historic normaliser produced.
     const cf = param.collectionFormat;
     if (typeof cf === "string") {
         switch (cf) {
-            case "csv":
-                result.style = "form";
+            case "csv": {
+                const isSimpleLocation =
+                    param.in === "path" || param.in === "header";
+                result.style = isSimpleLocation ? "simple" : "form";
                 result.explode = false;
                 break;
+            }
             case "ssv":
                 result.style = "spaceDelimited";
                 result.explode = false;
                 break;
             case "tsv":
-                result.style = "tabDelimited";
-                result.explode = false;
+                emitDiagnostic(diagnostics, {
+                    code: "swagger-collection-format-dropped",
+                    message:
+                        'Swagger 2.0 collectionFormat: "tsv" has no OpenAPI 3.x equivalent; dropping the keyword',
+                    pointer,
+                    detail: {
+                        feature: "collectionFormat:tsv",
+                        location: "parameter",
+                    },
+                });
                 break;
             case "pipes":
                 result.style = "pipeDelimited";
@@ -1083,9 +1105,29 @@ function normaliseSwaggerSingleResponse(
     const headers = resolved.headers;
     if (isObject(headers)) {
         const convertedHeaders: Record<string, unknown> = {};
+        // Base pointer to this response's `headers` map; the per-header
+        // segment is appended below so diagnostics emitted while
+        // normalising a header carry a precise JSON Pointer.
+        const headersBasePointer =
+            path !== undefined &&
+            method !== undefined &&
+            statusCode !== undefined
+                ? appendPointer(
+                      appendPointer(
+                          appendPointer(
+                              appendPointer(appendPointer("", "paths"), path),
+                              method
+                          ),
+                          "responses"
+                      ),
+                      statusCode
+                  )
+                : "";
+        const headersPointer = appendPointer(headersBasePointer, "headers");
         for (const [name, header] of Object.entries(headers)) {
+            const headerPointer = appendPointer(headersPointer, name);
             convertedHeaders[name] = isObject(header)
-                ? normaliseSwaggerHeader(header)
+                ? normaliseSwaggerHeader(header, diagnostics, headerPointer)
                 : header;
         }
         normalised.headers = convertedHeaders;
@@ -1108,7 +1150,9 @@ function normaliseSwaggerSingleResponse(
  * parameters.
  */
 function normaliseSwaggerHeader(
-    header: Record<string, unknown>
+    header: Record<string, unknown>,
+    diagnostics?: DiagnosticsOptions,
+    pointer = ""
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
@@ -1135,8 +1179,19 @@ function normaliseSwaggerHeader(
                 result.explode = false;
                 break;
             case "tsv":
-                result.style = "tabDelimited";
-                result.explode = false;
+                // `tsv` has no OpenAPI 3.x equivalent style keyword; drop
+                // it and surface the loss rather than emit the invalid
+                // `tabDelimited` value the historic normaliser produced.
+                emitDiagnostic(diagnostics, {
+                    code: "swagger-collection-format-dropped",
+                    message:
+                        'Swagger 2.0 collectionFormat: "tsv" has no OpenAPI 3.x equivalent; dropping the keyword',
+                    pointer,
+                    detail: {
+                        feature: "collectionFormat:tsv",
+                        location: "header",
+                    },
+                });
                 break;
             case "pipes":
                 result.style = "pipeDelimited";
