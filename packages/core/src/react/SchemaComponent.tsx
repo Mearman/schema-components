@@ -52,7 +52,7 @@ import type {
 import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
 import { headlessResolver } from "./headless.tsx";
 import { resolvePath, resolveValue, setNestedValue } from "./fieldPath.ts";
-import { isObject, toRecordOrUndefined } from "../core/guards.ts";
+import { getProperty, isObject, toRecordOrUndefined } from "../core/guards.ts";
 import {
     SchemaNormalisationError,
     SchemaFieldError,
@@ -638,11 +638,30 @@ function runValidation(
     value: unknown,
     onDiagnostic?: (diagnostic: Diagnostic) => void
 ): unknown {
-    // Prefer original Zod schema for validation (most accurate)
+    // Prefer original Zod schema for validation (most accurate).
+    //
+    // CODEC SPECIAL CASE: `callToJsonSchema` in `core/adapter.ts` pins
+    // `io: "output"`, so the renderer draws the OUTPUT side of every
+    // codec. The user-supplied value is therefore in the codec's
+    // OUTPUT shape (e.g. a `number` for `z.codec(z.string(),
+    // z.number(), ...)`). `safeParse` runs the FORWARD direction and
+    // would consume the INPUT shape — guaranteed to fail for any
+    // codec whose two sides have different types. `safeEncode` runs
+    // the REVERSE direction (`output → input`) and is the right
+    // probe for validating an output-rendered value.
+    //
+    // TODO(round7-integration): align with Agent F's planned `io`
+    // option on `callToJsonSchema`. When `io: "input"` is propagated
+    // through the normalisation pipeline, the renderer will draw the
+    // INPUT side and `safeParse` becomes correct again — this branch
+    // should consult the resolved direction rather than always
+    // assuming the output side.
     if (zodSchema !== undefined && isObject(zodSchema)) {
-        const safeParseFn = zodSchema.safeParse;
-        if (isCallable(safeParseFn)) {
-            const result: unknown = safeParseFn(value);
+        const validateFn = isCodecSchema(zodSchema)
+            ? zodSchema.safeEncode
+            : zodSchema.safeParse;
+        if (isCallable(validateFn)) {
+            const result: unknown = validateFn(value);
             if (
                 isObject(result) &&
                 "success" in result &&
@@ -1062,8 +1081,31 @@ function isFieldErrorCallback(
 // ---------------------------------------------------------------------------
 
 // Narrowing helpers imported from core/guards.ts.
-// isCallable is local — specific to the validation boundary.
+// isCallable and isCodecSchema are local — both serve the validation
+// boundary only.
 
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
     return typeof value === "function";
+}
+
+/**
+ * True when `value` is a Zod schema implemented as a codec.
+ *
+ * Detection looks for `"$ZodCodec"` in the schema's `_zod.traits`
+ * Set, mirroring the runtime detection used inside
+ * `core/adapter.ts` (`isCodecSchema` there) and Zod's own
+ * `isTransforming` helper. Duplicated here rather than imported
+ * because adapter.ts does not export the helper and is outside this
+ * fix-cycle's owned files.
+ *
+ * TODO(round7-integration): replace with an `import` once
+ * `isCodecSchema` is exported from `core/adapter.ts` (or promoted to
+ * `core/guards.ts`) by a coordinating commit.
+ */
+function isCodecSchema(value: unknown): boolean {
+    const zod = getProperty(value, "_zod");
+    if (!isObject(zod)) return false;
+    const traits = zod.traits;
+    if (traits instanceof Set) return traits.has("$ZodCodec");
+    return false;
 }
