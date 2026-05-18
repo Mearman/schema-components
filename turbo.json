@@ -35,6 +35,12 @@
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "typedoc.json", "../../README.md"],
             "outputs": ["typedoc-static/**"]
         },
+        "_readme": {
+            "dependsOn": ["_typedoc"],
+            "inputs": ["scripts/build-readme-inventory.mjs", "typedoc-static/project.json", "../../README.md"],
+            "outputs": ["../../README.md"],
+            "cache": false
+        },
         "_check": {
             "dependsOn": ["_typecheck", "_lint", "_build"]
         },
@@ -58,6 +64,9 @@
         },
         "typedoc": {
             "dependsOn": ["_typedoc"]
+        },
+        "readme": {
+            "dependsOn": ["_readme"]
         },
         "test-storybook": {},
         "build-storybook": {

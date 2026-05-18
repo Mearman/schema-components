@@ -1,0 +1,173 @@
+/**
+ * Generates the API inventory section in README.md from the TypeDoc JSON
+ * project model.
+ *
+ * - Reads `typedoc-static/project.json` (produced by `pnpm typedoc`)
+ * - Walks every module's top-level documented exports
+ * - Emits a grouped markdown table — one section per sub-path (`core/*`,
+ *   `react/*`, `openapi/*`, `html/*`, `themes/*`)
+ * - Each row links to the symbol's page on the hosted TypeDoc site so
+ *   the README is a discovery surface and the HTML site is the deep
+ *   reference
+ * - Replaces content between `<!-- @generated:api-inventory:start -->`
+ *   and `<!-- @generated:api-inventory:end -->` markers in README.md
+ *
+ * The reflection-kind numbers come from TypeDoc's ReflectionKind enum.
+ * Re-exports (kind 4194304) point at the same symbol as the original
+ * export so we de-duplicate by name+module.
+ */
+
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const projectJsonPath = resolve(here, "../typedoc-static/project.json");
+const readmePath = resolve(here, "../../../README.md");
+const hostedBase = "https://mearman.github.io/schema-components";
+
+const KIND = {
+    Variable: 32,
+    Function: 64,
+    Class: 128,
+    Interface: 256,
+    TypeAlias: 2097152,
+    Reference: 4194304,
+    Enum: 8,
+};
+
+const KIND_LABEL = {
+    [KIND.Variable]: "Variable",
+    [KIND.Function]: "Function",
+    [KIND.Class]: "Class",
+    [KIND.Interface]: "Interface",
+    [KIND.TypeAlias]: "Type",
+    [KIND.Reference]: "Re-export",
+    [KIND.Enum]: "Enum",
+};
+
+const KIND_URL_SEGMENT = {
+    [KIND.Variable]: "variables",
+    [KIND.Function]: "functions",
+    [KIND.Class]: "classes",
+    [KIND.Interface]: "interfaces",
+    [KIND.TypeAlias]: "types",
+    [KIND.Enum]: "enums",
+};
+
+const SUBPATH_ORDER = ["core", "react", "openapi", "html", "themes"];
+
+const SUBPATH_LABEL = {
+    core: "core/*",
+    react: "react/*",
+    openapi: "openapi/*",
+    html: "html/*",
+    themes: "themes/*",
+};
+
+function summaryOf(reflection) {
+    const parts = reflection.comment?.summary ?? [];
+    const text = parts
+        .map((p) => p.text ?? "")
+        .join("")
+        .trim();
+    if (!text) return "";
+    const firstSentence = text.split(/(?<=[.!?])\s+/)[0] ?? text;
+    return firstSentence.replace(/\s+/g, " ").replace(/\|/g, "\\|");
+}
+
+function urlFor(reflection, modulePath) {
+    const segment = KIND_URL_SEGMENT[reflection.kind];
+    if (!segment) return null;
+    const moduleSlug = modulePath.replace(/\//g, "_");
+    return `${hostedBase}/${segment}/${moduleSlug}.${reflection.name}.html`;
+}
+
+function isInternalNamespace(name) {
+    return name === "<internal>";
+}
+
+function collectExports(project) {
+    const bySubpath = new Map();
+    for (const subpath of SUBPATH_ORDER) bySubpath.set(subpath, []);
+
+    for (const moduleRef of project.children ?? []) {
+        const modulePath = moduleRef.name;
+        const subpath = modulePath.split("/")[0];
+        if (!bySubpath.has(subpath)) continue;
+
+        for (const child of moduleRef.children ?? []) {
+            if (isInternalNamespace(child.name)) continue;
+            if (child.flags?.isPrivate) continue;
+            if (!KIND_LABEL[child.kind]) continue;
+            bySubpath.get(subpath).push({
+                name: child.name,
+                kind: child.kind,
+                modulePath,
+                summary: summaryOf(child),
+            });
+        }
+    }
+    return bySubpath;
+}
+
+function renderTable(exports) {
+    if (exports.length === 0) return "_No documented exports._\n";
+    const rows = exports
+        .slice()
+        .sort((a, b) =>
+            a.modulePath === b.modulePath
+                ? a.name.localeCompare(b.name)
+                : a.modulePath.localeCompare(b.modulePath),
+        )
+        .map((e) => {
+            const url = urlFor(e, e.modulePath);
+            const nameCell = url ? `[\`${e.name}\`](${url})` : `\`${e.name}\``;
+            const kindLabel = KIND_LABEL[e.kind];
+            const summary = e.summary || "_undocumented_";
+            return `| ${nameCell} | \`${e.modulePath}\` | ${kindLabel} | ${summary} |`;
+        });
+    return [
+        "| Symbol | Sub-path | Kind | Summary |",
+        "| --- | --- | --- | --- |",
+        ...rows,
+        "",
+    ].join("\n");
+}
+
+function buildInventory(project) {
+    const grouped = collectExports(project);
+    const sections = [];
+    for (const subpath of SUBPATH_ORDER) {
+        const exports = grouped.get(subpath);
+        if (!exports || exports.length === 0) continue;
+        const count = exports.length;
+        sections.push(
+            `<details>\n<summary><code>${SUBPATH_LABEL[subpath]}</code> — ${count} exports</summary>\n`,
+        );
+        sections.push(renderTable(exports));
+        sections.push(`</details>\n`);
+    }
+    return sections.join("\n");
+}
+
+function injectInventory(readme, inventory) {
+    const startMarker = "<!-- @generated:api-inventory:start -->";
+    const endMarker = "<!-- @generated:api-inventory:end -->";
+    const startIndex = readme.indexOf(startMarker);
+    const endIndex = readme.indexOf(endMarker);
+    if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
+        throw new Error(
+            `Markers ${startMarker} / ${endMarker} not found in README.md`,
+        );
+    }
+    const before = readme.slice(0, startIndex + startMarker.length);
+    const after = readme.slice(endIndex);
+    return `${before}\n${inventory}\n${after}`;
+}
+
+const project = JSON.parse(readFileSync(projectJsonPath, "utf8"));
+const readme = readFileSync(readmePath, "utf8");
+const inventory = buildInventory(project);
+const updated = injectInventory(readme, inventory);
+writeFileSync(readmePath, updated, "utf8");

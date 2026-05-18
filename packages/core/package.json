@@ -41,6 +41,7 @@
         "_test:coverage": "vitest run --project=unit --coverage",
         "_build": "tsdown && cp src/html/styles.css dist/html/styles.css",
         "_typedoc": "typedoc",
+        "_readme": "node scripts/build-readme-inventory.mjs",
         "typecheck": "turbo run _typecheck",
         "lint": "turbo run _lint",
         "lint:fix": "turbo run _lint:fix",
@@ -49,7 +50,8 @@
         "check": "turbo run _check",
         "validate": "turbo run _validate",
         "build": "turbo run _build",
-        "typedoc": "turbo run _typedoc"
+        "typedoc": "turbo run _typedoc",
+        "readme": "turbo run _readme"
     },
     "keywords": [
         "react",

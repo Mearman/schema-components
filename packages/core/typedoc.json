@@ -3,6 +3,7 @@
     "entryPoints": ["src"],
     "entryPointStrategy": "expand",
     "out": "typedoc-static",
+    "json": "typedoc-static/project.json",
     "name": "schema-components",
     "readme": "../../README.md",
     "includeVersion": true,
