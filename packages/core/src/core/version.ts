@@ -254,7 +254,13 @@ export interface OpenApiVersionInfo {
 
 /**
  * Detect the OpenAPI/Swagger version from a document.
- * Returns `undefined` for documents that are not OpenAPI or Swagger.
+ *
+ * Returns `undefined` when the document declares neither `swagger` nor
+ * `openapi` strings, or when the declared version string is malformed
+ * (missing parts or non-numeric segments). `Number("abc")` yields `NaN`,
+ * which `parts[i] ?? default` does NOT replace — nullish coalescing only
+ * substitutes `null`/`undefined` — so any unparseable segment surfaces
+ * as `undefined` rather than a silent fabricated default.
  */
 export function detectOpenApiVersion(
     doc: Record<string, unknown>
@@ -262,26 +268,41 @@ export function detectOpenApiVersion(
     // Swagger 2.0
     const swagger = doc.swagger;
     if (typeof swagger === "string") {
-        const parts = swagger.split(".").map(Number);
-        return {
-            major: parts[0] ?? 2,
-            minor: parts[1] ?? 0,
-            patch: parts[2] ?? 0,
-        };
+        return parseVersionString(swagger);
     }
 
     // OpenAPI 3.x
     const openapi = doc.openapi;
     if (typeof openapi === "string") {
-        const parts = openapi.split(".").map(Number);
-        return {
-            major: parts[0] ?? 3,
-            minor: parts[1] ?? 0,
-            patch: parts[2] ?? 0,
-        };
+        return parseVersionString(openapi);
     }
 
     return undefined;
+}
+
+/**
+ * Parse a dotted version string into `{ major, minor, patch }`.
+ *
+ * Returns `undefined` when any required segment is missing or fails to
+ * parse as a finite number. A two-segment string ("3.1") fills `patch`
+ * with `0` because the spec treats the patch as optional, but a missing
+ * `major` or `minor` is a malformed declaration and yields `undefined`.
+ */
+function parseVersionString(version: string): OpenApiVersionInfo | undefined {
+    const parts = version.split(".").map(Number);
+    const major = parts[0];
+    const minor = parts[1];
+    const patch = parts[2] ?? 0;
+    if (
+        major === undefined ||
+        minor === undefined ||
+        !Number.isFinite(major) ||
+        !Number.isFinite(minor) ||
+        !Number.isFinite(patch)
+    ) {
+        return undefined;
+    }
+    return { major, minor, patch };
 }
 
 /**
