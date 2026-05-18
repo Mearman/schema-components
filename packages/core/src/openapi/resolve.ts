@@ -28,6 +28,7 @@ import {
 } from "../core/normalise.ts";
 import type { DiagnosticsOptions } from "../core/diagnostics.ts";
 import { emitDiagnostic } from "../core/diagnostics.ts";
+import { resolveRefChain } from "../core/refChain.ts";
 
 // ---------------------------------------------------------------------------
 // Document caching
@@ -296,6 +297,34 @@ function lookupPathItemNode(
     );
 }
 
+/**
+ * Resolve a fragment `$ref` (must start with `#/`) against the parsed
+ * document by walking the JSON Pointer one segment at a time. Returns
+ * the resolved node only when every segment lands on a plain object;
+ * returns `undefined` when any intermediate segment is missing or
+ * non-object, or when the final node is not an object.
+ *
+ * Rejects `__proto__`, `constructor`, `prototype` segments — walking
+ * into any of these reads `Object.prototype` and would let a crafted
+ * pathItems `$ref` smuggle properties from the runtime prototype
+ * chain into the resolved Path Item Object.
+ */
+function lookupFragmentRef(
+    parsed: OpenApiDocument,
+    ref: string
+): Record<string, unknown> | undefined {
+    if (!ref.startsWith("#/")) return undefined;
+    const parts = ref.slice(2).split("/");
+    let node: unknown = parsed.doc;
+    for (const part of parts) {
+        if (!isObject(node)) return undefined;
+        const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
+        if (isPrototypePollutingKey(decoded)) return undefined;
+        node = node[decoded];
+    }
+    return isObject(node) ? node : undefined;
+}
+
 function resolvePathItemNode(
     parsed: OpenApiDocument,
     pathItem: unknown,
@@ -306,15 +335,25 @@ function resolvePathItemNode(
     // Multi-hop `$ref` resolution: follow each `$ref` until we land on
     // a non-ref Path Item Object, detect a cycle, or hit the depth cap.
     // OpenAPI 3.1 explicitly permits `pathItems` references through
-    // `components/pathItems`, but allows chains of refs — a single-hop
+    // `components/pathItems` and allows chains of refs — a single-hop
     // resolver silently rendered nothing for chains of length > 1.
-    const visited = new Set<string>();
-    let current: Record<string, unknown> = pathItem;
-    for (let hop = 0; hop < MAX_PATH_ITEM_REF_HOPS; hop++) {
-        const ref = getProperty(current, "$ref");
-        if (typeof ref !== "string") return current;
-        if (!ref.startsWith("#/")) return current;
-        if (visited.has(ref)) {
+    //
+    // Delegated to the canonical `resolveRefChain` helper so cycle
+    // detection, depth tracking, and the lookup boundary follow the
+    // same discipline as every other multi-hop ref site in the library.
+    return resolveRefChain<Record<string, unknown>>(pathItem, {
+        lookup: (ref) => lookupFragmentRef(parsed, ref),
+        extractRef: (node) => {
+            const ref = getProperty(node, "$ref");
+            if (typeof ref !== "string") return undefined;
+            // Only fragment refs participate in the chain. Anything
+            // else (absolute URIs, relative refs that survived
+            // normalisation) is treated as the terminal value and
+            // returned to the caller unchanged.
+            if (!ref.startsWith("#/")) return undefined;
+            return ref;
+        },
+        onCycle: (ref) => {
             emitDiagnostic(diagnostics, {
                 code: "cyclic-path-item-ref",
                 message: `Cyclic Path Item Object $ref "${ref}"`,
@@ -322,32 +361,18 @@ function resolvePathItemNode(
                 detail: { ref },
             });
             return undefined;
-        }
-        visited.add(ref);
-        const parts = ref.slice(2).split("/");
-        let node: unknown = parsed.doc;
-        for (const part of parts) {
-            if (!isObject(node)) return undefined;
-            const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
-            // Reject prototype-polluting segments (`__proto__`,
-            // `constructor`, `prototype`). Walking into any of these
-            // reads `Object.prototype` and lets a crafted pathItems
-            // `$ref` smuggle properties from the runtime prototype
-            // chain into the resolved Path Item Object.
-            if (isPrototypePollutingKey(decoded)) return undefined;
-            node = node[decoded];
-        }
-        if (!isObject(node)) return current;
-        current = node;
-    }
-    // Exceeded the hop cap — surface a diagnostic and bail.
-    emitDiagnostic(diagnostics, {
-        code: "path-item-ref-too-deep",
-        message: `Path Item Object $ref chain exceeded ${String(MAX_PATH_ITEM_REF_HOPS)} hops`,
-        pointer: "",
-        detail: { maxHops: MAX_PATH_ITEM_REF_HOPS },
+        },
+        onDepthExceeded: () => {
+            emitDiagnostic(diagnostics, {
+                code: "path-item-ref-too-deep",
+                message: `Path Item Object $ref chain exceeded ${String(MAX_PATH_ITEM_REF_HOPS)} hops`,
+                pointer: "",
+                detail: { maxHops: MAX_PATH_ITEM_REF_HOPS },
+            });
+            return undefined;
+        },
+        maxHops: MAX_PATH_ITEM_REF_HOPS,
     });
-    return undefined;
 }
 
 function extractPathItemInfo(pathItem: Record<string, unknown>): PathItemInfo {
