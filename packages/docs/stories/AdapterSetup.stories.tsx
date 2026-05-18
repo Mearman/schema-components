@@ -99,6 +99,14 @@ const meta = {
     title: "Theme Adapters/Setup",
     component: AdapterSetup,
     tags: ["theme-adapter"],
+    parameters: {
+        apiSymbols: [
+            "registerMuiComponents",
+            "registerMantineComponents",
+            "registerRadixComponents",
+            "shadcnResolver",
+        ],
+    },
 } satisfies Meta<typeof AdapterSetup>;
 
 export default meta;

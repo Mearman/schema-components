@@ -70,6 +70,15 @@ const meta: Meta<typeof ThemeComparison> = {
     title: "Theme Adapters/Comparison",
     component: ThemeComparison,
     tags: ["theme-adapter", "editable", "readonly"],
+    parameters: {
+        apiSymbols: [
+            "SchemaProvider",
+            "muiResolver",
+            "mantineResolver",
+            "radixResolver",
+            "shadcnResolver",
+        ],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

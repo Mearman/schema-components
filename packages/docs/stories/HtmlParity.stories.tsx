@@ -96,6 +96,9 @@ const meta = {
     title: "HTML Rendering/Parity",
     component: HtmlParity,
     tags: ["html"],
+    parameters: {
+        apiSymbols: ["SchemaComponent", "renderToHtml", "renderToHtmlChunks"],
+    },
 } satisfies Meta<typeof HtmlParity>;
 
 export default meta;

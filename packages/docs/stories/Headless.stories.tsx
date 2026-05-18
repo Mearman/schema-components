@@ -91,6 +91,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "Theme Adapters/Headless",
     component: SchemaComponent,
     tags: ["theme-adapter", "editable", "readonly"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

@@ -45,6 +45,9 @@ const meta: Meta<typeof HtmlPreview> = {
     title: "HTML Rendering/Custom Resolver",
     component: HtmlPreview,
     tags: ["html"],
+    parameters: {
+        apiSymbols: ["renderToHtml", "HtmlResolver"],
+    },
 };
 
 export default meta;
