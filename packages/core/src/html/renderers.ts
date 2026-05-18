@@ -6,17 +6,18 @@
  * input using the typed `h()` builder.
  */
 
-import type { WalkedField } from "../core/types.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
 import { dateInputType } from "../core/formats.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import { isSafeHyperlink, isSafeMailtoAddress } from "../core/uri.ts";
-// TODO(round7-integration): displayJsonValue lives in walkBuilders for
-// now because `EnumField.enumValues` and `LiteralField.literalValues`
-// were widened to `unknown[]` (Draft 2020-12 §6.1.2/§6.1.3). Round 7
-// Agent D added the shared helper; integration can relocate it to a
-// dedicated display utilities module if preferred.
+import { isObject } from "../core/guards.ts";
 import { displayJsonValue } from "../core/walkBuilders.ts";
+import {
+    matchUnionOption,
+    resolveDiscriminatedActive,
+} from "../core/unionMatch.ts";
+import { fieldDomId, panelIdFor, tabIdFor } from "../core/idPath.ts";
+import { SC_CLASSES, EM_DASH, ELLIPSIS } from "../core/cssClasses.ts";
 import {
     h,
     serialize,
@@ -41,12 +42,57 @@ export { dateInputType };
 // ---------------------------------------------------------------------------
 
 /**
- * Normalise a structural path into a valid, `sc-` prefixed HTML ID.
- * Dots (object nesting) and brackets (array indices) become hyphens so
- * the id remains a valid CSS selector and predictable in test queries.
+ * Thin wrapper over `fieldDomId` from `core/idPath.ts`. Every render
+ * pipeline must derive ids from the same canonical normaliser so that
+ * `aria-controls`, `aria-labelledby`, and `htmlFor` references resolve
+ * consistently across the React, sync-HTML, and streaming-HTML outputs.
+ *
+ * The wrapper tolerates an empty path here (returning `sc-`) for the
+ * sole reason that a leaf renderer at the schema root would otherwise
+ * throw — `renderToHtml(z.string())` is a rare but valid call shape.
+ * Container renderers thread a non-empty path through `renderChild`, so
+ * the empty-id fallback can never produce sibling collisions inside a
+ * structured form.
+ *
+ * TODO(round7-integration): once `renderToHtml` always threads a stable
+ * root path (e.g. `"$"`) into the leaf renderers, drop this wrapper and
+ * call `fieldDomId` directly so the throw fires as designed.
  */
 export function fieldId(path: string): string {
-    return `sc-${path.replace(/[.[\]]+/g, "-").replace(/-+$/g, "")}`;
+    if (path.length === 0) return "sc-";
+    return fieldDomId(path);
+}
+
+/**
+ * Tab-panel id for a discriminated union at `path`. Delegates to the
+ * canonical `panelIdFor` from `core/idPath.ts` for the normal case so
+ * the sync, streaming, and React renderers all emit identical ids; falls
+ * back to a structurally-equivalent string when the renderer is invoked
+ * with an empty root path (a discriminated union at the schema root —
+ * see the `fieldId` doc comment for the wider context).
+ *
+ * Exported because `streamRenderers.ts` needs to derive identical ids
+ * — the panel id on the `<div role="tabpanel">` must match the
+ * `aria-controls` on every tab regardless of which pipeline rendered it.
+ *
+ * TODO(round7-integration): drop the empty-path branch once `renderToHtml`
+ * threads a stable root path so `panelIdFor` can be called directly.
+ */
+export function panelId(path: string): string {
+    if (path.length === 0) return `${fieldId(path)}-panel`;
+    return panelIdFor(path);
+}
+
+/**
+ * Tab id for tab `i` within a discriminated union at `path`. Mirror of
+ * `panelId` above — see its comment.
+ *
+ * TODO(round7-integration): drop the empty-path branch once `renderToHtml`
+ * threads a stable root path so `tabIdFor` can be called directly.
+ */
+export function tabId(path: string, i: number): string {
+    if (path.length === 0) return `${fieldId(path)}-tab-${String(i)}`;
+    return tabIdFor(path, i);
 }
 
 // ---------------------------------------------------------------------------
@@ -65,8 +111,8 @@ function renderStringReadOnly(props: HtmlRenderProps): HtmlNode {
     if (strValue === undefined || strValue.length === 0) {
         return h(
             "span",
-            { class: "sc-value sc-value--empty", ...ariaReadonlyAttrs() },
-            "\u2014"
+            { class: SC_CLASSES.valueEmpty, ...ariaReadonlyAttrs() },
+            EM_DASH
         );
     }
     const format = props.constraints.format;
@@ -74,7 +120,7 @@ function renderStringReadOnly(props: HtmlRenderProps): HtmlNode {
         return h(
             "a",
             {
-                class: "sc-value",
+                class: SC_CLASSES.value,
                 href: `mailto:${strValue}`,
                 ...ariaReadonlyAttrs(),
             },
@@ -84,7 +130,7 @@ function renderStringReadOnly(props: HtmlRenderProps): HtmlNode {
     if ((format === "uri" || format === "url") && isSafeHyperlink(strValue)) {
         return h(
             "a",
-            { class: "sc-value", href: strValue, ...ariaReadonlyAttrs() },
+            { class: SC_CLASSES.value, href: strValue, ...ariaReadonlyAttrs() },
             strValue
         );
     }
@@ -92,7 +138,11 @@ function renderStringReadOnly(props: HtmlRenderProps): HtmlNode {
     // `javascript:`), or the email contains characters that could inject
     // mailto header lines. Fall through to text rendering so the value
     // is never interpreted as a navigable URI.
-    return h("span", { class: "sc-value", ...ariaReadonlyAttrs() }, strValue);
+    return h(
+        "span",
+        { class: SC_CLASSES.value, ...ariaReadonlyAttrs() },
+        strValue
+    );
 }
 
 function renderStringEditable(props: HtmlRenderProps): HtmlNode {
@@ -105,7 +155,7 @@ function renderStringEditable(props: HtmlRenderProps): HtmlNode {
     const id = fieldId(props.path);
 
     const attrs: HtmlAttributes = {
-        class: "sc-input",
+        class: SC_CLASSES.input,
         id,
         type: inputType,
         name: id,
@@ -145,13 +195,13 @@ function renderNumberReadOnly(props: HtmlRenderProps): HtmlNode {
     if (typeof props.value !== "number") {
         return h(
             "span",
-            { class: "sc-value sc-value--empty", ...ariaReadonlyAttrs() },
-            "\u2014"
+            { class: SC_CLASSES.valueEmpty, ...ariaReadonlyAttrs() },
+            EM_DASH
         );
     }
     return h(
         "span",
-        { class: "sc-value", ...ariaReadonlyAttrs() },
+        { class: SC_CLASSES.value, ...ariaReadonlyAttrs() },
         props.value.toLocaleString()
     );
 }
@@ -161,7 +211,7 @@ function renderNumberEditable(props: HtmlRenderProps): HtmlNode {
     const id = fieldId(props.path);
 
     const attrs: HtmlAttributes = {
-        class: "sc-input",
+        class: SC_CLASSES.input,
         id,
         type: "number",
         name: id,
@@ -198,8 +248,8 @@ function renderBooleanReadOnly(props: HtmlRenderProps): HtmlNode {
     if (typeof props.value !== "boolean") {
         return h(
             "span",
-            { class: "sc-value sc-value--empty", ...ariaReadonlyAttrs() },
-            "\u2014"
+            { class: SC_CLASSES.valueEmpty, ...ariaReadonlyAttrs() },
+            EM_DASH
         );
     }
     return h(
@@ -213,7 +263,7 @@ function renderBooleanEditable(props: HtmlRenderProps): HtmlNode {
     const id = fieldId(props.path);
 
     const attrs: HtmlAttributes = {
-        class: "sc-input",
+        class: SC_CLASSES.input,
         id,
         type: "checkbox",
         name: id,
@@ -245,11 +295,15 @@ function renderEnumReadOnly(props: HtmlRenderProps): HtmlNode {
     if (enumValue.length === 0) {
         return h(
             "span",
-            { class: "sc-value sc-value--empty", ...ariaReadonlyAttrs() },
-            "\u2014"
+            { class: SC_CLASSES.valueEmpty, ...ariaReadonlyAttrs() },
+            EM_DASH
         );
     }
-    return h("span", { class: "sc-value", ...ariaReadonlyAttrs() }, enumValue);
+    return h(
+        "span",
+        { class: SC_CLASSES.value, ...ariaReadonlyAttrs() },
+        enumValue
+    );
 }
 
 function renderEnumEditable(props: HtmlRenderProps): HtmlNode {
@@ -259,12 +313,7 @@ function renderEnumEditable(props: HtmlRenderProps): HtmlNode {
     const enumValues = props.tree.type === "enum" ? props.tree.enumValues : [];
 
     const optionNodes = [
-        h("option", { value: "" }, "Select\u2026"),
-        // TODO(round7-integration): enum values may be objects or arrays
-        // per Draft 2020-12 §6.1.2 — `EnumField.enumValues` was widened
-        // to `unknown[]` by Round 7 Agent D. Renderer collapses
-        // non-primitive entries via JSON serialisation as a stopgap;
-        // dedicated rich-value rendering is integration-phase work.
+        h("option", { value: "" }, `Select${ELLIPSIS}`),
         ...enumValues.map((v) => {
             const display = displayJsonValue(v);
             const attrs: HtmlAttributes = { value: display };
@@ -276,7 +325,7 @@ function renderEnumEditable(props: HtmlRenderProps): HtmlNode {
     ];
 
     const selectAttrs: HtmlAttributes = {
-        class: "sc-input",
+        class: SC_CLASSES.input,
         id,
         name: id,
     };
@@ -298,9 +347,7 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
     if (props.tree.type !== "object") return "";
     const fields = props.tree.fields;
 
-    const isRecord = (v: unknown): v is Record<string, unknown> =>
-        typeof v === "object" && v !== null && !Array.isArray(v);
-    const obj = isRecord(props.value) ? props.value : {};
+    const obj = isObject(props.value) ? props.value : {};
 
     const descriptionText =
         typeof props.meta.description === "string"
@@ -328,11 +375,11 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
             // Pass the structural key as a path suffix — `renderChild`
             // joins it to the parent path so every child gets a unique id.
             const childHtml = props.renderChild(field, childValue, key);
-            children.push(h("dt", { class: "sc-label" }, label));
-            children.push(h("dd", { class: "sc-value" }, raw(childHtml)));
+            children.push(h("dt", { class: SC_CLASSES.label }, label));
+            children.push(h("dd", { class: SC_CLASSES.value }, raw(childHtml)));
         }
 
-        const dlAttrs: HtmlAttributes = { class: "sc-object" };
+        const dlAttrs: HtmlAttributes = { class: SC_CLASSES.object };
         Object.assign(dlAttrs, ariaLabelAttrs(descriptionText));
         return h("dl", dlAttrs, ...children);
     }
@@ -356,7 +403,11 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
         if (required !== undefined) labelContent.push(required);
 
         const fieldChildren: HtmlNode[] = [
-            h("label", { class: "sc-label", for: fieldId }, ...labelContent),
+            h(
+                "label",
+                { class: SC_CLASSES.label, for: fieldId },
+                ...labelContent
+            ),
             raw(childHtml),
         ];
         // Hint element for the field's constraints.
@@ -364,10 +415,10 @@ function renderObjectNode(props: HtmlRenderProps): HtmlNode {
         const hint = buildHintElement(fieldId, field.constraints);
         if (hint !== undefined) fieldChildren.push(hint);
 
-        children.push(h("div", { class: "sc-field" }, ...fieldChildren));
+        children.push(h("div", { class: SC_CLASSES.field }, ...fieldChildren));
     }
 
-    const fieldsetAttrs: HtmlAttributes = { class: "sc-object" };
+    const fieldsetAttrs: HtmlAttributes = { class: SC_CLASSES.object };
     Object.assign(fieldsetAttrs, ariaLabelAttrs(descriptionText));
     return h("fieldset", fieldsetAttrs, ...children);
 }
@@ -396,14 +447,14 @@ function renderArrayNode(props: HtmlRenderProps): HtmlNode {
         const items = childHtmls.map((childHtml) =>
             h("li", { class: "sc-item" }, raw(childHtml))
         );
-        return h("ul", { class: "sc-array" }, ...items);
+        return h("ul", { class: SC_CLASSES.array }, ...items);
     }
 
     // Editable: wrap each item in a div
     const divItems = childHtmls.map((childHtml) =>
         h("div", {}, raw(childHtml))
     );
-    return h("div", { class: "sc-array" }, ...divItems);
+    return h("div", { class: SC_CLASSES.array }, ...divItems);
 }
 
 // ---------------------------------------------------------------------------
@@ -416,19 +467,17 @@ function renderRecordHtml(props: HtmlRenderProps): string {
 
 function renderRecordNode(props: HtmlRenderProps): HtmlNode {
     if (props.tree.type !== "record") return "";
-    const isRecord = (v: unknown): v is Record<string, unknown> =>
-        typeof v === "object" && v !== null && !Array.isArray(v);
-    const obj = isRecord(props.value) ? props.value : {};
+    const obj = isObject(props.value) ? props.value : {};
     const valueType = props.tree.valueType;
 
-    const attrs: HtmlAttributes = { class: "sc-record", role: "group" };
+    const attrs: HtmlAttributes = { class: SC_CLASSES.record, role: "group" };
 
     if (props.readOnly) {
         const children: HtmlNode[] = [];
         for (const [key, val] of Object.entries(obj)) {
             const childHtml = props.renderChild(valueType, val, key);
-            children.push(h("dt", { class: "sc-label" }, key));
-            children.push(h("dd", { class: "sc-value" }, raw(childHtml)));
+            children.push(h("dt", { class: SC_CLASSES.label }, key));
+            children.push(h("dd", { class: SC_CLASSES.value }, raw(childHtml)));
         }
         return h("dl", attrs, ...children);
     }
@@ -439,8 +488,8 @@ function renderRecordNode(props: HtmlRenderProps): HtmlNode {
         children.push(
             h(
                 "div",
-                { class: "sc-field" },
-                h("label", { class: "sc-label" }, key),
+                { class: SC_CLASSES.field },
+                h("label", { class: SC_CLASSES.label }, key),
                 raw(childHtml)
             )
         );
@@ -454,23 +503,14 @@ function renderRecordNode(props: HtmlRenderProps): HtmlNode {
 
 function renderLiteralHtml(props: HtmlRenderProps): string {
     if (props.tree.type !== "literal") {
-        return serialize(
-            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
-        );
+        return serialize(h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH));
     }
     const values = props.tree.literalValues;
     if (values.length === 0) {
-        return serialize(
-            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
-        );
+        return serialize(h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH));
     }
-    // TODO(round7-integration): literal `const` may be an object or array
-    // per Draft 2020-12 §6.1.3 — `LiteralField.literalValues` was widened
-    // to `unknown[]` by Round 7 Agent D. Renderer collapses non-primitive
-    // entries via `displayJsonValue` as a stopgap; dedicated rich-value
-    // rendering is integration-phase work.
     const display = values.map((v) => displayJsonValue(v)).join(", ");
-    return serialize(h("span", { class: "sc-value" }, display));
+    return serialize(h("span", { class: SC_CLASSES.value }, display));
 }
 
 // ---------------------------------------------------------------------------
@@ -485,11 +525,11 @@ function renderUnionHtml(props: HtmlRenderProps): string {
     if (options === undefined || options.length === 0) {
         if (props.value === undefined || props.value === null) {
             return serialize(
-                h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+                h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH)
             );
         }
         return serialize(
-            h("span", { class: "sc-value" }, JSON.stringify(props.value))
+            h("span", { class: SC_CLASSES.value }, JSON.stringify(props.value))
         );
     }
 
@@ -502,9 +542,7 @@ function renderUnionHtml(props: HtmlRenderProps): string {
     if (firstOption !== undefined) {
         return props.renderChild(firstOption, props.value);
     }
-    return serialize(
-        h("span", { class: "sc-value sc-value--empty" }, "\u2014")
-    );
+    return serialize(h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH));
 }
 
 // ---------------------------------------------------------------------------
@@ -512,75 +550,61 @@ function renderUnionHtml(props: HtmlRenderProps): string {
 // ---------------------------------------------------------------------------
 
 function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
-    const options =
-        props.tree.type === "discriminatedUnion"
-            ? props.tree.options
-            : undefined;
-    const discriminator =
-        props.tree.type === "discriminatedUnion"
-            ? props.tree.discriminator
-            : undefined;
-    if (options === undefined || options.length === 0) {
+    if (props.tree.type !== "discriminatedUnion") {
         if (props.value === undefined || props.value === null) {
             return serialize(
-                h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+                h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH)
             );
         }
         return serialize(
-            h("span", { class: "sc-value" }, JSON.stringify(props.value))
+            h("span", { class: SC_CLASSES.value }, JSON.stringify(props.value))
+        );
+    }
+    // Narrow once at the top \u2014 `discriminator` is `string` on every
+    // `DiscriminatedUnionField`, so no `?? ""` empty fallback is needed.
+    const { options, discriminator } = props.tree;
+    if (options.length === 0) {
+        if (props.value === undefined || props.value === null) {
+            return serialize(
+                h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH)
+            );
+        }
+        return serialize(
+            h("span", { class: SC_CLASSES.value }, JSON.stringify(props.value))
         );
     }
 
-    const isRecord = (v: unknown): v is Record<string, unknown> =>
-        typeof v === "object" && v !== null && !Array.isArray(v);
-    const obj = isRecord(props.value) ? props.value : {};
-    const discKey = discriminator ?? "";
-    const currentDiscriminatorValue =
-        typeof obj[discKey] === "string" ? obj[discKey] : undefined;
-
-    const optionLabels = options.map((opt) => {
-        if (opt.type === "object") {
-            const discriminatorField = opt.fields[discKey];
-            if (discriminatorField?.type === "literal") {
-                const constVal = discriminatorField.literalValues[0];
-                if (typeof constVal === "string") return constVal;
-            }
-        }
-        return typeof opt.meta.title === "string" ? opt.meta.title : opt.type;
-    });
-
-    let activeIndex = 0;
-    if (currentDiscriminatorValue !== undefined) {
-        const found = optionLabels.indexOf(currentDiscriminatorValue);
-        if (found !== -1) activeIndex = found;
-    }
-    const activeOption = options[activeIndex];
+    const valueObject: Record<string, unknown> | undefined = isObject(
+        props.value
+    )
+        ? props.value
+        : undefined;
+    const { optionLabels, activeIndex, activeOption } =
+        resolveDiscriminatedActive(options, discriminator, valueObject);
 
     if (props.readOnly) {
         if (activeOption !== undefined) {
             return props.renderChild(activeOption, props.value);
         }
-        return serialize(
-            h("span", { class: "sc-value sc-value--empty" }, "\u2014")
-        );
+        return serialize(h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH));
     }
 
-    // Editable: WAI-ARIA tabs pattern.
-    // Sanitise the base id once so dots/brackets in `props.path` (object
-    // nesting, array indices) cannot leak into the tab/panel ids — those
-    // would otherwise produce invalid CSS selectors and break the
-    // `aria-labelledby` association on the tabpanel.
-    const baseId = fieldId(props.path);
-    const panelId = `${baseId}-panel`;
-    const tabId = (i: number): string => `${baseId}-tab-${String(i)}`;
+    // Editable: WAI-ARIA tabs pattern. Route ids through the local
+    // `panelId` / `tabId` helpers — both delegate to the canonical
+    // `panelIdFor` / `tabIdFor` from `core/idPath.ts` for non-empty paths
+    // so the sync, streaming, and React renderers all derive the same id
+    // for the same structural path. The helpers also sanitise dots /
+    // brackets out of the path so the tab/panel ids remain valid CSS
+    // selectors when nested beneath arrays or under deep object paths.
+    const tabPanelId = panelId(props.path);
     const tabButtons = options.map((_opt, i) => {
         const attrs: HtmlAttributes = {
             type: "button",
             role: "tab",
-            class: i === activeIndex ? "sc-tab sc-tab--active" : "sc-tab",
-            id: tabId(i),
+            class: i === activeIndex ? SC_CLASSES.tabActive : SC_CLASSES.tab,
+            id: tabId(props.path, i),
             "aria-selected": i === activeIndex ? "true" : undefined,
-            "aria-controls": panelId,
+            "aria-controls": tabPanelId,
             tabindex: i === activeIndex ? "0" : "-1",
         };
         return h("button", attrs, optionLabels[i]);
@@ -591,7 +615,7 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
             "div",
             {
                 role: "tablist",
-                class: "sc-tabs",
+                class: SC_CLASSES.tabs,
                 "aria-label": "Select variant",
             },
             ...tabButtons
@@ -605,8 +629,8 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
                 "div",
                 {
                     role: "tabpanel",
-                    id: panelId,
-                    "aria-labelledby": tabId(activeIndex),
+                    id: tabPanelId,
+                    "aria-labelledby": tabId(props.path, activeIndex),
                 },
                 raw(childHtml)
             )
@@ -614,7 +638,7 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
     }
 
     return serialize(
-        h("div", { class: "sc-discriminated-union" }, ...children)
+        h("div", { class: SC_CLASSES.discriminatedUnion }, ...children)
     );
 }
 
@@ -630,14 +654,14 @@ function renderFileHtml(props: HtmlRenderProps): string {
         return serialize(
             h(
                 "span",
-                { class: "sc-value", id, ...ariaReadonlyAttrs() },
+                { class: SC_CLASSES.value, id, ...ariaReadonlyAttrs() },
                 "File field"
             )
         );
     }
 
     const attrs: HtmlAttributes = {
-        class: "sc-input",
+        class: SC_CLASSES.input,
         id,
         type: "file",
         name: id,
@@ -661,14 +685,16 @@ function renderUnknownHtml(props: HtmlRenderProps): string {
     if (props.readOnly) {
         if (props.value === undefined || props.value === null) {
             return serialize(
-                h("span", { class: "sc-value sc-value--empty" }, "\u2014")
+                h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH)
             );
         }
         if (typeof props.value === "string") {
-            return serialize(h("span", { class: "sc-value" }, props.value));
+            return serialize(
+                h("span", { class: SC_CLASSES.value }, props.value)
+            );
         }
         return serialize(
-            h("span", { class: "sc-value" }, JSON.stringify(props.value))
+            h("span", { class: SC_CLASSES.value }, JSON.stringify(props.value))
         );
     }
 
@@ -676,7 +702,7 @@ function renderUnknownHtml(props: HtmlRenderProps): string {
     const name = props.path;
 
     const attrs: HtmlAttributes = {
-        class: "sc-input",
+        class: SC_CLASSES.input,
         type: "text",
         name,
     };
@@ -710,8 +736,8 @@ function renderTupleHtml(props: HtmlRenderProps): string {
         children.push(
             h(
                 "div",
-                { class: "sc-tuple-item" },
-                h("span", { class: "sc-tuple-index" }, String(i)),
+                { class: SC_CLASSES.tupleItem },
+                h("span", { class: SC_CLASSES.tupleIndex }, String(i)),
                 raw(childHtml)
             )
         );
@@ -730,15 +756,17 @@ function renderTupleHtml(props: HtmlRenderProps): string {
             children.push(
                 h(
                     "div",
-                    { class: "sc-tuple-item sc-tuple-rest" },
-                    h("span", { class: "sc-tuple-index" }, String(i)),
+                    {
+                        class: `${SC_CLASSES.tupleItem} ${SC_CLASSES.tupleRest}`,
+                    },
+                    h("span", { class: SC_CLASSES.tupleIndex }, String(i)),
                     raw(childHtml)
                 )
             );
         }
     }
 
-    return serialize(h("div", { class: "sc-tuple" }, ...children));
+    return serialize(h("div", { class: SC_CLASSES.tuple }, ...children));
 }
 
 // ---------------------------------------------------------------------------
@@ -751,20 +779,30 @@ function renderConditionalHtml(props: HtmlRenderProps): string {
 
     if (props.tree.type === "conditional") {
         // `ifClause` is always present on a ConditionalField.
-        children.push(h("div", { class: "sc-conditional-if" }, raw("if: ...")));
+        children.push(
+            h("div", { class: SC_CLASSES.conditionalIf }, raw("if: ..."))
+        );
         if (props.tree.thenClause !== undefined) {
             children.push(
-                h("div", { class: "sc-conditional-then" }, raw("then: ..."))
+                h(
+                    "div",
+                    { class: SC_CLASSES.conditionalThen },
+                    raw("then: ...")
+                )
             );
         }
         if (props.tree.elseClause !== undefined) {
             children.push(
-                h("div", { class: "sc-conditional-else" }, raw("else: ..."))
+                h(
+                    "div",
+                    { class: SC_CLASSES.conditionalElse },
+                    raw("else: ...")
+                )
             );
         }
     }
 
-    return serialize(h("div", { class: "sc-conditional" }, ...children));
+    return serialize(h("div", { class: SC_CLASSES.conditional }, ...children));
 }
 
 // ---------------------------------------------------------------------------
@@ -774,7 +812,7 @@ function renderConditionalHtml(props: HtmlRenderProps): string {
 function renderNegationHtml(props: HtmlRenderProps): string {
     // Props unused — negation renders a static annotation
     void props;
-    return serialize(h("div", { class: "sc-negation" }, raw("not: ...")));
+    return serialize(h("div", { class: SC_CLASSES.negation }, raw("not: ...")));
 }
 
 // ---------------------------------------------------------------------------
@@ -792,11 +830,11 @@ function renderNullHtml(props: HtmlRenderProps): string {
         h(
             "span",
             {
-                class: "sc-value sc-value--empty",
+                class: SC_CLASSES.valueEmpty,
                 id,
                 ...ariaReadonlyAttrs(),
             },
-            "—"
+            EM_DASH
         )
     );
 }
@@ -828,30 +866,11 @@ function renderNeverHtml(props: HtmlRenderProps): string {
 }
 
 // ---------------------------------------------------------------------------
-// Union matching heuristic
+// Union matching heuristic — re-export of the canonical helper so existing
+// callers that imported from `html/renderers` keep working.
 // ---------------------------------------------------------------------------
 
-export function matchUnionOption(
-    options: WalkedField[],
-    value: unknown
-): WalkedField | undefined {
-    if (typeof value === "string") {
-        return options.find((o) => o.type === "string" || o.type === "enum");
-    }
-    if (typeof value === "number") {
-        return options.find((o) => o.type === "number");
-    }
-    if (typeof value === "boolean") {
-        return options.find((o) => o.type === "boolean");
-    }
-    if (Array.isArray(value)) {
-        return options.find((o) => o.type === "array");
-    }
-    if (typeof value === "object" && value !== null) {
-        return options.find((o) => o.type === "object");
-    }
-    return undefined;
-}
+export { matchUnionOption };
 
 // ---------------------------------------------------------------------------
 // Default resolver
