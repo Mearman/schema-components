@@ -21,12 +21,14 @@ import { isObject } from "../core/guards.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import type { WalkedField } from "../core/types.ts";
 import { isSafeHyperlink, isSafeMailtoAddress } from "../core/uri.ts";
-// TODO(round7-integration): displayJsonValue lives in walkBuilders for
-// now because `EnumField.enumValues` and `LiteralField.literalValues`
-// were widened to `unknown[]` (Draft 2020-12 §6.1.2/§6.1.3). Round 7
-// Agent D added the shared helper; integration can relocate it to a
-// dedicated display utilities module if preferred.
 import { displayJsonValue } from "../core/walkBuilders.ts";
+import { fieldDomId, panelIdFor, tabIdFor } from "../core/idPath.ts";
+import { EM_DASH, ELLIPSIS, SC_CLASSES } from "../core/cssClasses.ts";
+import {
+    matchUnionOption as matchUnionOptionShared,
+    resolveDiscriminatedActive,
+} from "../core/unionMatch.ts";
+import { buildAriaAttrs } from "./a11y.ts";
 
 // ---------------------------------------------------------------------------
 // Utility
@@ -79,24 +81,17 @@ function formatTime(value: unknown): string | undefined {
 
 /**
  * Build a stable, unique input ID from the path.
- * Used for `htmlFor`/`id` association between labels and inputs.
  *
- * Throws on an empty path: the previous "sc-field" fallback caused every
- * input across a form to share the same id, breaking label-input pairing
- * and screen reader navigation. Callers must thread a non-empty path
- * (see `ROOT_PATH` and `joinPath` in `SchemaComponent.tsx`).
+ * Re-exported alias for {@link fieldDomId} so external themes (shadcn,
+ * MUI, mantine, radix) keep importing `inputId` from the React entry
+ * point. Both the React and HTML renderers must derive the same id from
+ * the same path — `fieldDomId` in `core/idPath.ts` is the single
+ * source-of-truth.
  *
- * Dots and bracket indices in paths are converted to hyphens to keep the
- * id valid as a CSS selector and predictable in test queries.
+ * Throws on an empty path; see `fieldDomId` for the rationale.
  */
 export function inputId(path: string): string {
-    if (path.length === 0) {
-        throw new Error(
-            "inputId requires a non-empty path. Pass ROOT_PATH for the root field and use renderChild's pathSuffix to derive child paths."
-        );
-    }
-    const normalised = path.replace(/[.[\]]+/g, "-").replace(/-+$/g, "");
-    return `sc-${normalised}`;
+    return fieldDomId(path);
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +107,7 @@ export function renderString(props: RenderProps): ReactNode {
         if (strValue === undefined || strValue.length === 0)
             return (
                 <span id={id} aria-readonly="true">
-                    {"\u2014"}
+                    {EM_DASH}
                 </span>
             );
         const format = props.constraints.format;
@@ -166,10 +161,7 @@ export function renderString(props: RenderProps): ReactNode {
     const strValue = typeof props.value === "string" ? props.value : "";
     const dateType = dateInputType(props.constraints.format);
 
-    const ariaAttrs: Record<string, string> = {};
-    if (props.tree.isOptional === false) {
-        ariaAttrs["aria-required"] = "true";
-    }
+    const ariaAttrs = buildAriaAttrs(props.tree);
 
     if (dateType !== undefined) {
         return (
@@ -196,13 +188,7 @@ export function renderString(props: RenderProps): ReactNode {
                 }}
                 {...ariaAttrs}
             >
-                <option value="">Select{"\u2026"}</option>
-                {/* TODO(round7-integration): enum values may be objects
-                   or arrays per Draft 2020-12 §6.1.2 — `EnumField.enumValues`
-                   was widened to `unknown[]` by Round 7 Agent D. Renderer
-                   collapses non-primitive entries via `displayJsonValue`
-                   as a stopgap; dedicated rich-value rendering is
-                   integration-phase work. */}
+                <option value="">Select{ELLIPSIS}</option>
                 {enumValues.map((v) => {
                     const display = displayJsonValue(v);
                     return (
@@ -248,7 +234,7 @@ export function renderNumber(props: RenderProps): ReactNode {
         if (typeof props.value !== "number")
             return (
                 <span id={id} aria-readonly="true">
-                    {"\u2014"}
+                    {EM_DASH}
                 </span>
             );
         return (
@@ -259,10 +245,7 @@ export function renderNumber(props: RenderProps): ReactNode {
     }
 
     const numValue = typeof props.value === "number" ? props.value : "";
-    const ariaAttrs: Record<string, string> = {};
-    if (props.tree.isOptional === false) {
-        ariaAttrs["aria-required"] = "true";
-    }
+    const ariaAttrs = buildAriaAttrs(props.tree);
 
     return (
         <input
@@ -286,7 +269,7 @@ export function renderBoolean(props: RenderProps): ReactNode {
         if (typeof props.value !== "boolean")
             return (
                 <span id={id} aria-readonly="true">
-                    {"\u2014"}
+                    {EM_DASH}
                 </span>
             );
         return (
@@ -296,13 +279,7 @@ export function renderBoolean(props: RenderProps): ReactNode {
         );
     }
 
-    const ariaAttrs: Record<string, string> = {};
-    if (props.tree.isOptional === false) {
-        ariaAttrs["aria-required"] = "true";
-    }
-    if (typeof props.meta.description === "string") {
-        ariaAttrs["aria-label"] = props.meta.description;
-    }
+    const ariaAttrs = buildAriaAttrs(props.tree, props.meta.description);
 
     return (
         <input
@@ -324,15 +301,12 @@ export function renderEnum(props: RenderProps): ReactNode {
     if (props.readOnly) {
         return (
             <span id={id} aria-readonly="true">
-                {enumValue || "\u2014"}
+                {enumValue || EM_DASH}
             </span>
         );
     }
 
-    const ariaAttrs: Record<string, string> = {};
-    if (props.tree.isOptional === false) {
-        ariaAttrs["aria-required"] = "true";
-    }
+    const ariaAttrs = buildAriaAttrs(props.tree);
 
     const enumValues = props.tree.type === "enum" ? props.tree.enumValues : [];
 
@@ -345,11 +319,7 @@ export function renderEnum(props: RenderProps): ReactNode {
             }}
             {...ariaAttrs}
         >
-            <option value="">Select{"\u2026"}</option>
-            {/* TODO(round7-integration): see headlessRenderers enum
-               renderer above — non-primitive enum values are collapsed
-               via `displayJsonValue` until integration-phase rich
-               rendering lands. Round 7 Agent D. */}
+            <option value="">Select{ELLIPSIS}</option>
             {enumValues.map((v) => {
                 const display = displayJsonValue(v);
                 return (
@@ -485,10 +455,17 @@ export function renderRecord(props: RenderProps): ReactNode {
     // renders the em-dash placeholder to indicate no data.
     if (props.readOnly) {
         if (entries.length === 0) {
-            return <span aria-readonly="true">{"—"}</span>;
+            return <span aria-readonly="true">{EM_DASH}</span>;
         }
         return (
-            <div role="group" aria-label={props.meta.description ?? "Record"}>
+            <div
+                role="group"
+                aria-label={
+                    typeof props.meta.description === "string"
+                        ? props.meta.description
+                        : undefined
+                }
+            >
                 {entries.map(([key, value]) => {
                     const childId = inputId(`${props.path}.${key}`);
                     return (
@@ -634,11 +611,11 @@ export function renderUnion(props: RenderProps): ReactNode {
             : undefined;
     if (options === undefined || options.length === 0) {
         if (props.value === undefined || props.value === null)
-            return <span>{"\u2014"}</span>;
+            return <span>{EM_DASH}</span>;
         return <span>{JSON.stringify(props.value)}</span>;
     }
 
-    const matched = matchUnionOption(options, props.value);
+    const matched = matchUnionOptionShared(options, props.value);
     if (matched !== undefined) {
         return toReactNode(
             props.renderChild(matched, props.value, props.onChange)
@@ -652,7 +629,7 @@ export function renderUnion(props: RenderProps): ReactNode {
         );
     }
 
-    return <span>{"\u2014"}</span>;
+    return <span>{EM_DASH}</span>;
 }
 
 // ---------------------------------------------------------------------------
@@ -660,46 +637,25 @@ export function renderUnion(props: RenderProps): ReactNode {
 // ---------------------------------------------------------------------------
 
 export function renderDiscriminatedUnion(props: RenderProps): ReactNode {
-    const options =
-        props.tree.type === "discriminatedUnion"
-            ? props.tree.options
-            : undefined;
-    const discriminator =
-        props.tree.type === "discriminatedUnion"
-            ? props.tree.discriminator
-            : undefined;
-    if (options === undefined || options.length === 0) {
+    // Narrow once at the top — the surrounding props.tree.type check
+    // guarantees `discriminator: string` (see DiscriminatedUnionField in
+    // core/types.ts). The previous `discriminator ?? ""` fallback was dead
+    // and masked the type-system guarantee.
+    if (props.tree.type !== "discriminatedUnion") {
         if (props.value === undefined || props.value === null)
-            return <span>{"\u2014"}</span>;
+            return <span>{EM_DASH}</span>;
+        return <span>{JSON.stringify(props.value)}</span>;
+    }
+    const { options, discriminator: discKey } = props.tree;
+    if (options.length === 0) {
+        if (props.value === undefined || props.value === null)
+            return <span>{EM_DASH}</span>;
         return <span>{JSON.stringify(props.value)}</span>;
     }
 
-    const obj = isObject(props.value) ? props.value : {};
-    const discKey = discriminator ?? "";
-    const currentDiscriminatorValue =
-        typeof obj[discKey] === "string" ? obj[discKey] : undefined;
-
-    // Find the label for each option from the const on the discriminator property
-    const optionLabels = options.map((opt) => {
-        if (opt.type === "object") {
-            const discriminatorField = opt.fields[discKey];
-            if (discriminatorField?.type === "literal") {
-                const constVal = discriminatorField.literalValues[0];
-                if (typeof constVal === "string") return constVal;
-            }
-        }
-        return typeof opt.meta.title === "string" ? opt.meta.title : opt.type;
-    });
-
-    // Determine the active option
-    let activeIndex = 0;
-    if (currentDiscriminatorValue !== undefined) {
-        const found = optionLabels.indexOf(currentDiscriminatorValue);
-        if (found !== -1) activeIndex = found;
-    }
-    const activeOption = options[activeIndex];
-
-    const panelId = inputId(props.path);
+    const valueObject = isObject(props.value) ? props.value : undefined;
+    const { optionLabels, activeIndex, activeOption } =
+        resolveDiscriminatedActive(options, discKey, valueObject);
 
     if (props.readOnly) {
         if (activeOption !== undefined) {
@@ -707,7 +663,7 @@ export function renderDiscriminatedUnion(props: RenderProps): ReactNode {
                 props.renderChild(activeOption, props.value, props.onChange)
             );
         }
-        return <span>{"\u2014"}</span>;
+        return <span>{EM_DASH}</span>;
     }
 
     return (
@@ -715,7 +671,7 @@ export function renderDiscriminatedUnion(props: RenderProps): ReactNode {
             options={options}
             optionLabels={optionLabels}
             activeIndex={activeIndex}
-            panelId={panelId}
+            path={props.path}
             discKey={discKey}
             props={props}
         />
@@ -756,17 +712,18 @@ function DiscriminatedUnionTabs({
     options,
     optionLabels,
     activeIndex,
-    panelId,
+    path,
     discKey,
     props,
 }: {
-    options: WalkedField[];
-    optionLabels: string[];
+    options: readonly WalkedField[];
+    optionLabels: readonly string[];
     activeIndex: number;
-    panelId: string;
+    path: string;
     discKey: string;
     props: RenderProps;
 }): ReactNode {
+    const panelId = panelIdFor(path);
     const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
     // Set whenever a keyboard event triggers a tab change. The effect
     // below reads and clears this flag so focus only follows selection
@@ -842,9 +799,9 @@ function DiscriminatedUnionTabs({
                         }}
                         type="button"
                         role="tab"
-                        id={`${panelId}-tab-${String(i)}`}
+                        id={tabIdFor(path, i)}
                         aria-selected={i === activeIndex ? "true" : undefined}
-                        aria-controls={`${panelId}-panel`}
+                        aria-controls={panelId}
                         tabIndex={i === activeIndex ? 0 : -1}
                         onClick={() => {
                             handleTabChange(i);
@@ -868,8 +825,8 @@ function DiscriminatedUnionTabs({
             </div>
             <div
                 role="tabpanel"
-                id={`${panelId}-panel`}
-                aria-labelledby={`${panelId}-tab-${String(activeIndex)}`}
+                id={panelId}
+                aria-labelledby={tabIdFor(path, activeIndex)}
             >
                 {activeOption !== undefined &&
                     toReactNode(
@@ -897,13 +854,7 @@ export function renderFile(props: RenderProps): ReactNode {
         );
     }
 
-    const ariaAttrs: Record<string, string> = {};
-    if (props.tree.isOptional === false) {
-        ariaAttrs["aria-required"] = "true";
-    }
-    if (typeof props.meta.description === "string") {
-        ariaAttrs["aria-label"] = props.meta.description;
-    }
+    const ariaAttrs = buildAriaAttrs(props.tree, props.meta.description);
 
     return (
         <input
@@ -935,7 +886,7 @@ export function renderLiteral(props: RenderProps): ReactNode {
     if (values.length === 0) {
         return (
             <span id={id} aria-readonly="true">
-                {"—"}
+                {EM_DASH}
             </span>
         );
     }
@@ -962,7 +913,7 @@ export function renderNull(props: RenderProps): ReactNode {
     const id = inputId(props.path);
     return (
         <span id={id} aria-readonly="true">
-            {"—"}
+            {EM_DASH}
         </span>
     );
 }
@@ -979,7 +930,7 @@ export function renderNull(props: RenderProps): ReactNode {
 export function renderNever(props: RenderProps): ReactNode {
     const id = inputId(props.path);
     return (
-        <span id={id} aria-readonly="true" className="sc-never">
+        <span id={id} aria-readonly="true" className={SC_CLASSES.never}>
             <em>never matches</em>
         </span>
     );
@@ -1074,15 +1025,15 @@ export function renderConditional(props: RenderProps): ReactNode {
     if (props.tree.type !== "conditional") return null;
     const { ifClause, thenClause, elseClause } = props.tree;
     return (
-        <fieldset className="sc-conditional">
-            <div className="sc-conditional-if">
+        <fieldset className={SC_CLASSES.conditional}>
+            <div className={SC_CLASSES.conditionalIf}>
                 <strong>if:</strong>{" "}
                 {toReactNode(
                     props.renderChild(ifClause, props.value, props.onChange)
                 )}
             </div>
             {thenClause !== undefined && (
-                <div className="sc-conditional-then">
+                <div className={SC_CLASSES.conditionalThen}>
                     <strong>then:</strong>{" "}
                     {toReactNode(
                         props.renderChild(
@@ -1094,7 +1045,7 @@ export function renderConditional(props: RenderProps): ReactNode {
                 </div>
             )}
             {elseClause !== undefined && (
-                <div className="sc-conditional-else">
+                <div className={SC_CLASSES.conditionalElse}>
                     <strong>else:</strong>{" "}
                     {toReactNode(
                         props.renderChild(
@@ -1119,7 +1070,7 @@ export function renderConditional(props: RenderProps): ReactNode {
 export function renderNegation(props: RenderProps): ReactNode {
     if (props.tree.type !== "negation") return null;
     return (
-        <fieldset className="sc-negation">
+        <fieldset className={SC_CLASSES.negation}>
             <strong>Must NOT match:</strong>{" "}
             {toReactNode(
                 props.renderChild(
@@ -1139,7 +1090,7 @@ export function renderUnknown(props: RenderProps): ReactNode {
         if (props.value === undefined || props.value === null)
             return (
                 <span id={id} aria-readonly="true">
-                    {"\u2014"}
+                    {EM_DASH}
                 </span>
             );
         return (
@@ -1164,28 +1115,5 @@ export function renderUnknown(props: RenderProps): ReactNode {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Union matching heuristic
-// ---------------------------------------------------------------------------
-
-function matchUnionOption(
-    options: WalkedField[],
-    value: unknown
-): WalkedField | undefined {
-    if (typeof value === "string") {
-        return options.find((o) => o.type === "string" || o.type === "enum");
-    }
-    if (typeof value === "number") {
-        return options.find((o) => o.type === "number");
-    }
-    if (typeof value === "boolean") {
-        return options.find((o) => o.type === "boolean");
-    }
-    if (Array.isArray(value)) {
-        return options.find((o) => o.type === "array");
-    }
-    if (typeof value === "object" && value !== null) {
-        return options.find((o) => o.type === "object");
-    }
-    return undefined;
-}
+// Union matching heuristic moved to `core/unionMatch.ts` so the React and
+// HTML pipelines share a single implementation.
