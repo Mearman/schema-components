@@ -32,11 +32,22 @@ function getString(value: unknown, key: string): string | undefined {
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Parsed OpenAPI document: the raw root JSON plus a cache of resolved
+ * `#/components/schemas/*` (or Swagger 2.0 `#/definitions/*`) entries.
+ * Produced by {@link parseOpenApiDocument} and consumed by every other
+ * parser/resolver helper in this module.
+ */
 export interface OpenApiDocument {
     doc: JsonObject;
     schemas: Map<string, JsonObject>;
 }
 
+/**
+ * Lightweight summary of an OpenAPI operation: its location, identity,
+ * description fields, deprecation flag, and the underlying Operation
+ * Object. Returned by {@link listOperations} / {@link listAllOperations}.
+ */
 export interface OperationInfo {
     path: string;
     method: string;
@@ -47,8 +58,13 @@ export interface OperationInfo {
     operation: JsonObject;
 }
 
+/** Canonical four-value OpenAPI parameter `in` location. */
 export type ParameterLocation = "query" | "path" | "header" | "cookie";
 
+/**
+ * Parsed view of an OpenAPI Parameter Object — name, location,
+ * required flag, deprecation flag, description, and resolved schema.
+ */
 export interface ParameterInfo {
     name: string;
     location: ParameterLocation;
@@ -58,6 +74,10 @@ export interface ParameterInfo {
     schema: JsonObject | undefined;
 }
 
+/**
+ * Parsed view of an OpenAPI Response Object — status code, description,
+ * declared content types, response schema, and resolved headers.
+ */
 export interface ResponseInfo {
     statusCode: string;
     description: string | undefined;
@@ -66,6 +86,10 @@ export interface ResponseInfo {
     headers: Map<string, HeaderInfo>;
 }
 
+/**
+ * Parsed view of an OpenAPI Request Body Object — required flag,
+ * description, declared content types, and the request body schema.
+ */
 export interface RequestBodyInfo {
     required: boolean;
     description: string | undefined;
@@ -73,11 +97,20 @@ export interface RequestBodyInfo {
     schema: JsonObject | undefined;
 }
 
+/**
+ * A single entry in an OpenAPI Security Requirement Object — the name
+ * of a security scheme paired with its list of required scopes.
+ */
 export interface SecurityRequirement {
     name: string;
     scopes: string[];
 }
 
+/**
+ * Parsed view of an OpenAPI Security Scheme Object covering every
+ * field defined for `apiKey`, `http`, `oauth2`, `openIdConnect`, and
+ * `mutualTLS` schemes.
+ */
 export interface SecurityScheme {
     type: string | undefined;
     description: string | undefined;
@@ -89,6 +122,10 @@ export interface SecurityScheme {
     openIdConnectUrl: string | undefined;
 }
 
+/**
+ * Parsed view of an OpenAPI Header Object — name, description, required
+ * and deprecated flags, and resolved schema.
+ */
 export interface HeaderInfo {
     name: string;
     description: string | undefined;
@@ -97,16 +134,25 @@ export interface HeaderInfo {
     schema: JsonObject | undefined;
 }
 
+/**
+ * Parsed view of a single OpenAPI 3.1 webhook entry: its name and the
+ * operations declared on its Path Item Object.
+ */
 export interface WebhookInfo {
     name: string;
     operations: OperationInfo[];
 }
 
+/** Parsed view of an OpenAPI External Documentation Object. */
 export interface ExternalDocs {
     url: string;
     description: string | undefined;
 }
 
+/**
+ * Parsed view of an OpenAPI XML Object — controls how a schema field
+ * is serialised in an XML payload.
+ */
 export interface XmlInfo {
     name: string | undefined;
     namespace: string | undefined;
@@ -115,11 +161,20 @@ export interface XmlInfo {
     wrapped: boolean;
 }
 
+/**
+ * Parsed view of a single OpenAPI Callback Object: its name and the
+ * operations declared on every callback path.
+ */
 export interface CallbackInfo {
     name: string;
     operations: OperationInfo[];
 }
 
+/**
+ * Parsed view of an OpenAPI Link Object — name, target operation
+ * (`operationId` or `operationRef`), description, parameter mappings,
+ * and the optional request body expression.
+ */
 export interface LinkInfo {
     name: string;
     operationId: string | undefined;
@@ -170,6 +225,14 @@ function toParameterLocation(
 // Document parsing
 // ---------------------------------------------------------------------------
 
+/**
+ * Build an {@link OpenApiDocument} from a raw OpenAPI JSON object.
+ *
+ * Eagerly indexes the document's `#/components/schemas/*` entries and
+ * lazily caches any other `$ref` lookup on first request. Used by
+ * every other helper in this module as the single entry point for
+ * structured access to an OpenAPI document.
+ */
 export function parseOpenApiDocument(doc: JsonObject): OpenApiDocument {
     const schemas = new Map<string, JsonObject>();
 
@@ -187,6 +250,12 @@ export function parseOpenApiDocument(doc: JsonObject): OpenApiDocument {
     return { doc, schemas };
 }
 
+/**
+ * Resolve a `$ref` string against a parsed OpenAPI document. Returns
+ * the cached entry for `#/components/schemas/*` refs (or the lazily
+ * resolved value for arbitrary fragment refs), or `undefined` when the
+ * ref cannot be resolved.
+ */
 export function getSchema(
     parsed: OpenApiDocument,
     ref: string
@@ -301,6 +370,11 @@ function recordOperationId(
     seenIds.set(operationId, location);
 }
 
+/**
+ * List every operation declared under the document's `paths` map.
+ * Follows Path Item `$ref` chains internally; cycles and over-deep
+ * chains surface as diagnostics when a sink is supplied.
+ */
 export function listOperations(
     parsed: OpenApiDocument,
     diagnostics?: DiagnosticsOptions,
@@ -347,6 +421,11 @@ export function listOperations(
 // Parameters
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve the parameters of a single operation, merging path-level
+ * parameters with operation-level overrides and following any
+ * Parameter Object `$ref` chains.
+ */
 export function getParameters(
     parsed: OpenApiDocument,
     path: string,
@@ -521,6 +600,11 @@ function jsonPointerEscape(segment: string): string {
 // Request body
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve the request body of a single operation, including its
+ * declared content types and schema. Returns `undefined` when the
+ * operation declares no request body.
+ */
 export function getRequestBody(
     parsed: OpenApiDocument,
     path: string,
@@ -563,6 +647,11 @@ export function getRequestBody(
 // Responses
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve the responses of a single operation, returning one
+ * {@link ResponseInfo} per declared status code (including class
+ * wildcards and `default`).
+ */
 export function getResponses(
     parsed: OpenApiDocument,
     path: string,
@@ -783,6 +872,11 @@ function resolveRefInDoc(doc: JsonObject, ref: string): JsonObject | undefined {
 // Security requirements and schemes
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve the effective security requirements for a single operation.
+ * Operation-level requirements override the document-level defaults
+ * when present.
+ */
 export function getSecurityRequirements(
     parsed: OpenApiDocument,
     path: string,
@@ -815,6 +909,10 @@ export function getSecurityRequirements(
     return result;
 }
 
+/**
+ * Read the document's `components.securitySchemes` map as a map of
+ * scheme names to {@link SecurityScheme} entries.
+ */
 export function getSecuritySchemes(
     parsed: OpenApiDocument
 ): Map<string, SecurityScheme> {
@@ -845,6 +943,11 @@ export function getSecuritySchemes(
 // Response headers
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve the headers of a single OpenAPI Response Object as a map of
+ * header name to {@link HeaderInfo}. Follows Header Object `$ref`
+ * chains via the optional document root.
+ */
 export function getResponseHeaders(
     response: JsonObject,
     doc?: JsonObject,
@@ -889,6 +992,10 @@ export function getResponseHeaders(
 // Webhooks (OpenAPI 3.1)
 // ---------------------------------------------------------------------------
 
+/**
+ * List every OpenAPI 3.1 webhook declared under the document's
+ * `webhooks` map, each with its name and resolved operations.
+ */
 export function listWebhooks(
     parsed: OpenApiDocument,
     diagnostics?: DiagnosticsOptions,
@@ -963,6 +1070,11 @@ export function listAllOperations(
 // External documentation
 // ---------------------------------------------------------------------------
 
+/**
+ * Read the optional `externalDocs` field on an OpenAPI object
+ * (document, operation, tag, schema, ...) into an {@link ExternalDocs}
+ * record. Returns `undefined` when absent or malformed.
+ */
 export function getExternalDocs(obj: JsonObject): ExternalDocs | undefined {
     const docs = getProperty(obj, "externalDocs");
     if (!isObject(docs)) return undefined;
@@ -978,6 +1090,11 @@ export function getExternalDocs(obj: JsonObject): ExternalDocs | undefined {
 // XML representation
 // ---------------------------------------------------------------------------
 
+/**
+ * Read the optional `xml` keyword on a JSON Schema object into an
+ * {@link XmlInfo} record describing how the field is serialised in an
+ * XML payload. Returns `undefined` when absent or malformed.
+ */
 export function getXmlInfo(schema: JsonObject): XmlInfo | undefined {
     const xml = getProperty(schema, "xml");
     if (!isObject(xml)) return undefined;
@@ -994,6 +1111,11 @@ export function getXmlInfo(schema: JsonObject): XmlInfo | undefined {
 // Callbacks (OpenAPI 3.0)
 // ---------------------------------------------------------------------------
 
+/**
+ * List the OpenAPI callback definitions declared on a single
+ * operation. Each entry carries the callback name and the operations
+ * declared on its Path Item Object.
+ */
 export function listCallbacks(
     parsed: OpenApiDocument,
     path: string,
@@ -1052,6 +1174,11 @@ export function listCallbacks(
 // Links (OpenAPI 3.0 response links)
 // ---------------------------------------------------------------------------
 
+/**
+ * List the OpenAPI link definitions declared on a specific response of
+ * a single operation, returning each link's parsed
+ * {@link LinkInfo} entry.
+ */
 export function getLinks(
     parsed: OpenApiDocument,
     path: string,

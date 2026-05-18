@@ -40,6 +40,12 @@ export interface SchemaMeta {
 // Editability — resolved per-field from three sources
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolved editability state for a walked field. `presentation` renders
+ * as a read-only value, `input` as a write-only input (e.g. password
+ * fields), `editable` as a full input that round-trips through
+ * `onChange`. Produced by {@link resolveEditability}.
+ */
 export type Editability = "presentation" | "input" | "editable";
 
 /**
@@ -460,74 +466,91 @@ function isField<T extends SchemaType>(
     return field.type === t;
 }
 
+/** Type guard: narrows a `WalkedField` to its `string` variant. */
 export function isStringField(field: WalkedField): field is StringField {
     return isField(field, "string");
 }
 
+/** Type guard: narrows a `WalkedField` to its `number` variant. */
 export function isNumberField(field: WalkedField): field is NumberField {
     return isField(field, "number");
 }
 
+/** Type guard: narrows a `WalkedField` to its `boolean` variant. */
 export function isBooleanField(field: WalkedField): field is BooleanField {
     return isField(field, "boolean");
 }
 
+/** Type guard: narrows a `WalkedField` to its `null` variant. */
 export function isNullField(field: WalkedField): field is NullField {
     return isField(field, "null");
 }
 
+/** Type guard: narrows a `WalkedField` to its `enum` variant. */
 export function isEnumField(field: WalkedField): field is EnumField {
     return isField(field, "enum");
 }
 
+/** Type guard: narrows a `WalkedField` to its `literal` variant. */
 export function isLiteralField(field: WalkedField): field is LiteralField {
     return isField(field, "literal");
 }
 
+/** Type guard: narrows a `WalkedField` to its `object` variant. */
 export function isObjectField(field: WalkedField): field is ObjectField {
     return isField(field, "object");
 }
 
+/** Type guard: narrows a `WalkedField` to its `array` variant. */
 export function isArrayField(field: WalkedField): field is ArrayField {
     return isField(field, "array");
 }
 
+/** Type guard: narrows a `WalkedField` to its `tuple` variant. */
 export function isTupleField(field: WalkedField): field is TupleField {
     return isField(field, "tuple");
 }
 
+/** Type guard: narrows a `WalkedField` to its `record` variant. */
 export function isRecordField(field: WalkedField): field is RecordField {
     return isField(field, "record");
 }
 
+/** Type guard: narrows a `WalkedField` to its plain `union` variant. */
 export function isUnionField(field: WalkedField): field is UnionField {
     return isField(field, "union");
 }
 
+/** Type guard: narrows a `WalkedField` to its `discriminatedUnion` variant. */
 export function isDiscriminatedUnionField(
     field: WalkedField
 ): field is DiscriminatedUnionField {
     return isField(field, "discriminatedUnion");
 }
 
+/** Type guard: narrows a `WalkedField` to its `conditional` (if/then/else) variant. */
 export function isConditionalField(
     field: WalkedField
 ): field is ConditionalField {
     return isField(field, "conditional");
 }
 
+/** Type guard: narrows a `WalkedField` to its `negation` (`not`) variant. */
 export function isNegationField(field: WalkedField): field is NegationField {
     return isField(field, "negation");
 }
 
+/** Type guard: narrows a `WalkedField` to its `file` variant. */
 export function isFileField(field: WalkedField): field is FileField {
     return isField(field, "file");
 }
 
+/** Type guard: narrows a `WalkedField` to its `never` variant (false schema). */
 export function isNeverField(field: WalkedField): field is NeverField {
     return isField(field, "never");
 }
 
+/** Type guard: narrows a `WalkedField` to its `unknown` variant (permissive). */
 export function isUnknownField(field: WalkedField): field is UnknownField {
     return isField(field, "unknown");
 }

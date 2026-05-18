@@ -40,6 +40,14 @@ function getNumber(
 // Per-type constraint extractors
 // ---------------------------------------------------------------------------
 
+/**
+ * Read the JSON Schema string constraint keywords (`minLength`,
+ * `maxLength`, `pattern`, `format`, `contentEncoding`,
+ * `contentMediaType`) from a schema node and return them in the
+ * `StringConstraints` shape consumed by string field renderers.
+ * Emits an `unknown-format` diagnostic for unrecognised `format`
+ * values.
+ */
 export function extractStringConstraints(
     schema: Record<string, unknown>,
     diagnostics?: DiagnosticsOptions,
@@ -74,6 +82,12 @@ export function extractStringConstraints(
     return c;
 }
 
+/**
+ * Read the JSON Schema number constraint keywords (`minimum`,
+ * `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`)
+ * from a schema node and return them in the `NumberConstraints` shape
+ * consumed by number field renderers.
+ */
 export function extractNumberConstraints(
     schema: Record<string, unknown>
 ): NumberConstraints {
@@ -91,6 +105,14 @@ export function extractNumberConstraints(
     return c;
 }
 
+/**
+ * Read the JSON Schema array constraint keywords (`minItems`,
+ * `maxItems`, `uniqueItems`, `minContains`, `maxContains`) from a
+ * schema node and return them in the `ArrayConstraints` shape. The
+ * `contains` and `unevaluatedItems` sub-schemas are walked separately
+ * and surfaced on the `ArrayField` / `TupleField` directly rather
+ * than as raw constraints.
+ */
 export function extractArrayConstraints(
     schema: Record<string, unknown>
 ): ArrayConstraints {
@@ -114,6 +136,11 @@ export function extractArrayConstraints(
     return c;
 }
 
+/**
+ * Read the JSON Schema object constraint keywords (`minProperties`,
+ * `maxProperties`) from a schema node and return them in the
+ * `ObjectConstraints` shape.
+ */
 export function extractObjectConstraints(
     schema: Record<string, unknown>
 ): ObjectConstraints {
@@ -125,6 +152,11 @@ export function extractObjectConstraints(
     return c;
 }
 
+/**
+ * Read the JSON Schema file constraints from a schema node — currently
+ * just `contentMediaType`, which surfaces as the single-entry
+ * `mimeTypes` array on `FileConstraints`.
+ */
 export function extractFileConstraints(
     schema: Record<string, unknown>
 ): FileConstraints {

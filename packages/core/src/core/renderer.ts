@@ -179,8 +179,19 @@ export function buildRenderProps(
 // ComponentResolver — the React theme adapter interface
 // ---------------------------------------------------------------------------
 
+/**
+ * Signature for a React render function attached to a
+ * {@link ComponentResolver}. Receives the per-field {@link RenderProps}
+ * built by the walker and returns any ReactNode-compatible value.
+ */
 export type RenderFunction = (props: RenderProps) => unknown;
 
+/**
+ * Theme adapter — maps every schema field type to its React renderer.
+ * Unset keys fall back to the headless resolver. Pass to
+ * `SchemaProvider` (or `SchemaView.resolver`) to drive every
+ * schema-driven render with a specific theme.
+ */
 export interface ComponentResolver {
     string?: RenderFunction;
     number?: RenderFunction;
@@ -238,6 +249,11 @@ export interface HtmlResolver {
 // Resolver lookup
 // ---------------------------------------------------------------------------
 
+/**
+ * Canonical list of resolver keys, one per {@link WalkedField} variant.
+ * Iterated by the resolver merge helpers so adding a new key here is the
+ * single point of change when a new field variant is introduced.
+ */
 export const RESOLVER_KEYS = [
     "string",
     "number",
