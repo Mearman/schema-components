@@ -11,9 +11,15 @@
 
 import { isObject } from "../core/guards.ts";
 import type { NodeTransform } from "./normalise.ts";
+import { documentContainsKeyword } from "./normalise.ts";
 import { normaliseOpenApi30Combined } from "./openapi30.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { appendPointer, emitDiagnostic } from "./diagnostics.ts";
+import {
+    rewriteSwaggerRefPrefix,
+    SWAGGER_2_METHODS,
+} from "./openapiConstants.ts";
+import { resolveRefChain } from "./refChain.ts";
 
 // ---------------------------------------------------------------------------
 // Document-level transformation
@@ -270,10 +276,10 @@ export function normaliseSwagger2Document(
     // markup, regardless of whether it sits in definitions, paths,
     // parameters, or responses.
     if (
-        hasXmlAnywhere(doc.definitions) ||
-        hasXmlAnywhere(doc.paths) ||
-        hasXmlAnywhere(doc.parameters) ||
-        hasXmlAnywhere(doc.responses)
+        documentContainsKeyword(doc.definitions, "xml") ||
+        documentContainsKeyword(doc.paths, "xml") ||
+        documentContainsKeyword(doc.parameters, "xml") ||
+        documentContainsKeyword(doc.responses, "xml")
     ) {
         emitDiagnostic(diagnostics, {
             code: "dropped-swagger-feature",
@@ -297,15 +303,6 @@ function normaliseSwaggerPaths(
     diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
-    const METHODS = [
-        "get",
-        "post",
-        "put",
-        "patch",
-        "delete",
-        "head",
-        "options",
-    ] as const;
 
     for (const [path, pathItem] of Object.entries(paths)) {
         if (!isObject(pathItem)) {
@@ -315,7 +312,7 @@ function normaliseSwaggerPaths(
 
         const normalisedPath: Record<string, unknown> = {};
 
-        for (const method of METHODS) {
+        for (const method of SWAGGER_2_METHODS) {
             const operation = pathItem[method];
             if (!isObject(operation)) continue;
 
@@ -711,37 +708,44 @@ type ResolvedParam =
  * decide how to surface the failure. Non-ref parameters resolve to
  * themselves; ref targets that don't exist also resolve to the input
  * (the caller treats unknown refs the same as bare parameters).
+ *
+ * Uses the shared {@link resolveRefChain} helper so cycle detection
+ * and hop accounting stay consistent with the other OpenAPI $ref
+ * walkers.
  */
 function resolveSwaggerParameter(
     param: Record<string, unknown>,
-    doc: Record<string, unknown>,
-    visited: Set<string> = new Set<string>()
+    doc: Record<string, unknown>
 ): ResolvedParam {
-    const ref = param.$ref;
-    if (typeof ref !== "string" || !ref.startsWith("#/parameters/")) {
-        return { kind: "ok", param };
+    let cyclicRef: string | undefined;
+    const finalNode = resolveRefChain<Record<string, unknown>>(param, {
+        extractRef: (node) => {
+            const ref = node.$ref;
+            if (typeof ref !== "string") return undefined;
+            // Only follow Swagger 2.0 parameter refs; treat all other
+            // ref shapes as terminal so we return the wrapper unchanged.
+            return ref.startsWith("#/parameters/") ? ref : undefined;
+        },
+        lookup: (ref) => {
+            const name = ref.slice("#/parameters/".length);
+            const globalParams = doc.parameters;
+            if (!isObject(globalParams)) return undefined;
+            const resolved = globalParams[name];
+            return isObject(resolved) ? resolved : undefined;
+        },
+        onCycle: (ref) => {
+            cyclicRef = ref;
+            return undefined;
+        },
+    });
+
+    if (cyclicRef !== undefined) {
+        return { kind: "cycle", ref: cyclicRef };
     }
-
-    // Cycle detection — surface the offending ref so the caller can
-    // emit `swagger-cyclic-parameter-ref` and skip the parameter.
-    if (visited.has(ref)) return { kind: "cycle", ref };
-    const nextVisited = new Set(visited);
-    nextVisited.add(ref);
-
-    const name = ref.slice("#/parameters/".length);
-    const globalParams = doc.parameters;
-    if (isObject(globalParams)) {
-        const resolved = globalParams[name];
-        if (isObject(resolved)) {
-            // Recursively resolve if the target is also a $ref
-            if (typeof resolved.$ref === "string") {
-                return resolveSwaggerParameter(resolved, doc, nextVisited);
-            }
-            return { kind: "ok", param: resolved };
-        }
-    }
-
-    return { kind: "ok", param };
+    // `finalNode` is `undefined` only when the chain dead-ends on an
+    // unknown target (legacy behaviour returned the original input in
+    // that case); preserve that contract for downstream callers.
+    return { kind: "ok", param: finalNode ?? param };
 }
 
 /**
@@ -935,36 +939,37 @@ function buildRequestBody(
 
 /**
  * Resolve a Swagger 2.0 response `$ref` (e.g. `#/responses/NotFound`).
+ *
+ * Uses the shared {@link resolveRefChain} helper so cycle detection
+ * and hop accounting stay consistent with the other OpenAPI $ref
+ * walkers. On cycle the original wrapper is returned (legacy
+ * behaviour), preserving the existing response-resolution contract.
  */
 function resolveSwaggerResponse(
     response: Record<string, unknown>,
-    doc: Record<string, unknown>,
-    visited: Set<string> = new Set<string>()
+    doc: Record<string, unknown>
 ): Record<string, unknown> {
-    const ref = response.$ref;
-    if (typeof ref !== "string" || !ref.startsWith("#/responses/")) {
-        return response;
-    }
+    const finalNode = resolveRefChain<Record<string, unknown>>(response, {
+        extractRef: (node) => {
+            const ref = node.$ref;
+            if (typeof ref !== "string") return undefined;
+            // Only follow Swagger 2.0 response refs; treat all other
+            // ref shapes as terminal so we return the wrapper unchanged.
+            return ref.startsWith("#/responses/") ? ref : undefined;
+        },
+        lookup: (ref) => {
+            const name = ref.slice("#/responses/".length);
+            const globalResponses = doc.responses;
+            if (!isObject(globalResponses)) return undefined;
+            const resolved = globalResponses[name];
+            return isObject(resolved) ? resolved : undefined;
+        },
+        // Preserve the historic cycle behaviour: return the original
+        // wrapper so the caller continues to short-circuit gracefully.
+        onCycle: () => response,
+    });
 
-    // Cycle detection
-    if (visited.has(ref)) return response;
-    const nextVisited = new Set(visited);
-    nextVisited.add(ref);
-
-    const name = ref.slice("#/responses/".length);
-    const globalResponses = doc.responses;
-    if (isObject(globalResponses)) {
-        const resolved = globalResponses[name];
-        if (isObject(resolved)) {
-            // Recursively resolve if the target is also a $ref
-            if (typeof resolved.$ref === "string") {
-                return resolveSwaggerResponse(resolved, doc, nextVisited);
-            }
-            return resolved;
-        }
-    }
-
-    return response;
+    return finalNode ?? response;
 }
 
 function normaliseSwaggerResponses(
@@ -1148,32 +1153,17 @@ function normaliseSwaggerHeader(
 // ---------------------------------------------------------------------------
 
 /**
- * Mapping of Swagger 2.0 $ref prefixes to OpenAPI 3.x equivalents.
- * Applied after document restructuring so all $ref strings point
- * to the correct locations in the normalised document.
- */
-const REF_REWRITES: readonly [string, string][] = [
-    ["#/definitions/", "#/components/schemas/"],
-    ["#/parameters/", "#/components/parameters/"],
-    ["#/responses/", "#/components/responses/"],
-];
-
-/**
  * Deep-rewrite $ref strings in a normalised Swagger 2.0 document
- * from Swagger 2.0 locations to OpenAPI 3.x locations.
- * Mutates the object in place \u2014 called only on the fresh clone
- * produced by normaliseSwagger2Document.
+ * from Swagger 2.0 locations to OpenAPI 3.x locations using the
+ * shared {@link rewriteSwaggerRefPrefix} mapping. Mutates the object
+ * in place \u2014 called only on the fresh clone produced by
+ * normaliseSwagger2Document.
  */
 function rewriteSwaggerRefs(node: unknown): void {
     if (!isObject(node)) return;
 
     if (typeof node.$ref === "string") {
-        for (const [from, to] of REF_REWRITES) {
-            if (node.$ref.startsWith(from)) {
-                node.$ref = to + node.$ref.slice(from.length);
-                break;
-            }
-        }
+        node.$ref = rewriteSwaggerRefPrefix(node.$ref);
     }
 
     for (const value of Object.values(node)) {
@@ -1271,31 +1261,4 @@ function translateSwaggerSecurityScheme(
 
     // apiKey or other — already structurally compatible.
     return { ...scheme };
-}
-
-// ---------------------------------------------------------------------------
-// Swagger 2.0 feature detection helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Recursively check whether any node in the supplied subtree carries an
- * `xml` annotation. Walks both objects and arrays so the check works for
- * schemas (definitions, parameter schemas, response schemas, request body
- * schemas) as well as operations and parameters that may carry `xml`
- * metadata at any depth.
- */
-function hasXmlAnywhere(node: unknown): boolean {
-    if (!isObject(node)) {
-        if (Array.isArray(node)) {
-            for (const item of node) {
-                if (hasXmlAnywhere(item)) return true;
-            }
-        }
-        return false;
-    }
-    if ("xml" in node) return true;
-    for (const value of Object.values(node)) {
-        if (hasXmlAnywhere(value)) return true;
-    }
-    return false;
 }
