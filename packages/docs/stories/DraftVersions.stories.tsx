@@ -9,6 +9,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "JSON Schema/Draft Versions",
     component: SchemaComponent,
     tags: ["json-schema"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: { control: "boolean" },
     },

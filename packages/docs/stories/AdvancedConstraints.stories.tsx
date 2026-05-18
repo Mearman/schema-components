@@ -9,6 +9,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "JSON Schema/Advanced Constraints",
     component: SchemaComponent,
     tags: ["json-schema", "editable"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: { control: "boolean" },
     },

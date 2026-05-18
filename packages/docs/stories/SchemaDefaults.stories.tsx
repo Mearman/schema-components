@@ -10,6 +10,9 @@ const meta = {
     title: "Inputs/Defaults",
     component: SchemaComponent,
     tags: ["editable", "zod", "json-schema"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
 } satisfies Meta<typeof SchemaComponent>;
 export default meta;
 type Story = StoryObj<typeof meta>;

@@ -9,6 +9,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "JSON Schema/Object Constraints",
     component: SchemaComponent,
     tags: ["json-schema", "record"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: { control: "boolean" },
     },

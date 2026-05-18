@@ -11,6 +11,9 @@ const meta = {
     title: "Inputs/Records",
     component: SchemaComponent,
     tags: ["record", "json-schema"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
 } satisfies Meta<typeof SchemaComponent>;
 export default meta;
 type Story = StoryObj<typeof meta>;

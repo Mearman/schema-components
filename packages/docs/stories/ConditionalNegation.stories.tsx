@@ -8,6 +8,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "JSON Schema/Conditional & Negation",
     component: SchemaComponent,
     tags: ["json-schema", "composition"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: { control: "boolean" },
     },
