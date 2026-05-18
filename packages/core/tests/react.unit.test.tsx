@@ -302,11 +302,18 @@ describe("renderDiscriminatedUnion narrowing", () => {
         // discriminator is a non-empty string, so aria-controls must
         // resolve to the panel id even when the value's discriminator
         // does not match any option.
+        //
+        // The fixture seeds an out-of-band discriminator value
+        // (`"unmatched"`) to exercise the no-matching-option fallback.
+        // The typed `value` prop rejects the literal at compile time
+        // (correctly — it is not in the union), so the fixture
+        // casts through `unknown` to reach the runtime path.
+        const fallbackValue = { kind: "unmatched" } as unknown as {
+            kind: "a";
+            a: string;
+        };
         const html = renderToString(
-            <SchemaComponent
-                schema={kindSchema}
-                value={{ kind: "unmatched" }}
-            />
+            <SchemaComponent schema={kindSchema} value={fallbackValue} />
         );
         // Every tab has aria-controls pointing at the panel id.
         const ariaControlsValues = [

@@ -36,10 +36,11 @@ import {
 import {
     joinPath,
     sanitisePrefix,
+    type InferredValue,
     type WidgetMap,
 } from "./SchemaComponent.tsx";
 import { headlessResolver } from "./headless.tsx";
-import { normaliseSchema } from "../core/adapter.ts";
+import { normaliseSchema, type SchemaIoSide } from "../core/adapter.ts";
 import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
@@ -55,6 +56,7 @@ import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
 export interface SchemaViewProps<
     T = unknown,
     Ref extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
 > {
     /**
      * Zod schema, JSON Schema object, or OpenAPI document.
@@ -67,20 +69,22 @@ export interface SchemaViewProps<
     /** For OpenAPI: a ref string like "#/components/schemas/User". */
     ref?: Ref;
     /**
-     * Current value to render.
-     *
-     * TYPE BOUNDARY NOTE: mirrors `SchemaComponentProps.value` — kept
-     * as `unknown` so the same boundary holds for both the editable
-     * (`SchemaComponent`) and read-only (`SchemaView`) entry points.
-     * The {@link InferredOutputValue} alias is the recommended way
-     * for callers to narrow on the consumer side.
-     *
-     * TODO(round7-integration): promote to
-     * `InferSchemaValue<T, Ref, "output">` alongside the matching
-     * `SchemaComponent` change. See the type-boundary note on
-     * `SchemaComponentProps.value` for the migration coordination.
+     * Which side of every transform / pipe / codec to render. Mirrors
+     * `<SchemaComponent io>`. Defaults to `"output"` — the inferred
+     * shape consumers receive from the server. Switch to `"input"`
+     * to render the INPUT side (omits `readOnly` properties for
+     * JSON Schema inputs, picks the input half of a `z.codec(...)`).
+     * Has no effect for plain JSON Schema or OpenAPI inputs without
+     * codec/transform constructs.
      */
-    value?: unknown;
+    io?: Mode;
+    /**
+     * Current value to render. Typed against `InferSchemaValue<T,
+     * Ref, Mode>` so the prop tracks the schema's inferred shape for
+     * the chosen `io` direction. Falls back to `unknown` for runtime
+     * schemas where the value type cannot be statically inferred.
+     */
+    value?: InferredValue<T, Ref, undefined, Mode>;
     /** Per-field meta overrides. */
     fields?: Record<string, unknown>;
     /** Meta overrides applied to the root schema. */
@@ -121,9 +125,11 @@ export interface SchemaViewProps<
 export function SchemaView<
     T = unknown,
     Ref extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
 >({
     schema: schemaInput,
     ref: refInput,
+    io,
     value,
     fields,
     meta: componentMeta,
@@ -133,7 +139,7 @@ export function SchemaView<
     onDiagnostic,
     strict,
     idPrefix,
-}: SchemaViewProps<T, Ref>): ReactNode {
+}: SchemaViewProps<T, Ref, Mode>): ReactNode {
     const generatedId = useId();
     const rootPath = idPrefix ?? sanitisePrefix(generatedId);
     const mergedMeta: SchemaMeta = { ...componentMeta, readOnly: true };
@@ -149,15 +155,24 @@ export function SchemaView<
               }
             : undefined;
 
-    // Normalise input → JSON Schema
+    // Normalise input → JSON Schema. `io` flows through to
+    // `z.toJSONSchema(..., { io })` so the rendered shape matches the
+    // direction the consumer requested.
     let jsonSchema: Record<string, unknown>;
     let rootMeta: SchemaMeta | undefined;
     let rootDocument: Record<string, unknown>;
     try {
+        const normaliseOptions =
+            diagnostics !== undefined || io !== undefined
+                ? {
+                      ...(diagnostics !== undefined ? { diagnostics } : {}),
+                      ...(io !== undefined ? { io } : {}),
+                  }
+                : undefined;
         const normalised = normaliseSchema(
             schemaInput,
             refInput,
-            diagnostics !== undefined ? { diagnostics } : undefined
+            normaliseOptions
         );
         jsonSchema = normalised.jsonSchema;
         rootMeta = normalised.rootMeta;

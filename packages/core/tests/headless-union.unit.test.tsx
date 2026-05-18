@@ -171,16 +171,19 @@ describe("renderUnion — string | number", () => {
     const schema = z.union([z.string(), z.number()]);
 
     it("renders the em-dash placeholder in read-only mode when value is undefined", () => {
+        // Omitting `value` is the structural equivalent of the
+        // previous `value={undefined}` under
+        // `exactOptionalPropertyTypes` — the optional prop is
+        // absent from the props record and the component renders
+        // its undefined-value branch identically.
         const html = renderToString(
-            <SchemaComponent schema={schema} value={undefined} readOnly />
+            <SchemaComponent schema={schema} readOnly />
         );
         expect(html).toContain(EM_DASH);
     });
 
     it("renders the first option's input in editable mode when value is undefined", () => {
-        const html = renderToString(
-            <SchemaComponent schema={schema} value={undefined} />
-        );
+        const html = renderToString(<SchemaComponent schema={schema} />);
         // Falls back to first option (string) — a text input
         expect(html).toContain('type="text"');
     });

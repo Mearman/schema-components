@@ -26,7 +26,11 @@ import {
 } from "react";
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
-import { isCodecSchema, normaliseSchema } from "../core/adapter.ts";
+import {
+    isCodecSchema,
+    normaliseSchema,
+    type SchemaIoSide,
+} from "../core/adapter.ts";
 import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import {
     buildRenderProps,
@@ -194,23 +198,11 @@ type NarrowAtPath<V, P extends string | undefined> = P extends string
 
 /**
  * Public alias mapping a schema input to the rendered value type.
- * Use to narrow a runtime callback inside the body of an `onChange`
- * handler:
  *
- * ```tsx
- * <SchemaComponent
- *   schema={userSchema}
- *   onChange={(v) => {
- *     const user = v as InferredOutputValue<typeof userSchema>;
- *     // ...narrowly typed access on `user`
- *   }}
- * />
- * ```
- *
- * The `onChange` argument is typed `unknown` at the props boundary
- * because the walker propagates `unknown` values through the render
- * pipeline. Narrowing on the consumer side is therefore an explicit
- * step and never a silent contract gap.
+ * Picks the OUTPUT side (server → client) of every transform / pipe /
+ * codec. For an `<SchemaComponent io="output">` or `<SchemaView
+ * io="output">` (both defaults), this is the inferred shape of
+ * `value` and the parameter of `onChange`.
  */
 export type InferredOutputValue<
     T,
@@ -218,17 +210,44 @@ export type InferredOutputValue<
     P extends string | undefined = undefined,
 > = NarrowAtPath<InferSchemaValue<T, Ref, "output">, P>;
 
-/** Companion to {@link InferredOutputValue} for `"input"`-mode shapes. */
+/**
+ * Companion to {@link InferredOutputValue} for `"input"`-mode shapes.
+ *
+ * Picks the INPUT side (client → server) of every transform / pipe /
+ * codec. Surfaces as the inferred shape of `value` / `onChange` when
+ * a consumer renders `<SchemaComponent io="input">`. For JSON Schema
+ * inputs with `readOnly`/`writeOnly` annotations, the INPUT mode
+ * omits properties marked `readOnly: true`.
+ */
 export type InferredInputValue<
     T,
     Ref extends string | undefined = undefined,
     P extends string | undefined = undefined,
 > = NarrowAtPath<InferSchemaValue<T, Ref, "input">, P>;
 
+/**
+ * Resolve the schema-driven value type for either I/O direction.
+ *
+ * Thin convenience over {@link InferredOutputValue} /
+ * {@link InferredInputValue} so consumers that decide between the
+ * two at the type level (e.g. a generic wrapper component) can pass
+ * the chosen direction as a type argument rather than branch on it
+ * with conditional types. Falls back to `unknown` when the schema's
+ * value type cannot be statically inferred, identical to the
+ * underlying helpers.
+ */
+export type InferredValue<
+    T,
+    Ref extends string | undefined = undefined,
+    P extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
+> = NarrowAtPath<InferSchemaValue<T, Ref, Mode>, P>;
+
 export interface SchemaComponentProps<
     T = unknown,
     Ref extends string | undefined = undefined,
     P extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
 > {
     /**
      * Zod schema, JSON Schema object, or OpenAPI document.
@@ -259,56 +278,57 @@ export interface SchemaComponentProps<
      */
     path?: P;
     /**
-     * Current value to render.
+     * Which side of every transform / pipe / codec to render.
      *
-     * TYPE BOUNDARY NOTE: kept as `unknown` at the props boundary so
-     * existing call sites — including legitimate edge-case fixtures
-     * that pass deliberately invalid values to exercise fallback code
-     * paths — continue to typecheck. Use {@link InferredOutputValue}
-     * to narrow on the consumer side:
+     * - `"output"` (default) — renderer draws the OUTPUT side of the
+     *   schema. For a `z.codec(z.string(), z.number(), …)` chain
+     *   this renders a number input. `value` and `onChange` therefore
+     *   carry the OUTPUT shape, and `validate` runs `safeEncode`
+     *   (the reverse direction) so user-supplied OUTPUT values are
+     *   validated against the codec.
+     * - `"input"` — renderer draws the INPUT side instead. For the
+     *   same codec this renders a string input, `value` and
+     *   `onChange` carry the INPUT shape, and `validate` runs
+     *   `safeParse` (the forward direction).
+     *
+     * The choice is propagated through `normaliseSchema` →
+     * `normaliseZod4` → `z.toJSONSchema(..., { io })` so a single
+     * source of truth drives both the rendered JSON Schema shape and
+     * the validation direction. Has no effect for plain JSON Schema
+     * or OpenAPI inputs — those advertise a single canonical shape.
+     */
+    io?: Mode;
+    /**
+     * Current value to render. Typed against `InferSchemaValue<T,
+     * Ref, Mode>` so the prop tracks the schema's inferred shape for
+     * the chosen `io` direction. Narrowed further by `P` when a
+     * `path` is supplied (currently type-level only — see the JSDoc
+     * on {@link SchemaComponentProps.path}).
+     *
+     * Falls back to `unknown` when the schema's value type cannot be
+     * statically inferred (runtime `Record<string, unknown>` JSON
+     * Schemas, OpenAPI documents without a ref, etc.), so untyped
+     * call sites still compile.
+     *
+     * Use {@link InferredOutputValue} or {@link InferredInputValue}
+     * to narrow a value declared at the call site:
      *
      * ```tsx
      * const user: InferredOutputValue<typeof userSchema> = { ... };
      * <SchemaComponent schema={userSchema} value={user} readOnly />
      * ```
-     *
-     * The narrowing is fully expressible through the helper alias
-     * without forcing every existing caller to update their value
-     * shapes for `exactOptionalPropertyTypes` / enum literal widening.
-     *
-     * TODO(round7-integration): promote to
-     * `NarrowAtPath<InferSchemaValue<T, Ref, "output">, P>` once the
-     * test fixtures (headless union, discriminated union,
-     * schemaview equivalence, type-inference issue fixes) are
-     * migrated to either narrow their fixtures or accept the loose
-     * boundary. The retype cascades through call sites that
-     * intentionally pass invalid values to exercise fallback paths
-     * (`value={undefined}`, off-discriminator values, etc.) and
-     * through fixtures whose enum/literal types widen at the call
-     * site. Coordinated migration is required.
      */
-    value?: unknown;
+    value?: NarrowAtPath<InferSchemaValue<T, Ref, Mode>, P>;
     /**
-     * Called when the value changes (editable fields).
+     * Called when the value changes (editable fields). The parameter
+     * shares the same shape as {@link SchemaComponentProps.value} so
+     * a controlled component can round-trip the value through React
+     * state without re-shaping.
      *
-     * TYPE BOUNDARY NOTE: the parameter is typed `unknown` rather
-     * than the inferred input shape because the walker pipeline only
-     * propagates `unknown` values and a narrow contravariant callback
-     * signature is not assignable from an `unknown`-emitting source
-     * without an unsafe boundary cast. The {@link InferredInputValue}
-     * alias is the recommended way for callers to narrow on the
-     * consumer side — `onChange={(v) => { const u = v as InferredInputValue<typeof schema>; ... }}`.
-     *
-     * TODO(round7-integration): promote to
-     * `(value: NarrowAtPath<InferSchemaValue<T, Ref, "input">, P>) => void`
-     * alongside the `value` retype. The contravariant boundary needs
-     * an internal cast at the only call site (`onChange?.(nextValue)`
-     * in `handleChange`) that the project's no-`as` rule disallows
-     * without explicit justification. The right place to introduce
-     * the cast is a tiny typed boundary helper accompanied by the
-     * fixture migration noted above.
+     * Falls back to `unknown` for schemas whose value type cannot be
+     * statically inferred — see {@link SchemaComponentProps.value}.
      */
-    onChange?: (value: unknown) => void;
+    onChange?: (value: NarrowAtPath<InferSchemaValue<T, Ref, Mode>, P>) => void;
     /** Run schema.safeParse() on change and surface errors via onValidationError. */
     validate?: boolean;
     /** Called with the ZodError when validation fails. */
@@ -348,7 +368,8 @@ export function SchemaComponent<
     T = unknown,
     Ref extends string | undefined = undefined,
     P extends string | undefined = undefined,
->(props: SchemaComponentProps<T, Ref, P>): ReactNode {
+    Mode extends SchemaIoSide = "output",
+>(props: SchemaComponentProps<T, Ref, P, Mode>): ReactNode {
     // `path` is currently type-level only — see the JSDoc on
     // `SchemaComponentProps.path`. It is intentionally not destructured
     // here because the render pipeline always operates on the root
@@ -356,6 +377,7 @@ export function SchemaComponent<
     const {
         schema: schemaInput,
         ref: refInput,
+        io,
         value,
         onChange,
         validate,
@@ -394,16 +416,25 @@ export function SchemaComponent<
               }
             : undefined;
 
-    // Normalise input → JSON Schema
+    // Normalise input → JSON Schema. The `io` option flows through to
+    // `z.toJSONSchema(..., { io })` so the rendered shape and the
+    // validation direction stay in lockstep.
     let jsonSchema: Record<string, unknown>;
     let zodSchema: unknown;
     let rootMeta: SchemaMeta | undefined;
     let rootDocument: Record<string, unknown>;
     try {
+        const normaliseOptions =
+            diagnostics !== undefined || io !== undefined
+                ? {
+                      ...(diagnostics !== undefined ? { diagnostics } : {}),
+                      ...(io !== undefined ? { io } : {}),
+                  }
+                : undefined;
         const normalised = normaliseSchema(
             schemaInput,
             refInput,
-            diagnostics !== undefined ? { diagnostics } : undefined
+            normaliseOptions
         );
         jsonSchema = normalised.jsonSchema;
         zodSchema = normalised.zodSchema;
@@ -451,6 +482,7 @@ export function SchemaComponent<
                         zodSchema,
                         jsonSchema,
                         nextValue,
+                        io,
                         onDiagnostic
                     );
                 } catch (err: unknown) {
@@ -487,12 +519,26 @@ export function SchemaComponent<
                     dispatchFieldErrors(fieldsRecord, error);
                 }
             }
-            onChange?.(nextValue);
+            if (onChange !== undefined) {
+                // Library boundary: `nextValue` is `unknown` from the
+                // walker pipeline; `onChange`'s parameter is the
+                // schema's inferred typed shape. The walker only
+                // emits values shaped to the same normalised JSON
+                // Schema that drives `onChange`'s parameter type, so
+                // the runtime call is sound. TypeScript cannot prove
+                // the generic-parameter assignment, mirroring the
+                // `z.toJSONSchema` library boundary in
+                // `core/adapter.ts` (same `@ts-expect-error` pattern).
+                // @ts-expect-error — contravariant onChange call, see
+                // comment above.
+                onChange(nextValue);
+            }
         },
         [
             validate,
             zodSchema,
             jsonSchema,
+            io,
             onChange,
             onValidationError,
             fieldsRecord,
@@ -608,33 +654,45 @@ export function sanitisePrefix(value: string): string {
  * to surface somewhere — diagnostics if the consumer opted in, an error
  * otherwise — so the caller can route it through `onError` / an error
  * boundary rather than have validation quietly disappear.
+ *
+ * The `io` argument mirrors the prop on `<SchemaComponent>` and
+ * `<SchemaView>`. It determines which Zod entry point validates a
+ * codec: `safeEncode` for the OUTPUT side (the default, matching the
+ * renderer's default direction), `safeParse` for the INPUT side. For
+ * non-codec schemas the choice is irrelevant — both `safeEncode` and
+ * `safeParse` behave identically — so `safeParse` is used
+ * unconditionally.
  */
 function runValidation(
     zodSchema: unknown,
     jsonSchema: Record<string, unknown>,
     value: unknown,
+    io: SchemaIoSide | undefined,
     onDiagnostic?: (diagnostic: Diagnostic) => void
 ): unknown {
     // Prefer original Zod schema for validation (most accurate).
     //
-    // CODEC SPECIAL CASE: `callToJsonSchema` in `core/adapter.ts` pins
-    // `io: "output"`, so the renderer draws the OUTPUT side of every
-    // codec. The user-supplied value is therefore in the codec's
-    // OUTPUT shape (e.g. a `number` for `z.codec(z.string(),
-    // z.number(), ...)`). `safeParse` runs the FORWARD direction and
-    // would consume the INPUT shape — guaranteed to fail for any
-    // codec whose two sides have different types. `safeEncode` runs
-    // the REVERSE direction (`output → input`) and is the right
-    // probe for validating an output-rendered value.
+    // CODEC DIRECTION: the renderer draws whichever side of a
+    // `z.codec(...)` chain matches the resolved `io` value (`"output"`
+    // by default, `"input"` when the consumer opts in). The validation
+    // entry point must match:
     //
-    // TODO(round7-integration): align with Agent F's planned `io`
-    // option on `callToJsonSchema`. When `io: "input"` is propagated
-    // through the normalisation pipeline, the renderer will draw the
-    // INPUT side and `safeParse` becomes correct again — this branch
-    // should consult the resolved direction rather than always
-    // assuming the output side.
+    // - `io === "output"` → the value is in the OUTPUT shape (e.g.
+    //   `number` for `z.codec(z.string(), z.number(), ...)`).
+    //   `safeEncode` runs the REVERSE direction (`output → input`)
+    //   and validates the supplied OUTPUT value.
+    // - `io === "input"` → the value is in the INPUT shape (e.g. the
+    //   string side of the same codec). `safeParse` runs the FORWARD
+    //   direction and validates the INPUT value.
+    //
+    // Using the wrong entry point sends the value through the
+    // opposite half of the codec and fails on every keystroke for any
+    // codec whose two sides have different types.
     if (zodSchema !== undefined && isObject(zodSchema)) {
-        const validateFn = isCodecSchema(zodSchema)
+        const resolvedIo: SchemaIoSide = io ?? "output";
+        const useSafeEncode =
+            isCodecSchema(zodSchema) && resolvedIo === "output";
+        const validateFn = useSafeEncode
             ? zodSchema.safeEncode
             : zodSchema.safeParse;
         if (isCallable(validateFn)) {
@@ -931,10 +989,15 @@ export function SchemaField<
             // doubling the per-change cost on deep paths for no benefit.
             const newRootValue = setNestedValue(value, path, nextFieldValue);
             if (validate) {
+                // SchemaField does not (yet) expose an `io` prop, so
+                // validation runs against the default OUTPUT side.
+                // When `SchemaField` grows an `io` prop it should be
+                // threaded here to mirror the SchemaComponent path.
                 const error = runValidation(
                     zodSchema,
                     jsonSchema,
-                    newRootValue
+                    newRootValue,
+                    undefined
                 );
                 if (error !== undefined) {
                     onValidationError?.(error);

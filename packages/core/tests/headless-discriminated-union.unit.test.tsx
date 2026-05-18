@@ -150,8 +150,17 @@ describe("renderDiscriminatedUnion — active tab from value", () => {
     });
 
     it("defaults to the first tab when the discriminator value matches nothing", () => {
+        // The test deliberately feeds an out-of-band discriminator
+        // value to exercise the "no matching option" fallback. The
+        // schema's typed `value` prop rejects the literal at compile
+        // time (correctly — `"unknown"` is not in the union), so the
+        // fixture casts through `unknown` to reach the runtime path.
+        const fallbackValue = { kind: "unknown" } as unknown as {
+            kind: "a";
+            a: string;
+        };
         const html = renderToString(
-            <SchemaComponent schema={kindSchema} value={{ kind: "unknown" }} />
+            <SchemaComponent schema={kindSchema} value={fallbackValue} />
         );
         // First option is 'a' — its string input renders
         expect(html).toContain('type="text"');
@@ -280,13 +289,21 @@ describe("renderDiscriminatedUnion — keyboard navigation (SSR markup)", () => 
  * React in the same way it would be in a real app — this is required
  * because automatic-activation tabs change selection via `onChange` and
  * focus follows the resulting re-render.
+ *
+ * The fixture's `initial` parameter accepts a wider literal shape than
+ * the schema's discriminated union so tests can seed states keyed on
+ * either branch (`"a"` or `"b"`). The state is then typed against the
+ * schema's inferred value so the `<SchemaComponent>` prop boundary
+ * accepts the controlled value directly.
  */
+type KindValue = z.infer<typeof kindSchema>;
+
 function ControlledKindSchema({
     initial,
 }: {
     initial: { kind: string; [k: string]: unknown };
 }): ReactElement {
-    const [value, setValue] = useState<unknown>(initial);
+    const [value, setValue] = useState<KindValue>(initial as KindValue);
     return (
         <SchemaComponent
             schema={kindSchema}

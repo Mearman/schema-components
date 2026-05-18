@@ -249,7 +249,17 @@ describe("SchemaView — equivalence with SchemaComponent readOnly", () => {
             active: z.boolean(),
             role: z.enum(["admin", "editor"]),
         });
-        const value = { name: "Ada", active: true, role: "admin" };
+        // Annotate the fixture against the schema's inferred type so
+        // the `role` enum literal does not widen to `string` inside
+        // an untyped object literal. Without the annotation the
+        // typed `value` props on `<SchemaView>` and
+        // `<SchemaComponent>` reject the widened shape at compile
+        // time even though the runtime values are legal.
+        const value: z.infer<typeof schema> = {
+            name: "Ada",
+            active: true,
+            role: "admin",
+        };
 
         const htmlView = renderToString(
             <SchemaView schema={schema} value={value} />
