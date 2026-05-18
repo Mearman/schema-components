@@ -1457,7 +1457,7 @@ type ParameterNamesOf<Doc, Path extends string, Method extends string> =
  *   object form, mirroring the runtime's tolerance for pre-parsed
  *   version metadata
  */
-type IsSwagger2Doc<Doc> = Doc extends { swagger: `2.${string}` }
+export type IsSwagger2Doc<Doc> = Doc extends { swagger: `2.${string}` }
     ? true
     : Doc extends { swagger: 2 }
       ? true

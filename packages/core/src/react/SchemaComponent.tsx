@@ -43,6 +43,7 @@ import type {
 import type {
     FromJSONSchema,
     FromJSONSchemaMode,
+    IsSwagger2Doc,
     PathOfType,
     RejectUnrepresentableZod,
     ResolveOpenAPIRef,
@@ -124,30 +125,6 @@ export function registerWidget(
 // ---------------------------------------------------------------------------
 // Generic props with type-safe fields dispatch
 // ---------------------------------------------------------------------------
-
-/**
- * Detect a Swagger 2.0 document at the type level. Mirrors the
- * un-exported `IsSwagger2Doc` in `core/typeInference.ts` (line 1460)
- * which already covers the same shapes the runtime `isSwagger2` helper
- * accepts.
- *
- * Duplicated locally rather than imported because `typeInference.ts`
- * does not currently export the alias and is owned by another agent in
- * this fix-cycle. Once Agent F (or a follow-up consolidation) exports
- * the canonical `IsSwagger2Doc`, replace this with an `import type`.
- *
- * TODO(round7-integration): replace with `import type { IsSwagger2Doc }
- * from "../core/typeInference.ts"` after the canonical export lands.
- */
-type IsSwagger2Doc<Doc> = Doc extends { swagger: `2.${string}` }
-    ? true
-    : Doc extends { swagger: 2 }
-      ? true
-      : Doc extends { swagger: 2.0 }
-        ? true
-        : Doc extends { swagger: { major: 2 } }
-          ? true
-          : false;
 
 type InferFields<T, Ref extends string | undefined> =
     IsSwagger2Doc<T> extends true
