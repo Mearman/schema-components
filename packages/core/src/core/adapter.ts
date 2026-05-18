@@ -195,7 +195,7 @@ function extractStandardSchemaVendor(input: unknown): string | undefined {
  * field so consumers can still inspect the Zod stack trace.
  */
 /**
- * IO side passed to {@link callToJsonSchema}. The Zod runtime accepts
+ * IO side passed to the internal `callToJsonSchema` helper. The Zod runtime accepts
  * `"input" | "output"` for the corresponding `io` option on
  * `z.toJSONSchema`. Defaults to `"output"` everywhere in the adapter
  * pipeline; the parameter exists so a future renderer or component

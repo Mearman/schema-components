@@ -197,7 +197,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`NormaliseOptions`](https://mearman.github.io/schema-components/interfaces/core_adapter.NormaliseOptions.html) | `core/adapter` | Interface | _undocumented_ |  |
 | [`normaliseSchema`](https://mearman.github.io/schema-components/functions/core_adapter.normaliseSchema.html) | `core/adapter` | Function | _undocumented_ |  |
 | [`SchemaInput`](https://mearman.github.io/schema-components/types/core_adapter.SchemaInput.html) | `core/adapter` | Type | _undocumented_ |  |
-| [`SchemaIoSide`](https://mearman.github.io/schema-components/types/core_adapter.SchemaIoSide.html) | `core/adapter` | Type | IO side passed to callToJsonSchema. |  |
+| [`SchemaIoSide`](https://mearman.github.io/schema-components/types/core_adapter.SchemaIoSide.html) | `core/adapter` | Type | IO side passed to the internal `callToJsonSchema` helper. |  |
 | [`SchemaKind`](https://mearman.github.io/schema-components/types/core_adapter.SchemaKind.html) | `core/adapter` | Type | _undocumented_ |  |
 | `SchemaMeta` | `core/adapter` | Re-export | _undocumented_ |  |
 | [`extractArrayConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractArrayConstraints.html) | `core/constraints` | Function | _undocumented_ |  |
@@ -610,8 +610,8 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 | Package | Description |
 |---|---|
-| [`packages/core`](packages/core/) | Published as `schema-components` on npm — the component library |
-| [`packages/docs`](packages/docs/) | Storybook documentation site — not published |
+| [`packages/core`](https://github.com/Mearman/schema-components/tree/main/packages/core) | Published as `schema-components` on npm — the component library |
+| [`packages/docs`](https://github.com/Mearman/schema-components/tree/main/packages/docs) | Storybook documentation site — not published |
 
 ## Development
 

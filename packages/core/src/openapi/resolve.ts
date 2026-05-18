@@ -93,8 +93,8 @@ const docCache = new WeakMap<object, CachedParse>();
  * per real cause regardless of how many child renders share the
  * sink.
  *
- * Strict mode is treated as a per-call invariant — see
- * {@link replayCapturedDiagnostics} for the rationale.
+ * Strict mode is treated as a per-call invariant — see the internal
+ * `replayCapturedDiagnostics` helper below for the rationale.
  */
 export function getParsed(
     doc: Record<string, unknown>,
@@ -133,7 +133,7 @@ export function getParsed(
  * subsequent caller to re-run the pipeline from scratch — and the
  * defect this caching strategy fixes was precisely that kind of
  * re-running. Strict is enforced instead during replay
- * (see {@link replayCapturedDiagnostics}).
+ * (see `replayCapturedDiagnostics`).
  */
 function buildCachedParse(doc: Record<string, unknown>): CachedParse {
     const captured: Diagnostic[] = [];

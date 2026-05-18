@@ -300,7 +300,7 @@ type GetDiscriminatorMapping<S> = S extends {
  * its sibling defs because the ref branch fires before `ExtractDefs` runs
  * inside `ObjectSchemaToTs`.
  *
- * Merge semantics (per-key resolution via {@link CollisionSafeMerge}):
+ * Merge semantics (per-key resolution via `CollisionSafeMerge`):
  * - Parent-only keys: parent value wins
  * - Local-only keys: local value wins
  * - Shared keys: parent value wins (caller / inherited context takes
@@ -370,7 +370,7 @@ type IsEmptyDefs<T> = [keyof T] extends [never]
 /**
  * True when the schema declares `$defs`, `definitions`, or
  * `components.schemas` as an object, false otherwise. Used by
- * {@link MergeRootDefs} and {@link ExtractDefs} to avoid intersecting
+ * `MergeRootDefs` and `ExtractDefs` to avoid intersecting
  * the parent context with an empty index-signature sentinel.
  *
  * `components.schemas` is recognised so OpenAPI documents whose root
@@ -985,7 +985,7 @@ type RequiredKeysOf<S> = S extends { required: infer R }
  * Also indexes schemas with `$anchor` or `$dynamicAnchor` by their anchor
  * name, enabling `#SomeName` ref resolution.
  *
- * Shares merge semantics with {@link MergeRootDefs}: caller-supplied
+ * Shares merge semantics with `MergeRootDefs`: caller-supplied
  * (`ParentDefs`) entries win on key collision, the empty-default
  * sentinel is detected so it does not poison the parent context, and the
  * `HasLocalDefs` guard short-circuits when the current node declares no

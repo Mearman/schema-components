@@ -745,8 +745,8 @@ function applyDraft04Translations(
  *
  * This function preserves the no-context signature for the OpenAPI 3.0
  * and Swagger 2.0 normalisers that compose it directly. The JSON Schema
- * normalisation path uses {@link normaliseDraft04NodeWithContext} via
- * {@link deepNormaliseWithContext} to thread diagnostics.
+ * normalisation path uses the internal `normaliseDraft04NodeWithContext`
+ * helper via `deepNormaliseWithContext` to thread diagnostics.
  */
 export function normaliseDraft04Node(
     node: Record<string, unknown>
