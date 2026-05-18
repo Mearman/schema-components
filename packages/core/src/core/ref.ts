@@ -12,6 +12,37 @@ import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { emitDiagnostic } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
+// Boolean sub-schema sentinel
+// ---------------------------------------------------------------------------
+
+/**
+ * The canonical recursive `$anchor` name synthesised by the Draft
+ * 2019-09 `$recursiveAnchor: true` rewrite. Re-exported here so the
+ * collision check in {@link findAnchor} stays aligned with the
+ * rewriter in `core/normalise.ts`.
+ */
+export const RECURSIVE_ANCHOR_SENTINEL = "__recursive__";
+
+/**
+ * Translate a boolean sub-schema (Draft 06+) into a `Record<string,unknown>`
+ * the walker can interpret with no semantic loss:
+ *
+ *   `true`  → `{}`               (always-valid schema)
+ *   `false` → `{ not: {} }`      (never-valid schema)
+ *
+ * Used by {@link resolveRef} so callers that expect an object schema
+ * can continue without per-call-site boolean handling.
+ *
+ * TODO(round7-integration): once Agent D widens the walker's resolved-
+ * ref handling to dispatch through `walkSubSchema`, drop this
+ * translation and surface the boolean directly.
+ */
+function booleanSchemaToObject(value: boolean): Record<string, unknown> {
+    if (value) return {};
+    return { not: {} };
+}
+
+// ---------------------------------------------------------------------------
 // External resolver hook
 // ---------------------------------------------------------------------------
 
@@ -159,6 +190,12 @@ export function resolveRef(
             if (target !== undefined) {
                 const nextVisited = new Set(visited);
                 nextVisited.add(ref);
+                // Boolean sub-schemas are valid Draft 06+ resolution
+                // targets — translate to an equivalent object so the
+                // existing walker contract still holds.
+                if (typeof target === "boolean") {
+                    return booleanSchemaToObject(target);
+                }
                 return resolveRef(
                     target,
                     externalDoc,
@@ -201,6 +238,14 @@ export function resolveRef(
         };
     }
 
+    // Boolean sub-schemas are valid Draft 06+ resolution targets.
+    // Translate to an equivalent object representation so downstream
+    // walker callers (which expect `Record<string,unknown>`) keep
+    // working without per-call-site boolean handling.
+    if (typeof resolved === "boolean") {
+        return booleanSchemaToObject(resolved);
+    }
+
     // Recursively resolve if the target is also a $ref
     const nextVisited = new Set(visited);
     nextVisited.add(ref);
@@ -221,11 +266,20 @@ export function resolveRef(
 /**
  * Dereference a JSON Pointer fragment (`#/path/to/schema`) or an
  * `$anchor` (`#SomeName`) against a root document.
+ *
+ * Returns the resolved sub-schema, which may be a JSON object or — per
+ * Draft 06+ — a boolean (`true` for the always-valid schema, `false`
+ * for the never-valid schema). Returns `undefined` when the pointer or
+ * anchor cannot be resolved.
+ *
+ * JSON Pointer segments are percent-decoded per RFC 6901 §6 before the
+ * `~1`/`~0` token expansion; this allows pointers such as
+ * `#/paths/~1pets%20store` to resolve a path containing a literal space.
  */
 export function dereference(
     ref: string,
     root: Record<string, unknown>
-): Record<string, unknown> | undefined {
+): Record<string, unknown> | boolean | undefined {
     // $ref: "#" (empty fragment) refers to the root document per RFC 6901
     if (ref === "#") return root;
 
@@ -236,16 +290,39 @@ export function dereference(
         if (parts.length === 1 && parts[0] === "") return root;
         let current: unknown = root;
 
-        for (const part of parts) {
-            if (!isObject(current)) return undefined;
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            if (part === undefined) return undefined;
+            // RFC 6901 §6: percent-decode the segment before applying
+            // the JSON Pointer `~`-token transforms. Without this,
+            // `%20` and similar escapes survive into the key lookup
+            // and fail to match the literal characters the URI was
+            // meant to encode. A malformed percent-escape (`decodeURIComponent`
+            // throws on lone `%`) is treated as an unresolvable pointer.
+            let percentDecoded: string;
+            try {
+                percentDecoded = decodeURIComponent(part);
+            } catch {
+                return undefined;
+            }
             // JSON Pointer: ~1 → /, ~0 → ~
-            const decoded = part.replace(/~1/g, "/").replace(/~0/g, "~");
+            const decoded = percentDecoded
+                .replace(/~1/g, "/")
+                .replace(/~0/g, "~");
             // Reject prototype-polluting segments (`__proto__`, `constructor`,
             // `prototype`). Walking into any of these reads `Object.prototype`
             // and lets a crafted `$ref` smuggle properties from the runtime
             // prototype chain into the resolved schema.
             if (isPrototypePollutingKey(decoded)) return undefined;
-            current = current[decoded];
+            if (!isObject(current)) return undefined;
+            const next: unknown = current[decoded];
+            // The final segment may legitimately resolve to a boolean
+            // sub-schema (Draft 06+). Allow the loop to terminate
+            // returning that boolean.
+            if (i === parts.length - 1 && typeof next === "boolean") {
+                return next;
+            }
+            current = next;
         }
 
         return isObject(current) ? current : undefined;
@@ -269,10 +346,29 @@ export function dereference(
  * Recursively scan a schema document for a `$anchor` matching the given name.
  * Returns the schema object containing the anchor, or undefined.
  *
+ * Per JSON Schema 2020-12 §8.2, `$anchor` is scoped to the resource
+ * defined by the nearest enclosing `$id`. A bare DFS would happily
+ * cross resource boundaries and resolve to an anchor declared in an
+ * unrelated sub-resource — that violates the spec and produces wrong
+ * walker input when two sub-schemas use the same anchor name within
+ * their own `$id` scope.
+ *
+ * The walk skips into any sub-tree that introduces a new `$id` value:
+ * such a sub-tree is a separate resource and its `$anchor`s belong to
+ * that resource, not the caller's. Anchors declared at the same `$id`
+ * scope (or in nested sub-schemas without their own `$id`) remain
+ * reachable.
+ *
  * The optional `visited` set guards against shared object references and
  * cycles introduced by the OpenAPI bundler's `structuredClone`-based
  * inlining of external refs. Without it a recursive document would stack
  * overflow before reaching the matching anchor.
+ *
+ * When `crossResourceBoundary` is `true` the walker is currently
+ * recursing into a sub-tree that introduced its own `$id`; we still
+ * recurse so a nested `$anchor` declared inside that same sub-resource
+ * is reachable from the caller that owns that resource, but we skip
+ * further nested resources for the same reason as above.
  */
 export function findAnchor(
     node: unknown,
@@ -284,9 +380,16 @@ export function findAnchor(
     visited.add(node);
     if (node.$anchor === anchorName) return node;
 
-    // Recurse into known sub-schema locations
-    for (const value of Object.values(node)) {
+    // Recurse into known sub-schema locations, but skip sub-trees that
+    // introduce a new `$id` — those are separate resources and their
+    // anchors are not visible to the enclosing scope.
+    for (const [key, value] of Object.entries(node)) {
+        // `$id` itself is a string keyword on this node, not a sub-tree
+        // boundary; skip the key entirely so we never recurse into the
+        // string's `Object.values` representation.
+        if (key === "$id") continue;
         if (isObject(value)) {
+            if (introducesNewResource(value)) continue;
             const found = findAnchor(value, anchorName, visited);
             if (found !== undefined) return found;
         }
@@ -294,6 +397,7 @@ export function findAnchor(
             if (visited.has(value)) continue;
             visited.add(value);
             for (const item of value) {
+                if (isObject(item) && introducesNewResource(item)) continue;
                 const found = findAnchor(item, anchorName, visited);
                 if (found !== undefined) return found;
             }
@@ -301,4 +405,15 @@ export function findAnchor(
     }
 
     return undefined;
+}
+
+/**
+ * A sub-tree introduces a new resource when it carries a non-empty
+ * string `$id`. JSON Schema 2020-12 treats such a sub-tree as the
+ * root of a separate resource — its `$anchor` declarations live in
+ * that resource's scope, not the enclosing one.
+ */
+function introducesNewResource(node: Record<string, unknown>): boolean {
+    const id = node.$id;
+    return typeof id === "string" && id.length > 0;
 }
