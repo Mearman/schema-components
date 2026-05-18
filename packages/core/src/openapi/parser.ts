@@ -265,33 +265,51 @@ function lookupPathItem(
     return resolvePathItem(parsed, getProperty(webhooks, path));
 }
 
+/**
+ * Record an `operationId` against a shared `seenIds` map and emit a
+ * `duplicate-operation-id` diagnostic when a subsequent location reuses
+ * the same identifier. Returns the original `operationId` so the caller
+ * can pass the value straight onto its `OperationInfo`.
+ *
+ * When the same map is threaded through `listOperations` and
+ * `listWebhooks` (see `listAllOperations`), cross-list collisions
+ * between a path operation and a webhook operation surface as the same
+ * diagnostic class as same-list collisions.
+ */
+function recordOperationId(
+    operationId: string | undefined,
+    location: string,
+    pointer: string,
+    seenIds: Map<string, string>,
+    diagnostics: DiagnosticsOptions | undefined
+): void {
+    if (operationId === undefined) return;
+    const firstSeenAt = seenIds.get(operationId);
+    if (firstSeenAt !== undefined) {
+        emitDiagnostic(diagnostics, {
+            code: "duplicate-operation-id",
+            message: `operationId "${operationId}" is declared more than once (first at ${firstSeenAt}, again at ${location})`,
+            pointer,
+            detail: {
+                operationId,
+                firstSeenAt,
+                duplicateAt: location,
+            },
+        });
+        return;
+    }
+    seenIds.set(operationId, location);
+}
+
 export function listOperations(
     parsed: OpenApiDocument,
-    diagnostics?: DiagnosticsOptions
+    diagnostics?: DiagnosticsOptions,
+    seenIds = new Map<string, string>()
 ): OperationInfo[] {
     const operations: OperationInfo[] = [];
     const paths = getProperty(parsed.doc, "paths");
 
     if (!isObject(paths)) return operations;
-
-    // OAS requires `operationId` to be unique across the entire document.
-    // Track the first sighting of each id so subsequent occurrences emit
-    // a `duplicate-operation-id` diagnostic with both locations. The
-    // duplicates still surface in the operation list — the diagnostic
-    // surfaces the violation without changing the returned shape, so
-    // consumers continue to render every declared operation.
-    //
-    // TODO(round7-integration): extend cross-checking to include
-    // `webhooks` (also `listWebhooks`) once the integrator wires the
-    // shared visited-set through both listings. The current call sites
-    // invoke `listOperations` and `listWebhooks` separately, so
-    // collisions BETWEEN the two are missed.
-    //
-    // TODO(round7-integration): emit `path-webhook-name-collision` for
-    // documents that declare the same identifier under both `paths.<id>`
-    // and `webhooks.<id>`. The lookup-side check belongs in
-    // `openapi/resolve.ts:lookupPathItemNode` (Agent B's territory).
-    const seenIds = new Map<string, string>();
 
     for (const [path, rawPathItem] of Object.entries(paths)) {
         const pathItem = resolvePathItem(parsed, rawPathItem, diagnostics);
@@ -302,23 +320,13 @@ export function listOperations(
             if (!isObject(operation)) continue;
 
             const operationId = getString(operation, "operationId");
-            if (operationId !== undefined) {
-                const firstSeenAt = seenIds.get(operationId);
-                if (firstSeenAt !== undefined) {
-                    emitDiagnostic(diagnostics, {
-                        code: "duplicate-operation-id",
-                        message: `operationId "${operationId}" is declared more than once (first at ${firstSeenAt}, again at ${method.toUpperCase()} ${path})`,
-                        pointer: `/paths/${jsonPointerEscape(path)}/${method}/operationId`,
-                        detail: {
-                            operationId,
-                            firstSeenAt,
-                            duplicateAt: `${method.toUpperCase()} ${path}`,
-                        },
-                    });
-                } else {
-                    seenIds.set(operationId, `${method.toUpperCase()} ${path}`);
-                }
-            }
+            recordOperationId(
+                operationId,
+                `${method.toUpperCase()} ${path}`,
+                `/paths/${jsonPointerEscape(path)}/${method}/operationId`,
+                seenIds,
+                diagnostics
+            );
 
             operations.push({
                 path,
@@ -433,18 +441,11 @@ function extractParameterList(
  * length — a Reference Object whose target is itself a Reference Object
  * is legal. `resolveRefChain` centralises cycle and depth-cap protection.
  *
- * Cycles and over-deep chains reuse the existing `cyclic-path-item-ref`
- * and `path-item-ref-too-deep` diagnostic codes with a
- * `detail.kind: "<node-kind>"` discriminator (e.g. `"parameter"`,
- * `"header"`, `"link"`). There is no dedicated code per node kind in the
- * current `DiagnosticCode` union; consumers filter by `detail.kind` when
- * they care to distinguish the source.
- *
- * TODO(round7-integration): consider adding dedicated `cyclic-*-ref` /
- * `*-ref-too-deep` codes per node kind to `core/diagnostics.ts` so the
- * kind discriminator on `detail` is not needed. The existing Swagger
- * 2.0 path already uses a dedicated `swagger-cyclic-parameter-ref` for
- * the equivalent failure mode.
+ * Cycles and over-deep chains emit a dedicated diagnostic code per node
+ * kind (`cyclic-parameter-ref`, `parameter-ref-too-deep`, and the
+ * `header` / `link` equivalents), mirroring the existing
+ * `swagger-cyclic-parameter-ref` precedent so consumers can pattern-match
+ * directly on the code instead of filtering by `detail.kind`.
  */
 function resolveReferenceObjectChain(
     doc: JsonObject,
@@ -458,12 +459,24 @@ function resolveReferenceObjectChain(
             : kind === "header"
               ? "Header Object"
               : "Link Object";
+    const cyclicCode =
+        kind === "parameter"
+            ? "cyclic-parameter-ref"
+            : kind === "header"
+              ? "cyclic-header-ref"
+              : "cyclic-link-ref";
+    const tooDeepCode =
+        kind === "parameter"
+            ? "parameter-ref-too-deep"
+            : kind === "header"
+              ? "header-ref-too-deep"
+              : "link-ref-too-deep";
     return resolveRefChain<JsonObject>(node, {
         lookup: (ref) =>
             ref.startsWith("#/") ? resolveRefInDoc(doc, ref) : undefined,
         onCycle: (ref) => {
             emitDiagnostic(diagnostics, {
-                code: "cyclic-path-item-ref",
+                code: cyclicCode,
                 message: `Cyclic ${kindLabel} $ref "${ref}"`,
                 pointer: ref,
                 detail: { ref, kind },
@@ -472,7 +485,7 @@ function resolveReferenceObjectChain(
         },
         onDepthExceeded: (ref) => {
             emitDiagnostic(diagnostics, {
-                code: "path-item-ref-too-deep",
+                code: tooDeepCode,
                 message: `${kindLabel} $ref chain exceeded the hop cap starting from "${ref}"`,
                 pointer: ref,
                 detail: { ref, kind },
@@ -878,7 +891,8 @@ export function getResponseHeaders(
 
 export function listWebhooks(
     parsed: OpenApiDocument,
-    diagnostics?: DiagnosticsOptions
+    diagnostics?: DiagnosticsOptions,
+    seenIds = new Map<string, string>()
 ): WebhookInfo[] {
     const result: WebhookInfo[] = [];
     const webhooks = getProperty(parsed.doc, "webhooks");
@@ -900,10 +914,19 @@ export function listWebhooks(
             const operation = getProperty(hookItem, method);
             if (!isObject(operation)) continue;
 
+            const operationId = getString(operation, "operationId");
+            recordOperationId(
+                operationId,
+                `${method.toUpperCase()} webhook:${name}`,
+                `/webhooks/${jsonPointerEscape(name)}/${method}/operationId`,
+                seenIds,
+                diagnostics
+            );
+
             operations.push({
                 path: name,
                 method,
-                operationId: getString(operation, "operationId"),
+                operationId,
                 summary: getString(operation, "summary"),
                 description: getString(operation, "description"),
                 deprecated: getProperty(operation, "deprecated") === true,
@@ -914,6 +937,26 @@ export function listWebhooks(
         result.push({ name, operations });
     }
     return result;
+}
+
+/**
+ * Enumerate every operation in the document — both the `paths` map and
+ * the OpenAPI 3.1 `webhooks` map — sharing a single `seenIds` cache so
+ * cross-list `operationId` collisions surface the same way as same-list
+ * collisions. Returns the path-operation list followed by webhook
+ * operations (flattened); callers that need the structured webhook
+ * grouping should call `listWebhooks` directly.
+ */
+export function listAllOperations(
+    parsed: OpenApiDocument,
+    diagnostics?: DiagnosticsOptions
+): OperationInfo[] {
+    const seenIds = new Map<string, string>();
+    const pathOps = listOperations(parsed, diagnostics, seenIds);
+    const webhookOps = listWebhooks(parsed, diagnostics, seenIds).flatMap(
+        (w) => w.operations
+    );
+    return [...pathOps, ...webhookOps];
 }
 
 // ---------------------------------------------------------------------------

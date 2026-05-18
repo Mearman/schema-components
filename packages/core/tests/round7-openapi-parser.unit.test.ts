@@ -20,6 +20,7 @@
 import { describe, it, expect } from "vitest";
 import {
     parseOpenApiDocument,
+    listAllOperations,
     listWebhooks,
     listOperations,
     getRequestBody,
@@ -358,7 +359,7 @@ describe("resolveParam — Reference Object chain", () => {
         expect(params[0]?.location).toBe("query");
     });
 
-    it("emits cyclic-path-item-ref for a self-cycling parameter ref", () => {
+    it("emits cyclic-parameter-ref for a self-cycling parameter ref", () => {
         const doc = {
             openapi: "3.1.0",
             info: { title: "Test", version: "1.0" },
@@ -385,13 +386,13 @@ describe("resolveParam — Reference Object chain", () => {
         expect(params).toEqual([]);
         const diag = diagnostics.find(
             (d) =>
-                d.code === "cyclic-path-item-ref" &&
+                d.code === "cyclic-parameter-ref" &&
                 d.detail?.kind === "parameter"
         );
         expect(diag).toBeDefined();
     });
 
-    it("emits path-item-ref-too-deep for an over-deep parameter ref chain", () => {
+    it("emits parameter-ref-too-deep for an over-deep parameter ref chain", () => {
         const parameters: Record<string, unknown> = {};
         // Default cap is 8 (DEFAULT_REF_CHAIN_MAX_HOPS). Build a chain
         // of 10 refs so we exceed the cap before reaching the terminus.
@@ -427,7 +428,7 @@ describe("resolveParam — Reference Object chain", () => {
         expect(params).toEqual([]);
         const diag = diagnostics.find(
             (d) =>
-                d.code === "path-item-ref-too-deep" &&
+                d.code === "parameter-ref-too-deep" &&
                 d.detail?.kind === "parameter"
         );
         expect(diag).toBeDefined();
@@ -583,5 +584,40 @@ describe("listOperations — duplicate operationId", () => {
         expect(
             diagnostics.filter((d) => d.code === "duplicate-operation-id")
         ).toEqual([]);
+    });
+
+    it("flags cross-list operationId collisions between paths and webhooks", () => {
+        const doc = {
+            openapi: "3.1.0",
+            info: { title: "Test", version: "1.0" },
+            paths: {
+                "/orders": {
+                    post: {
+                        operationId: "orderCreated",
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+            webhooks: {
+                orderCreated: {
+                    post: {
+                        operationId: "orderCreated",
+                        responses: { "200": { description: "OK" } },
+                    },
+                },
+            },
+        } as Record<string, unknown>;
+
+        const parsed = parseOpenApiDocument(doc);
+        const { diagnostics, sink } = collectDiagnostics();
+        listAllOperations(parsed, { diagnostics: sink });
+        const dup = diagnostics.find(
+            (d) => d.code === "duplicate-operation-id"
+        );
+        expect(dup).toBeDefined();
+        expect(dup?.detail?.operationId).toBe("orderCreated");
+        expect(String(dup?.detail?.duplicateAt)).toContain(
+            "webhook:orderCreated"
+        );
     });
 });

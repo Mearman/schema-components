@@ -8,8 +8,7 @@
 
 import {
     parseOpenApiDocument,
-    listOperations,
-    listWebhooks,
+    listAllOperations,
     getParameters,
     getRequestBody,
     getResponses,
@@ -503,10 +502,7 @@ export function resolveOperationFromParsed(
     // downstream accessor (`getParameters`, `getRequestBody`,
     // `getResponses`) already resolves either through `lookupPathItem`,
     // so a single composed list keeps the failure-mode symmetrical.
-    const operations = [
-        ...listOperations(parsed),
-        ...listWebhooks(parsed).flatMap((w) => w.operations),
-    ];
+    const operations = listAllOperations(parsed);
     const operation = operations.find(
         (op) => op.path === path && op.method === method
     );
