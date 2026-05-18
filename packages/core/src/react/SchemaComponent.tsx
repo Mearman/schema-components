@@ -26,7 +26,7 @@ import {
 } from "react";
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
-import { normaliseSchema } from "../core/adapter.ts";
+import { isCodecSchema, normaliseSchema } from "../core/adapter.ts";
 import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import {
     buildRenderProps,
@@ -53,7 +53,7 @@ import type {
 import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
 import { headlessResolver } from "./headless.tsx";
 import { resolvePath, resolveValue, setNestedValue } from "./fieldPath.ts";
-import { getProperty, isObject, toRecordOrUndefined } from "../core/guards.ts";
+import { isObject, toRecordOrUndefined } from "../core/guards.ts";
 import {
     SchemaNormalisationError,
     SchemaFieldError,
@@ -1058,31 +1058,11 @@ function isFieldErrorCallback(
 // ---------------------------------------------------------------------------
 
 // Narrowing helpers imported from core/guards.ts.
-// isCallable and isCodecSchema are local — both serve the validation
-// boundary only.
+// `isCodecSchema` is imported from core/adapter.ts so the codec trait
+// check has one canonical implementation. `isCallable` stays local —
+// it is the validation boundary's structural check for a callable
+// `safeParse` / `safeEncode` / `safeDecode` member on a Zod schema.
 
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {
     return typeof value === "function";
-}
-
-/**
- * True when `value` is a Zod schema implemented as a codec.
- *
- * Detection looks for `"$ZodCodec"` in the schema's `_zod.traits`
- * Set, mirroring the runtime detection used inside
- * `core/adapter.ts` (`isCodecSchema` there) and Zod's own
- * `isTransforming` helper. Duplicated here rather than imported
- * because adapter.ts does not export the helper and is outside this
- * fix-cycle's owned files.
- *
- * TODO(round7-integration): replace with an `import` once
- * `isCodecSchema` is exported from `core/adapter.ts` (or promoted to
- * `core/guards.ts`) by a coordinating commit.
- */
-function isCodecSchema(value: unknown): boolean {
-    const zod = getProperty(value, "_zod");
-    if (!isObject(zod)) return false;
-    const traits = zod.traits;
-    if (traits instanceof Set) return traits.has("$ZodCodec");
-    return false;
 }

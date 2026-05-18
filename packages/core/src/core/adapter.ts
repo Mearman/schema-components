@@ -639,6 +639,31 @@ function hasTrait(zod: Record<string, unknown>, traitName: string): boolean {
 }
 
 /**
+ * True when `value` is a Zod schema implemented as a codec
+ * (`z.codec(...)`). Detection looks for the `$ZodCodec` marker on the
+ * schema's `_zod.traits` Set — the same structural check used by Zod
+ * itself in `to-json-schema.ts`'s `isTransforming` helper.
+ *
+ * Promoted from a duplicated local helper in `react/SchemaComponent.tsx`
+ * so the validation boundary inside `runValidation` can branch on
+ * codec-vs-not-codec without re-implementing the trait check. The
+ * shared helper anchors a single source of truth for codec detection:
+ * any future change to Zod's trait naming flows through here, not
+ * through two parallel copies.
+ *
+ * Returns `false` for non-objects, plain JSON Schema inputs, OpenAPI
+ * documents, or Zod schemas of any other kind. This is structural
+ * rather than nominal — a Zod 4 codec produced by any path that ends
+ * up tagging `_zod.traits` with `$ZodCodec` is recognised, including
+ * schemas wrapped by user-defined helpers.
+ */
+export function isCodecSchema(value: unknown): boolean {
+    const zod = getProperty(value, "_zod");
+    if (!isObject(zod)) return false;
+    return hasTrait(zod, "$ZodCodec");
+}
+
+/**
  * Type guard narrowing `unknown` to a zero-argument function returning
  * `unknown`. The narrowing is genuinely structural: `typeof === "function"`
  * at runtime is exactly the membership test we want, and Zod has no
