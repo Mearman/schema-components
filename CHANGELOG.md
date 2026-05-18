@@ -1,3 +1,31 @@
+## [1.29.0](https://github.com/Mearman/schema-components/compare/v1.28.2...v1.29.0) (2026-05-18)
+
+### Features
+
+* **core:** add mermaid and Material themed TypeDoc plugins ([b9a6767](https://github.com/Mearman/schema-components/commit/b9a6767f8e1d38f46fcb951d9cbf82013be60258))
+* **core:** generate api-urls map from TypeDoc for Storybook badge ([df0029c](https://github.com/Mearman/schema-components/commit/df0029cc8f4d25a1351726348569246c017fc26f))
+* **docs:** add per-story API reference badge to Storybook DocsPage ([926d0e8](https://github.com/Mearman/schema-components/commit/926d0e8cc793ac03c829ba780c41dc7cc7df4bed))
+
+### Bug Fixes
+
+* **build:** include function signature comments in API inventory ([e8cb6ca](https://github.com/Mearman/schema-components/commit/e8cb6ca3251ba0b4da6320c99d1acfea7528e423))
+* **build:** resolve re-export targets when building API inventory summaries ([550ced1](https://github.com/Mearman/schema-components/commit/550ced1a6783f22c56ac26a5fa893561f0d078ff))
+* **core:** scope story title extraction to meta object ([a58247e](https://github.com/Mearman/schema-components/commit/a58247e1e628cfc98e37e1476d4990c8c79f07fa))
+
+### Documentation
+
+* backfill summaries on remaining undocumented public exports ([351ffa7](https://github.com/Mearman/schema-components/commit/351ffa708327b930c84ddacb636905291d8ee7e3))
+* **core:** add summaries and group tags to walker, adapter, diagnostics, errors ([d2d97da](https://github.com/Mearman/schema-components/commit/d2d97da48aaf36089cb99ae6b192cef0be432a8c))
+* **core:** document type guards, constraint extractors, renderer types, and parser ([cd711e4](https://github.com/Mearman/schema-components/commit/cd711e42ae99cb18ab3a7672b1036d24da64eaa2))
+* **openapi:** annotate OpenAPI component entry points with summaries and group tags ([8eaf359](https://github.com/Mearman/schema-components/commit/8eaf359c8a4b2ad2ed872d109b40b436e8e9cb16))
+* **react:** add JSDoc summaries, group tags, and examples to React entry points ([4481e4e](https://github.com/Mearman/schema-components/commit/4481e4e15f81bfdd426dd3fc29aa00dee217b0cb))
+* rebuild README inventory after parser fix and story tagging ([adab6a7](https://github.com/Mearman/schema-components/commit/adab6a7089a7b3e08a1e94829647923655fd6d1e))
+* tag JSON Schema and Inputs stories with apiSymbols ([1c8c337](https://github.com/Mearman/schema-components/commit/1c8c3373fdec0c95f5a66f7a8f1a384857ff5b59))
+* tag OpenAPI stories with apiSymbols ([bc8bc6b](https://github.com/Mearman/schema-components/commit/bc8bc6b6db4646506a35bb40e4d5d0f21b9c4a72))
+* tag remaining React component stories with apiSymbols ([d2b6e4c](https://github.com/Mearman/schema-components/commit/d2b6e4c83ff4af6485d3b8075dbaccfdc7b51020))
+* tag theme adapter and HTML rendering stories with apiSymbols ([523e669](https://github.com/Mearman/schema-components/commit/523e66935949722b5f63f3d29122d2c26d30f279))
+* **themes:** annotate theme adapters and HTML renderers with summaries and examples ([204e3e3](https://github.com/Mearman/schema-components/commit/204e3e387c75657996a140de3ab2af25cfc4965d))
+
 ## [1.28.2](https://github.com/Mearman/schema-components/compare/v1.28.1...v1.28.2) (2026-05-18)
 
 ### Bug Fixes
