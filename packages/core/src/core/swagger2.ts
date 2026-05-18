@@ -258,9 +258,22 @@ export function normaliseSwagger2Document(
     const securityDefinitions = doc.securityDefinitions;
     if (isObject(securityDefinitions)) {
         const translated: Record<string, unknown> = {};
+        const securityDefinitionsPointer = appendPointer(
+            "",
+            "securityDefinitions"
+        );
         for (const [name, scheme] of Object.entries(securityDefinitions)) {
+            const schemePointer = appendPointer(
+                securityDefinitionsPointer,
+                name
+            );
             translated[name] = isObject(scheme)
-                ? translateSwaggerSecurityScheme(scheme)
+                ? translateSwaggerSecurityScheme(
+                      scheme,
+                      diagnostics,
+                      schemePointer,
+                      name
+                  )
                 : scheme;
         }
         components.securitySchemes = translated;
@@ -1322,7 +1335,10 @@ const SWAGGER_OAUTH_FLOW_RENAME: Readonly<Record<string, string>> = {
  * those cases.
  */
 function translateSwaggerSecurityScheme(
-    scheme: Record<string, unknown>
+    scheme: Record<string, unknown>,
+    diagnostics?: DiagnosticsOptions,
+    pointer = "",
+    name?: string
 ): Record<string, unknown> {
     const type = scheme.type;
     if (type === "basic") {
@@ -1339,9 +1355,20 @@ function translateSwaggerSecurityScheme(
     if (type === "oauth2") {
         const flowName = scheme.flow;
         if (typeof flowName !== "string") {
-            // Malformed but real — preserve the type and copy any extras
-            // so callers can see the broken shape rather than silently
-            // dropping the scheme.
+            // Malformed but real — surface the broken shape via a
+            // diagnostic so consumers see why the renderer cannot turn
+            // the scheme into a useful surface. Preserve the original
+            // type and any extras the source carried rather than
+            // silently dropping the scheme.
+            emitDiagnostic(diagnostics, {
+                code: "swagger-malformed-oauth-flow",
+                message: `Swagger 2.0 oauth2 security scheme${name !== undefined ? ` "${name}"` : ""} is missing the required \`flow\` field; preserving the original shape verbatim`,
+                pointer,
+                detail: {
+                    name,
+                    flow: flowName,
+                },
+            });
             return { ...scheme, type: "oauth2" };
         }
         const renamedFlow = SWAGGER_OAUTH_FLOW_RENAME[flowName] ?? flowName;
