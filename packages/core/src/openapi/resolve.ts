@@ -280,21 +280,29 @@ function lookupPathItemNode(
     diagnostics?: DiagnosticsOptions
 ): Record<string, unknown> | undefined {
     const paths = getProperty(parsed.doc, "paths");
-    const fromPaths = resolvePathItemNode(
-        parsed,
-        getProperty(paths, path),
-        diagnostics
-    );
+    const webhooks = getProperty(parsed.doc, "webhooks");
+    const pathsEntry = getProperty(paths, path);
+    const webhooksEntry = getProperty(webhooks, path);
+    // When the same identifier addresses an entry in both `paths` and
+    // `webhooks`, the previous implementation silently picked the path
+    // and discarded the webhook. Surface the collision so authors
+    // notice the ambiguity, then keep `paths` as the deterministic
+    // winner (matching the prior behaviour so existing renders are
+    // stable).
+    if (isObject(pathsEntry) && isObject(webhooksEntry)) {
+        emitDiagnostic(diagnostics, {
+            code: "path-webhook-name-collision",
+            message: `Identifier "${path}" appears in both \`paths\` and \`webhooks\`; \`paths\` takes precedence`,
+            pointer: `/paths/${path.replace(/~/g, "~0").replace(/\//g, "~1")}`,
+            detail: { name: path },
+        });
+    }
+    const fromPaths = resolvePathItemNode(parsed, pathsEntry, diagnostics);
     if (fromPaths !== undefined) return fromPaths;
     // OpenAPI 3.1 webhook fallback: identifiers without a leading `/`
     // can address `webhooks/<name>` directly, so the same accessors and
     // path-item metadata extractors work for both maps.
-    const webhooks = getProperty(parsed.doc, "webhooks");
-    return resolvePathItemNode(
-        parsed,
-        getProperty(webhooks, path),
-        diagnostics
-    );
+    return resolvePathItemNode(parsed, webhooksEntry, diagnostics);
 }
 
 /**
