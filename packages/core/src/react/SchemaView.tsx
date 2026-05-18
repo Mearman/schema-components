@@ -46,17 +46,40 @@ import type { WalkOptions } from "../core/walkBuilders.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import { SchemaNormalisationError, SchemaRenderError } from "../core/errors.ts";
 import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
+import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
 
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
-export interface SchemaViewProps {
-    /** Zod schema, JSON Schema object, or OpenAPI document. */
-    schema: unknown;
+export interface SchemaViewProps<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+> {
+    /**
+     * Zod schema, JSON Schema object, or OpenAPI document.
+     *
+     * Subject to the same compile-time rejection of unrepresentable
+     * Zod 4 types as {@link SchemaComponentProps.schema} — see
+     * {@link RejectUnrepresentableZod}.
+     */
+    schema: RejectUnrepresentableZod<T>;
     /** For OpenAPI: a ref string like "#/components/schemas/User". */
-    ref?: string;
-    /** Current value to render. */
+    ref?: Ref;
+    /**
+     * Current value to render.
+     *
+     * TYPE BOUNDARY NOTE: mirrors `SchemaComponentProps.value` — kept
+     * as `unknown` so the same boundary holds for both the editable
+     * (`SchemaComponent`) and read-only (`SchemaView`) entry points.
+     * The {@link InferredOutputValue} alias is the recommended way
+     * for callers to narrow on the consumer side.
+     *
+     * TODO(round7-integration): promote to
+     * `InferSchemaValue<T, Ref, "output">` alongside the matching
+     * `SchemaComponent` change. See the type-boundary note on
+     * `SchemaComponentProps.value` for the migration coordination.
+     */
     value?: unknown;
     /** Per-field meta overrides. */
     fields?: Record<string, unknown>;
@@ -95,7 +118,10 @@ export interface SchemaViewProps {
  * Always renders in read-only mode. For editable forms, use
  * `<SchemaComponent>` with `"use client"`.
  */
-export function SchemaView({
+export function SchemaView<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+>({
     schema: schemaInput,
     ref: refInput,
     value,
@@ -107,7 +133,7 @@ export function SchemaView({
     onDiagnostic,
     strict,
     idPrefix,
-}: SchemaViewProps): ReactNode {
+}: SchemaViewProps<T, Ref>): ReactNode {
     const generatedId = useId();
     const rootPath = idPrefix ?? sanitisePrefix(generatedId);
     const mergedMeta: SchemaMeta = { ...componentMeta, readOnly: true };

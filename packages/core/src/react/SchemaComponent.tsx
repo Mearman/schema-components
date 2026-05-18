@@ -298,6 +298,17 @@ export interface SchemaComponentProps<
      * The narrowing is fully expressible through the helper alias
      * without forcing every existing caller to update their value
      * shapes for `exactOptionalPropertyTypes` / enum literal widening.
+     *
+     * TODO(round7-integration): promote to
+     * `NarrowAtPath<InferSchemaValue<T, Ref, "output">, P>` once the
+     * round-7 test fixtures (headless union, discriminated union,
+     * schemaview equivalence, type-inference issue fixes) are
+     * migrated to either narrow their fixtures or accept the loose
+     * boundary. The retype cascades through call sites that
+     * intentionally pass invalid values to exercise fallback paths
+     * (`value={undefined}`, off-discriminator values, etc.) and
+     * through fixtures whose enum/literal types widen at the call
+     * site. Coordinated migration is required.
      */
     value?: unknown;
     /**
@@ -310,6 +321,15 @@ export interface SchemaComponentProps<
      * without an unsafe boundary cast. The {@link InferredInputValue}
      * alias is the recommended way for callers to narrow on the
      * consumer side — `onChange={(v) => { const u = v as InferredInputValue<typeof schema>; ... }}`.
+     *
+     * TODO(round7-integration): promote to
+     * `(value: NarrowAtPath<InferSchemaValue<T, Ref, "input">, P>) => void`
+     * alongside the `value` retype. The contravariant boundary needs
+     * an internal cast at the only call site (`onChange?.(nextValue)`
+     * in `handleChange`) that the project's no-`as` rule disallows
+     * without explicit justification. The right place to introduce
+     * the cast is a tiny typed boundary helper accompanied by the
+     * fixture migration noted above.
      */
     onChange?: (value: unknown) => void;
     /** Run schema.safeParse() on change and surface errors via onValidationError. */
@@ -910,12 +930,11 @@ export function SchemaField<
 
     const handleChange = useCallback(
         (nextFieldValue: unknown) => {
+            // Compute the next root value once. Earlier revisions called
+            // `setNestedValue` a second time inside the `validate` branch,
+            // doubling the per-change cost on deep paths for no benefit.
+            const newRootValue = setNestedValue(value, path, nextFieldValue);
             if (validate) {
-                const newRootValue = setNestedValue(
-                    value,
-                    path,
-                    nextFieldValue
-                );
                 const error = runValidation(
                     zodSchema,
                     jsonSchema,
@@ -925,7 +944,6 @@ export function SchemaField<
                     onValidationError?.(error);
                 }
             }
-            const newRootValue = setNestedValue(value, path, nextFieldValue);
             onChange?.(newRootValue);
         },
         [
