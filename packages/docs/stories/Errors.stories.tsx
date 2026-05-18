@@ -112,6 +112,15 @@ const meta: Meta<typeof ErrorBoundaryPreview> = {
     // vitest runner via `!test`. The ErrorBoundary story includes its own
     // boundary and opts back into tests via story-level tags.
     tags: ["errors", "validation", "!test"],
+    parameters: {
+        apiSymbols: [
+            "SchemaErrorBoundary",
+            "SchemaError",
+            "SchemaFieldError",
+            "SchemaNormalisationError",
+            "SchemaRenderError",
+        ],
+    },
 };
 
 export default meta;

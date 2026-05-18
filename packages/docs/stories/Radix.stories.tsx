@@ -84,6 +84,9 @@ const meta: Meta<typeof RadixPreview> = {
     title: "Theme Adapters/Radix",
     component: RadixPreview,
     tags: ["theme-adapter", "editable", "readonly"],
+    parameters: {
+        apiSymbols: ["radixResolver"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

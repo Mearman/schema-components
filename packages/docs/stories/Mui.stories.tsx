@@ -86,6 +86,9 @@ const meta: Meta<typeof MuiPreview> = {
     title: "Theme Adapters/MUI",
     component: MuiPreview,
     tags: ["theme-adapter", "editable", "readonly"],
+    parameters: {
+        apiSymbols: ["muiResolver"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

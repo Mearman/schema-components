@@ -17,14 +17,16 @@
  * export so we de-duplicate by name+module.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const projectJsonPath = resolve(here, "../typedoc-static/project.json");
 const readmePath = resolve(here, "../../../README.md");
+const storiesDir = resolve(here, "../../docs/stories");
 const hostedBase = "https://mearman.github.io/schema-components";
+const storybookBase = `${hostedBase}/storybook/`;
 
 const KIND = {
     Variable: 32,
@@ -65,6 +67,72 @@ const SUBPATH_LABEL = {
     themes: "themes/*",
 };
 
+/**
+ * Mirror Storybook's CSF title-to-id sanitiser. The deployed Storybook
+ * builds story URLs as `?path=/docs/<sanitised-title>--<sanitised-name>`,
+ * so to link out from the inventory we transform the title the same way
+ * — lowercase, collapse non-alphanumeric runs to hyphens, trim
+ * leading/trailing hyphens — and assume the docs page (`--docs`).
+ */
+function sanitiseStorybookId(title) {
+    return title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Reads packages/docs/stories/*.stories.tsx and builds a map from each
+ * exported symbol name to the stories that demonstrate it, declared
+ * via `parameters: { apiSymbols: ["SymbolName", ...] }` on the story's
+ * meta object. Stories without apiSymbols are ignored.
+ *
+ * Uses regex extraction rather than full TS parsing because the story
+ * meta shape is consistent across the codebase and the parser runs in
+ * the pre-commit hook where startup cost matters. If the meta shape
+ * ever diverges, switch to TypeScript's compiler API.
+ */
+function loadStoryIndex() {
+    const bySymbol = new Map();
+    let storyFiles;
+    try {
+        storyFiles = readdirSync(storiesDir).filter((name) =>
+            name.endsWith(".stories.tsx"),
+        );
+    } catch {
+        return bySymbol;
+    }
+
+    for (const fileName of storyFiles) {
+        const source = readFileSync(join(storiesDir, fileName), "utf8");
+        const titleMatch = source.match(/^\s*title:\s*"([^"]+)"/m);
+        if (!titleMatch) continue;
+        const apiSymbolsMatch = source.match(
+            /apiSymbols\s*:\s*\[([^\]]*)\]/m,
+        );
+        if (!apiSymbolsMatch) continue;
+        const title = titleMatch[1];
+        const symbols = apiSymbolsMatch[1]
+            .split(",")
+            .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+            .filter(Boolean);
+        const id = sanitiseStorybookId(title);
+        const url = `${storybookBase}?path=/docs/${id}--docs`;
+        for (const sym of symbols) {
+            if (!bySymbol.has(sym)) bySymbol.set(sym, []);
+            bySymbol.get(sym).push({ title, url });
+        }
+    }
+    return bySymbol;
+}
+
+function renderStoriesCell(stories) {
+    if (!stories || stories.length === 0) return "";
+    return stories
+        .map(({ title, url }) => `[${title}](${url})`)
+        .join("<br>");
+}
+
 function summaryOf(reflection) {
     const parts = reflection.comment?.summary ?? [];
     const text = parts
@@ -87,7 +155,7 @@ function isInternalNamespace(name) {
     return name === "<internal>";
 }
 
-function collectExports(project) {
+function collectExports(project, storyIndex) {
     const bySubpath = new Map();
     for (const subpath of SUBPATH_ORDER) bySubpath.set(subpath, []);
 
@@ -105,6 +173,7 @@ function collectExports(project) {
                 kind: child.kind,
                 modulePath,
                 summary: summaryOf(child),
+                stories: storyIndex.get(child.name) ?? [],
             });
         }
     }
@@ -125,18 +194,19 @@ function renderTable(exports) {
             const nameCell = url ? `[\`${e.name}\`](${url})` : `\`${e.name}\``;
             const kindLabel = KIND_LABEL[e.kind];
             const summary = e.summary || "_undocumented_";
-            return `| ${nameCell} | \`${e.modulePath}\` | ${kindLabel} | ${summary} |`;
+            const stories = renderStoriesCell(e.stories);
+            return `| ${nameCell} | \`${e.modulePath}\` | ${kindLabel} | ${summary} | ${stories} |`;
         });
     return [
-        "| Symbol | Sub-path | Kind | Summary |",
-        "| --- | --- | --- | --- |",
+        "| Symbol | Sub-path | Kind | Summary | Stories |",
+        "| --- | --- | --- | --- | --- |",
         ...rows,
         "",
     ].join("\n");
 }
 
-function buildInventory(project) {
-    const grouped = collectExports(project);
+function buildInventory(project, storyIndex) {
+    const grouped = collectExports(project, storyIndex);
     const sections = [];
     for (const subpath of SUBPATH_ORDER) {
         const exports = grouped.get(subpath);
@@ -168,6 +238,7 @@ function injectInventory(readme, inventory) {
 
 const project = JSON.parse(readFileSync(projectJsonPath, "utf8"));
 const readme = readFileSync(readmePath, "utf8");
-const inventory = buildInventory(project);
+const storyIndex = loadStoryIndex();
+const inventory = buildInventory(project, storyIndex);
 const updated = injectInventory(readme, inventory);
 writeFileSync(readmePath, updated, "utf8");

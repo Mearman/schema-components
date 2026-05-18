@@ -110,6 +110,14 @@ const petStoreSpec = {
 const meta: Meta = {
     title: "OpenAPI/Operations",
     tags: ["openapi", "editable"],
+    parameters: {
+        apiSymbols: [
+            "ApiOperation",
+            "ApiParameters",
+            "ApiRequestBody",
+            "ApiResponse",
+        ],
+    },
 };
 
 export default meta;

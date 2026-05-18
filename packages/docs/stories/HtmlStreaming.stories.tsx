@@ -90,6 +90,9 @@ const meta: Meta<typeof StreamingPreview> = {
     title: "HTML Rendering/Streaming",
     component: StreamingPreview,
     tags: ["html"],
+    parameters: {
+        apiSymbols: ["renderToHtmlChunks", "renderToHtmlReadable"],
+    },
 };
 
 export default meta;

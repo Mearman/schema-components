@@ -35,6 +35,9 @@ const meta = {
     title: "Server Rendering/SchemaView",
     component: SchemaView,
     tags: ["server-render", "readonly", "zod"],
+    parameters: {
+        apiSymbols: ["SchemaView"],
+    },
 } satisfies Meta<typeof SchemaView>;
 export default meta;
 type Story = StoryObj<typeof meta>;

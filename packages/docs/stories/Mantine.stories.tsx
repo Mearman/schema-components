@@ -86,6 +86,9 @@ const meta: Meta<typeof MantinePreview> = {
     title: "Theme Adapters/Mantine",
     component: MantinePreview,
     tags: ["theme-adapter", "editable", "readonly"],
+    parameters: {
+        apiSymbols: ["mantineResolver"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

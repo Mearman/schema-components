@@ -78,6 +78,9 @@ const meta: Meta<typeof ShadcnPreview> = {
     title: "Theme Adapters/shadcn",
     component: ShadcnPreview,
     tags: ["theme-adapter", "editable", "readonly"],
+    parameters: {
+        apiSymbols: ["shadcnResolver"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

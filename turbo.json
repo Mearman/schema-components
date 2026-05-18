@@ -37,7 +37,12 @@
         },
         "_readme": {
             "dependsOn": ["_typedoc"],
-            "inputs": ["scripts/build-readme-inventory.mjs", "typedoc-static/project.json", "../../README.md"],
+            "inputs": [
+                "scripts/build-readme-inventory.mjs",
+                "typedoc-static/project.json",
+                "../../README.md",
+                "../docs/stories/*.stories.tsx"
+            ],
             "outputs": ["../../README.md"],
             "cache": false
         },

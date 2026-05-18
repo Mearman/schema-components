@@ -76,6 +76,9 @@ const meta: Meta<typeof HtmlPreview> = {
     title: "HTML Rendering/Static",
     component: HtmlPreview,
     tags: ["html"],
+    parameters: {
+        apiSymbols: ["renderToHtml"],
+    },
 };
 
 export default meta;

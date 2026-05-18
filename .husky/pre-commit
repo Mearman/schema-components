@@ -5,7 +5,7 @@ pnpm exec lint-staged
 # packages/core/src, so changes to source files, the TypeDoc config,
 # the generator script, or the README itself (which holds the
 # narrative + markers) trigger a rebuild.
-if git diff --cached --name-only | grep -qE '^(packages/core/src/.*\.(ts|tsx)|packages/core/typedoc.*\.json|packages/core/scripts/build-readme-inventory\.mjs|README\.md)$'; then
+if git diff --cached --name-only | grep -qE '^(packages/core/src/.*\.(ts|tsx)|packages/core/typedoc.*\.json|packages/core/scripts/build-readme-inventory\.mjs|packages/docs/stories/.*\.stories\.tsx|README\.md)$'; then
     echo "→ Regenerating README API inventory..."
     pnpm readme
     git add -- README.md
