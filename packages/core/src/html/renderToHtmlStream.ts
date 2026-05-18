@@ -165,6 +165,17 @@ function prepareTree(
 // Scheduler
 // ---------------------------------------------------------------------------
 
+/**
+ * Cooperative scheduler yield used between async chunks. Resolves on the
+ * next microtask so the event loop can process queued I/O and timers
+ * without the four-millisecond clamp browsers apply to nested
+ * `setTimeout(..., 0)` calls. The cumulative cost of `setTimeout`-based
+ * yielding on a deep schema is measurable; the microtask form is free.
+ */
 function schedulerYield(): Promise<undefined> {
-    return new Promise((resolve) => setTimeout(resolve, 0));
+    return new Promise((resolve) => {
+        queueMicrotask(() => {
+            resolve(undefined);
+        });
+    });
 }
