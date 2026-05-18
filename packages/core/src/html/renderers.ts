@@ -11,6 +11,12 @@ import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
 import { dateInputType } from "../core/formats.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import { isSafeHyperlink, isSafeMailtoAddress } from "../core/uri.ts";
+// TODO(round7-integration): displayJsonValue lives in walkBuilders for
+// now because `EnumField.enumValues` and `LiteralField.literalValues`
+// were widened to `unknown[]` (Draft 2020-12 §6.1.2/§6.1.3). Round 7
+// Agent D added the shared helper; integration can relocate it to a
+// dedicated display utilities module if preferred.
+import { displayJsonValue } from "../core/walkBuilders.ts";
 import {
     h,
     serialize,
@@ -254,9 +260,13 @@ function renderEnumEditable(props: HtmlRenderProps): HtmlNode {
 
     const optionNodes = [
         h("option", { value: "" }, "Select\u2026"),
+        // TODO(round7-integration): enum values may be objects or arrays
+        // per Draft 2020-12 §6.1.2 — `EnumField.enumValues` was widened
+        // to `unknown[]` by Round 7 Agent D. Renderer collapses
+        // non-primitive entries via JSON serialisation as a stopgap;
+        // dedicated rich-value rendering is integration-phase work.
         ...enumValues.map((v) => {
-            const display =
-                v === null ? "null" : typeof v === "string" ? v : String(v);
+            const display = displayJsonValue(v);
             const attrs: HtmlAttributes = { value: display };
             if (display === selectedValue) {
                 attrs.selected = true;
@@ -454,9 +464,12 @@ function renderLiteralHtml(props: HtmlRenderProps): string {
             h("span", { class: "sc-value sc-value--empty" }, "\u2014")
         );
     }
-    const display = values
-        .map((v) => (v === null ? "null" : String(v)))
-        .join(", ");
+    // TODO(round7-integration): literal `const` may be an object or array
+    // per Draft 2020-12 §6.1.3 — `LiteralField.literalValues` was widened
+    // to `unknown[]` by Round 7 Agent D. Renderer collapses non-primitive
+    // entries via `displayJsonValue` as a stopgap; dedicated rich-value
+    // rendering is integration-phase work.
+    const display = values.map((v) => displayJsonValue(v)).join(", ");
     return serialize(h("span", { class: "sc-value" }, display));
 }
 

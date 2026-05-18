@@ -21,6 +21,12 @@ import { isObject } from "../core/guards.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import type { WalkedField } from "../core/types.ts";
 import { isSafeHyperlink, isSafeMailtoAddress } from "../core/uri.ts";
+// TODO(round7-integration): displayJsonValue lives in walkBuilders for
+// now because `EnumField.enumValues` and `LiteralField.literalValues`
+// were widened to `unknown[]` (Draft 2020-12 §6.1.2/§6.1.3). Round 7
+// Agent D added the shared helper; integration can relocate it to a
+// dedicated display utilities module if preferred.
+import { displayJsonValue } from "../core/walkBuilders.ts";
 
 // ---------------------------------------------------------------------------
 // Utility
@@ -191,13 +197,14 @@ export function renderString(props: RenderProps): ReactNode {
                 {...ariaAttrs}
             >
                 <option value="">Select{"\u2026"}</option>
+                {/* TODO(round7-integration): enum values may be objects
+                   or arrays per Draft 2020-12 §6.1.2 — `EnumField.enumValues`
+                   was widened to `unknown[]` by Round 7 Agent D. Renderer
+                   collapses non-primitive entries via `displayJsonValue`
+                   as a stopgap; dedicated rich-value rendering is
+                   integration-phase work. */}
                 {enumValues.map((v) => {
-                    const display =
-                        v === null
-                            ? "null"
-                            : typeof v === "string"
-                              ? v
-                              : String(v);
+                    const display = displayJsonValue(v);
                     return (
                         <option key={display} value={display}>
                             {display}
@@ -339,9 +346,12 @@ export function renderEnum(props: RenderProps): ReactNode {
             {...ariaAttrs}
         >
             <option value="">Select{"\u2026"}</option>
+            {/* TODO(round7-integration): see headlessRenderers enum
+               renderer above — non-primitive enum values are collapsed
+               via `displayJsonValue` until integration-phase rich
+               rendering lands. Round 7 Agent D. */}
             {enumValues.map((v) => {
-                const display =
-                    v === null ? "null" : typeof v === "string" ? v : String(v);
+                const display = displayJsonValue(v);
                 return (
                     <option key={display} value={display}>
                         {display}
@@ -929,9 +939,12 @@ export function renderLiteral(props: RenderProps): ReactNode {
             </span>
         );
     }
-    const display = values
-        .map((v) => (v === null ? "null" : String(v)))
-        .join(", ");
+    // TODO(round7-integration): literal `const` may be an object or array
+    // per Draft 2020-12 §6.1.3 — `LiteralField.literalValues` was widened
+    // to `unknown[]` by Round 7 Agent D. Renderer collapses non-primitive
+    // entries via `displayJsonValue` as a stopgap; dedicated rich-value
+    // rendering is integration-phase work.
+    const display = values.map((v) => displayJsonValue(v)).join(", ");
     return (
         <span id={id} aria-readonly="true">
             {display}

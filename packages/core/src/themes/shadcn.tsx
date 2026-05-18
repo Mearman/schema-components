@@ -17,6 +17,11 @@ import { headlessResolver } from "../react/headless.tsx";
 import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { toRecord } from "../core/guards.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
+// TODO(round7-integration): displayJsonValue lives in walkBuilders for
+// now because `EnumField.enumValues` was widened to `unknown[]` (Draft
+// 2020-12 §6.1.2). Round 7 Agent D added the shared helper; integration
+// can relocate it to a dedicated display utilities module if preferred.
+import { displayJsonValue } from "../core/walkBuilders.ts";
 import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
@@ -283,14 +288,14 @@ function renderEnumInput(props: RenderProps): ReactNode {
             }}
         >
             <option value="">Select{"…"}</option>
+            {/* TODO(round7-integration): enum values may be objects or
+               arrays per Draft 2020-12 §6.1.2 — `EnumField.enumValues` was
+               widened to `unknown[]` by Round 7 Agent D. Renderer
+               collapses non-primitive entries via `displayJsonValue`
+               as a stopgap. */}
             {props.tree.type === "enum"
                 ? props.tree.enumValues.map((v) => {
-                      const display =
-                          v === null
-                              ? "null"
-                              : typeof v === "string"
-                                ? v
-                                : String(v);
+                      const display = displayJsonValue(v);
                       return (
                           <option key={display} value={display}>
                               {display}
