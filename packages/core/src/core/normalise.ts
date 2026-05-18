@@ -19,6 +19,7 @@ import {
     isOpenApi30,
     isOpenApi31,
     isSwagger2,
+    matchJsonSchemaDraftUri,
     readJsonSchemaDialect,
 } from "./version.ts";
 import { isObject } from "./guards.ts";
@@ -28,6 +29,7 @@ import {
     deepNormaliseOpenApiDoc,
     normaliseOpenApi30Discriminator,
 } from "./openapi30.ts";
+import { RECURSIVE_ANCHOR_SENTINEL } from "./ref.ts";
 import { normaliseSwagger2Document } from "./swagger2.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { appendPointer, emitDiagnostic } from "./diagnostics.ts";
@@ -408,6 +410,19 @@ function collectDependencyStrings(
 }
 
 /**
+ * Which diagnostic code (if any) the legacy-split should emit when
+ * `dependencies` is encountered on the current draft path. The two
+ * code variants correspond to the draft in which the split is being
+ * surfaced — Draft 2019-09 (the draft that originally split the
+ * keyword) versus Draft 2020-12 (where `dependencies` should already
+ * have been removed by the author).
+ */
+type LegacyDependenciesDiagnostic =
+    | "legacy-dependencies-split"
+    | "legacy-dependencies-split-2019"
+    | undefined;
+
+/**
  * Split the legacy `dependencies` keyword into `dependentRequired` and
  * `dependentSchemas` per the Draft 2019-09+ replacement.
  *
@@ -419,23 +434,30 @@ function collectDependencyStrings(
  * After splitting, `dependencies` is removed from the node.
  *
  * When `ctx` is supplied, diagnostics are emitted for:
- * - `legacy-dependencies-split` once per node that contained the
- *   deprecated keyword (callers pass this only on draft paths where
- *   the keyword is unexpected, e.g. 2020-12).
+ * - The supplied `legacyDiagnostic` code (if any) once per node that
+ *   contained the deprecated keyword. Callers pass
+ *   `legacy-dependencies-split-2019` on the 2019-09 path (the draft
+ *   that introduced the split — authors should already have migrated)
+ *   and `legacy-dependencies-split` on the defensive 2020-12 path.
  * - `dependent-required-invalid` for each array entry whose element is
  *   not a string.
+ * - `dependencies-conflict` when both the legacy `dependencies` keyword
+ *   and a pre-existing `dependentRequired`/`dependentSchemas` declare
+ *   the same key with different values. The pre-existing modern
+ *   keyword wins and the legacy value is discarded — silently
+ *   overwriting would mask the author's bug.
  */
 function splitDependencies(
     node: Record<string, unknown>,
     ctx: NodeContext | undefined,
-    emitLegacyDiagnostic: boolean
+    legacyDiagnostic: LegacyDependenciesDiagnostic
 ): void {
     const deps = node.dependencies;
     if (!isObject(deps)) return;
 
-    if (emitLegacyDiagnostic && ctx !== undefined) {
+    if (legacyDiagnostic !== undefined && ctx !== undefined) {
         emitDiagnostic(ctx.diagnostics, {
-            code: "legacy-dependencies-split",
+            code: legacyDiagnostic,
             message:
                 "Legacy `dependencies` keyword was split into `dependentRequired`/`dependentSchemas`; `dependencies` was deprecated in Draft 2019-09",
             pointer: appendPointer(ctx.pointer, "dependencies"),
@@ -473,6 +495,24 @@ function splitDependencies(
         const existing = node.dependentRequired;
         if (isObject(existing)) {
             for (const [k, v] of Object.entries(requiredEntries)) {
+                if (k in existing) {
+                    // Conflict — pre-existing modern keyword wins.
+                    // Surface the loss so consumers can fix the source.
+                    if (ctx !== undefined && !arraysEqual(existing[k], v)) {
+                        emitDiagnostic(ctx.diagnostics, {
+                            code: "dependencies-conflict",
+                            message: `Legacy \`dependencies.${k}\` conflicts with the pre-existing \`dependentRequired.${k}\`; keeping the modern keyword and discarding the legacy value`,
+                            pointer: appendPointer(ctx.pointer, "dependencies"),
+                            detail: {
+                                key: k,
+                                kept: existing[k],
+                                discarded: v,
+                                keyword: "dependentRequired",
+                            },
+                        });
+                    }
+                    continue;
+                }
                 existing[k] = v;
             }
         } else {
@@ -485,6 +525,22 @@ function splitDependencies(
         const existing = node.dependentSchemas;
         if (isObject(existing)) {
             for (const [k, v] of Object.entries(schemaEntries)) {
+                if (k in existing) {
+                    if (ctx !== undefined) {
+                        emitDiagnostic(ctx.diagnostics, {
+                            code: "dependencies-conflict",
+                            message: `Legacy \`dependencies.${k}\` conflicts with the pre-existing \`dependentSchemas.${k}\`; keeping the modern keyword and discarding the legacy value`,
+                            pointer: appendPointer(ctx.pointer, "dependencies"),
+                            detail: {
+                                key: k,
+                                kept: existing[k],
+                                discarded: v,
+                                keyword: "dependentSchemas",
+                            },
+                        });
+                    }
+                    continue;
+                }
                 existing[k] = v;
             }
         } else {
@@ -493,6 +549,21 @@ function splitDependencies(
     }
 
     delete node.dependencies;
+}
+
+/**
+ * Compare two values that should both be string arrays. Returns true
+ * when both are arrays of equal length holding the same strings in
+ * the same order. Used to skip the `dependencies-conflict` diagnostic
+ * when the legacy and modern keywords agree.
+ */
+function arraysEqual(a: unknown, b: unknown): boolean {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
 }
 
 /**
@@ -648,8 +719,8 @@ function applyDraft04Translations(
 
     // Draft 04: dependencies → dependentRequired + dependentSchemas.
     // The legacy keyword is expected on this path, so we do not emit
-    // `legacy-dependencies-split` — but per-entry validation still runs.
-    splitDependencies(node, ctx, false);
+    // a legacy-split diagnostic — but per-entry validation still runs.
+    splitDependencies(node, ctx, undefined);
 
     // Validate any pre-existing dependentRequired entries the author
     // may have already migrated to.
@@ -720,7 +791,9 @@ function normaliseDraft06Or07NodeWithContext(
     ctx: NodeContext
 ): Record<string, unknown> {
     translateTupleItems(node);
-    splitDependencies(node, ctx, false);
+    // The legacy keyword is expected on the 06/07 path, so we do not
+    // emit a legacy-split diagnostic — per-entry validation still runs.
+    splitDependencies(node, ctx, undefined);
     validateDependentRequired(node, ctx);
     return node;
 }
@@ -747,6 +820,24 @@ function normaliseDraft201909NodeWithContext(
     node: Record<string, unknown>,
     ctx: NodeContext
 ): Record<string, unknown> {
+    // Detect a user-supplied `$anchor` that collides with the sentinel
+    // the `$recursiveAnchor: true` rewrite below will synthesise. Run
+    // the check BEFORE the rewrite so the diagnostic fires for the
+    // value the author actually wrote rather than the rewriter's
+    // output. Once the rewrite runs, both the original `$anchor` and
+    // a freshly-synthesised one would look identical.
+    if (
+        node.$anchor === RECURSIVE_ANCHOR_SENTINEL &&
+        node.$recursiveAnchor !== true
+    ) {
+        emitDiagnostic(ctx.diagnostics, {
+            code: "recursive-anchor-collision",
+            message: `User-supplied \`$anchor: "${RECURSIVE_ANCHOR_SENTINEL}"\` collides with the canonical sentinel synthesised by the Draft 2019-09 \`$recursiveAnchor: true\` rewrite; lookups for this anchor may resolve to either declaration`,
+            pointer: appendPointer(ctx.pointer, "$anchor"),
+            detail: { anchor: RECURSIVE_ANCHOR_SENTINEL },
+        });
+    }
+
     const recursiveRef = node.$recursiveRef;
     if (typeof recursiveRef === "string") {
         // Cross-document `$recursiveRef`s (anything that is not a fragment-
@@ -771,7 +862,7 @@ function normaliseDraft201909NodeWithContext(
     if (node.$recursiveAnchor === true) {
         // Bare `true` — add the canonical recursive marker as `$anchor`.
         if (typeof node.$anchor !== "string") {
-            node.$anchor = "__recursive__";
+            node.$anchor = RECURSIVE_ANCHOR_SENTINEL;
         }
         delete node.$recursiveAnchor;
     } else if (typeof node.$recursiveAnchor === "string") {
@@ -781,12 +872,13 @@ function normaliseDraft201909NodeWithContext(
         }
         delete node.$recursiveAnchor;
     }
-    // Draft 2019-09 introduced dependentRequired/dependentSchemas but
-    // still permits the legacy `dependencies` keyword. Issue 10:
-    // split it into `dependentRequired`/`dependentSchemas` so the walker
-    // can process the constraints uniformly. The split runs without the
-    // legacy diagnostic — the keyword is expected on this draft path.
-    splitDependencies(node, ctx, false);
+    // Draft 2019-09 introduced `dependentRequired`/`dependentSchemas`
+    // but still permits the legacy `dependencies` keyword. Split it so
+    // the walker can process the constraints uniformly, and emit the
+    // 2019-specific legacy-split diagnostic — the 2019-09 release notes
+    // describe `dependencies` as legacy in this draft too, so authors
+    // arriving here from older drafts should see the rewrite surfaced.
+    splitDependencies(node, ctx, "legacy-dependencies-split-2019");
     validateDependentRequired(node, ctx);
     return node;
 }
@@ -833,13 +925,22 @@ function normaliseDynamicRefNodeWithContext(
         }
         delete node.$dynamicAnchor;
     }
+    // Defensive translation of the legacy tuple-form `items: [...]` on
+    // the 2020-12 path: schemas reaching this branch may have no
+    // `$schema` at all (the inference default), so authors copying
+    // snippets from Draft 04/06/07 can still produce tuple-form items.
+    // The walker reads `prefixItems`, not legacy `items` arrays, so
+    // without translation the positional schemas would be silently
+    // dropped. `translateTupleItems` is a no-op when the keyword is
+    // already in 2020-12 form.
+    translateTupleItems(node);
     // Defensive translation of the legacy `dependencies` keyword on the
     // 2020-12 path: schemas reaching this branch may have no `$schema`
     // at all (the inference default), so authors who copy snippets from
     // older drafts can still produce `dependencies`. The walker does not
     // read it, so without translation the constraints would be silently
     // lost. Surface the rewrite via a diagnostic.
-    splitDependencies(node, ctx, true);
+    splitDependencies(node, ctx, "legacy-dependencies-split");
     validateDependentRequired(node, ctx);
     return node;
 }
@@ -1318,11 +1419,23 @@ export function normaliseOpenApiSchemas(
     // discriminator transform.
     return deepNormaliseOpenApiDoc(hoisted, (schema) => {
         let intermediate = schema;
-        if (dialectDraft !== undefined && dialectDraft !== "draft-2020-12") {
+        // OpenAPI 3.1 §4.7.5 — a Schema Object may override the
+        // document-level `jsonSchemaDialect` via its own `$schema`. The
+        // local declaration wins for that Schema Object's subtree, so
+        // prefer it over the document-level dialect when present and
+        // known. An unknown URI falls back to the document dialect (or
+        // 2020-12) so the override never silently disables normalisation.
+        const effectiveDraft =
+            resolveSchemaLocalDialect(intermediate, diagnostics) ??
+            dialectDraft;
+        if (
+            effectiveDraft !== undefined &&
+            effectiveDraft !== "draft-2020-12"
+        ) {
             intermediate = deepNormaliseWithContext(
                 intermediate,
-                selectDraftTransform(dialectDraft),
-                buildRootContext(intermediate, diagnostics, dialectDraft)
+                selectDraftTransform(effectiveDraft),
+                buildRootContext(intermediate, diagnostics, effectiveDraft)
             );
         }
         return resolveRelativeRefs(
@@ -1330,4 +1443,36 @@ export function normaliseOpenApiSchemas(
             diagnostics
         );
     });
+}
+
+/**
+ * Resolve a Schema-Object-level `$schema` declaration to a
+ * `JsonSchemaDraft`. Returns `undefined` when the keyword is absent or
+ * its value is not a string; emits `unknown-json-schema-dialect` and
+ * returns `undefined` when the value is a string that does not match
+ * any supported draft URI. The caller falls back to the document-level
+ * dialect (or 2020-12) in that case.
+ *
+ * Per OpenAPI 3.1 §4.7.5, the override applies to the Schema Object
+ * and its subschemas. Nested overrides inside individual sub-schemas
+ * are not currently honoured — the dispatch happens once at the top
+ * of each Schema Object surfaced by `deepNormaliseOpenApiDoc`.
+ */
+function resolveSchemaLocalDialect(
+    schema: Record<string, unknown>,
+    diagnostics: DiagnosticsOptions | undefined
+): JsonSchemaDraft | undefined {
+    const value = schema.$schema;
+    if (typeof value !== "string") return undefined;
+    const draft = matchJsonSchemaDraftUri(value);
+    if (draft === undefined) {
+        emitDiagnostic(diagnostics, {
+            code: "unknown-json-schema-dialect",
+            message: `Schema Object-level \`$schema\` URI "${value}" does not match a supported JSON Schema draft; falling back to the document dialect`,
+            pointer: "/$schema",
+            detail: { uri: value, level: "schema-object" },
+        });
+        return undefined;
+    }
+    return draft;
 }

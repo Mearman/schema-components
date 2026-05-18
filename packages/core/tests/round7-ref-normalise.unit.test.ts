@@ -4,16 +4,36 @@
  *
  * Each block covers one finding from the round-7 brief:
  *   1. `$ref` to a boolean sub-schema resolves correctly.
+ *   2. Draft 2019-09 `dependencies` emits a legacy-split diagnostic.
  *   3. `findAnchor` respects `$id`-scoped resource boundaries.
  *   4. JSON Pointer percent-decoding per RFC 6901.
+ *   5. Overlapping `dependencies` / `dependentRequired` emits a
+ *      `dependencies-conflict` diagnostic and preserves the new keyword.
+ *   6. OpenAPI 3.1 Schema-Object-level `$schema` overrides pick the
+ *      matching draft transform.
+ *   7. Tuple-form `items: [...]` is translated to `prefixItems` on the
+ *      defensive 2020-12 path (no `$schema`).
+ *   9. User-supplied `$anchor: "__recursive__"` collides with the
+ *      Draft 2019-09 rewrite sentinel and emits a diagnostic.
  *
- * Further blocks are appended as the matching fixes land in
- * normalise.ts and merge.ts.
+ * Issue 8 (mergeAllOf incompatible types) is exercised in the
+ * `mergeAllOf` block below once that fix lands.
  */
 
 import { describe, it, expect } from "vitest";
-import { dereference, findAnchor, resolveRef } from "../src/core/ref.ts";
+import {
+    RECURSIVE_ANCHOR_SENTINEL,
+    dereference,
+    findAnchor,
+    resolveRef,
+} from "../src/core/ref.ts";
+import {
+    normaliseJsonSchema,
+    normaliseOpenApiSchemas,
+} from "../src/core/normalise.ts";
+import { detectOpenApiVersion } from "../src/core/version.ts";
 import { isObject } from "../src/core/guards.ts";
+import type { Diagnostic } from "../src/core/diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // 1. $ref to boolean sub-schema (ref.ts)
@@ -139,5 +159,212 @@ describe("dereference percent-decodes JSON Pointer segments", () => {
         const doc: Record<string, unknown> = { foo: { bar: 1 } };
         const found = dereference("#/foo/%ZZ", doc);
         expect(found).toBe(undefined);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 2. Draft 2019-09 legacy-dependencies-split diagnostic (normalise.ts)
+// ---------------------------------------------------------------------------
+
+describe("Draft 2019-09 dependencies emits legacy-split diagnostic", () => {
+    it("emits the 2019-specific diagnostic when splitting `dependencies` on 2019-09", () => {
+        const diagnostics: Diagnostic[] = [];
+        const schema: Record<string, unknown> = {
+            $schema: "https://json-schema.org/draft/2019-09/schema",
+            type: "object",
+            properties: {
+                a: { type: "string" },
+                b: { type: "string" },
+            },
+            dependencies: { a: ["b"] },
+        };
+        normaliseJsonSchema(schema, "draft-2019-09", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const split = diagnostics.find(
+            (d) => d.code === "legacy-dependencies-split-2019"
+        );
+        expect(split).toBeDefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 5. dependencies overlapping dependentRequired (normalise.ts)
+// ---------------------------------------------------------------------------
+
+describe("splitDependencies emits dependencies-conflict on overlap", () => {
+    it("preserves the new keyword and emits the diagnostic", () => {
+        const diagnostics: Diagnostic[] = [];
+        const schema: Record<string, unknown> = {
+            $schema: "https://json-schema.org/draft/2019-09/schema",
+            type: "object",
+            properties: {
+                a: { type: "string" },
+                b: { type: "string" },
+                c: { type: "string" },
+            },
+            dependentRequired: {
+                a: ["b"],
+            },
+            // Legacy `dependencies` carrying the same key with a
+            // different value — this is a conflict, not a benign merge.
+            dependencies: {
+                a: ["c"],
+            },
+        };
+        const out = normaliseJsonSchema(schema, "draft-2019-09", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const depReq = out.dependentRequired;
+        if (!isObject(depReq)) {
+            expect.unreachable("expected dependentRequired");
+            return;
+        }
+        // The pre-existing modern keyword wins — the legacy value is
+        // dropped rather than silently overwriting.
+        expect(depReq.a).toStrictEqual(["b"]);
+        const conflict = diagnostics.find(
+            (d) => d.code === "dependencies-conflict"
+        );
+        expect(conflict).toBeDefined();
+    });
+
+    it("does not emit the conflict diagnostic when the legacy and modern values agree", () => {
+        const diagnostics: Diagnostic[] = [];
+        const schema: Record<string, unknown> = {
+            $schema: "https://json-schema.org/draft/2019-09/schema",
+            type: "object",
+            properties: {
+                a: { type: "string" },
+                b: { type: "string" },
+            },
+            dependentRequired: {
+                a: ["b"],
+            },
+            dependencies: {
+                a: ["b"],
+            },
+        };
+        normaliseJsonSchema(schema, "draft-2019-09", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const conflict = diagnostics.find(
+            (d) => d.code === "dependencies-conflict"
+        );
+        expect(conflict).toBe(undefined);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 6. OpenAPI 3.1 per-Schema $schema override (normalise.ts)
+// ---------------------------------------------------------------------------
+
+describe("OpenAPI 3.1 per-Schema $schema override routes through the matching draft", () => {
+    it("applies Draft 04 tuple-items translation when the Schema Object declares Draft 04", () => {
+        const doc: Record<string, unknown> = {
+            openapi: "3.1.0",
+            info: { title: "t", version: "0" },
+            paths: {},
+            components: {
+                schemas: {
+                    Pair: {
+                        // Per-Schema $schema override per OpenAPI 3.1 §4.7.5
+                        $schema: "http://json-schema.org/draft-04/schema#",
+                        type: "array",
+                        items: [{ type: "string" }, { type: "number" }],
+                    },
+                },
+            },
+        };
+        const version = detectOpenApiVersion(doc);
+        if (version === undefined) {
+            expect.unreachable("expected OpenAPI version to be detected");
+            return;
+        }
+        const normalised = normaliseOpenApiSchemas(doc, version);
+        const components = normalised.components;
+        if (!isObject(components)) {
+            expect.unreachable("expected components");
+            return;
+        }
+        const schemas = components.schemas;
+        if (!isObject(schemas)) {
+            expect.unreachable("expected schemas");
+            return;
+        }
+        const pair = schemas.Pair;
+        if (!isObject(pair)) {
+            expect.unreachable("expected Pair schema");
+            return;
+        }
+        // Draft 04's `items: [...]` should have been rewritten to
+        // `prefixItems` by the Draft 04 transform; under the bare 3.1
+        // pipeline it would have stayed as an `items` array.
+        expect(Array.isArray(pair.prefixItems)).toBe(true);
+        expect("items" in pair).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Tuple-form items on the no-$schema 2020-12 path (normalise.ts)
+// ---------------------------------------------------------------------------
+
+describe("no-$schema 2020-12 path translates tuple-form items defensively", () => {
+    it("rewrites `items: [...]` to `prefixItems` even without a declared $schema", () => {
+        const schema: Record<string, unknown> = {
+            type: "array",
+            items: [{ type: "string" }, { type: "number" }],
+        };
+        const out = normaliseJsonSchema(schema, "draft-2020-12");
+        expect(Array.isArray(out.prefixItems)).toBe(true);
+        expect("items" in out).toBe(false);
+    });
+
+    it("leaves a single-schema items value alone", () => {
+        const schema: Record<string, unknown> = {
+            type: "array",
+            items: { type: "string" },
+        };
+        const out = normaliseJsonSchema(schema, "draft-2020-12");
+        expect("prefixItems" in out).toBe(false);
+        expect(isObject(out.items)).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Recursive anchor sentinel collision (normalise.ts)
+// ---------------------------------------------------------------------------
+
+describe("recursive-anchor sentinel collision", () => {
+    it("emits `recursive-anchor-collision` when a Draft 2019-09 schema declares the sentinel", () => {
+        const diagnostics: Diagnostic[] = [];
+        const schema: Record<string, unknown> = {
+            $schema: "https://json-schema.org/draft/2019-09/schema",
+            $anchor: RECURSIVE_ANCHOR_SENTINEL,
+            type: "object",
+        };
+        normaliseJsonSchema(schema, "draft-2019-09", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const collision = diagnostics.find(
+            (d) => d.code === "recursive-anchor-collision"
+        );
+        expect(collision).toBeDefined();
+    });
+
+    it("does not emit the collision diagnostic when the anchor is unrelated", () => {
+        const diagnostics: Diagnostic[] = [];
+        const schema: Record<string, unknown> = {
+            $schema: "https://json-schema.org/draft/2019-09/schema",
+            $anchor: "Something",
+            type: "object",
+        };
+        normaliseJsonSchema(schema, "draft-2019-09", {
+            diagnostics: (d) => diagnostics.push(d),
+        });
+        const collision = diagnostics.find(
+            (d) => d.code === "recursive-anchor-collision"
+        );
+        expect(collision).toBe(undefined);
     });
 });
