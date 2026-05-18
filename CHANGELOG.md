@@ -1,3 +1,10 @@
+## [1.28.0](https://github.com/Mearman/schema-components/compare/v1.27.0...v1.28.0) (2026-05-18)
+
+### Features
+
+* **core:** cross-link Storybook stories in README API inventory ([bc00759](https://github.com/Mearman/schema-components/commit/bc00759734529b9e30ab6f17757f7491b3b93b04))
+* **docs:** add API reference toolbar link to Storybook manager ([f1f458c](https://github.com/Mearman/schema-components/commit/f1f458cb67084480552d77493ac7402f938a5fb7))
+
 ## [1.27.0](https://github.com/Mearman/schema-components/compare/v1.26.1...v1.27.0) (2026-05-18)
 
 ### Features
