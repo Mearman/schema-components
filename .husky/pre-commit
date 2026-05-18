@@ -1,1 +1,12 @@
 pnpm exec lint-staged
+
+# Regenerate the README API inventory if any input that feeds it has
+# been staged. The inventory is derived from TypeDoc's JSON output of
+# packages/core/src, so changes to source files, the TypeDoc config,
+# the generator script, or the README itself (which holds the
+# narrative + markers) trigger a rebuild.
+if git diff --cached --name-only | grep -qE '^(packages/core/src/.*\.(ts|tsx)|packages/core/typedoc.*\.json|packages/core/scripts/build-readme-inventory\.mjs|README\.md)$'; then
+    echo "→ Regenerating README API inventory..."
+    pnpm readme
+    git add -- README.md
+fi
