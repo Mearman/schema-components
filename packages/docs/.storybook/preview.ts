@@ -1,6 +1,7 @@
 import "./preview.css";
 import type { Preview } from "@storybook/react";
 import { withThemeByClassName } from "@storybook/addon-themes";
+import { DocsPageWithApiBadge } from "./ApiReferenceBadge.tsx";
 
 /**
  * Detect system colour-scheme preference so Storybook defaults to the
@@ -39,6 +40,9 @@ const preview: Preview = {
         theme: systemTheme,
     },
     parameters: {
+        docs: {
+            page: DocsPageWithApiBadge,
+        },
         controls: {
             matchers: {
                 color: /(background|color)$/i,
