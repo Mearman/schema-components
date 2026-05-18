@@ -33,6 +33,7 @@ Thumbs.db
 # Build output
 *.tgz
 storybook-static/
+typedoc-static/
 
 # Claude
 .claude/

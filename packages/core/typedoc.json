@@ -1,0 +1,61 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "entryPoints": ["src"],
+    "entryPointStrategy": "expand",
+    "out": "typedoc-static",
+    "name": "schema-components",
+    "readme": "../../README.md",
+    "includeVersion": true,
+    "excludePrivate": true,
+    "excludeProtected": false,
+    "excludeInternal": true,
+    "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+    "plugin": ["typedoc-plugin-missing-exports"],
+    "highlightLanguages": [
+        "bash",
+        "console",
+        "css",
+        "html",
+        "javascript",
+        "json",
+        "jsonc",
+        "json5",
+        "mermaid",
+        "tsx",
+        "typescript"
+    ],
+    "navigation": {
+        "includeCategories": true,
+        "includeGroups": true
+    },
+    "externalSymbolLinkMappings": {
+        "@types/react": {
+            "React.Component": "https://react.dev/reference/react/Component",
+            "React.Component.render": "https://react.dev/reference/react/Component#render",
+            "React.Component.setState": "https://react.dev/reference/react/Component#setstate",
+            "React.createContext": "https://react.dev/reference/react/createContext",
+            "React.createRef": "https://react.dev/reference/react/createRef",
+            "React.forwardRef": "https://react.dev/reference/react/forwardRef",
+            "React.memo": "https://react.dev/reference/react/memo",
+            "React.useContext": "https://react.dev/reference/react/useContext",
+            "React.useRef": "https://react.dev/reference/react/useRef"
+        }
+    },
+    "categorizeByGroup": true,
+    "sort": ["source-order"],
+    "searchInComments": true,
+    "validation": {
+        "notExported": false,
+        "invalidLink": true,
+        "notDocumented": false
+    },
+    "treatWarningsAsErrors": false,
+    "gitRevision": "main",
+    "gitRemote": "origin",
+    "sourceLinkTemplate": "https://github.com/Mearman/schema-components/blob/{gitRevision}/packages/core/{path}#L{line}",
+    "navigationLinks": {
+        "GitHub": "https://github.com/Mearman/schema-components",
+        "npm": "https://www.npmjs.com/package/schema-components",
+        "Storybook": "/schema-components/storybook/"
+    }
+}
