@@ -11,6 +11,8 @@
  * All extend `SchemaError` so consumers can catch the base class.
  */
 
+import type { SchemaType } from "./types.ts";
+
 // ---------------------------------------------------------------------------
 // Base error
 // ---------------------------------------------------------------------------
@@ -96,13 +98,17 @@ export class SchemaNormalisationError extends SchemaError {
  * The `cause` is the original error from the render function.
  */
 export class SchemaRenderError extends SchemaError {
-    /** The schema type being rendered when the error occurred. */
-    readonly schemaType: string;
+    /**
+     * The schema type being rendered when the error occurred. Drawn from
+     * the walker's discriminant union so consumers can switch on it
+     * exhaustively without a wider `string` fallback.
+     */
+    readonly schemaType: SchemaType;
 
     constructor(
         message: string,
         schema: unknown,
-        schemaType: string,
+        schemaType: SchemaType,
         cause: unknown
     ) {
         // `cause` is forwarded to the native Error constructor so
