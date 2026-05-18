@@ -4,7 +4,8 @@
 [![npm version](https://img.shields.io/npm/v/schema-components.svg)](https://www.npmjs.com/package/schema-components)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Mearman/schema-components/ci.yml?branch=main)](https://github.com/Mearman/schema-components/actions)
-[![Storybook](https://img.shields.io/badge/Storybook-FF4785?logo=storybook&logoColor=white)](https://mearman.github.io/schema-components/)
+[![API reference](https://img.shields.io/badge/API_reference-TypeDoc-blue?logo=typescript&logoColor=white)](https://mearman.github.io/schema-components/)
+[![Storybook](https://img.shields.io/badge/Storybook-FF4785?logo=storybook&logoColor=white)](https://mearman.github.io/schema-components/storybook/)
 
 React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents.
 
@@ -196,4 +197,14 @@ pnpm test               # Run unit tests
 pnpm test:coverage      # Run tests with coverage
 pnpm storybook          # Start Storybook dev server
 pnpm build-storybook    # Build static Storybook site
+pnpm docs               # Generate TypeDoc API reference
 ```
+
+## Documentation site
+
+Published to GitHub Pages on every push to `main`:
+
+| Surface | URL |
+|---|---|
+| API reference (TypeDoc) | <https://mearman.github.io/schema-components/> |
+| Storybook | <https://mearman.github.io/schema-components/storybook/> |
