@@ -1,3 +1,17 @@
+## [1.27.0](https://github.com/Mearman/schema-components/compare/v1.26.1...v1.27.0) (2026-05-18)
+
+### Features
+
+* **core:** add README API inventory generator from TypeDoc JSON ([c2376bc](https://github.com/Mearman/schema-components/commit/c2376bc4ba61f19a52f697c220c0ebdc669b3c67))
+
+### CI
+
+* gate PRs on README API inventory being up to date ([9a060e4](https://github.com/Mearman/schema-components/commit/9a060e482023397ff42c9b1e251ca9f9ae9b3610))
+
+### Chores
+
+* **ci:** regenerate README API inventory in pre-commit hook ([e2a5e3a](https://github.com/Mearman/schema-components/commit/e2a5e3aae51112044f78370774d407b07a27b243))
+
 ## [1.26.1](https://github.com/Mearman/schema-components/compare/v1.26.0...v1.26.1) (2026-05-18)
 
 ### Bug Fixes
