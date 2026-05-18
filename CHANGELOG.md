@@ -1,3 +1,9 @@
+## [1.28.2](https://github.com/Mearman/schema-components/compare/v1.28.1...v1.28.2) (2026-05-18)
+
+### Bug Fixes
+
+* **core:** correct doubled packages/core prefix in TypeDoc source links ([5189583](https://github.com/Mearman/schema-components/commit/518958310a354448ec62364ccbbc3a6ff5015815))
+
 ## [1.28.1](https://github.com/Mearman/schema-components/compare/v1.28.0...v1.28.1) (2026-05-18)
 
 ### Documentation
