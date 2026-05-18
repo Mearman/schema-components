@@ -10,6 +10,7 @@
 
 import type { WalkedField } from "../core/types.ts";
 import type { AllConstraints } from "../core/renderer.ts";
+import { fieldDomId, hintIdFor } from "../core/idPath.ts";
 import { h, type HtmlAttributes, type HtmlNode } from "./html.ts";
 
 // ---------------------------------------------------------------------------
@@ -38,34 +39,22 @@ export function joinPath(parent: string, suffix: string | undefined): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Normalise a path into the id segment used after the `sc-` prefix.
- *
- * Whitelist-based: every character outside `[A-Za-z0-9_-]` collapses to
- * a single hyphen. A blacklist that only stripped `.[]` would still leak
- * spaces, slashes, and other punctuation through into ids when a path
- * is sourced from a free-text field like `meta.description` — producing
- * structurally invalid CSS selectors and `aria-labelledby` references.
- *
- * Trailing hyphens are trimmed so e.g. `tags[0]` → `tags-0` (not
- * `tags-0-`).
- */
-function normaliseIdSegment(value: string): string {
-    return value.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/-+$/g, "");
-}
-
-/**
- * Build the input ID for a field at a given path.
+ * Build the input ID for a field at a given path. Joins `path` and `key`
+ * via `joinPath` then delegates to the canonical `fieldDomId` helper from
+ * `core/idPath.ts` so every render pipeline emits identical ids for the
+ * same structural position.
  */
 export function buildInputId(path: string, key: string): string {
-    const combined = joinPath(path, key);
-    return `sc-${normaliseIdSegment(combined)}`;
+    return fieldDomId(joinPath(path, key));
 }
 
 /**
- * Derive the hint element ID from the input ID.
+ * Derive the hint element ID from the input ID. Thin re-export of the
+ * canonical helper so this module remains the one-stop a11y surface for
+ * the HTML renderers.
  */
 export function buildHintId(inputId: string): string {
-    return `${inputId}-hint`;
+    return hintIdFor(inputId);
 }
 
 // ---------------------------------------------------------------------------
