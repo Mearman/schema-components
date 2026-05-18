@@ -84,6 +84,14 @@ jobs:
 
             - run: pnpm check
 
+            - name: Verify README API inventory is up to date
+              run: |
+                  pnpm readme
+                  if ! git diff --exit-code README.md; then
+                      echo "::error file=README.md::README API inventory is out of date. Run 'pnpm readme' locally and commit the result."
+                      exit 1
+                  fi
+
     test:
         name: Test — Node ${{ matrix.node-version }}
         needs: audit
