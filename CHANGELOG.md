@@ -1,3 +1,22 @@
+## [1.26.0](https://github.com/Mearman/schema-components/compare/v1.25.0...v1.26.0) (2026-05-18)
+
+### Features
+
+* **core:** add TypeDoc API reference generation ([153dbb8](https://github.com/Mearman/schema-components/commit/153dbb84e90e298170fdde955cee33282140f25c))
+* **docs:** allow Storybook sub-path deploy via STORYBOOK_BASE_PATH ([ae1db59](https://github.com/Mearman/schema-components/commit/ae1db59ae90ff8609f9d08493eac6742b5803d07))
+
+### Bug Fixes
+
+* **react:** replace unresolved [@link](https://github.com/link) in SchemaView JSDoc with prose ([7ae8c14](https://github.com/Mearman/schema-components/commit/7ae8c142184ddbf3085c644dd4e6e03347692174))
+
+### Documentation
+
+* link API reference and update Storybook URL to sub-path ([64d3fde](https://github.com/Mearman/schema-components/commit/64d3fde7635c89152e23ba462c4b694e563a1309))
+
+### CI
+
+* unify TypeDoc and Storybook deploy to GitHub Pages ([eea4b73](https://github.com/Mearman/schema-components/commit/eea4b737200202bad76abc0340076d0efcfb38b4))
+
 ## [1.25.0](https://github.com/Mearman/schema-components/compare/v1.24.0...v1.25.0) (2026-05-18)
 
 ### Features
