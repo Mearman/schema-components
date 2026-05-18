@@ -47,6 +47,7 @@ import type {
     RejectUnrepresentableZod,
     ResolveOpenAPIRef,
     TypeAtPath,
+    __SchemaInferenceFellBack,
 } from "../core/typeInference.ts";
 import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
 import { headlessResolver } from "./headless.tsx";
@@ -124,17 +125,46 @@ export function registerWidget(
 // Generic props with type-safe fields dispatch
 // ---------------------------------------------------------------------------
 
-type InferFields<T, Ref extends string | undefined> = T extends z.ZodType
-    ? FieldOverrides<z.infer<T>>
-    : T extends { openapi: unknown }
-      ? Ref extends string
-          ? FieldOverrides<ResolveOpenAPIRef<T & Record<string, unknown>, Ref>>
-          : Record<string, FieldOverride>
-      : T extends object
-        ? unknown extends FromJSONSchema<T>
-            ? Record<string, FieldOverride>
-            : FieldOverrides<FromJSONSchema<T>>
-        : Record<string, FieldOverride>;
+/**
+ * Detect a Swagger 2.0 document at the type level. Mirrors the
+ * un-exported `IsSwagger2Doc` in `core/typeInference.ts` (line 1460)
+ * which already covers the same shapes the runtime `isSwagger2` helper
+ * accepts.
+ *
+ * Duplicated locally rather than imported because `typeInference.ts`
+ * does not currently export the alias and is owned by another agent in
+ * this fix-cycle. Once Agent F (or a follow-up consolidation) exports
+ * the canonical `IsSwagger2Doc`, replace this with an `import type`.
+ *
+ * TODO(round7-integration): replace with `import type { IsSwagger2Doc }
+ * from "../core/typeInference.ts"` after the canonical export lands.
+ */
+type IsSwagger2Doc<Doc> = Doc extends { swagger: `2.${string}` }
+    ? true
+    : Doc extends { swagger: 2 }
+      ? true
+      : Doc extends { swagger: 2.0 }
+        ? true
+        : Doc extends { swagger: { major: 2 } }
+          ? true
+          : false;
+
+type InferFields<T, Ref extends string | undefined> =
+    IsSwagger2Doc<T> extends true
+        ? __SchemaInferenceFellBack
+        : T extends z.ZodType
+          ? FieldOverrides<z.infer<T>>
+          : T extends { openapi: unknown }
+            ? Ref extends string
+                ? FieldOverrides<
+                      ResolveOpenAPIRef<T & Record<string, unknown>, Ref>
+                  >
+                : Record<string, FieldOverride>
+            : T extends object
+              ? unknown extends FromJSONSchema<T>
+                  ? Record<string, FieldOverride>
+                  : FieldOverrides<FromJSONSchema<T>>
+              : Record<string, FieldOverride>;
 
 /**
  * Infer the data type carried by the schema input.
@@ -156,23 +186,26 @@ type InferSchemaValue<
     T,
     Ref extends string | undefined,
     Mode extends FromJSONSchemaMode,
-> = T extends z.ZodType
-    ? Mode extends "input"
-        ? z.input<T>
-        : z.output<T>
-    : T extends { openapi: unknown }
-      ? Ref extends string
-          ? ResolveOpenAPIRef<T & Record<string, unknown>, Ref, [], Mode>
-          : unknown
-      : T extends object
-        ?
-              | FromJSONSchema<T, Record<string, never>, [], Mode>
-              | (unknown extends FromJSONSchema<T>
-                    ? unknown
-                    : never) extends infer V
-            ? V
-            : unknown
-        : unknown;
+> =
+    IsSwagger2Doc<T> extends true
+        ? __SchemaInferenceFellBack
+        : T extends z.ZodType
+          ? Mode extends "input"
+              ? z.input<T>
+              : z.output<T>
+          : T extends { openapi: unknown }
+            ? Ref extends string
+                ? ResolveOpenAPIRef<T & Record<string, unknown>, Ref, [], Mode>
+                : unknown
+            : T extends object
+              ?
+                    | FromJSONSchema<T, Record<string, never>, [], Mode>
+                    | (unknown extends FromJSONSchema<T>
+                          ? unknown
+                          : never) extends infer V
+                  ? V
+                  : unknown
+              : unknown;
 
 /**
  * Narrow an inferred value type to the sub-shape at `P`, or return
@@ -399,6 +432,19 @@ export function SchemaComponent<
         throw error;
     }
 
+    // Coerce the typed `fields` into the loose runtime record shape used
+    // by both the walker (`fieldOverrides`) and the per-field error
+    // dispatcher. `InferFields<T, Ref>` widens to a union that includes
+    // `__SchemaInferenceFellBack` (Swagger 2.0) and typed
+    // `FieldOverrides<...>` variants — none of which are structurally
+    // assignable to the walker's `Record<string, unknown>` slot. The
+    // narrowing happens once so the cache key for `useCallback` below
+    // tracks the resolved record rather than the wider input. The
+    // dispatcher and walker consume only the loose `unknown`-valued
+    // record shape; per-entry validation (`isObject`, function check)
+    // happens inside each consumer.
+    const fieldsRecord = toRecordOrUndefined(fields);
+
     const handleChange = useCallback(
         (nextValue: unknown) => {
             if (validate) {
@@ -441,7 +487,7 @@ export function SchemaComponent<
                     // Root-level error callback
                     onValidationError?.(error);
                     // Per-field error callbacks
-                    dispatchFieldErrors(fields, error);
+                    dispatchFieldErrors(fieldsRecord, error);
                 }
             }
             onChange?.(nextValue);
@@ -452,7 +498,7 @@ export function SchemaComponent<
             jsonSchema,
             onChange,
             onValidationError,
-            fields,
+            fieldsRecord,
             onDiagnostic,
             onError,
             schemaInput,
@@ -463,7 +509,7 @@ export function SchemaComponent<
     const walkOptions: WalkOptions = {
         componentMeta: mergedMeta,
         rootMeta,
-        fieldOverrides: fields,
+        fieldOverrides: fieldsRecord,
         rootDocument,
         ...(diagnostics !== undefined ? { diagnostics } : {}),
     };
@@ -942,18 +988,17 @@ export function SchemaField<
  * Dispatch Zod errors to per-field onValidationError callbacks.
  * Walks the fields override tree and matches errors by path prefix.
  *
- * The `fields` parameter mirrors the runtime shape produced by
- * `InferFields<T, Ref>` at the props boundary — either a typed
- * `FieldOverrides<...>` tree (for narrowable schemas) or the loose
- * `Record<string, FieldOverride>` fallback. Both reduce to the same
- * runtime shape, and the runtime narrowing below
- * (`toRecordOrUndefined`) handles `undefined` and non-object inputs
- * defensively. Typing the parameter as the union — rather than the
- * `unknown` that earlier revisions used — keeps the type contract
- * visible to readers without changing runtime behaviour.
+ * The runtime shape of `fields` is always `Record<string, FieldOverride>`
+ * after `InferFields<T, Ref>` is erased — the typed variants
+ * (`FieldOverrides<U>`) and the loose `Record<string, FieldOverride>`
+ * fallback share the same structural shape, so the dispatch logic only
+ * needs the loose record. The previous parameter union
+ * (`Record<string, FieldOverride> | FieldOverrides<unknown> |
+ * undefined`) collapsed because `FieldOverrides<unknown>` reduces to
+ * `{}`, contributing no extra precision while adding noise to readers.
  */
 function dispatchFieldErrors(
-    fields: Record<string, FieldOverride> | FieldOverrides<unknown> | undefined,
+    fields: Record<string, unknown> | undefined,
     error: unknown
 ): void {
     if (fields === undefined || !isObject(error)) return;
@@ -963,10 +1008,7 @@ function dispatchFieldErrors(
     const issues = error.issues;
     if (!Array.isArray(issues)) return;
 
-    const overrides = toRecordOrUndefined(fields);
-    if (overrides === undefined) return;
-
-    for (const [key, override] of Object.entries(overrides)) {
+    for (const [key, override] of Object.entries(fields)) {
         if (override === undefined || typeof override !== "object") continue;
         if (override === null) continue;
 
