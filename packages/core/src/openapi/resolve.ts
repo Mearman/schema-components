@@ -26,7 +26,11 @@ import {
     documentContainsKeyword,
     normaliseOpenApiSchemas,
 } from "../core/normalise.ts";
-import type { Diagnostic, DiagnosticsOptions } from "../core/diagnostics.ts";
+import type {
+    Diagnostic,
+    DiagnosticSink,
+    DiagnosticsOptions,
+} from "../core/diagnostics.ts";
 import { emitDiagnostic } from "../core/diagnostics.ts";
 import { resolveRefChain } from "../core/refChain.ts";
 
@@ -39,14 +43,22 @@ import { resolveRefChain } from "../core/refChain.ts";
  * doc-level diagnostic that normalisation emitted while producing it.
  *
  * Diagnostics are captured once — at first parse — and then replayed
- * through whatever sink subsequent callers supply. This keeps the
- * cardinality of each diagnostic at exactly one per real cause when
- * the same document is rendered through multiple components (for
- * example `ApiWebhooks` rendering `ApiWebhook` per webhook entry).
+ * through whatever sink each subsequent caller supplies. The cache
+ * additionally remembers which sink functions have already received
+ * the replay, so a parent that fans out across N child components
+ * sharing the same sink (for example `ApiWebhooks` rendering
+ * `ApiWebhook` per webhook entry) sees each captured diagnostic at
+ * cardinality 1 — never N.
+ *
+ * Strict mode is a per-call decision, not a sink property: the same
+ * sink may appear in a non-strict call and then a strict one. The
+ * `notifiedSinks` set therefore tracks the bare sink function and
+ * the replay path consults strict from the caller-supplied options.
  */
 interface CachedParse {
     readonly parsed: OpenApiDocument;
     readonly diagnostics: readonly Diagnostic[];
+    readonly notifiedSinks: WeakSet<DiagnosticSink>;
 }
 
 const docCache = new WeakMap<object, CachedParse>();
@@ -68,22 +80,22 @@ const docCache = new WeakMap<object, CachedParse>();
  *
  * Normalisation runs at most once per document identity. The full set
  * of doc-level diagnostics emitted during that single run is captured
- * into the cache alongside the parsed result. Every later call —
- * whether or not the caller supplies its own sink — receives the same
- * parsed value, and any caller-supplied sink has the captured
- * diagnostics replayed through it.
+ * into the cache alongside the parsed result. Each caller-supplied
+ * sink receives the captured diagnostics exactly once per cached
+ * entry, no matter how many times `getParsed` is called with that
+ * `(doc, sink)` pair.
  *
  * The previous implementation bypassed the cache whenever
- * `diagnostics` was supplied so each call could re-run the
- * normalisation pipeline against the new sink. That fired every
- * doc-level diagnostic once per call, so a parent like `ApiWebhooks`
- * that renders `ApiWebhook` per webhook entry caused N-fold emission
- * of a single real cause.
+ * `diagnostics` was supplied and re-ran the entire normalisation
+ * pipeline against the new sink. That fired every doc-level
+ * diagnostic once per call, so a parent like `ApiWebhooks` that
+ * renders `ApiWebhook` per webhook entry caused N-fold emission of a
+ * single real cause. With the new strategy, cardinality stays at one
+ * per real cause regardless of how many child renders share the
+ * sink.
  *
- * The replay path uses `emitDiagnostic`, so a caller with
- * `strict: true` still throws on the first replayed diagnostic and
- * short-circuits the rest — matching the prior fail-fast behaviour
- * from the consumer's perspective.
+ * Strict mode is treated as a per-call invariant — see
+ * {@link replayCapturedDiagnostics} for the rationale.
  */
 export function getParsed(
     doc: Record<string, unknown>,
@@ -102,8 +114,11 @@ export function getParsed(
             docCache.set(cached.parsed.doc, cached);
         }
     }
-    if (diagnostics !== undefined) {
-        replayCapturedDiagnostics(cached.diagnostics, diagnostics);
+    if (
+        diagnostics?.diagnostics !== undefined ||
+        diagnostics?.strict === true
+    ) {
+        replayCapturedDiagnostics(cached, diagnostics);
     }
     return cached.parsed;
 }
@@ -148,21 +163,44 @@ function buildCachedParse(doc: Record<string, unknown>): CachedParse {
     validateSecuritySchemeTypes(normalisedDoc, captureOpts);
     detectUnsupportedCrossSchemaRefs(normalisedDoc, captureOpts);
     const parsed = parseOpenApiDocument(normalisedDoc);
-    return { parsed, diagnostics: captured };
+    return {
+        parsed,
+        diagnostics: captured,
+        notifiedSinks: new WeakSet<DiagnosticSink>(),
+    };
 }
 
 /**
- * Replay each captured diagnostic through the caller-supplied sink.
- * Goes through `emitDiagnostic` so `strict: true` is honoured on the
- * first replayed entry, matching the historical fail-fast contract.
+ * Replay each captured diagnostic through the caller-supplied options.
+ *
+ * Strict mode is treated as a per-call invariant: when `strict` is set
+ * we always run the replay so the first captured diagnostic throws,
+ * matching the historical fail-fast contract regardless of how many
+ * times the cache has previously notified the sink.
+ *
+ * Non-strict, sink-bearing callers de-duplicate at the function-
+ * identity boundary: a second call with the same `(doc, sink)` pair
+ * short-circuits because the sink has already seen every captured
+ * diagnostic. This is the cardinality-1 guarantee that fixes the
+ * N-fold emission caused by parent-fans-out-into-children renders.
+ *
+ * The sink is only marked notified after a successful replay so a
+ * strict throw mid-replay does not silence a follow-up non-strict
+ * call that still wants the full captured set.
  */
 function replayCapturedDiagnostics(
-    captured: readonly Diagnostic[],
-    sink: DiagnosticsOptions
+    cached: CachedParse,
+    opts: DiagnosticsOptions
 ): void {
-    for (const diagnostic of captured) {
-        emitDiagnostic(sink, diagnostic);
+    const sink = opts.diagnostics;
+    const strict = opts.strict === true;
+    if (!strict && sink !== undefined && cached.notifiedSinks.has(sink)) {
+        return;
     }
+    for (const diagnostic of cached.diagnostics) {
+        emitDiagnostic(opts, diagnostic);
+    }
+    if (sink !== undefined) cached.notifiedSinks.add(sink);
 }
 
 /**
