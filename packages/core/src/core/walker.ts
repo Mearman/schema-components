@@ -842,6 +842,40 @@ function walkRecord(
     };
 }
 
+/**
+ * Resolve the `unevaluatedItems` keyword into the structural shape the
+ * field consumes. Returns the walked schema (object form), the
+ * `unevaluatedItemsClosed` flag (`false` form), or both undefined
+ * (absent or `true` — `true` permits everything and so has no
+ * structural consequence beyond the absence of a constraint).
+ *
+ * Mirrors the equivalent dispatch in `walkObject` for
+ * `unevaluatedProperties` — the parallel keeps the array/tuple and
+ * object branches symmetrical.
+ */
+function resolveUnevaluatedItems(
+    schema: Record<string, unknown>,
+    ctx: WalkContext
+): { unevaluatedItems?: WalkedField; unevaluatedItemsClosed?: boolean } {
+    if (!("unevaluatedItems" in schema)) return {};
+    const value = schema.unevaluatedItems;
+    if (value === false) return { unevaluatedItemsClosed: true };
+    if (value === true) {
+        return {
+            unevaluatedItems: {
+                type: "unknown",
+                editability: "editable",
+                meta: {},
+                constraints: {},
+            },
+        };
+    }
+    if (isObject(value)) {
+        return { unevaluatedItems: walkNode(value, ctx) };
+    }
+    return {};
+}
+
 function walkArray(
     schema: Record<string, unknown>,
     ctx: WalkContext
@@ -852,17 +886,28 @@ function walkArray(
     const walkedContains: WalkedField | undefined =
         "contains" in schema ? walkSubSchema(schema.contains, ctx) : undefined;
 
+    // `unevaluatedItems` may be `true`, `false`, or a sub-schema — and
+    // applies to both `array` and `tuple` field shapes (per Draft 2020-12
+    // §11.3 it considers items evaluated by `items`/`prefixItems`/
+    // `contains`). Resolve once so both branches surface the same
+    // structural representation.
+    const unevaluatedInfo = resolveUnevaluatedItems(schema, ctx);
+
     // prefixItems -> tuple type (Draft 2020-12)
     const prefixItems = getArray(schema, "prefixItems");
     if (prefixItems !== undefined) {
-        const walkedItems = prefixItems
-            .filter(isObject)
-            .map((item) => walkNode(item, ctx));
+        // Each prefixItem may be an object schema or a boolean schema
+        // (Draft 2020-12 §10.3.1.1 references the same core schema
+        // grammar that permits booleans). Route every entry through
+        // `walkSubSchema` so `true`/`false` positions appear in the
+        // tuple — filtering with `isObject` silently dropped them.
+        const walkedItems = prefixItems.map((item) => walkSubSchema(item, ctx));
         // In Draft 2020-12, `items` alongside `prefixItems` describes
         // the rest element — applied to entries beyond the prefix length.
-        const restSchema = getObject(schema, "items");
+        // Route through `walkSubSchema` to handle the boolean forms
+        // (`items: false` forbids any extras, `items: true` permits any).
         const restItems: WalkedField | undefined =
-            restSchema !== undefined ? walkNode(restSchema, ctx) : undefined;
+            "items" in schema ? walkSubSchema(schema.items, ctx) : undefined;
         return {
             ...buildBase(schema, ctx),
             type: "tuple",
@@ -872,29 +917,35 @@ function walkArray(
             ...(walkedContains !== undefined
                 ? { contains: walkedContains }
                 : {}),
+            ...(unevaluatedInfo.unevaluatedItems !== undefined
+                ? { unevaluatedItems: unevaluatedInfo.unevaluatedItems }
+                : {}),
+            ...(unevaluatedInfo.unevaluatedItemsClosed === true
+                ? { unevaluatedItemsClosed: true }
+                : {}),
         };
     }
 
-    // --- unevaluatedItems ---
-    const unevaluatedItemsSchema = getObject(schema, "unevaluatedItems");
-    const walkedUnevaluatedItems: WalkedField | undefined =
-        unevaluatedItemsSchema !== undefined
-            ? walkNode(unevaluatedItemsSchema, ctx)
-            : undefined;
-
-    const items = getObject(schema, "items");
-    if (items !== undefined) {
+    if ("items" in schema) {
         const elementOverride = extractChildOverride(ctx.fieldOverrides, "[]");
+        const elementCtx: WalkContext = {
+            ...ctx,
+            fieldOverrides: elementOverride,
+        };
+        // Route `items` through `walkSubSchema` so boolean schemas
+        // (Draft 06+: `items: true` permits any item, `items: false`
+        // forbids all items) become `unknown`/`never` element fields
+        // rather than being silently dropped by `getObject`.
         return {
             ...buildBase(schema, ctx),
             type: "array",
             constraints: extractArrayConstraints(schema),
-            element: walkNode(items, {
-                ...ctx,
-                fieldOverrides: elementOverride,
-            }),
-            ...(walkedUnevaluatedItems !== undefined
-                ? { unevaluatedItems: walkedUnevaluatedItems }
+            element: walkSubSchema(schema.items, elementCtx),
+            ...(unevaluatedInfo.unevaluatedItems !== undefined
+                ? { unevaluatedItems: unevaluatedInfo.unevaluatedItems }
+                : {}),
+            ...(unevaluatedInfo.unevaluatedItemsClosed === true
+                ? { unevaluatedItemsClosed: true }
                 : {}),
             ...(walkedContains !== undefined
                 ? { contains: walkedContains }
@@ -906,8 +957,11 @@ function walkArray(
         ...buildBase(schema, ctx),
         type: "array",
         constraints: extractArrayConstraints(schema),
-        ...(walkedUnevaluatedItems !== undefined
-            ? { unevaluatedItems: walkedUnevaluatedItems }
+        ...(unevaluatedInfo.unevaluatedItems !== undefined
+            ? { unevaluatedItems: unevaluatedInfo.unevaluatedItems }
+            : {}),
+        ...(unevaluatedInfo.unevaluatedItemsClosed === true
+            ? { unevaluatedItemsClosed: true }
             : {}),
         ...(walkedContains !== undefined ? { contains: walkedContains } : {}),
     };
