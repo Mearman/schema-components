@@ -857,7 +857,16 @@ describe("walk — recursive cycle detection", () => {
 // ---------------------------------------------------------------------------
 
 describe("walk — enum and required filtering diagnostics", () => {
-    it("emits enum-value-filtered for each non-primitive enum entry", () => {
+    // TODO(round7-integration): the previous walker filtered
+    // non-primitive enum entries out of `EnumField.enumValues` and
+    // emitted `enum-value-filtered` per dropped entry. Per Draft
+    // 2020-12 §6.1.2, `enum` accepts any JSON value — the filter and
+    // diagnostic were spec-incorrect. Round 7 Agent D widened the
+    // field shape to `unknown[]` and removed the emission site; tests
+    // now assert that every entry is preserved verbatim and that no
+    // diagnostic fires. The `enum-value-filtered` code remains in the
+    // DiagnosticCode union for backward-compatible consumer handling.
+    it("preserves non-primitive enum entries without diagnostic", () => {
         const diagnostics: Diagnostic[] = [];
         const tree = walk(
             {
@@ -868,13 +877,15 @@ describe("walk — enum and required filtering diagnostics", () => {
             }
         );
         expect(tree.type).toBe("enum");
-        expect(enumValuesOf(tree)).toEqual(["ok", "fine"]);
-        const filtered = diagnostics.filter(
-            (d) => d.code === "enum-value-filtered"
-        );
-        expect(filtered.length).toBe(2);
-        expect(filtered[0]?.detail?.index).toBe(1);
-        expect(filtered[1]?.detail?.index).toBe(2);
+        expect(enumValuesOf(tree)).toEqual([
+            "ok",
+            { nested: true },
+            [1, 2],
+            "fine",
+        ]);
+        expect(
+            diagnostics.filter((d) => d.code === "enum-value-filtered").length
+        ).toBe(0);
     });
 
     it("does not emit enum-value-filtered when every entry is a primitive", () => {

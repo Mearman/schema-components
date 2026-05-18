@@ -53,7 +53,6 @@ import {
     walkSubSchemaMap,
     walkDependentRequiredMap,
     withoutKeys,
-    isPrimitive,
 } from "./walkBuilders.ts";
 import type { WalkOptions, WalkContext } from "./walkBuilders.ts";
 import { emitDiagnostic, appendPointer } from "./diagnostics.ts";
@@ -423,14 +422,10 @@ function walkNode(
 
     // --- Handle const (literal) ---
     if ("const" in schema) {
-        if (!isPrimitive(schema.const)) {
-            emitDiagnostic(ctx.diagnostics, {
-                code: "invalid-const",
-                message: `const value is not a primitive: ${typeof schema.const}`,
-                pointer: ctx.pointer,
-                detail: { constValue: schema.const },
-            });
-        }
+        // Per Draft 2020-12 §6.1.3, `const` accepts any JSON value
+        // (including objects and arrays). No primitive constraint —
+        // `LiteralField.literalValues` is typed as `unknown[]` and
+        // carries the value verbatim.
         return walkLiteral(schema, ctx);
     }
 
@@ -613,30 +608,18 @@ function walkEnum(
     enumValues: unknown[],
     ctx: WalkContext
 ): EnumField {
-    const accepted: (string | number | boolean | null)[] = [];
-    for (let i = 0; i < enumValues.length; i++) {
-        const v = enumValues[i];
-        if (isPrimitive(v)) {
-            accepted.push(v);
-            continue;
-        }
-        // Non-primitive enum values (objects, arrays, undefined) cannot
-        // be represented in the EnumField. Surface the drop so callers
-        // can fix the source schema rather than silently lose values.
-        emitDiagnostic(ctx.diagnostics, {
-            code: "enum-value-filtered",
-            message: `enum value at index ${String(i)} is not a primitive (${
-                v === undefined ? "undefined" : typeof v
-            }); dropping the entry`,
-            pointer: appendPointer(ctx.pointer, `enum/${String(i)}`),
-            detail: { index: i, value: v },
-        });
-    }
+    // Per Draft 2020-12 §6.1.2, `enum` accepts an array of arbitrary
+    // JSON values. The previous implementation filtered out objects and
+    // arrays as "not primitive" and emitted a diagnostic — that was
+    // spec-incorrect; renderers handle non-primitives via
+    // `displayJsonValue`. The original array is cloned (not aliased)
+    // so downstream mutation of the field cannot affect the input
+    // schema.
     return {
         ...buildBase(schema, ctx),
         type: "enum",
         constraints: {},
-        enumValues: accepted,
+        enumValues: [...enumValues],
     };
 }
 
@@ -644,13 +627,14 @@ function walkLiteral(
     schema: Record<string, unknown>,
     ctx: WalkContext
 ): LiteralField {
-    const constValue = schema.const;
-    const values = isPrimitive(constValue) ? [constValue] : [];
+    // Per Draft 2020-12 §6.1.3, `const` accepts any JSON value. Wrap
+    // the verbatim value in a single-element array so the field shape
+    // mirrors `EnumField.enumValues` for renderer symmetry.
     return {
         ...buildBase(schema, ctx),
         type: "literal",
         constraints: {},
-        literalValues: values,
+        literalValues: [schema.const],
     };
 }
 
