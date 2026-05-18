@@ -355,3 +355,35 @@ export function isPrimitive(
         value === null
     );
 }
+
+/**
+ * Convert any JSON-shaped value to a display string suitable for
+ * form input attributes or text rendering.
+ *
+ * Centralises the conversion logic because `EnumField.enumValues` and
+ * `LiteralField.literalValues` are typed as `unknown[]` (Draft 2020-12
+ * permits any JSON value in `enum` / `const`). Renderers call this
+ * helper instead of inlining their own narrowing — the alternative
+ * `String(v)` on `unknown` trips `@typescript-eslint/no-base-to-string`.
+ *
+ * Inputs originate from parsed JSON (or runtime JSON-equivalents) so
+ * they are always `null | boolean | number | string | object | array`.
+ * Objects and arrays serialise via `JSON.stringify` so a discriminated
+ * union with object const values still produces a stable display key.
+ *
+ * Throws on non-JSON-shaped values (function, symbol, bigint, undefined)
+ * — their presence indicates the producer violated the JSON contract.
+ */
+export function displayJsonValue(value: unknown): string {
+    if (value === null) return "null";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") {
+        return String(value);
+    }
+    if (typeof value === "object") {
+        return JSON.stringify(value);
+    }
+    throw new TypeError(
+        `displayJsonValue: value of type ${typeof value} is not a JSON-shaped value`
+    );
+}

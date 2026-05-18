@@ -196,8 +196,6 @@ export interface ArrayConstraints {
     uniqueItems?: boolean;
     minContains?: number;
     maxContains?: number;
-    /** Constraint schema for unevaluated items. */
-    unevaluatedItems?: Record<string, unknown>;
 }
 
 /** Constraints that apply to object schemas. */
@@ -271,13 +269,25 @@ export interface NullField extends FieldBase {
 export interface EnumField extends FieldBase {
     type: "enum";
     constraints: Record<string, never>;
-    enumValues: (string | number | boolean | null)[];
+    /**
+     * Enum values from JSON Schema `enum`. Per Draft 2020-12 §6.1.2,
+     * `enum` accepts an array of arbitrary JSON values — not only
+     * primitives. Object and array values are preserved verbatim.
+     */
+    enumValues: unknown[];
 }
 
 export interface LiteralField extends FieldBase {
     type: "literal";
     constraints: Record<string, never>;
-    literalValues: (string | number | boolean | null)[];
+    /**
+     * Const values from JSON Schema `const`. Per Draft 2020-12 §6.1.3,
+     * `const` accepts any JSON value (object or array included), not
+     * only primitives. The walker emits a single-element array because
+     * `const` is scalar by definition; the field shape mirrors
+     * `EnumField` for renderer symmetry.
+     */
+    literalValues: unknown[];
 }
 
 export interface ObjectField extends FieldBase {
@@ -318,6 +328,13 @@ export interface ArrayField extends FieldBase {
     contains?: WalkedField;
     /** Walked schema for unevaluated items. */
     unevaluatedItems?: WalkedField;
+    /**
+     * Whether `unevaluatedItems` is explicitly `false` (no extras
+     * permitted beyond the items evaluated by `items`/`prefixItems`/
+     * `contains`). Parallel to `additionalPropertiesClosed` and
+     * `unevaluatedPropertiesClosed` on `ObjectField`.
+     */
+    unevaluatedItemsClosed?: boolean;
 }
 
 export interface TupleField extends FieldBase {
@@ -337,6 +354,17 @@ export interface TupleField extends FieldBase {
      * element schemas to require the presence of a specific element.
      */
     contains?: WalkedField;
+    /**
+     * Walked schema for `unevaluatedItems` adjacent to `prefixItems`.
+     * Permits additional items only when they satisfy this schema.
+     */
+    unevaluatedItems?: WalkedField;
+    /**
+     * Whether `unevaluatedItems` is explicitly `false` on a tuple. With
+     * `prefixItems` declared, this forbids any items beyond the prefix
+     * length.
+     */
+    unevaluatedItemsClosed?: boolean;
 }
 
 export interface RecordField extends FieldBase {

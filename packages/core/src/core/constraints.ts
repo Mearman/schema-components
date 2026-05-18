@@ -12,7 +12,6 @@ import type {
     ObjectConstraints,
     FileConstraints,
 } from "./types.ts";
-import { isObject } from "./guards.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
 import { emitDiagnostic } from "./diagnostics.ts";
 import { FORMAT_PATTERNS } from "./formats.ts";
@@ -35,14 +34,6 @@ function getNumber(
 ): number | undefined {
     const value = obj[key];
     return typeof value === "number" ? value : undefined;
-}
-
-function getObject(
-    obj: Record<string, unknown>,
-    key: string
-): Record<string, unknown> | undefined {
-    const value = obj[key];
-    return isObject(value) ? value : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,8 +100,9 @@ export function extractArrayConstraints(
     const maxItems = getNumber(schema, "maxItems");
     if (maxItems !== undefined) c.maxItems = maxItems;
     if (schema.uniqueItems === true) c.uniqueItems = true;
-    // `contains` is exposed on `ArrayField`/`TupleField` directly as a
-    // walked `WalkedField` (mirroring `unevaluatedItems`) so the
+    // `contains` and `unevaluatedItems` are exposed on
+    // `ArrayField`/`TupleField` directly as walked `WalkedField` (or as
+    // the structural `unevaluatedItemsClosed` flag for `false`) so the
     // sub-schema is processed by the walker rather than handed to
     // consumers as a raw JSON Schema object. The cardinality keywords
     // (`minContains`/`maxContains`) stay in constraints because they
@@ -119,8 +111,6 @@ export function extractArrayConstraints(
     if (minContains !== undefined) c.minContains = minContains;
     const maxContains = getNumber(schema, "maxContains");
     if (maxContains !== undefined) c.maxContains = maxContains;
-    const unevaluatedItems = getObject(schema, "unevaluatedItems");
-    if (unevaluatedItems !== undefined) c.unevaluatedItems = unevaluatedItems;
     return c;
 }
 
