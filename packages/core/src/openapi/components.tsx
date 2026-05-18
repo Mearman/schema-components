@@ -37,7 +37,6 @@ import type {
     InferParameterOverrides,
     InferRequestBodyFields,
     InferResponseFields,
-    UnsafeFields,
 } from "../core/typeInference.ts";
 import { isObject, toRecordOrUndefined } from "../core/guards.ts";
 import {
@@ -53,8 +52,14 @@ import { ApiSecurity } from "./ApiSecurity.tsx";
 import { ApiCallbacks } from "./ApiCallbacks.tsx";
 import { ApiLinks } from "./ApiLinks.tsx";
 import { ApiResponseHeaders } from "./ApiResponseHeaders.tsx";
-import type { DiagnosticSink } from "../core/diagnostics.ts";
+import type {
+    DiagnosticSink,
+    DiagnosticsOptions,
+} from "../core/diagnostics.ts";
 import { emitDiagnostic } from "../core/diagnostics.ts";
+import { extractRootMetaFromJson } from "../core/adapter.ts";
+import type { WalkOptions } from "../core/walkBuilders.ts";
+import type { LinkInfo, OpenApiDocument } from "./parser.ts";
 
 // ---------------------------------------------------------------------------
 // Path / Method / Status / ContentType narrowing helpers
@@ -324,9 +329,9 @@ interface ApiDiagnosticsProps {
 function buildDiagnostics(
     onDiagnostic: DiagnosticSink | undefined,
     strict: boolean | undefined
-): import("../core/diagnostics.ts").DiagnosticsOptions | undefined {
+): DiagnosticsOptions | undefined {
     if (onDiagnostic === undefined && strict !== true) return undefined;
-    const opts: import("../core/diagnostics.ts").DiagnosticsOptions = {};
+    const opts: DiagnosticsOptions = {};
     if (onDiagnostic !== undefined) opts.diagnostics = onDiagnostic;
     if (strict === true) opts.strict = true;
     return opts;
@@ -343,7 +348,7 @@ function buildDiagnostics(
  */
 function resolveRootDoc(
     doc: unknown,
-    diagnostics: import("../core/diagnostics.ts").DiagnosticsOptions | undefined
+    diagnostics: DiagnosticsOptions | undefined
 ): Record<string, unknown> | undefined {
     const resolved = toDoc(doc);
     if (resolved === undefined) {
@@ -395,7 +400,7 @@ function renderSchema(
         );
     }
 
-    const rootMeta = extractRootMetaFromSchema(schema);
+    const rootMeta = extractRootMetaFromJson(schema);
 
     const componentMeta: SchemaMeta = {};
     if (options.readOnly === true) componentMeta.readOnly = true;
@@ -405,7 +410,7 @@ function renderSchema(
         }
     }
 
-    const walkOpts: import("../core/walkBuilders.ts").WalkOptions = {
+    const walkOpts: WalkOptions = {
         componentMeta,
         rootMeta,
         fieldOverrides: toRecordOrUndefined(options.fields),
@@ -502,6 +507,8 @@ export interface ApiOperationProps<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
     Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
+    ContentType extends RequestContentTypesOf<Doc, Path, Method> =
+        RequestContentTypesOf<Doc, Path, Method>,
 > extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
@@ -510,14 +517,23 @@ export interface ApiOperationProps<
     onRequestBodyChange?: (value: unknown) => void;
     responseValue?: unknown;
     meta?: SchemaMeta;
-    requestBodyFields?: Doc extends Record<string, unknown>
-        ? InferRequestBodyFields<Doc, Path & string, Method & string>
-        : Record<string, FieldOverride>;
-    /** Escape hatch for recursive schemas where type-level inference fails.
-     * Typed as Record<string, FieldOverride> — use when the schema contains
-     * deeply nested $ref chains.
+    /**
+     * Media type whose request body schema drives `requestBodyFields`
+     * inference. Defaults to the union of declared content types so
+     * callers can omit it; supply explicitly to narrow inference to a
+     * specific media type. Mirrors {@link ApiRequestBodyProps.contentType}
+     * so `<ApiOperation>` can target non-JSON request bodies with the
+     * same precision as `<ApiRequestBody>`.
      */
-    unsafeFields?: UnsafeFields;
+    requestBodyContentType?: ContentType;
+    requestBodyFields?: Doc extends Record<string, unknown>
+        ? InferRequestBodyFields<
+              Doc,
+              Path & string,
+              Method & string,
+              ContentType & string
+          >
+        : Record<string, FieldOverride>;
     /** Instance-scoped widgets. */
     widgets?: WidgetMap;
 }
@@ -526,6 +542,8 @@ export function ApiOperation<
     Doc = unknown,
     Path extends PathKeysOf<Doc> = PathKeysOf<Doc>,
     Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
+    ContentType extends RequestContentTypesOf<Doc, Path, Method> =
+        RequestContentTypesOf<Doc, Path, Method>,
 >({
     schema: doc,
     path,
@@ -538,7 +556,7 @@ export function ApiOperation<
     widgets,
     onDiagnostic,
     strict,
-}: ApiOperationProps<Doc, Path, Method>): ReactNode {
+}: ApiOperationProps<Doc, Path, Method, ContentType>): ReactNode {
     const diagnostics = buildDiagnostics(onDiagnostic, strict);
     const instancePrefix = sanitisePrefix(useId());
     const rootDoc = resolveRootDoc(doc, diagnostics);
@@ -584,6 +602,8 @@ export function ApiOperation<
                         meta={meta}
                         widgets={widgets}
                         idPrefix={joinPath(instancePrefix, "params")}
+                        diagnostics={diagnostics}
+                        pointerPrefix={operationPointer(path, method)}
                     />
                 </section>
             )}
@@ -693,6 +713,8 @@ export function ApiParameters<
                 meta={meta}
                 widgets={widgets}
                 idPrefix={instancePrefix}
+                diagnostics={diagnostics}
+                pointerPrefix={operationPointer(path, method)}
             />
         </section>
     );
@@ -1041,6 +1063,8 @@ function ParameterList({
     meta,
     widgets,
     idPrefix,
+    diagnostics,
+    pointerPrefix,
 }: {
     parameters: ParameterInfo[];
     rootDoc: Record<string, unknown>;
@@ -1048,25 +1072,54 @@ function ParameterList({
     meta?: SchemaMeta | undefined;
     widgets?: WidgetMap | undefined;
     idPrefix: string;
+    /**
+     * Diagnostics sink used to surface parameters that violate the
+     * OpenAPI 3.x requirement that every Parameter Object declare
+     * `schema` (or `content`). The runtime resolver already discards the
+     * `content`-only path; here we report and skip schema-less ones
+     * rather than fabricating a sentinel `{ type: "string" }` shape.
+     */
+    diagnostics?: DiagnosticsOptions | undefined;
+    /**
+     * JSON Pointer prefix identifying which Operation Object the
+     * parameter list belongs to (e.g. `/paths/~1pets/get`). Diagnostics
+     * append `/parameters/<name>` so consumers can locate the offending
+     * declaration in the source document.
+     */
+    pointerPrefix: string;
 }): ReactNode {
     return (
         <>
-            {parameters.map((param) => (
-                <div key={param.name} data-parameter={param.name}>
-                    <label>
-                        {param.name}
-                        {param.required && <span data-required>*</span>}
-                    </label>
-                    {param.description && (
-                        <span data-description>{param.description}</span>
-                    )}
-                    {renderSchema(param.schema ?? { type: "string" }, rootDoc, {
-                        meta: buildParamMeta(param, overrides, meta),
-                        widgets,
-                        rootPath: joinPath(idPrefix, param.name),
-                    })}
-                </div>
-            ))}
+            {parameters.map((param) => {
+                if (param.schema === undefined) {
+                    emitDiagnostic(diagnostics, {
+                        code: "parameter-missing-schema",
+                        message: `Parameter "${param.name}" has no schema; rendering skipped`,
+                        pointer: `${pointerPrefix}/parameters/${param.name}`,
+                        detail: {
+                            name: param.name,
+                            location: param.location,
+                        },
+                    });
+                    return null;
+                }
+                return (
+                    <div key={param.name} data-parameter={param.name}>
+                        <label>
+                            {param.name}
+                            {param.required && <span data-required>*</span>}
+                        </label>
+                        {param.description && (
+                            <span data-description>{param.description}</span>
+                        )}
+                        {renderSchema(param.schema, rootDoc, {
+                            meta: buildParamMeta(param, overrides, meta),
+                            widgets,
+                            rootPath: joinPath(idPrefix, param.name),
+                        })}
+                    </div>
+                );
+            })}
         </>
     );
 }
@@ -1091,7 +1144,7 @@ function ResponseCard({
      * `response`. Calling `getParsed` again would re-run normalisation
      * and re-emit every diagnostic into the configured sink.
      */
-    parsed: import("./parser.ts").OpenApiDocument;
+    parsed: OpenApiDocument;
     value?: unknown;
     fields?: unknown;
     meta?: SchemaMeta | undefined;
@@ -1116,7 +1169,7 @@ function ResponseCard({
     // `getLinks` returns `[]` for the no-links case, so any exception
     // bubbling out is a genuine bug (e.g. malformed parser state) — let it
     // propagate rather than silencing it with an empty array.
-    let links: import("./parser.ts").LinkInfo[] = [];
+    let links: LinkInfo[] = [];
     if (path !== undefined && method !== undefined) {
         links = getLinks(parsed, path, method, response.statusCode);
     }
@@ -1142,6 +1195,22 @@ function ResponseCard({
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Compose the JSON Pointer prefix for an operation's Parameter Object
+ * map. Paths conventionally begin with `/` so they live under
+ * `#/paths/<escaped path>/<method>`; OpenAPI 3.1 webhook names (which
+ * have no leading slash) live under `#/webhooks/<name>/<method>`.
+ *
+ * JSON Pointer (RFC 6901) requires `~` → `~0` and `/` → `~1`. The
+ * escape order matters: `~` first to avoid double-escaping the `~1`
+ * produced for `/`.
+ */
+function operationPointer(path: string, method: string): string {
+    const segment = path.startsWith("/") ? "paths" : "webhooks";
+    const escapedPath = path.replace(/~/g, "~0").replace(/\//g, "~1");
+    return `/${segment}/${escapedPath}/${method}`;
+}
+
 function buildParamMeta(
     param: ParameterInfo,
     overrides: unknown,
@@ -1164,24 +1233,4 @@ function buildParamMeta(
         }
     }
     return Object.keys(result).length > 0 ? result : undefined;
-}
-
-/**
- * Extract root-level meta (title, description, readOnly, etc.) from a
- * JSON Schema node. Mirrors `extractRootMetaFromJson` in the adapter so
- * pre-normalised schemas (extracted from `getParsed`) still surface root
- * meta to the walker without an extra adapter round-trip.
- */
-function extractRootMetaFromSchema(
-    jsonSchema: Record<string, unknown>
-): SchemaMeta | undefined {
-    const meta: SchemaMeta = {};
-    if (jsonSchema.readOnly === true) meta.readOnly = true;
-    if (jsonSchema.writeOnly === true) meta.writeOnly = true;
-    if (typeof jsonSchema.description === "string")
-        meta.description = jsonSchema.description;
-    if (typeof jsonSchema.title === "string") meta.title = jsonSchema.title;
-    if (typeof jsonSchema.deprecated === "boolean")
-        meta.deprecated = jsonSchema.deprecated;
-    return Object.keys(meta).length > 0 ? meta : undefined;
 }
