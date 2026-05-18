@@ -93,6 +93,12 @@ export type FormatValidator = RegExp | ((value: string) => boolean);
  */
 export const EMAIL_FORMAT_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Map of recognised JSON Schema string `format` values to RegExp
+ * patterns. Consumed by `extractStringConstraints` to derive a
+ * client-side `formatPattern` for renderers, and by
+ * {@link validateFormat} for runtime checks.
+ */
 export const FORMAT_PATTERNS: Readonly<Record<string, RegExp>> = {
     uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     email: EMAIL_FORMAT_PATTERN,

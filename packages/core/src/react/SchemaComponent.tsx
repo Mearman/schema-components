@@ -823,6 +823,13 @@ function runValidation(
 // Field rendering — delegates to resolver or headless fallback
 // ---------------------------------------------------------------------------
 
+/**
+ * Render a single walked field through the resolved widget /
+ * resolver / headless pipeline. Used internally by
+ * {@link SchemaComponent} and {@link SchemaField}, exported so other
+ * React-side components (e.g. the OpenAPI renderers) can dispatch
+ * into the same fallback chain.
+ */
 export function renderField(
     tree: WalkedField,
     value: unknown,

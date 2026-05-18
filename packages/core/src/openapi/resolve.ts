@@ -340,6 +340,12 @@ export interface PathItemInfo {
     description: string | undefined;
 }
 
+/**
+ * Aggregate view of a single OpenAPI operation: the operation itself,
+ * its Path Item Object context, merged parameters, request body, and
+ * responses. Produced by {@link resolveOperation} /
+ * {@link resolveOperationFromParsed} for rendering and inspection.
+ */
 export interface ResolvedOperation {
     operation: OperationInfo;
     pathItem: PathItemInfo;

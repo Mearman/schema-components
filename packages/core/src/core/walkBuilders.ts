@@ -31,6 +31,7 @@ import type { ExternalResolver } from "./ref.ts";
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+/** Read a key from a JSON object, returning the value when it is a string and `undefined` otherwise. */
 export function getString(
     obj: Record<string, unknown>,
     key: string
@@ -39,6 +40,7 @@ export function getString(
     return typeof value === "string" ? value : undefined;
 }
 
+/** Read a key from a JSON object, returning the value when it is an array and `undefined` otherwise. */
 export function getArray(
     obj: Record<string, unknown>,
     key: string
@@ -47,6 +49,7 @@ export function getArray(
     return Array.isArray(value) ? value : undefined;
 }
 
+/** Read a key from a JSON object, returning the value when it is a plain object and `undefined` otherwise. */
 export function getObject(
     obj: Record<string, unknown>,
     key: string
@@ -95,6 +98,12 @@ const META_KEYWORDS = new Set([
     "examples",
 ]);
 
+/**
+ * Extract recognised meta keywords (`readOnly`, `writeOnly`,
+ * `description`, `title`, `deprecated`, `default`, `component`,
+ * `example`, `examples`) from a JSON Schema node into the `SchemaMeta`
+ * shape consumed by the walker.
+ */
 export function extractMetaFromJson(
     schema: Record<string, unknown>
 ): SchemaMeta {
@@ -124,6 +133,12 @@ const OVERRIDE_META_KEYS = new Set([
     "order",
 ]);
 
+/**
+ * Project the meta-style keys (`readOnly`, `writeOnly`, `description`,
+ * `title`, `deprecated`, `component`, `visible`, `order`) out of a
+ * field override object into a `SchemaMeta`. Returns `undefined` when
+ * the override has no meta fields so the walker can short-circuit.
+ */
 export function extractSchemaMetaFields(
     overrides: Record<string, unknown> | undefined
 ): SchemaMeta | undefined {
@@ -139,6 +154,11 @@ export function extractSchemaMetaFields(
     return Object.keys(meta).length > 0 ? meta : undefined;
 }
 
+/**
+ * Pluck the nested override at `key` from a parent field override map.
+ * Returns `undefined` when no override is present or when the entry is
+ * not a non-array object.
+ */
 export function extractChildOverride(
     overrides: Record<string, unknown> | undefined,
     key: string
@@ -227,6 +247,7 @@ export function buildBase(
     };
 }
 
+/** Build a walked `StringField` from a JSON Schema node. */
 export function buildStringField(
     schema: Record<string, unknown>,
     ctx: WalkContext
@@ -242,6 +263,7 @@ export function buildStringField(
     };
 }
 
+/** Build a walked `NumberField` from a JSON Schema node. */
 export function buildNumberField(
     schema: Record<string, unknown>,
     ctx: WalkContext
@@ -253,6 +275,7 @@ export function buildNumberField(
     };
 }
 
+/** Build a walked `BooleanField` from a JSON Schema node. */
 export function buildBooleanField(
     schema: Record<string, unknown>,
     ctx: WalkContext
@@ -264,6 +287,7 @@ export function buildBooleanField(
     };
 }
 
+/** Build a walked `NullField` from a JSON Schema node. */
 export function buildNullField(
     schema: Record<string, unknown>,
     ctx: WalkContext
@@ -275,6 +299,7 @@ export function buildNullField(
     };
 }
 
+/** Build a walked `UnknownField` (permissive open-shape) from a JSON Schema node. */
 export function buildUnknownField(
     schema: Record<string, unknown>,
     ctx: WalkContext
@@ -286,6 +311,7 @@ export function buildUnknownField(
     };
 }
 
+/** Build a walked `FileField` from a JSON Schema node carrying `contentMediaType`. */
 export function buildFileField(
     schema: Record<string, unknown>,
     ctx: WalkContext
@@ -360,6 +386,10 @@ export function withoutKeys(
     return result;
 }
 
+/**
+ * Type guard for a JSON primitive: string, number, boolean, or null.
+ * Used to short-circuit walk-time decisions about leaf values.
+ */
 export function isPrimitive(
     value: unknown
 ): value is string | number | boolean | null {

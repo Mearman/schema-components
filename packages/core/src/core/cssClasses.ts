@@ -62,4 +62,5 @@ export const SC_CLASSES = {
     recursive: "sc-recursive",
 } as const;
 
+/** Stable string-literal key into the canonical {@link SC_CLASSES} map. */
 export type ScClassKey = keyof typeof SC_CLASSES;

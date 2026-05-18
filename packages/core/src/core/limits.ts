@@ -19,6 +19,7 @@ export const MAX_RENDER_DEPTH = 10;
  * and compile-time bounds agree.
  */
 export type MaxRefDepth = 64;
+/** Runtime constant matching the type-level {@link MaxRefDepth} bound. */
 export const MAX_REF_DEPTH: MaxRefDepth = 64;
 
 /**

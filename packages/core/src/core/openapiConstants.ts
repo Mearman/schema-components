@@ -22,6 +22,7 @@ export const HTTP_METHODS = [
     "trace",
 ] as const;
 
+/** Canonical OpenAPI 3.x HTTP method literal, derived from {@link HTTP_METHODS}. */
 export type HttpMethod = (typeof HTTP_METHODS)[number];
 
 /**

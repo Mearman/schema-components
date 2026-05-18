@@ -246,6 +246,12 @@ export function inferJsonSchemaDraftWithReason(
 // OpenAPI versions
 // ---------------------------------------------------------------------------
 
+/**
+ * Parsed OpenAPI version triple (e.g. `{ major: 3, minor: 1, patch: 0 }`).
+ * Produced by `detectOpenApiVersion` so downstream helpers can switch on
+ * the canonical numeric form rather than re-parsing the raw `openapi` /
+ * `swagger` string.
+ */
 export interface OpenApiVersionInfo {
     major: number;
     minor: number;

@@ -985,14 +985,9 @@ export function ApiResponse<
 // ---------------------------------------------------------------------------
 
 /**
- * Render a single OpenAPI 3.1 webhook by name. A webhook is a Path Item
- * Object under the document's top-level `webhooks` map; once resolved,
- * its operations are structurally identical to operations under `paths`.
+ * Props accepted by {@link ApiWebhook}.
  *
- * Internally, this delegates to `ApiOperation` for each method present
- * on the webhook's Path Item Object. The parser's `lookupPathItem`
- * resolves webhook names through the same code path as paths, so
- * `ApiOperation` works for both with no special-casing in the renderer.
+ * @group OpenAPI
  */
 export interface ApiWebhookProps extends ApiDiagnosticsProps {
     schema: unknown;
@@ -1003,6 +998,18 @@ export interface ApiWebhookProps extends ApiDiagnosticsProps {
     meta?: SchemaMeta;
 }
 
+/**
+ * Render a single OpenAPI 3.1 webhook by name. A webhook is a Path Item
+ * Object under the document's top-level `webhooks` map; once resolved,
+ * its operations are structurally identical to operations under `paths`.
+ *
+ * Delegates to {@link ApiOperation} for each method present on the
+ * webhook's Path Item Object — the parser's `lookupPathItem` resolves
+ * webhook names through the same code path as paths, so `ApiOperation`
+ * works for both with no special-casing in the renderer.
+ *
+ * @group OpenAPI
+ */
 export function ApiWebhook({
     schema: doc,
     name,
@@ -1044,9 +1051,9 @@ export function ApiWebhook({
 // ---------------------------------------------------------------------------
 
 /**
- * Render every OpenAPI 3.1 webhook declared on the document, one
- * `<ApiWebhook>` per entry. Returns `null` when the document has no
- * `webhooks` map or it is empty.
+ * Props accepted by {@link ApiWebhooks}.
+ *
+ * @group OpenAPI
  */
 export interface ApiWebhooksProps extends ApiDiagnosticsProps {
     schema: unknown;
@@ -1054,6 +1061,13 @@ export interface ApiWebhooksProps extends ApiDiagnosticsProps {
     meta?: SchemaMeta;
 }
 
+/**
+ * Render every OpenAPI 3.1 webhook declared on the document, one
+ * `<ApiWebhook>` per entry. Returns `null` when the document has no
+ * `webhooks` map or the map is empty.
+ *
+ * @group OpenAPI
+ */
 export function ApiWebhooks({
     schema: doc,
     widgets,

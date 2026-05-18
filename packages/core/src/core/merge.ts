@@ -324,6 +324,11 @@ function describeType(value: unknown): string {
 // Nullable detection from anyOf
 // ---------------------------------------------------------------------------
 
+/**
+ * Result returned by {@link normaliseAnyOf} when an `anyOf` schema
+ * collapses to a nullable shape: the non-null branch and the nullable
+ * flag.
+ */
 export interface NormalisedAnyOf {
     inner: Record<string, unknown>;
     isNullable: boolean;
@@ -358,6 +363,11 @@ export function normaliseAnyOf(
 // Discriminated union detection from oneOf + const
 // ---------------------------------------------------------------------------
 
+/**
+ * Result returned by {@link detectDiscriminated} when a `oneOf` schema
+ * is structurally a discriminated union: the option schemas plus the
+ * shared property name carrying the const discriminator.
+ */
 export interface Discriminated {
     options: Record<string, unknown>[];
     discriminator: string;

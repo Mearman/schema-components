@@ -58,6 +58,11 @@ import { panelId, tabId } from "./renderers.ts";
 // Yield helpers (passed from the parent module)
 // ---------------------------------------------------------------------------
 
+/**
+ * Serialise the opening tag of an element so a generator can yield it
+ * without the matching closing tag. Void elements (e.g. `input`) are
+ * emitted self-closed so the chunk is structurally valid on its own.
+ */
 export function yieldOpen(el: HtmlElement): string {
     const attrStr = serializeAttributes(el.attributes);
     // Void elements (`input`, `br`, etc.) have no closing tag — emit a
@@ -70,6 +75,11 @@ export function yieldOpen(el: HtmlElement): string {
     return `<${el.tag}${attrStr}>`;
 }
 
+/**
+ * Serialise the closing tag of an element so a generator can yield it
+ * after its children. Returns an empty string for void elements (their
+ * opening tag was emitted self-closed by {@link yieldOpen}).
+ */
 export function yieldClose(el: HtmlElement): string {
     if (VOID_ELEMENTS.has(el.tag)) return "";
     return `</${el.tag}>`;
@@ -79,6 +89,12 @@ export function yieldClose(el: HtmlElement): string {
 // Leaf rendering (sync — used for nested content within generators)
 // ---------------------------------------------------------------------------
 
+/**
+ * Render a leaf {@link WalkedField} entirely as a single HTML chunk.
+ * Used inside the streaming generators when descent into containers is
+ * complete. Falls back to a `<span>`-wrapped value when no renderer is
+ * registered for the field type.
+ */
 export function renderLeaf(
     tree: WalkedField,
     value: unknown,
@@ -118,6 +134,11 @@ export function renderLeaf(
 // Sync field rendering (for nested content within generators)
 // ---------------------------------------------------------------------------
 
+/**
+ * Drain {@link streamField} into a single string. Used when a streamed
+ * sub-tree needs to be embedded inside a non-streaming chunk (e.g. as
+ * children of a parent element).
+ */
 export function renderFieldSync(
     tree: WalkedField,
     value: unknown,
@@ -168,6 +189,13 @@ function typeMismatchPlaceholder(expectedShape: string): string {
 // Chunked field rendering — yields at natural boundaries
 // ---------------------------------------------------------------------------
 
+/**
+ * Render a {@link WalkedField} as a generator that yields HTML chunks
+ * at natural boundaries (opening tag, one chunk per child, closing
+ * tag). Threads `currentDepth` so cyclic walked-field graphs terminate
+ * at `MAX_RENDER_DEPTH` with a recursion sentinel rather than
+ * overflowing the stack.
+ */
 export function* streamField(
     tree: WalkedField,
     value: unknown,

@@ -98,6 +98,7 @@ export function inputId(path: string): string {
 // Headless renderers — one per schema type
 // ---------------------------------------------------------------------------
 
+/** Headless renderer for `StringField` — plain `<input>` / `<span>`. */
 export function renderString(props: RenderProps): ReactNode {
     const id = inputId(props.path);
 
@@ -227,6 +228,7 @@ export function renderString(props: RenderProps): ReactNode {
     );
 }
 
+/** Headless renderer for `NumberField` — plain `<input type="number">`. */
 export function renderNumber(props: RenderProps): ReactNode {
     const id = inputId(props.path);
 
@@ -262,6 +264,7 @@ export function renderNumber(props: RenderProps): ReactNode {
     );
 }
 
+/** Headless renderer for `BooleanField` — plain `<input type="checkbox">`. */
 export function renderBoolean(props: RenderProps): ReactNode {
     const id = inputId(props.path);
 
@@ -294,6 +297,7 @@ export function renderBoolean(props: RenderProps): ReactNode {
     );
 }
 
+/** Headless renderer for `EnumField` — plain `<select>` listing each option. */
 export function renderEnum(props: RenderProps): ReactNode {
     const id = inputId(props.path);
     const enumValue = typeof props.value === "string" ? props.value : "";
@@ -332,6 +336,7 @@ export function renderEnum(props: RenderProps): ReactNode {
     );
 }
 
+/** Headless renderer for `ObjectField` — `<fieldset>` per object with one child per property. */
 export function renderObject(props: RenderProps): ReactNode {
     if (props.tree.type !== "object") return null;
     const obj = isObject(props.value) ? props.value : {};
@@ -444,6 +449,7 @@ export function renameRecordKey(
     return renamed;
 }
 
+/** Headless renderer for `RecordField` — editable key/value rows with add/remove controls. */
 export function renderRecord(props: RenderProps): ReactNode {
     if (props.tree.type !== "record") return null;
     const obj = isObject(props.value) ? props.value : {};
@@ -569,6 +575,7 @@ export function renderRecord(props: RenderProps): ReactNode {
     );
 }
 
+/** Headless renderer for `ArrayField` — ordered list with add/remove controls. */
 export function renderArray(props: RenderProps): ReactNode {
     if (props.tree.type !== "array") return null;
     const arr = Array.isArray(props.value) ? props.value : [];
@@ -604,6 +611,7 @@ export function renderArray(props: RenderProps): ReactNode {
     );
 }
 
+/** Headless renderer for plain `UnionField` — picks the matching option and renders it. */
 export function renderUnion(props: RenderProps): ReactNode {
     const options =
         props.tree.type === "union" || props.tree.type === "discriminatedUnion"
@@ -636,6 +644,7 @@ export function renderUnion(props: RenderProps): ReactNode {
 // Discriminated union — WAI-ARIA tabs pattern
 // ---------------------------------------------------------------------------
 
+/** Headless renderer for `DiscriminatedUnionField` — tabbed UI driven by the discriminator. */
 export function renderDiscriminatedUnion(props: RenderProps): ReactNode {
     // Narrow once at the top — the surrounding props.tree.type check
     // guarantees `discriminator: string` (see DiscriminatedUnionField in
@@ -841,6 +850,7 @@ function DiscriminatedUnionTabs({
     );
 }
 
+/** Headless renderer for `FileField` — plain `<input type="file">`. */
 export function renderFile(props: RenderProps): ReactNode {
     const id = inputId(props.path);
     const accept = props.constraints.mimeTypes?.join(",");
@@ -1078,6 +1088,7 @@ export function renderNegation(props: RenderProps): ReactNode {
     );
 }
 
+/** Headless renderer for `UnknownField` — JSON-encoded fallback for unconstrained values. */
 export function renderUnknown(props: RenderProps): ReactNode {
     const id = inputId(props.path);
 

@@ -865,6 +865,12 @@ export { matchUnionOption };
 // Default resolver
 // ---------------------------------------------------------------------------
 
+/**
+ * Default HTML resolver used by `renderToHtml` and the streaming
+ * renderers when the consumer does not pass a custom resolver. Maps
+ * every `WalkedField` variant to a semantic HTML renderer built on the
+ * `h()` element builder.
+ */
 export const defaultHtmlResolver: HtmlResolver = {
     string: renderStringHtml,
     number: renderNumberHtml,

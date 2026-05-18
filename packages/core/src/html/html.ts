@@ -86,6 +86,7 @@ export type HtmlAttributes = Record<string, AttrValue>;
 // Void elements — self-closing, no children
 // ---------------------------------------------------------------------------
 
+/** HTML5 void-element tag names — self-closing, must not carry children. */
 export const VOID_ELEMENTS = new Set([
     "area",
     "base",
@@ -199,6 +200,11 @@ export function serialize(node: HtmlNode): string {
     return serializeElement(node);
 }
 
+/**
+ * Serialise a single {@link HtmlElement} to a string, taking care of
+ * void-element self-closing, attribute serialisation, and recursive
+ * child rendering. Use {@link serialize} for arbitrary nodes.
+ */
 export function serializeElement(el: HtmlElement): string {
     const attrs = serializeAttributes(el.attributes);
 
@@ -214,6 +220,11 @@ export function serializeElement(el: HtmlElement): string {
     return `<${el.tag}${attrs}>${inner}</${el.tag}>`;
 }
 
+/**
+ * Serialise an attribute map to the `key="value"` form used inside an
+ * opening tag. `false` / `undefined` values are omitted; `true` renders
+ * as a boolean attribute (just the name).
+ */
 export function serializeAttributes(attrs: HtmlAttributes): string {
     const parts: string[] = [];
     for (const [key, value] of Object.entries(attrs)) {
