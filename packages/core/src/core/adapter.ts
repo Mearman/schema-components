@@ -16,7 +16,7 @@ import { hasProperty, isObject, getProperty } from "./guards.ts";
 import { MAX_REF_DEPTH } from "./limits.ts";
 import { dereference } from "./ref.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
-import { emitDiagnostic } from "./diagnostics.ts";
+import { emitDiagnostic, appendPointer } from "./diagnostics.ts";
 import { SchemaNormalisationError } from "./errors.ts";
 import type { JsonSchemaDraft } from "./version.ts";
 import {
@@ -84,19 +84,43 @@ export function detectSchemaKind(input: unknown): SchemaKind {
 }
 
 /**
- * Heuristic: a non-Zod object exposing both `.parse` and `.safeParse` as
- * callables is almost certainly an instance of a competing schema library
- * (Standard Schema, valibot, arktype, etc.). schema-components requires
- * Zod 4 throughout — surfacing the unsupported library by name beats
- * letting the input drop through to the JSON Schema branch where it
- * would fail as "malformed JSON Schema" without explanation.
+ * Heuristic: a non-Zod object that exposes either a Standard Schema
+ * `~standard.validate` entry point (valibot, arktype, and any pure
+ * Standard-Schema-conformant library) or both legacy `.parse`/`.safeParse`
+ * callables is almost certainly an instance of a competing schema
+ * library. schema-components requires Zod 4 throughout — surfacing the
+ * unsupported library by name beats letting the input drop through to
+ * the JSON Schema branch where it would fail as "malformed JSON Schema"
+ * without explanation.
+ *
+ * Standard Schema detection takes priority: the spec mandates a
+ * `~standard` property carrying `{ validate, vendor, version }`. Pure
+ * Standard Schema implementations may not expose any `.parse`/`.safeParse`
+ * surface (those are a Zod / convenience API, not part of the spec), so
+ * the legacy heuristic alone would miss them. See
+ * https://standardschema.dev/ for the contract.
  */
 function isLikelyOtherSchemaLib(input: unknown): boolean {
     if (!isObject(input)) return false;
     if (hasProperty(input, "_zod") || hasProperty(input, "_def")) return false;
+    if (isObject(input["~standard"])) return true;
     const parse = input.parse;
     const safeParse = input.safeParse;
     return typeof parse === "function" && typeof safeParse === "function";
+}
+
+/**
+ * Extract the Standard Schema vendor string from a non-Zod input, when
+ * present. Returns `undefined` if the input does not advertise itself
+ * via the `~standard.vendor` field. Used to enrich the
+ * `unsupported-schema` error message with the library name so the
+ * consumer knows whether they have valibot, arktype, or another
+ * implementation in front of them.
+ */
+function extractStandardSchemaVendor(input: unknown): string | undefined {
+    const standard = getProperty(input, "~standard");
+    const vendor = getProperty(standard, "vendor");
+    return typeof vendor === "string" && vendor.length > 0 ? vendor : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,13 +146,15 @@ function isLikelyOtherSchemaLib(input: unknown): boolean {
  * - `cycles: "ref"` — converts cyclic graphs into $ref pairs rather than
  *   throwing. Cycles in user schemas surface through the walker's $ref
  *   resolution rather than the adapter.
- * - `io: "output"` — convert the OUTPUT side of every transform / pipe /
- *   codec. The input side is invisible to the converted schema, even
- *   though `safeParse` on the same Zod schema consumes the input shape.
- *   For transforms this divergence is fatal and the call throws via
+ * - `io` — selects which side of every transform / pipe / codec is
+ *   converted. Defaults to `"output"` (the OUTPUT side); pass `"input"`
+ *   to render the INPUT side instead. The input side is invisible to
+ *   the converted schema when `io: "output"` is in force, even though
+ *   `safeParse` on the same Zod schema consumes the input shape. For
+ *   transforms this divergence is fatal and the call throws via
  *   `Transforms cannot be represented`; for `z.codec(...)` the call
- *   succeeds but only the output side is rendered. Consumers receive a
- *   `zod-codec-output-only` diagnostic in the codec case so the
+ *   succeeds but only the selected side is rendered. Consumers receive
+ *   a `zod-codec-output-only` diagnostic in the codec case so the
  *   asymmetry is visible — see `screenPreConversion`.
  *
  * # Error classification
@@ -168,7 +194,26 @@ function isLikelyOtherSchemaLib(input: unknown): boolean {
  * The original error is preserved on each classified error via the `cause`
  * field so consumers can still inspect the Zod stack trace.
  */
-function callToJsonSchema(schema: unknown): unknown {
+/**
+ * IO side passed to {@link callToJsonSchema}. The Zod runtime accepts
+ * `"input" | "output"` for the corresponding `io` option on
+ * `z.toJSONSchema`. Defaults to `"output"` everywhere in the adapter
+ * pipeline; the parameter exists so a future renderer or component
+ * (currently SchemaComponent — see TODO below) can request the input
+ * side without forking the helper.
+ */
+export type SchemaIoSide = "input" | "output";
+
+// TODO(round7-integration): thread `io` through `normaliseSchema` →
+// `normaliseZod4` so SchemaComponent (Agent G) can expose an `io` prop
+// that selects which side of every transform / pipe / codec is rendered.
+// Wiring stops at this helper for now to keep agent ownership clean;
+// the helper itself is parameterised so the integration is a one-line
+// change once Agent G's prop lands.
+function callToJsonSchema(
+    schema: unknown,
+    io: SchemaIoSide = "output"
+): unknown {
     try {
         // @ts-expect-error — Library boundary: z.toJSONSchema requires $ZodType
         // but we have unknown validated by _zod guard. See function JSDoc.
@@ -176,7 +221,7 @@ function callToJsonSchema(schema: unknown): unknown {
             target: "draft-2020-12",
             unrepresentable: "throw",
             cycles: "ref",
-            io: "output",
+            io,
         });
     } catch (err) {
         throw classifyZodConversionError(err, schema);
@@ -218,69 +263,410 @@ const PRECONVERSION_UNREPRESENTABLE_TAGS: ReadonlyMap<string, string> = new Map(
 );
 
 /**
- * Pre-conversion screening. Inspects the root `_zod.def.type` tag for
- * known-problematic types that either silently misrender (handled via
- * {@link PRECONVERSION_UNREPRESENTABLE_TAGS}, raising a
- * `SchemaNormalisationError`) or render correctly but with consumer-visible
- * caveats (codecs, raising a `zod-codec-output-only` diagnostic).
+ * Pre-conversion screening. Walks the entire Zod schema tree looking for
+ * silently-misrendered or caveat-bearing constructs and surfaces each as
+ * either a hard rejection (raised as a `SchemaNormalisationError`) or a
+ * diagnostic on the configured sink:
  *
- * Design choice: `z.never()` is NOT classified here. The Zod processor for
- * `never` already produces `{ not: {} }`, which the walker understands via
- * its `walkBooleanSchema(false)` branch (`walker.ts` boolean-schema
- * handling). Throwing a `zod-type-unrepresentable` for `never` would break
- * the legitimate "this field cannot hold any value" use case that the
- * walker already supports. Documented for posterity so future passes do
- * not "fix" it.
+ * - `z.promise(T)` at any depth → rejection (see
+ *   {@link PRECONVERSION_UNREPRESENTABLE_TAGS}). Each nested occurrence
+ *   first emits a `zod-promise-nested-unwrap` diagnostic so consumers
+ *   with a sink see every offending location before the throw fires.
+ *   The root occurrence still throws via the same path so behaviour is
+ *   uniform regardless of position in the tree.
+ * - `z.codec(...)` at the root → `zod-codec-output-only` diagnostic.
+ * - `z.codec(...)` nested below the root →
+ *   `zod-codec-nested-output-only` diagnostic per occurrence.
+ * - `z.preprocess(...)` at any depth → `zod-preprocess-output-only`
+ *   diagnostic per occurrence. Preprocess never throws inside Zod (it
+ *   silently rewrites to the output side), so the diagnostic is the
+ *   only consumer-visible signal.
+ *
+ * Detection is structural — `_zod.def.type` plus `_zod.traits` (where
+ * present) — and is depth-capped via {@link MAX_REF_DEPTH} with a
+ * `visited` set to defend against cyclic graphs. JSON-pointer fragments
+ * are accumulated as the walk descends so diagnostics report the exact
+ * subschema location rather than `""`.
+ *
+ * Design choice: `z.never()` is NOT classified here. The Zod processor
+ * for `never` already produces `{ not: {} }`, which the walker
+ * understands via its `walkBooleanSchema(false)` branch (`walker.ts`
+ * boolean-schema handling). Throwing a `zod-type-unrepresentable` for
+ * `never` would break the legitimate "this field cannot hold any value"
+ * use case that the walker already supports. Documented for posterity
+ * so future passes do not "fix" it.
  */
 function screenPreConversion(
     input: unknown,
-    def: Record<string, unknown>,
     diagnostics: DiagnosticsOptions | undefined
 ): void {
-    const tag = def.type;
-    if (typeof tag !== "string") return;
+    let rejection: SchemaNormalisationError | undefined;
+    const visited = new Set<object>();
+    screenPreConversionWalk(input, "", 0, true, visited, diagnostics, (err) => {
+        // First rejection wins so the originally-raised location is
+        // preserved for diagnostics. Subsequent rejections are
+        // dropped; the diagnostic sink already records every
+        // occurrence individually.
+        rejection ??= err;
+    });
+    if (rejection !== undefined) throw rejection;
+}
 
-    const unrepresentableMessage = PRECONVERSION_UNREPRESENTABLE_TAGS.get(tag);
-    if (unrepresentableMessage !== undefined) {
-        throw new SchemaNormalisationError(
-            unrepresentableMessage,
-            input,
-            "zod-type-unrepresentable",
-            tag
+/**
+ * Inner recursion for {@link screenPreConversion}. Visits every Zod
+ * node reachable from `node`, emitting diagnostics and capturing
+ * rejections through `recordRejection`. The walk is targeted: only
+ * `_zod.def` is descended into (sibling `_zod.*` members are
+ * implementation surface and never carry user schemas — same rule as
+ * {@link containsNestedZod3Inner}).
+ *
+ * The `pointer` parameter tracks the JSON Pointer to the current
+ * subschema so diagnostics carry an accurate location. The `isRoot`
+ * flag distinguishes the entry call from recursive descents so
+ * `zod-codec-output-only` (root) and `zod-codec-nested-output-only`
+ * (nested) fire from the same code path.
+ */
+function screenPreConversionWalk(
+    node: unknown,
+    pointer: string,
+    depth: number,
+    isRoot: boolean,
+    visited: Set<object>,
+    diagnostics: DiagnosticsOptions | undefined,
+    recordRejection: (err: SchemaNormalisationError) => void
+): void {
+    if (depth >= MAX_REF_DEPTH) return;
+    if (!isObject(node)) return;
+    if (visited.has(node)) return;
+    visited.add(node);
+
+    const zod = getProperty(node, "_zod");
+    if (!isObject(zod)) return;
+    const def = getProperty(zod, "def");
+    if (!isObject(def)) return;
+
+    const tag = def.type;
+
+    // Hard-reject classifications. Promise is silently unwrapped by
+    // Zod's `promiseProcessor`; emit a diagnostic per occurrence so the
+    // exact location surfaces on the sink, then record the rejection.
+    if (typeof tag === "string") {
+        const unrepresentableMessage =
+            PRECONVERSION_UNREPRESENTABLE_TAGS.get(tag);
+        if (unrepresentableMessage !== undefined) {
+            if (tag === "promise") {
+                emitDiagnostic(diagnostics, {
+                    code: "zod-promise-nested-unwrap",
+                    message:
+                        `z.promise(...) detected at ${formatPointer(pointer)}. ` +
+                        "Zod silently unwraps it to the inner type, which would " +
+                        "leave the rendered schema out of sync with the source. " +
+                        "Resolve the promise at the data boundary before passing " +
+                        "the value to the component.",
+                    pointer,
+                    detail: { zodType: "promise" },
+                });
+            }
+            recordRejection(
+                new SchemaNormalisationError(
+                    unrepresentableMessage,
+                    node,
+                    "zod-type-unrepresentable",
+                    tag
+                )
+            );
+            // Continue the walk — additional nested occurrences should
+            // still surface as diagnostics for full visibility.
+        }
+    }
+
+    // Codec detection. Zod implements codecs as a specialised pipe —
+    // `def.type === "pipe"` plus a `$ZodCodec` trait (see
+    // `to-json-schema.ts` `isTransforming`). Root and nested occurrences
+    // use distinct diagnostic codes so consumers can branch on them.
+    if (tag === "pipe" && hasTrait(zod, "$ZodCodec")) {
+        if (isRoot) {
+            emitDiagnostic(diagnostics, {
+                code: "zod-codec-output-only",
+                message:
+                    "z.codec(...) was passed at the schema root. Only the OUTPUT " +
+                    "side is rendered by schema-components; the input side may " +
+                    "differ. If you intend to render the input side instead, " +
+                    "restructure the codec so the input type is the rendered shape.",
+                pointer,
+                detail: { zodType: "codec" },
+            });
+        } else {
+            emitDiagnostic(diagnostics, {
+                code: "zod-codec-nested-output-only",
+                message:
+                    `z.codec(...) detected at ${formatPointer(pointer)}. Only the ` +
+                    "OUTPUT side is rendered by schema-components; the input side " +
+                    "is invisible to the converted schema even though safeParse " +
+                    "still consumes the input shape.",
+                pointer,
+                detail: { zodType: "codec" },
+            });
+        }
+    }
+
+    // Preprocess detection. `z.preprocess(...)` is also a pipe under
+    // the hood, marked with the `$ZodPreprocess` trait. Zod silently
+    // rewrites the schema to the output side, so we emit a single
+    // diagnostic code for both root and nested cases.
+    if (tag === "pipe" && hasTrait(zod, "$ZodPreprocess")) {
+        emitDiagnostic(diagnostics, {
+            code: "zod-preprocess-output-only",
+            message:
+                `z.preprocess(...) detected at ${formatPointer(pointer)}. ` +
+                "Zod silently renders the OUTPUT-side schema; the preprocess " +
+                "function and its input shape are invisible to the rendered " +
+                "schema. If you need the input shape, restructure the schema " +
+                "to declare it directly.",
+            pointer,
+            detail: { zodType: "preprocess" },
+        });
+    }
+
+    // Descend into user-supplied sub-schemas. We avoid `Object.keys`
+    // here because Zod's def shapes vary widely (object → `shape`,
+    // tuple → `items`, union → `options`, pipe → `in`/`out`, etc.) and
+    // an over-broad walk would pull in non-schema members. Instead we
+    // recursively visit every value reachable through `def` whose own
+    // shape is itself a Zod schema.
+    screenPreConversionDescend(
+        def,
+        pointer,
+        depth + 1,
+        visited,
+        diagnostics,
+        recordRejection
+    );
+}
+
+/**
+ * Descend into the values of a Zod `def` object, visiting every nested
+ * Zod schema. `def` shapes are heterogeneous, so we walk recursively
+ * through plain objects and arrays until we find a value with a
+ * `_zod.def` marker — those nodes are the user-supplied sub-schemas.
+ *
+ * Pointer accumulation:
+ *
+ * - For `def.shape.<key>` we emit pointers of the form
+ *   `/properties/<key>`, matching the JSON Schema rendering of an
+ *   object's properties so diagnostics line up with what consumers see
+ *   in the rendered output.
+ * - For `def.items[<i>]` we emit `/items/<i>`.
+ * - For `def.options[<i>]` we emit `/anyOf/<i>` so union members line
+ *   up with their JSON Schema position.
+ * - For pipe `def.in` / `def.out` we emit `/in` / `/out`.
+ * - Everything else descends without extending the pointer (the
+ *   diagnostic stays anchored at the parent location).
+ *
+ * The pointer scheme is deliberately conservative — it errs on the
+ * side of "parent-anchored" when the JSON Schema name for a Zod field
+ * is ambiguous, rather than fabricating a synthetic location.
+ */
+function screenPreConversionDescend(
+    def: Record<string, unknown>,
+    parentPointer: string,
+    depth: number,
+    visited: Set<object>,
+    diagnostics: DiagnosticsOptions | undefined,
+    recordRejection: (err: SchemaNormalisationError) => void
+): void {
+    if (depth >= MAX_REF_DEPTH) return;
+
+    // Object schemas store properties under `shape`. Pointer segments
+    // are appended one-at-a-time because {@link appendPointer} encodes
+    // `/` inside a segment as `~1` per RFC 6901 — a single
+    // `appendPointer(p, "properties/x")` call would emit `~1` between
+    // "properties" and "x" instead of the desired `/`.
+    const shape = getProperty(def, "shape");
+    if (isObject(shape)) {
+        const shapeBase = appendPointer(parentPointer, "properties");
+        for (const [key, value] of Object.entries(shape)) {
+            screenPreConversionWalk(
+                value,
+                appendPointer(shapeBase, key),
+                depth + 1,
+                false,
+                visited,
+                diagnostics,
+                recordRejection
+            );
+        }
+    }
+
+    // Tuple / array element schemas.
+    const items = getProperty(def, "items");
+    if (Array.isArray(items)) {
+        const itemsBase = appendPointer(parentPointer, "items");
+        items.forEach((item, index) => {
+            screenPreConversionWalk(
+                item,
+                appendPointer(itemsBase, String(index)),
+                depth + 1,
+                false,
+                visited,
+                diagnostics,
+                recordRejection
+            );
+        });
+    } else if (isObject(items)) {
+        screenPreConversionWalk(
+            items,
+            appendPointer(parentPointer, "items"),
+            depth + 1,
+            false,
+            visited,
+            diagnostics,
+            recordRejection
         );
     }
 
-    // Codec detection. Zod implements codecs as a specialised pipe — the
-    // `def.type` is `"pipe"` and the schema's traits set contains
-    // `"$ZodCodec"` (see `to-json-schema.ts` `isTransforming`). The
-    // conversion succeeds with output-side semantics; the diagnostic
-    // makes the asymmetry visible to consumers.
-    if (tag === "pipe" && isCodecSchema(input)) {
-        emitDiagnostic(diagnostics, {
-            code: "zod-codec-output-only",
-            message:
-                "z.codec(...) was passed at the schema root. Only the OUTPUT " +
-                "side is rendered by schema-components; the input side may " +
-                "differ. If you intend to render the input side instead, " +
-                "restructure the codec so the input type is the rendered shape.",
-            pointer: "",
-            detail: { zodType: "codec" },
+    // Union and discriminated-union members.
+    const options = getProperty(def, "options");
+    if (Array.isArray(options)) {
+        const optionsBase = appendPointer(parentPointer, "anyOf");
+        options.forEach((option, index) => {
+            screenPreConversionWalk(
+                option,
+                appendPointer(optionsBase, String(index)),
+                depth + 1,
+                false,
+                visited,
+                diagnostics,
+                recordRejection
+            );
         });
+    }
+
+    // Pipe-shaped schemas (codec, preprocess, plain pipe). The input
+    // side is the one safeParse consumes; the output side is what
+    // toJSONSchema renders. Walk both so nested constructs inside either
+    // half are surfaced.
+    const inSide = getProperty(def, "in");
+    if (isObject(inSide)) {
+        screenPreConversionWalk(
+            inSide,
+            appendPointer(parentPointer, "in"),
+            depth + 1,
+            false,
+            visited,
+            diagnostics,
+            recordRejection
+        );
+    }
+    const outSide = getProperty(def, "out");
+    if (isObject(outSide)) {
+        screenPreConversionWalk(
+            outSide,
+            appendPointer(parentPointer, "out"),
+            depth + 1,
+            false,
+            visited,
+            diagnostics,
+            recordRejection
+        );
+    }
+
+    // Unwrap-style schemas (optional, nullable, default, readonly,
+    // promise, catch, lazy resolution, etc.) carry their inner type
+    // under `innerType` (or `getter` for lazy — handled below).
+    const innerType = getProperty(def, "innerType");
+    if (isObject(innerType)) {
+        screenPreConversionWalk(
+            innerType,
+            parentPointer,
+            depth + 1,
+            false,
+            visited,
+            diagnostics,
+            recordRejection
+        );
+    }
+
+    // Record-shaped schemas: `keyType` / `valueType`.
+    const valueType = getProperty(def, "valueType");
+    if (isObject(valueType)) {
+        screenPreConversionWalk(
+            valueType,
+            appendPointer(parentPointer, "additionalProperties"),
+            depth + 1,
+            false,
+            visited,
+            diagnostics,
+            recordRejection
+        );
+    }
+
+    // Lazy: invoke the getter once to materialise the inner schema.
+    // {@link safeCallNoArgs} swallows construction errors — see its
+    // JSDoc for the rationale.
+    const inner = safeCallNoArgs(getProperty(def, "getter"));
+    if (isObject(inner)) {
+        screenPreConversionWalk(
+            inner,
+            parentPointer,
+            depth + 1,
+            false,
+            visited,
+            diagnostics,
+            recordRejection
+        );
     }
 }
 
 /**
- * True when `input` is a `z.codec(...)` instance. Detection looks for the
- * `$ZodCodec` entry in `_zod.traits` — the same marker `z.toJSONSchema`'s
- * own `isTransforming` helper uses to distinguish codecs from generic
- * pipes.
+ * Format an empty pointer as `<root>` so error messages do not contain
+ * a stray bare `""`. Non-empty pointers are returned verbatim.
  */
-function isCodecSchema(input: unknown): boolean {
-    const zod = getProperty(input, "_zod");
-    if (!isObject(zod)) return false;
+function formatPointer(pointer: string): string {
+    return pointer === "" ? "<root>" : pointer;
+}
+
+/**
+ * True when a Zod node's `_zod.traits` set contains the named marker.
+ * Returns false when traits is absent or not a Set — Zod always
+ * populates it on real schemas, so the missing-Set case is treated as
+ * "marker not present".
+ */
+function hasTrait(zod: Record<string, unknown>, traitName: string): boolean {
     const traits = zod.traits;
-    if (traits instanceof Set) return traits.has("$ZodCodec");
+    if (traits instanceof Set) return traits.has(traitName);
     return false;
+}
+
+/**
+ * Type guard narrowing `unknown` to a zero-argument function returning
+ * `unknown`. The narrowing is genuinely structural: `typeof === "function"`
+ * at runtime is exactly the membership test we want, and Zod has no
+ * way to make a getter "have the wrong arity" without breaking its own
+ * lazy implementation. Surfacing the narrowing through a guard means
+ * the call site can invoke `fn()` without an `as` assertion and the
+ * boundary lives in one named, documented location.
+ */
+function isNoArgFunction(value: unknown): value is () => unknown {
+    return typeof value === "function";
+}
+
+/**
+ * Invoke a value as a zero-argument function safely, returning whatever
+ * the function returns or `undefined` if it throws or is not callable.
+ * Centralises the lazy-schema getter invocation that both
+ * {@link containsNestedZod3Inner} and {@link screenPreConversionDescend}
+ * need; the throw is swallowed because the absence of a materialisable
+ * inner is not a screening concern — downstream `z.toJSONSchema` will
+ * surface any genuine construction failure with its own message.
+ */
+function safeCallNoArgs(candidate: unknown): unknown {
+    if (!isNoArgFunction(candidate)) return undefined;
+    try {
+        return candidate();
+    } catch {
+        return undefined;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -567,10 +953,27 @@ const CLASSIFIER_RULES: readonly ClassifierRule[] = [
             // The captured group contains everything after the colon. Trim
             // and keep the first whitespace-delimited token so additional
             // context appended in future Zod versions does not bleed into
-            // the zodType field.
-            const trailing = match[1]?.trim() ?? "";
+            // the zodType field. A missing capture (`undefined`) means Zod
+            // has reworded the message in a way the anchored regex cannot
+            // express — surface that explicitly via
+            // {@link describeUnparsableZodWording} instead of substituting
+            // an empty string and silently classifying the type as unknown.
+            const trailing = match[1];
+            if (trailing === undefined) {
+                return describeUnparsableZodWording(
+                    "Non-representable type prefix matched but no trailing capture",
+                    full,
+                    schema,
+                    cause
+                );
+            }
+            const trimmed = trailing.trim();
+            const firstToken =
+                trimmed.length > 0 ? trimmed.split(/\s+/)[0] : undefined;
             const typeName =
-                trailing.length > 0 ? trailing.split(/\s+/)[0] : undefined;
+                firstToken !== undefined && firstToken.length > 0
+                    ? firstToken
+                    : undefined;
             return new SchemaNormalisationError(
                 `Zod encountered a schema kind${typeName !== undefined ? ` "${typeName}"` : ""} ` +
                     `with no JSON Schema processor registered. ` +
@@ -588,10 +991,30 @@ const CLASSIFIER_RULES: readonly ClassifierRule[] = [
         prefix: "Cycle detected: ",
         kind: "zod-cycle-detected",
         build: (match, cause, schema, full) => {
-            const trailing = match[1] ?? "";
             // Path is the first whitespace-delimited token (the JSON Pointer
             // up to the trailing newline that Zod inserts before the advice).
-            const path = trailing.split(/\s+/)[0] ?? "";
+            // A missing capture or missing first token means the Zod cycle
+            // wording has changed and our regex can no longer locate the
+            // pointer; surface that as a structured wording-regression
+            // failure rather than silently rendering "at " with no path.
+            const trailing = match[1];
+            if (trailing === undefined) {
+                return describeUnparsableZodWording(
+                    "Cycle detected prefix matched but no trailing capture",
+                    full,
+                    schema,
+                    cause
+                );
+            }
+            const path = trailing.split(/\s+/)[0];
+            if (path === undefined || path.length === 0) {
+                return describeUnparsableZodWording(
+                    "Cycle detected message contained no pointer token",
+                    full,
+                    schema,
+                    cause
+                );
+            }
             return new SchemaNormalisationError(
                 `Zod detected a cycle in the schema graph at ${path}. ` +
                     `schema-components calls z.toJSONSchema with { cycles: "ref" } ` +
@@ -611,10 +1034,29 @@ const CLASSIFIER_RULES: readonly ClassifierRule[] = [
         prefix: 'Duplicate schema id "',
         kind: "zod-duplicate-id",
         build: (match, cause, schema, full) => {
-            const trailing = match[1] ?? "";
             // The id is delimited by the closing double-quote that follows.
+            // A missing capture or missing closing quote means the duplicate-id
+            // wording has shifted and the id can no longer be located —
+            // structured failure rather than silently rendering `""`.
+            const trailing = match[1];
+            if (trailing === undefined) {
+                return describeUnparsableZodWording(
+                    "Duplicate schema id prefix matched but no trailing capture",
+                    full,
+                    schema,
+                    cause
+                );
+            }
             const closing = trailing.indexOf('"');
-            const id = closing === -1 ? trailing : trailing.slice(0, closing);
+            if (closing === -1) {
+                return describeUnparsableZodWording(
+                    "Duplicate schema id message had no closing quote",
+                    full,
+                    schema,
+                    cause
+                );
+            }
+            const id = trailing.slice(0, closing);
             return new SchemaNormalisationError(
                 `Two different Zod schemas share the same id "${id}". ` +
                     `JSON Schema requires distinct ids when multiple schemas are ` +
@@ -671,6 +1113,38 @@ const COMPILED_CLASSIFIER_RULES: readonly {
     rule,
     pattern: anchored(rule.prefix),
 }));
+
+/**
+ * Build a structured `zod-conversion-failed` error for the case where a
+ * classifier rule's prefix matched but the trailing capture or follow-on
+ * parsing could not extract the expected payload (cycle pointer,
+ * duplicate id, non-representable type name, ...).
+ *
+ * This replaces the previous pattern of substituting an empty string
+ * fallback — `match[1] ?? ""` would silently produce error messages like
+ * `"Zod detected a cycle in the schema graph at ."` whenever Zod's
+ * wording drifted, hiding the regression behind a misleading message.
+ * Raising a wording-regression error instead surfaces the drift loudly
+ * so the classifier rule (and its contract test) can be repaired.
+ */
+function describeUnparsableZodWording(
+    reason: string,
+    fullMessage: string,
+    schema: unknown,
+    cause: unknown
+): SchemaNormalisationError {
+    return new SchemaNormalisationError(
+        `Zod error matched a classifier prefix but the trailing message ` +
+            `could not be parsed (${reason}). This usually means Zod has ` +
+            `reworded the error since the classifier was last updated — ` +
+            `the matching rule in adapter.ts CLASSIFIER_RULES needs to be ` +
+            `revised to track the new wording. Original message: ${fullMessage}`,
+        schema,
+        "zod-conversion-failed",
+        undefined,
+        cause
+    );
+}
 
 /**
  * Maximum recursion depth for {@link containsNestedZod3}. Reuses the
@@ -748,8 +1222,25 @@ function containsNestedZod3Inner(
     // live under `_zod.def`; walking the other `_zod.*` members would
     // descend into traits Sets, parser closures, and back-pointers that
     // never contain Zod 3 schemas. Recurse only into `_zod.def`.
+    //
+    // Lazy schemas hide the inner schema behind a getter function
+    // (`_zod.def = { type: "lazy", getter: () => innerSchema }`). The
+    // generic `Object.keys` walk below would never reach through the
+    // function, so a Zod 3 schema returned by the getter would slip
+    // past the detector. Invoke the getter once here — with a
+    // try/catch in case the user code throws on construct — and feed
+    // the materialised inner schema through the recursion. Depth is
+    // bumped so a self-referential lazy chain still hits the
+    // `MAX_REF_DEPTH` cap.
     if (isObject(zod) && isObject(zod.def)) {
-        return containsNestedZod3Inner(zod.def, visited, depth + 1);
+        const def4 = zod.def;
+        if (def4.type === "lazy") {
+            const inner = safeCallNoArgs(def4.getter);
+            if (containsNestedZod3Inner(inner, visited, depth + 1)) {
+                return true;
+            }
+        }
+        return containsNestedZod3Inner(def4, visited, depth + 1);
     }
 
     // Non-Zod nodes — walk every own key. This branch handles plain
@@ -870,18 +1361,28 @@ export function normaliseSchema(
         case "zod3":
             result = normaliseZod3(input);
             break;
-        case "unsupported-schema-lib":
+        case "unsupported-schema-lib": {
+            // Surface the vendor name when the input self-identifies via
+            // the Standard Schema `~standard.vendor` field. Without this,
+            // valibot / arktype / etc. schemas dropped through with a
+            // generic message that gave the consumer no clue which
+            // library produced the input.
+            const vendor = extractStandardSchemaVendor(input);
+            const detectedVia =
+                vendor !== undefined
+                    ? `it self-identifies as the Standard Schema implementation "${vendor}"`
+                    : "it exposes `parse` and `safeParse` but carries no Zod 4 " +
+                      "(`_zod`) or Zod 3 (`_def`) marker";
             throw new SchemaNormalisationError(
-                "Input looks like a schema from a non-Zod library — it exposes " +
-                    "`parse` and `safeParse` but carries no Zod 4 (`_zod`) or " +
-                    "Zod 3 (`_def`) marker. schema-components requires a Zod 4 " +
-                    "schema. Convert the schema with the equivalent Zod 4 builder, " +
-                    "or feed schema-components a JSON Schema / OpenAPI document " +
-                    "instead. See the Zod 4 contract at https://zod.dev/v4 or " +
-                    "run: pnpm add zod@^4",
+                `Input looks like a schema from a non-Zod library — ${detectedVia}. ` +
+                    "schema-components requires a Zod 4 schema. Convert the schema " +
+                    "with the equivalent Zod 4 builder, or feed schema-components a " +
+                    "JSON Schema / OpenAPI document instead. See the Zod 4 contract " +
+                    "at https://zod.dev/v4 or run: pnpm add zod@^4",
                 input,
                 "unsupported-schema"
             );
+        }
         case "openapi":
             if (!isObject(input)) {
                 throw new SchemaNormalisationError(
@@ -952,9 +1453,11 @@ function normaliseZod4(
     // schema to `z.toJSONSchema`. Some types (e.g. `z.promise(T)`) are
     // silently unwrapped by Zod's processors — the output would lose the
     // wrapping without any error fired, leaving consumers with a
-    // shape-mismatched schema. Pre-conversion classification surfaces the
-    // mismatch loudly. See `screenPreConversion` JSDoc.
-    screenPreConversion(input, def, diagnostics);
+    // shape-mismatched schema. Pre-conversion classification surfaces
+    // the mismatch loudly. The screen walks the entire tree so nested
+    // occurrences (`z.object({ p: z.promise(...) })`) are caught too;
+    // see `screenPreConversion` JSDoc for the full taxonomy.
+    screenPreConversion(input, diagnostics);
 
     // Call toJSONSchema with the validated schema.
     // callToJsonSchema classifies any thrown exception into a
