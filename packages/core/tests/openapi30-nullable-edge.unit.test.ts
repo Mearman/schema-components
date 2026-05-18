@@ -12,34 +12,41 @@ import { normaliseOpenApi30Discriminator } from "../src/core/openapi30.ts";
 import { assertDefined } from "./helpers.ts";
 
 describe("nullable + enum", () => {
-    it("appends null to the enum array", () => {
+    it("wraps the enum in anyOf [enum, null] without duplicating null", () => {
         const result = normaliseOpenApi30Node({
             type: "string",
             enum: ["a", "b", "c"],
             nullable: true,
         });
-        // result is wrapped in anyOf [wrapper, { type: null }]; the
-        // wrapper must carry the extended enum.
+        // Route the nullability through the canonical `anyOf [T, null]`
+        // shape (the walker recognises this and marks the field
+        // `isNullable: true`). The wrapper enum must NOT also include
+        // `null` — that produced the historic duplicate-null branch.
         const anyOf = result.anyOf as Record<string, unknown>[];
         expect(anyOf).toBeDefined();
+        expect(anyOf.length).toBe(2);
         const wrapper = assertDefined(anyOf[0], "first anyOf entry");
         const wrapperEnum = wrapper.enum as unknown[];
-        expect(wrapperEnum).toContain(null);
-        expect(wrapperEnum.length).toBe(4);
+        expect(wrapperEnum).not.toContain(null);
+        expect(wrapperEnum.length).toBe(3);
+        expect(anyOf[1]).toStrictEqual({ type: "null" });
     });
 
-    it("does not double-add null to an enum that already contains null", () => {
+    it("short-circuits without an anyOf wrap when the enum already declares null", () => {
         const result = normaliseOpenApi30Node({
             type: "string",
             enum: ["a", null, "b"],
             nullable: true,
         });
-        const anyOf = result.anyOf as Record<string, unknown>[];
-        const wrapper = assertDefined(anyOf[0], "first anyOf entry");
-        const wrapperEnum = wrapper.enum as unknown[];
-        // Original three entries kept; null appears exactly once.
-        expect(wrapperEnum.filter((v) => v === null).length).toBe(1);
-        expect(wrapperEnum.length).toBe(3);
+        // The enum already covers `null`, so an `anyOf [wrapper, null]`
+        // wrap would duplicate the null branch. Strip `nullable` and
+        // return the node unchanged — the walker reads the existing
+        // null directly from the enum entries.
+        expect(result.anyOf).toBeUndefined();
+        expect(result.nullable).toBeUndefined();
+        const resultEnum = result.enum as unknown[];
+        expect(resultEnum.filter((v) => v === null).length).toBe(1);
+        expect(resultEnum.length).toBe(3);
     });
 });
 
@@ -57,6 +64,26 @@ describe("nullable + $ref", () => {
             $ref: "#/components/schemas/User",
         });
         expect(anyOf[1]).toStrictEqual({ type: "null" });
+    });
+
+    it("lifts documentary siblings onto the anyOf wrapper", () => {
+        const result = normaliseOpenApi30Node({
+            $ref: "#/components/schemas/User",
+            nullable: true,
+            description: "Nullable user reference",
+            title: "OptionalUser",
+            deprecated: true,
+        });
+        // Reference Object retains only `$ref`; the wrapper carries the
+        // documentary siblings (description, title, deprecated, etc.).
+        const anyOf = result.anyOf as Record<string, unknown>[];
+        expect(anyOf[0]).toStrictEqual({
+            $ref: "#/components/schemas/User",
+        });
+        expect(anyOf[1]).toStrictEqual({ type: "null" });
+        expect(result.description).toBe("Nullable user reference");
+        expect(result.title).toBe("OptionalUser");
+        expect(result.deprecated).toBe(true);
     });
 });
 

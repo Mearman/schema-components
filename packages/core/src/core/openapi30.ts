@@ -61,13 +61,9 @@ export function liftExampleToExamples(
 export function normaliseOpenApi30Node(
     node: Record<string, unknown>
 ): Record<string, unknown> {
-    // Normalise example → examples (OpenAPI 3.0 uses singular, 3.1 uses array)
-    if ("example" in node && !("examples" in node)) {
-        node.examples = [node.example];
-        delete node.example;
-    } else if ("example" in node) {
-        delete node.example;
-    }
+    // Schema Objects use Draft 2020-12 `examples` array shape — delegate
+    // to the canonical lift helper so all sites share one implementation.
+    liftExampleToExamples(node, "array");
 
     if (node.nullable !== true) {
         // nullable: false or absent — just strip the keyword if present
@@ -84,34 +80,66 @@ export function normaliseOpenApi30Node(
     // siblings of $ref are usually ignored), but in practice authors
     // mean "this ref OR null". Wrap explicitly in anyOf so the
     // nullability survives normalisation instead of being silently
-    // discarded. The wrapper carries only `$ref` so the reference
-    // remains a Reference Object per the spec.
+    // discarded. The reference itself MUST remain a pure Reference
+    // Object (only `$ref`) per the spec, so we move the ref into the
+    // wrapped option and lift documentary siblings (description,
+    // summary, title, deprecated, readOnly, writeOnly, examples) onto
+    // the outer wrapper. Without this lift those siblings were
+    // silently dropped, breaking authoring intent for "nullable
+    // pointer to a referenced shape".
     if (typeof node.$ref === "string") {
         const ref = node.$ref;
-        return { anyOf: [{ $ref: ref }, nullOption] };
+        const wrapper: Record<string, unknown> = {
+            anyOf: [{ $ref: ref }, nullOption],
+        };
+        for (const key of REF_DOC_SIBLINGS) {
+            if (key in node) wrapper[key] = node[key];
+        }
+        return wrapper;
     }
 
-    // `nullable + enum`: per the OAS 3.0 spec, nullable: true with an
-    // explicit enum implicitly extends the enum to include `null`.
-    // Append `null` to the enum array before normalising so the walker
-    // sees a single enum carrying every valid value.
-    if (Array.isArray(node.enum) && !node.enum.includes(null)) {
-        const existingEnum: unknown[] = node.enum;
-        node.enum = [...existingEnum, null];
+    // `nullable + enum`: per the OAS 3.0 spec, `nullable: true` with an
+    // explicit enum implicitly extends the enum to include `null`. The
+    // walker recognises `anyOf [T, null]` as nullable T (see
+    // `walker.ts` — `normaliseAnyOf`), so we route the nullability
+    // through the same anyOf wrap used by every other branch below
+    // rather than appending `null` to the enum AND adding a
+    // `{ type: "null" }` sibling. The previous transform did both,
+    // producing a duplicate null branch that every consumer had to
+    // detect for themselves. If the enum already declares `null`
+    // explicitly the wrap is unnecessary; strip `nullable` and return
+    // the node unchanged.
+    if (Array.isArray(node.enum)) {
+        if (node.enum.includes(null)) {
+            delete node.nullable;
+            return node;
+        }
+        // Fall through to the simple `anyOf [self, null]` wrap below
+        // so the walker observes the canonical nullable shape.
     }
 
-    // If the node already has anyOf, append null option
+    // If the node already has anyOf, append null option (dedup if the
+    // composite already covers `null`)
     if (Array.isArray(node.anyOf)) {
         const existing: unknown[] = node.anyOf;
-        node.anyOf = [...existing, nullOption];
+        node.anyOf = compositeAlreadyAllowsNull(existing)
+            ? existing
+            : [...existing, nullOption];
         delete node.nullable;
         return node;
     }
 
     // If the node already has oneOf, convert to anyOf and append null
+    // (dedup if the composite already covers `null`). `oneOf` semantics
+    // differ from `anyOf`, but for nullable expansion the union is
+    // exclusive on null vs. the other branches by construction, so the
+    // anyOf representation is equivalent and matches the walker's
+    // expectations.
     if (Array.isArray(node.oneOf)) {
         const existing: unknown[] = node.oneOf;
-        node.anyOf = [...existing, nullOption];
+        node.anyOf = compositeAlreadyAllowsNull(existing)
+            ? existing
+            : [...existing, nullOption];
         delete node.oneOf;
         delete node.nullable;
         return node;
@@ -137,6 +165,45 @@ export function normaliseOpenApi30Node(
 
     // Return a new node with only anyOf — discards all previous keys
     return { anyOf: [wrapper, nullOption] };
+}
+
+/**
+ * Documentary keys that may legitimately sit alongside a `$ref` in an
+ * OpenAPI 3.0 Schema Object. They carry author-facing metadata, not
+ * validation semantics, so lifting them onto the `anyOf` wrapper
+ * preserves authorial intent without violating the spec rule that a
+ * Reference Object itself only carry `$ref`.
+ */
+const REF_DOC_SIBLINGS = [
+    "description",
+    "summary",
+    "title",
+    "deprecated",
+    "readOnly",
+    "writeOnly",
+    "example",
+    "examples",
+    "default",
+] as const;
+
+/**
+ * Returns `true` when at least one option in a composite (`anyOf` /
+ * `oneOf`) already permits `null` — either a literal `{ type: "null" }`
+ * branch or an `enum` containing `null`. Used to dedup the synthetic
+ * null option appended when normalising `nullable: true`.
+ */
+function compositeAlreadyAllowsNull(options: readonly unknown[]): boolean {
+    for (const option of options) {
+        if (!isObject(option)) continue;
+        if (option.type === "null") return true;
+        if (Array.isArray(option.type) && option.type.includes("null")) {
+            return true;
+        }
+        if (Array.isArray(option.enum) && option.enum.includes(null)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -188,7 +255,7 @@ export function normaliseOpenApi30Discriminator(
         }
 
         const props = isObject(option.properties)
-            ? { ...option.properties }
+            ? option.properties
             : undefined;
         const discProp = props?.[propertyName];
 
@@ -226,7 +293,16 @@ export function normaliseOpenApi30Discriminator(
         }
 
         if (constValue !== undefined) {
-            const normalisedProps = props ?? {};
+            // Build a fresh properties map rather than mutating the
+            // upstream clone: the previous `props ?? {}` pattern relied
+            // on `props` already being a shallow clone of
+            // `option.properties` (created above as
+            // `{ ...option.properties }`), but the intent was opaque to
+            // anyone reading the line in isolation. Spreading `props`
+            // here makes the cloning explicit at the assignment site
+            // and keeps `option.properties` untouched in the source
+            // document.
+            const normalisedProps: Record<string, unknown> = { ...props };
             normalisedProps[propertyName] = {
                 ...(isObject(discProp) ? discProp : {}),
                 const: constValue,
@@ -922,21 +998,11 @@ function normaliseParameter(
         result.content = normaliseContentMap(content, normaliseSchema);
     }
 
-    // Normalise example → examples on the parameter itself.
-    //
-    // OpenAPI 3.0/3.1 define a Parameter Object's `examples` as
-    // `Map[string, Example Object | Reference Object]` where each value
-    // carries `summary`/`description`/`value`/`externalValue`. The
-    // historic transform produced `[example]` (an array), which is not
-    // a valid Examples Map. Wrap under a synthetic `default` key so the
-    // resulting structure is a one-entry map of one Example Object —
-    // mirroring how the Media Type Object's `examples` is normalised.
-    if ("example" in result && !("examples" in result)) {
-        result.examples = { default: { value: result.example } };
-        delete result.example;
-    } else if ("example" in result) {
-        delete result.example;
-    }
+    // Parameter Objects use the "Examples Map" shape — delegate to the
+    // canonical lift helper so the spec-correct
+    // `{ default: { value: example } }` wrap is produced from one
+    // implementation.
+    liftExampleToExamples(result, "map");
     return result;
 }
 
@@ -1005,14 +1071,9 @@ function normaliseHeader(
         result.content = normaliseContentMap(content, normaliseSchema);
     }
 
-    // Normalise example → examples on the header itself — same Examples
-    // Map shape rule as the Parameter Object path above.
-    if ("example" in result && !("examples" in result)) {
-        result.examples = { default: { value: result.example } };
-        delete result.example;
-    } else if ("example" in result) {
-        delete result.example;
-    }
+    // Header Objects follow the same Examples Map shape as Parameter
+    // Objects above — delegate to the canonical lift helper.
+    liftExampleToExamples(result, "map");
 
     return result;
 }
@@ -1063,23 +1124,10 @@ function normaliseContentMap(
                 isObject(enc) ? normaliseEncoding(enc, normaliseSchema) : enc
             );
         }
-        // Normalise example → examples on the media type object.
-        //
-        // OpenAPI 3.0 defines Media Type Object's `examples` as
-        // `Map[string, Example Object | Reference Object]`, where each
-        // Example Object carries `summary`, `description`, `value`,
-        // `externalValue`. A bare `{ value: example }` would be parsed as
-        // a single Example Object instead of a map of them — incorrect per
-        // the spec. Wrap the value under a synthetic `default` key so the
-        // resulting structure is a valid Map of one Example Object.
-        if ("example" in normalised && !("examples" in normalised)) {
-            normalised.examples = {
-                default: { value: normalised.example },
-            };
-            delete normalised.example;
-        } else if ("example" in normalised) {
-            delete normalised.example;
-        }
+        // Media Type Objects follow the same Examples Map shape as
+        // Parameter and Header Objects — delegate to the canonical lift
+        // helper so the wrapping logic lives in one place.
+        liftExampleToExamples(normalised, "map");
         result[mediaType] = normalised;
     }
     return result;
