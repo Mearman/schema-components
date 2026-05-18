@@ -141,21 +141,45 @@ export function normaliseSwagger2Document(
             const resolved = resolution.param;
             const location = resolved.in;
             if (location === "body") {
+                const paramPointer = appendPointer(
+                    appendPointer("", "parameters"),
+                    name
+                );
+                let bodyContentTypes: unknown[];
                 if (consumesResolution.source === "synthesised") {
+                    bodyContentTypes = globalConsumes;
                     emitDiagnostic(diagnostics, {
                         code: "swagger-missing-consumes",
                         message:
                             "Global body parameter declared but document-level `consumes` is absent; defaulting to application/json",
-                        pointer: appendPointer(
-                            appendPointer("", "parameters"),
-                            name
-                        ),
+                        pointer: paramPointer,
                         detail: { level: "document", name },
                     });
+                } else if (globalConsumes.length === 0) {
+                    // Explicit empty `consumes` at the document level.
+                    // Preserve the empty content map and surface the
+                    // intentional clear under a distinct diagnostic
+                    // shape (reusing `swagger-missing-consumes` so
+                    // existing sinks still receive the signal).
+                    bodyContentTypes = [];
+                    emitDiagnostic(diagnostics, {
+                        code: "swagger-missing-consumes",
+                        message:
+                            "Global body parameter declared but document-level `consumes` is an explicit empty array; preserving an empty content map",
+                        pointer: paramPointer,
+                        detail: {
+                            level: "document",
+                            name,
+                            reason: "explicitly-cleared",
+                            source: consumesResolution.source,
+                        },
+                    });
+                } else {
+                    bodyContentTypes = globalConsumes;
                 }
                 requestBodies[name] = buildRequestBody(
                     resolved,
-                    globalConsumes
+                    bodyContentTypes
                 );
             } else if (location === "formData") {
                 // A standalone formData entry under components.parameters is
@@ -511,20 +535,49 @@ function normaliseSwaggerOperation(
             // (`multipart/form-data` or `application/x-www-form-urlencoded`),
             // chosen by formDataContentTypes — no diagnostic is needed
             // even when both consumes declarations are absent.
-            const bodyContentTypes = usesFormData
-                ? formDataContentTypes(consumes)
-                : consumes;
-            if (!usesFormData && consumesResolution.source === "synthesised") {
+            const operationPointer = appendPointer(
+                appendPointer(appendPointer("", "paths"), path),
+                method
+            );
+            let bodyContentTypes: unknown[];
+            if (usesFormData) {
+                bodyContentTypes = formDataContentTypes(consumes);
+            } else if (consumesResolution.source === "synthesised") {
+                // Neither level declared `consumes`; honour the historic
+                // application/json fallback but surface the assumption.
+                bodyContentTypes = consumes;
                 emitDiagnostic(diagnostics, {
                     code: "swagger-missing-consumes",
                     message:
                         "Operation declares a body parameter but neither operation-level nor document-level `consumes` is set; defaulting to application/json",
-                    pointer: appendPointer(
-                        appendPointer(appendPointer("", "paths"), path),
-                        method
-                    ),
+                    pointer: operationPointer,
                     detail: { level: "operation", method },
                 });
+            } else if (consumes.length === 0) {
+                // The source document explicitly cleared `consumes`
+                // (operation- or document-level empty array). Preserve
+                // the empty content map rather than inventing
+                // application/json — the silent substitution masked an
+                // intentional clear that downstream consumers need to
+                // see. Reuse `swagger-missing-consumes` with a
+                // `reason: "explicitly-cleared"` detail so existing
+                // sinks still receive the signal under a distinct
+                // diagnostic shape.
+                bodyContentTypes = [];
+                emitDiagnostic(diagnostics, {
+                    code: "swagger-missing-consumes",
+                    message:
+                        "Operation declares a body parameter but `consumes` is an explicit empty array; preserving an empty content map",
+                    pointer: operationPointer,
+                    detail: {
+                        level: "operation",
+                        method,
+                        reason: "explicitly-cleared",
+                        source: consumesResolution.source,
+                    },
+                });
+            } else {
+                bodyContentTypes = consumes;
             }
             result.requestBody = buildRequestBody(bodyParam, bodyContentTypes);
         }
@@ -927,6 +980,13 @@ function buildFormDataBody(
 
 /**
  * Build an OpenAPI 3.x request body from a Swagger 2.0 body parameter.
+ *
+ * `consumes` is taken at face value — the caller is responsible for
+ * deciding whether an absent value should fall back to a default
+ * (and emitting `swagger-missing-consumes`) or be preserved as an
+ * empty content map (an explicit clear). Inventing a default here
+ * would mask the difference and silently override the upstream
+ * resolution.
  */
 function buildRequestBody(
     bodyParam: Record<string, unknown>,
@@ -935,9 +995,7 @@ function buildRequestBody(
     const schema = bodyParam.schema;
     const content: Record<string, unknown> = {};
 
-    // Use consumes content types, falling back to application/json
-    const contentTypes = consumes.length > 0 ? consumes : ["application/json"];
-    for (const ct of contentTypes) {
+    for (const ct of consumes) {
         if (typeof ct === "string") {
             content[ct] = isObject(schema) ? { schema } : {};
         }
