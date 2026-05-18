@@ -49,6 +49,14 @@ const meta = {
     title: "Extensibility/Widgets",
     component: SchemaComponent,
     tags: ["widget", "editable"],
+    parameters: {
+        apiSymbols: [
+            "SchemaComponent",
+            "SchemaProvider",
+            "registerWidget",
+            "WidgetMap",
+        ],
+    },
 } satisfies Meta<typeof SchemaComponent>;
 export default meta;
 type Story = StoryObj<typeof meta>;

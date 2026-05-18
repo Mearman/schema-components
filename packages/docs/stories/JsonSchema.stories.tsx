@@ -40,6 +40,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "Getting Started/JSON Schema",
     component: SchemaComponent,
     tags: ["json-schema", "editable", "readonly"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

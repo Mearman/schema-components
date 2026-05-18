@@ -49,6 +49,9 @@ const meta: Meta<EditabilityArgs> = {
     title: "Editability/Overview",
     component: EditabilityDemo,
     tags: ["editable", "readonly", "writeonly"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

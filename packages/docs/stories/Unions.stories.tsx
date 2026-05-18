@@ -51,6 +51,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "Extensibility/Unions",
     component: SchemaComponent,
     tags: ["union", "editable", "zod"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

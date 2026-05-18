@@ -61,6 +61,9 @@ const meta = {
     title: "Getting Started/Kitchen Sink",
     component: KitchenSink,
     tags: ["editable", "readonly", "union"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
 } satisfies Meta<typeof KitchenSink>;
 
 export default meta;

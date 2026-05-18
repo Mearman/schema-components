@@ -107,6 +107,9 @@ const meta: Meta<typeof ValidationDemo> = {
     title: "Validation/Overview",
     component: ValidationDemo,
     tags: ["validation", "editable", "zod"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         initialUsername: {
             control: "text",

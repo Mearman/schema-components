@@ -50,6 +50,9 @@ const meta: Meta<typeof EventForm> = {
     title: "Inputs/Date & Time",
     component: EventForm,
     tags: ["datetime", "editable"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

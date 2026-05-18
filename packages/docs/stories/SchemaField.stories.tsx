@@ -58,6 +58,9 @@ const meta: Meta<typeof ProfileForm> = {
     title: "Objects & Layout/SchemaField",
     component: ProfileForm,
     tags: ["editable", "zod"],
+    parameters: {
+        apiSymbols: ["SchemaField"],
+    },
 };
 
 export default meta;

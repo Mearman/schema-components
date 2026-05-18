@@ -20,6 +20,9 @@ const meta: Meta<typeof SchemaComponent> = {
     title: "Getting Started/Introduction",
     component: SchemaComponent,
     tags: ["autodocs", "editable", "readonly", "zod"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

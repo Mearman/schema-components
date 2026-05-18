@@ -47,6 +47,9 @@ const meta: Meta<typeof TreeDemo> = {
     title: "Objects & Layout/Recursive",
     component: TreeDemo,
     tags: ["recursive", "editable", "zod"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

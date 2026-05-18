@@ -31,6 +31,9 @@ const meta = {
     title: "Objects & Layout/Visibility & Ordering",
     component: SchemaComponent,
     tags: ["editable", "readonly", "zod"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
 } satisfies Meta<typeof SchemaComponent>;
 export default meta;
 type Story = StoryObj<typeof meta>;

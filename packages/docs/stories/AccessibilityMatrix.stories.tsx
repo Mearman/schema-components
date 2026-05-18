@@ -92,6 +92,9 @@ const meta = {
     title: "Accessibility/Matrix",
     component: AccessibilityMatrix,
     tags: ["accessibility", "editable", "readonly"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
 } satisfies Meta<typeof AccessibilityMatrix>;
 
 export default meta;

@@ -39,6 +39,9 @@ const meta: Meta<typeof UploadForm> = {
     title: "Inputs/File Upload",
     component: UploadForm,
     tags: ["file", "editable"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
     argTypes: {
         readOnly: {
             control: "boolean",

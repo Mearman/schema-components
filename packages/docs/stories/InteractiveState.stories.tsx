@@ -73,6 +73,9 @@ function ThemedLiveState() {
 const meta: Meta = {
     title: "Getting Started/Interactive State",
     tags: ["editable", "interactive"],
+    parameters: {
+        apiSymbols: ["SchemaComponent"],
+    },
 };
 
 export default meta;
