@@ -376,53 +376,71 @@ function extractParameterList(
 }
 
 /**
- * Resolve a Parameter Object `$ref` chain.
- *
- * OpenAPI 3.x permits a Parameter Object to be replaced by a Reference
- * Object whose `$ref` itself points at another Reference Object — chains
- * of arbitrary length are valid. The previous single-hop implementation
- * silently rendered nothing for chains of length > 1. `resolveRefChain`
- * centralises cycle and depth-cap protection.
+ * Resolve a Reference Object chain on a non-Path-Item OpenAPI node
+ * (Parameter, Header, Link, etc.). Single-hop resolution is insufficient
+ * because OAS 3.x permits chains of Reference Objects of arbitrary
+ * length — a Reference Object whose target is itself a Reference Object
+ * is legal. `resolveRefChain` centralises cycle and depth-cap protection.
  *
  * Cycles and over-deep chains reuse the existing `cyclic-path-item-ref`
  * and `path-item-ref-too-deep` diagnostic codes with a
- * `detail.kind: "parameter"` discriminator. There is no dedicated
- * Parameter-Object code in the current `DiagnosticCode` union; consumers
- * filter by `detail.kind` when they care to distinguish the source.
+ * `detail.kind: "<node-kind>"` discriminator (e.g. `"parameter"`,
+ * `"header"`, `"link"`). There is no dedicated code per node kind in the
+ * current `DiagnosticCode` union; consumers filter by `detail.kind` when
+ * they care to distinguish the source.
  *
- * TODO(round7-integration): consider adding dedicated
- * `cyclic-parameter-ref` and `parameter-ref-too-deep` codes to
- * `core/diagnostics.ts` so the kind discriminator on `detail` is not
- * needed. The existing Swagger 2.0 path already uses a dedicated
- * `swagger-cyclic-parameter-ref` for the equivalent failure mode.
+ * TODO(round7-integration): consider adding dedicated `cyclic-*-ref` /
+ * `*-ref-too-deep` codes per node kind to `core/diagnostics.ts` so the
+ * kind discriminator on `detail` is not needed. The existing Swagger
+ * 2.0 path already uses a dedicated `swagger-cyclic-parameter-ref` for
+ * the equivalent failure mode.
  */
-function resolveParam(
+function resolveReferenceObjectChain(
     doc: JsonObject,
-    param: JsonObject,
+    node: JsonObject,
+    kind: "parameter" | "header" | "link",
     diagnostics: DiagnosticsOptions | undefined
 ): JsonObject | undefined {
-    return resolveRefChain<JsonObject>(param, {
+    const kindLabel =
+        kind === "parameter"
+            ? "Parameter Object"
+            : kind === "header"
+              ? "Header Object"
+              : "Link Object";
+    return resolveRefChain<JsonObject>(node, {
         lookup: (ref) =>
             ref.startsWith("#/") ? resolveRefInDoc(doc, ref) : undefined,
         onCycle: (ref) => {
             emitDiagnostic(diagnostics, {
                 code: "cyclic-path-item-ref",
-                message: `Cyclic Parameter Object $ref "${ref}"`,
+                message: `Cyclic ${kindLabel} $ref "${ref}"`,
                 pointer: ref,
-                detail: { ref, kind: "parameter" },
+                detail: { ref, kind },
             });
             return undefined;
         },
         onDepthExceeded: (ref) => {
             emitDiagnostic(diagnostics, {
                 code: "path-item-ref-too-deep",
-                message: `Parameter Object $ref chain exceeded the hop cap starting from "${ref}"`,
+                message: `${kindLabel} $ref chain exceeded the hop cap starting from "${ref}"`,
                 pointer: ref,
-                detail: { ref, kind: "parameter" },
+                detail: { ref, kind },
             });
             return undefined;
         },
     });
+}
+
+/**
+ * Resolve a Parameter Object `$ref` chain. See
+ * `resolveReferenceObjectChain` for the resolution contract.
+ */
+function resolveParam(
+    doc: JsonObject,
+    param: JsonObject,
+    diagnostics: DiagnosticsOptions | undefined
+): JsonObject | undefined {
+    return resolveReferenceObjectChain(doc, param, "parameter", diagnostics);
 }
 
 /**
@@ -484,7 +502,8 @@ export function getRequestBody(
 export function getResponses(
     parsed: OpenApiDocument,
     path: string,
-    method: string
+    method: string,
+    diagnostics?: DiagnosticsOptions
 ): ResponseInfo[] {
     const pathItem = lookupPathItem(parsed, path);
     const operation = getProperty(pathItem, method);
@@ -498,7 +517,9 @@ export function getResponses(
         // OAS 3.0/3.1 allow `responses["200"]: { $ref: "#/components/responses/X" }`.
         // Resolve a single hop against the document root before reading
         // `content`/`description`/`headers`, otherwise the referenced
-        // response's fields would be silently ignored.
+        // response's fields would be silently ignored. On OAS 3.1,
+        // `resolveWrapperRef` also merges Reference Object
+        // `summary`/`description` siblings on top of the target.
         const response = resolveWrapperRef(parsed.doc, responseRaw);
         if (response === undefined) continue;
 
@@ -507,7 +528,7 @@ export function getResponses(
         const schema = isObject(content)
             ? extractSchemaFromContent(content)
             : undefined;
-        const headers = getResponseHeaders(response, parsed.doc);
+        const headers = getResponseHeaders(response, parsed.doc, diagnostics);
 
         result.push({
             statusCode,
@@ -762,7 +783,8 @@ export function getSecuritySchemes(
 
 export function getResponseHeaders(
     response: JsonObject,
-    doc?: JsonObject
+    doc?: JsonObject,
+    diagnostics?: DiagnosticsOptions
 ): Map<string, HeaderInfo> {
     const result = new Map<string, HeaderInfo>();
     const headers = getProperty(response, "headers");
@@ -773,14 +795,19 @@ export function getResponseHeaders(
         if (!isObject(headerObj)) continue;
 
         // Resolve $ref on the header against the document root —
-        // e.g. `#/components/headers/MyHeader`. Without the document we
-        // cannot resolve the pointer, so fall back to the inline shape.
-        const ref = getString(headerObj, "$ref");
-        const resolved =
-            ref !== undefined && doc !== undefined
-                ? resolveRefInDoc(doc, ref)
-                : undefined;
-        const header = resolved ?? headerObj;
+        // e.g. `#/components/headers/MyHeader`. Reference Objects may
+        // chain through other Reference Objects; use the multi-hop
+        // resolver. Without the document we cannot resolve the pointer,
+        // so fall back to the inline shape.
+        const header =
+            doc !== undefined
+                ? (resolveReferenceObjectChain(
+                      doc,
+                      headerObj,
+                      "header",
+                      diagnostics
+                  ) ?? headerObj)
+                : headerObj;
         const schemaProp = getProperty(header, "schema");
 
         result.set(name, {
@@ -920,7 +947,8 @@ export function getLinks(
     parsed: OpenApiDocument,
     path: string,
     method: string,
-    statusCode: string
+    statusCode: string,
+    diagnostics?: DiagnosticsOptions
 ): LinkInfo[] {
     const pathItem = lookupPathItem(parsed, path);
     const operation = getProperty(pathItem, method);
@@ -935,13 +963,19 @@ export function getLinks(
     for (const [name, linkObj] of Object.entries(links)) {
         if (!isObject(linkObj)) continue;
 
-        // Resolve $ref on the link
-        const ref = getString(linkObj, "$ref");
-        const resolved =
-            ref !== undefined
-                ? (resolveRefInDoc(parsed.doc, ref) ?? linkObj)
-                : linkObj;
-        const link = isObject(resolved) ? resolved : linkObj;
+        // Resolve $ref on the link via the multi-hop Reference Object
+        // resolver — OAS 3.x permits Reference Object chains. On failure
+        // (unresolvable, cyclic, over-deep) fall back to the wrapper so
+        // the entry surfaces with whatever fields the wrapper itself
+        // carries, matching the historical "fall through on resolution
+        // failure" behaviour of every other resolver in this module.
+        const link =
+            resolveReferenceObjectChain(
+                parsed.doc,
+                linkObj,
+                "link",
+                diagnostics
+            ) ?? linkObj;
 
         // Extract parameters map
         const params = getProperty(link, "parameters");
