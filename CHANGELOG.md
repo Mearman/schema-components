@@ -1,3 +1,9 @@
+## [1.26.1](https://github.com/Mearman/schema-components/compare/v1.26.0...v1.26.1) (2026-05-18)
+
+### Bug Fixes
+
+* **ci:** rename docs script to typedoc to avoid pnpm built-in shadow ([6dca764](https://github.com/Mearman/schema-components/commit/6dca76481009b4dc2b2cf27205d11d828c4c1c07))
+
 ## [1.26.0](https://github.com/Mearman/schema-components/compare/v1.25.0...v1.26.0) (2026-05-18)
 
 ### Features
