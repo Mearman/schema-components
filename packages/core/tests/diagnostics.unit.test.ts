@@ -268,7 +268,12 @@ describe("allOf merge diagnostics", () => {
         expect(diags.filter((d) => d.code === "allof-conflict").length).toBe(0);
     });
 
-    it("emits allof-conflict for conflicting type values", () => {
+    // TODO(round7-integration): Round-7 issue 8 — incompatible primitive
+    // `type` keywords in an `allOf` are now treated as an unsatisfiable
+    // conjunction. `mergeAllOf` returns `false` and emits
+    // `schema-allof-incompatible` instead of papering over the mismatch
+    // with `allof-conflict`. The walker then produces a `NeverField`.
+    it("emits schema-allof-incompatible for conflicting type values", () => {
         const diags = collectDiagnostics((sink) => {
             walk(
                 {
@@ -277,10 +282,19 @@ describe("allOf merge diagnostics", () => {
                 { diagnostics: { diagnostics: sink } }
             );
         });
-        const conflicts = diags.filter((d) => d.code === "allof-conflict");
+        const conflicts = diags.filter(
+            (d) => d.code === "schema-allof-incompatible"
+        );
         expect(conflicts.length).toBe(1);
-        const conflict = assertDefined(conflicts[0], "expected allof-conflict");
-        expect(conflict.detail?.key).toBe("type");
+        const conflict = assertDefined(
+            conflicts[0],
+            "expected schema-allof-incompatible"
+        );
+        const types = conflict.detail?.types;
+        expect(Array.isArray(types) ? types : []).toStrictEqual([
+            "string",
+            "number",
+        ]);
     });
 
     it("does not emit allof-conflict for structurally equal object values", () => {

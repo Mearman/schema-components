@@ -31,6 +31,7 @@ import {
     normaliseJsonSchema,
     normaliseOpenApiSchemas,
 } from "../src/core/normalise.ts";
+import { mergeAllOf } from "../src/core/merge.ts";
 import { detectOpenApiVersion } from "../src/core/version.ts";
 import { isObject } from "../src/core/guards.ts";
 import type { Diagnostic } from "../src/core/diagnostics.ts";
@@ -328,6 +329,65 @@ describe("no-$schema 2020-12 path translates tuple-form items defensively", () =
         const out = normaliseJsonSchema(schema, "draft-2020-12");
         expect("prefixItems" in out).toBe(false);
         expect(isObject(out.items)).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 8. allOf with incompatible types (merge.ts)
+// ---------------------------------------------------------------------------
+
+describe("mergeAllOf collapses incompatible type branches to never", () => {
+    it("returns `false` and emits `schema-allof-incompatible` for string ∩ number", () => {
+        const diagnostics: Diagnostic[] = [];
+        const merged = mergeAllOf(
+            [{ type: "string" }, { type: "number" }],
+            { diagnostics: (d) => diagnostics.push(d) },
+            ""
+        );
+        expect(merged).toBe(false);
+        const incompat = diagnostics.find(
+            (d) => d.code === "schema-allof-incompatible"
+        );
+        expect(incompat).toBeDefined();
+    });
+
+    it("treats `integer` ∩ `number` as compatible (integer wins as first write)", () => {
+        const diagnostics: Diagnostic[] = [];
+        const merged = mergeAllOf(
+            [{ type: "integer" }, { type: "number" }],
+            { diagnostics: (d) => diagnostics.push(d) },
+            ""
+        );
+        if (typeof merged === "boolean") {
+            expect.unreachable("integer ∩ number should not collapse");
+            return;
+        }
+        expect(merged.type).toBe("integer");
+        const incompat = diagnostics.find(
+            (d) => d.code === "schema-allof-incompatible"
+        );
+        expect(incompat).toBe(undefined);
+    });
+
+    it("keeps identical `type` keywords without producing the diagnostic", () => {
+        const diagnostics: Diagnostic[] = [];
+        const merged = mergeAllOf(
+            [
+                { type: "string", minLength: 1 },
+                { type: "string", maxLength: 10 },
+            ],
+            { diagnostics: (d) => diagnostics.push(d) },
+            ""
+        );
+        if (typeof merged === "boolean") {
+            expect.unreachable("merge should not collapse on matching types");
+            return;
+        }
+        expect(merged.type).toBe("string");
+        const incompat = diagnostics.find(
+            (d) => d.code === "schema-allof-incompatible"
+        );
+        expect(incompat).toBe(undefined);
     });
 });
 

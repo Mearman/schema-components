@@ -169,6 +169,15 @@ export function mergeRefSiblings(
  * - \`true\` is the always-valid schema and contributes no constraints —
  *   skip silently.
  *
+ * Type compatibility is enforced rather than papered over: two
+ * branches asserting incompatible primitive `type` keywords
+ * (e.g. `string` ∩ `number`) describe an unsatisfiable conjunction.
+ * `mergeAllOf` returns `false` and emits
+ * `schema-allof-incompatible` so the walker produces the same
+ * `NeverField` shape it gives a top-level `false` schema. Pretending
+ * the first type wins silently would silently weaken the constraint
+ * for any consumer that reads the merged result.
+ *
  * Non-boolean, non-object entries (e.g. arrays, numbers) are malformed
  * inputs that cannot represent a schema; skip them as before.
  */
@@ -237,22 +246,24 @@ export function mergeAllOf(
             }
         }
 
-        // Inherit type from first schema that has one
+        // Inherit type from first schema that has one. When two
+        // branches assert different primitive `type` keywords the
+        // intersection is empty — collapse to `false` and surface the
+        // incompatibility rather than silently keeping the first.
         const entryType = getString(entry, "type");
         if (entryType !== undefined) {
             if (!("type" in merged)) {
                 merged.type = entryType;
-            } else if (!deepEqual(merged.type, entryType)) {
+            } else if (!areCompatibleTypes(merged.type, entryType)) {
                 emitDiagnostic(diagnostics, {
-                    code: "allof-conflict",
-                    message: `allOf branches define conflicting values for "type"; keeping the first occurrence and discarding subsequent values`,
+                    code: "schema-allof-incompatible",
+                    message: `allOf branches assert incompatible \`type\` keywords (${describeType(merged.type)} ∩ ${describeType(entryType)}); the conjunction is unsatisfiable`,
                     pointer,
                     detail: {
-                        key: "type",
-                        kept: merged.type,
-                        discarded: entryType,
+                        types: [merged.type, entryType],
                     },
                 });
+                return false;
             }
         }
     }
@@ -265,6 +276,48 @@ export function mergeAllOf(
     }
 
     return merged;
+}
+
+/**
+ * Two `type` keyword values are compatible when their intersection is
+ * non-empty. Identical strings always agree; `"integer"` is a subset
+ * of `"number"` per JSON Schema 2020-12 §6.1.1 so the conjunction
+ * collapses to `"integer"` and is treated as compatible here.
+ * Mismatched primitives (`"string"` ∩ `"number"`, `"boolean"` ∩
+ * `"object"`, etc.) describe an unsatisfiable intersection.
+ *
+ * `kept` carries the running merged value, which may already be an
+ * array form produced by an earlier merge — in that case we conservatively
+ * require deep equality to count as compatible, since narrowing the
+ * intersection of two arbitrary type-array sets is out of scope here.
+ */
+function areCompatibleTypes(kept: unknown, incoming: string): boolean {
+    if (typeof kept === "string") {
+        if (kept === incoming) return true;
+        // `integer` ⊂ `number` either way around.
+        if (
+            (kept === "integer" && incoming === "number") ||
+            (kept === "number" && incoming === "integer")
+        ) {
+            return true;
+        }
+        return false;
+    }
+    // Non-string `type` (e.g. array form, malformed value) — fall back
+    // to structural equality. Anything else is treated as compatible
+    // to avoid false-positive collapses on shapes we do not yet model.
+    return deepEqual(kept, incoming);
+}
+
+/**
+ * Human-readable label for a `type` keyword value used in the
+ * `schema-allof-incompatible` diagnostic message. Strings render
+ * quoted; non-strings (array forms, malformed values) render via
+ * `JSON.stringify` so the message still carries useful context.
+ */
+function describeType(value: unknown): string {
+    if (typeof value === "string") return `"${value}"`;
+    return JSON.stringify(value);
 }
 
 // ---------------------------------------------------------------------------
