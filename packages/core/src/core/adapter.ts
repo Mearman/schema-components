@@ -204,12 +204,15 @@ function extractStandardSchemaVendor(input: unknown): string | undefined {
  */
 export type SchemaIoSide = "input" | "output";
 
-// TODO(round7-integration): thread `io` through `normaliseSchema` →
-// `normaliseZod4` so SchemaComponent (Agent G) can expose an `io` prop
-// that selects which side of every transform / pipe / codec is rendered.
-// Wiring stops at this helper for now to keep agent ownership clean;
-// the helper itself is parameterised so the integration is a one-line
-// change once Agent G's prop lands.
+/**
+ * The `io` parameter is propagated by `normaliseSchema` →
+ * `normaliseZod4` so the renderer can select between the OUTPUT side
+ * (default — historic behaviour) and the INPUT side of every
+ * transform / pipe / codec. Pinning the option here lets the
+ * consumer-facing `<SchemaComponent io="…">` and
+ * `<SchemaView io="…">` props decide a single conversion direction
+ * for the whole tree without a fork at every Zod call site.
+ */
 function callToJsonSchema(
     schema: unknown,
     io: SchemaIoSide = "output"
@@ -1351,6 +1354,16 @@ export interface NormalisedSchema {
 export interface NormaliseOptions {
     /** Diagnostics channel for surfacing silent fallbacks. */
     diagnostics?: DiagnosticsOptions;
+    /**
+     * Side of every transform / pipe / codec to render. Defaults to
+     * `"output"`, matching `z.toJSONSchema`'s default and the
+     * historic behaviour of the adapter. Passing `"input"` flips the
+     * conversion so consumers rendering the input shape of a
+     * `z.codec(...)` chain receive that side instead of the output
+     * side. Only the Zod 4 branch consults this option — JSON Schema
+     * and OpenAPI inputs are already a single canonical shape.
+     */
+    io?: SchemaIoSide;
 }
 
 export function normaliseSchema(
@@ -1367,9 +1380,20 @@ export function normaliseSchema(
     // returning it would silently swallow every diagnostic the consumer
     // expects to see. Re-running normalisation is the only way to surface
     // diagnostics to a new sink.
+    //
+    // The `io` option likewise invalidates the cache for Zod 4 inputs
+    // when its value is anything other than the default (`"output"`).
+    // The cached entry was produced by the previous direction and
+    // would silently mis-render the alternate side if returned. Plain
+    // JSON Schema and OpenAPI inputs are unaffected — they have no
+    // transform side and the option is ignored downstream.
     const usesDiagnostics = options?.diagnostics !== undefined;
+    const nonDefaultIo = options?.io !== undefined && options.io !== "output";
     const cacheEligible =
-        ref === undefined && isObject(input) && !usesDiagnostics;
+        ref === undefined &&
+        isObject(input) &&
+        !usesDiagnostics &&
+        !nonDefaultIo;
     if (cacheEligible) {
         const cached = schemaCache.get(input);
         if (cached !== undefined) return cached;
@@ -1381,7 +1405,7 @@ export function normaliseSchema(
 
     switch (kind) {
         case "zod4":
-            result = normaliseZod4(input, options?.diagnostics);
+            result = normaliseZod4(input, options?.diagnostics, options?.io);
             break;
         case "zod3":
             result = normaliseZod3(input);
@@ -1443,7 +1467,8 @@ export function normaliseSchema(
 
 function normaliseZod4(
     input: unknown,
-    diagnostics?: DiagnosticsOptions
+    diagnostics?: DiagnosticsOptions,
+    io?: SchemaIoSide
 ): NormalisedSchema {
     // z.toJSONSchema() converts Zod → JSON Schema losslessly.
     // detectSchemaKind confirmed _zod is present, but the marker may be a
@@ -1487,7 +1512,10 @@ function normaliseZod4(
     // Call toJSONSchema with the validated schema.
     // callToJsonSchema classifies any thrown exception into a
     // SchemaNormalisationError before it leaves this function.
-    const jsonSchema: unknown = callToJsonSchema(input);
+    // `io` defaults to `"output"` inside the helper when omitted,
+    // matching the historic behaviour for callers that did not opt
+    // into the option.
+    const jsonSchema: unknown = callToJsonSchema(input, io);
     if (!isObject(jsonSchema)) {
         throw new SchemaNormalisationError(
             "z.toJSONSchema() did not produce an object",
