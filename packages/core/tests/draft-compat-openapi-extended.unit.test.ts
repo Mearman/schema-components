@@ -530,10 +530,9 @@ describe("Swagger 2.0 collectionFormat", () => {
         expect(values.explode).toBe(false);
     });
 
-    // TODO(round7-integration): updated assertion to reflect round-7
-    // collectionFormat:tsv drop fix in core/swagger2.ts — `tabDelimited`
-    // is not a valid OpenAPI 3.x style keyword, so the normaliser now
-    // drops the keyword and emits `swagger-collection-format-dropped`.
+    // `tabDelimited` is not a valid OpenAPI 3.x style keyword, so the
+    // normaliser drops Swagger 2.0's `collectionFormat: "tsv"` and emits
+    // `swagger-collection-format-dropped`.
     it("drops tsv collectionFormat with diagnostic — no invalid style emitted", () => {
         const doc = {
             swagger: "2.0",

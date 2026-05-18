@@ -48,12 +48,8 @@ describe("walker diagnostics", () => {
         expect(diag.detail?.type).toBe("custom");
     });
 
-    // TODO(round7-integration): the previous walker emitted
-    // `invalid-const` for non-primitive `const` values and dropped them.
-    // Per Draft 2020-12 §6.1.3, `const` accepts any JSON value — the
-    // diagnostic was spec-incorrect. Round 7 Agent D widened the field
-    // shape and removed the emission site; the test now asserts the
-    // spec-correct shape (value preserved, no diagnostic). The
+    // Per Draft 2020-12 §6.1.3, `const` accepts any JSON value. The walker
+    // preserves the value verbatim and emits no diagnostic; the
     // `invalid-const` code remains in the DiagnosticCode union for
     // backward-compatible discriminated handling at consumer sites.
     it("does not emit invalid-const for non-primitive const value", () => {
@@ -274,11 +270,9 @@ describe("allOf merge diagnostics", () => {
         expect(diags.filter((d) => d.code === "allof-conflict").length).toBe(0);
     });
 
-    // TODO(round7-integration): Round-7 issue 8 — incompatible primitive
-    // `type` keywords in an `allOf` are now treated as an unsatisfiable
-    // conjunction. `mergeAllOf` returns `false` and emits
-    // `schema-allof-incompatible` instead of papering over the mismatch
-    // with `allof-conflict`. The walker then produces a `NeverField`.
+    // Incompatible primitive `type` keywords in an `allOf` are an
+    // unsatisfiable conjunction. `mergeAllOf` returns `false` and emits
+    // `schema-allof-incompatible`; the walker then produces a `NeverField`.
     it("emits schema-allof-incompatible for conflicting type values", () => {
         const diags = collectDiagnostics((sink) => {
             walk(

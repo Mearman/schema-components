@@ -857,15 +857,10 @@ describe("walk — recursive cycle detection", () => {
 // ---------------------------------------------------------------------------
 
 describe("walk — enum and required filtering diagnostics", () => {
-    // TODO(round7-integration): the previous walker filtered
-    // non-primitive enum entries out of `EnumField.enumValues` and
-    // emitted `enum-value-filtered` per dropped entry. Per Draft
-    // 2020-12 §6.1.2, `enum` accepts any JSON value — the filter and
-    // diagnostic were spec-incorrect. Round 7 Agent D widened the
-    // field shape to `unknown[]` and removed the emission site; tests
-    // now assert that every entry is preserved verbatim and that no
-    // diagnostic fires. The `enum-value-filtered` code remains in the
-    // DiagnosticCode union for backward-compatible consumer handling.
+    // Per Draft 2020-12 §6.1.2, `enum` accepts any JSON value. The walker
+    // preserves every entry verbatim and emits no diagnostic; the
+    // `enum-value-filtered` code remains in the DiagnosticCode union for
+    // backward-compatible consumer handling.
     it("preserves non-primitive enum entries without diagnostic", () => {
         const diagnostics: Diagnostic[] = [];
         const tree = walk(

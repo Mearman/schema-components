@@ -175,9 +175,6 @@ export function prefixItemsOf(f: WalkedField): WalkedField[] | undefined {
 }
 
 /** Get literalValues if present (literal). */
-// TODO(round7-integration): widened to `unknown[]` because Draft 2020-12
-// `const` accepts any JSON value. Test helper updated to match the
-// widened `LiteralField.literalValues` shape. Round 7 Agent D.
 export function literalValuesOf(f: WalkedField): unknown[] | undefined {
     return f.type === "literal" ? f.literalValues : undefined;
 }
@@ -194,9 +191,6 @@ export function elementOf(f: WalkedField): WalkedField | undefined {
 }
 
 /** Get enumValues if present. */
-// TODO(round7-integration): widened to `unknown[]` because Draft 2020-12
-// `enum` accepts any JSON value. Test helper updated to match the
-// widened `EnumField.enumValues` shape. Round 7 Agent D.
 export function enumValuesOf(f: WalkedField): unknown[] | undefined {
     return f.type === "enum" ? f.enumValues : undefined;
 }

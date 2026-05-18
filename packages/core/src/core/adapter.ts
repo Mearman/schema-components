@@ -1663,13 +1663,11 @@ function resolveOpenApiRef(
     // Fallback: try JSON Pointer dereference for any #/... ref
     if (ref.startsWith("#/")) {
         const resolved = dereference(ref, doc);
-        // TODO(round7-integration): boolean sub-schemas (Draft 06+) are
-        // legitimate `$ref` targets but cannot be returned as an
-        // OpenAPI Schema Object. Treat them as unresolved here — the
-        // surrounding OpenAPI resolution path was never designed for
-        // boolean schemas in component slots, and surfacing them via
-        // the "Unsupported OpenAPI ref format" error below preserves
-        // the existing contract until the OpenAPI parser is widened.
+        // OpenAPI Schema Object semantics mandate an object schema, so
+        // boolean targets (legitimate per JSON Schema Draft 06+) cannot
+        // be returned through this path. They surface via the
+        // "Unsupported OpenAPI ref format" error below, matching the
+        // expectations of the wider OpenAPI parser.
         if (resolved !== undefined && typeof resolved !== "boolean") {
             return resolved;
         }

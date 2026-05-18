@@ -31,11 +31,10 @@ export const RECURSIVE_ANCHOR_SENTINEL = "__recursive__";
  *   `false` → `{ not: {} }`      (never-valid schema)
  *
  * Used by {@link resolveRef} so callers that expect an object schema
- * can continue without per-call-site boolean handling.
- *
- * TODO(round7-integration): once Agent D widens the walker's resolved-
- * ref handling to dispatch through `walkSubSchema`, drop this
- * translation and surface the boolean directly.
+ * can continue without per-call-site boolean handling. The walker's
+ * sub-schema dispatch (`walkSubSchema`) handles booleans natively at
+ * non-root positions; this translation covers the degenerate case
+ * where a top-level `$ref` resolves to a boolean schema.
  */
 function booleanSchemaToObject(value: boolean): Record<string, unknown> {
     if (value) return {};

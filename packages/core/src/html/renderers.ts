@@ -47,16 +47,11 @@ export { dateInputType };
  * `aria-controls`, `aria-labelledby`, and `htmlFor` references resolve
  * consistently across the React, sync-HTML, and streaming-HTML outputs.
  *
- * The wrapper tolerates an empty path here (returning `sc-`) for the
- * sole reason that a leaf renderer at the schema root would otherwise
- * throw — `renderToHtml(z.string())` is a rare but valid call shape.
- * Container renderers thread a non-empty path through `renderChild`, so
- * the empty-id fallback can never produce sibling collisions inside a
- * structured form.
- *
- * TODO(round7-integration): once `renderToHtml` always threads a stable
- * root path (e.g. `"$"`) into the leaf renderers, drop this wrapper and
- * call `fieldDomId` directly so the throw fires as designed.
+ * The wrapper tolerates an empty path here (returning `sc-`) so that
+ * a leaf renderer at the schema root — `renderToHtml(z.string())` — has
+ * a usable id without throwing. Container renderers always thread a
+ * non-empty path through `renderChild`, so the empty-id fallback can
+ * never produce sibling collisions inside a structured form.
  */
 export function fieldId(path: string): string {
     if (path.length === 0) return "sc-";
@@ -74,9 +69,6 @@ export function fieldId(path: string): string {
  * Exported because `streamRenderers.ts` needs to derive identical ids
  * — the panel id on the `<div role="tabpanel">` must match the
  * `aria-controls` on every tab regardless of which pipeline rendered it.
- *
- * TODO(round7-integration): drop the empty-path branch once `renderToHtml`
- * threads a stable root path so `panelIdFor` can be called directly.
  */
 export function panelId(path: string): string {
     if (path.length === 0) return `${fieldId(path)}-panel`;
@@ -86,9 +78,6 @@ export function panelId(path: string): string {
 /**
  * Tab id for tab `i` within a discriminated union at `path`. Mirror of
  * `panelId` above — see its comment.
- *
- * TODO(round7-integration): drop the empty-path branch once `renderToHtml`
- * threads a stable root path so `tabIdFor` can be called directly.
  */
 export function tabId(path: string, i: number): string {
     if (path.length === 0) return `${fieldId(path)}-tab-${String(i)}`;

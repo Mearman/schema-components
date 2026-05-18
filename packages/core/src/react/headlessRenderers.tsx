@@ -890,11 +890,6 @@ export function renderLiteral(props: RenderProps): ReactNode {
             </span>
         );
     }
-    // TODO(round7-integration): literal `const` may be an object or array
-    // per Draft 2020-12 §6.1.3 — `LiteralField.literalValues` was widened
-    // to `unknown[]` by Round 7 Agent D. Renderer collapses non-primitive
-    // entries via `displayJsonValue` as a stopgap; dedicated rich-value
-    // rendering is integration-phase work.
     const display = values.map((v) => displayJsonValue(v)).join(", ");
     return (
         <span id={id} aria-readonly="true">
