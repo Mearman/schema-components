@@ -86,6 +86,28 @@ export type WidgetMap = ReadonlyMap<string, (props: RenderProps) => unknown>;
 
 const WidgetsContext = createContext<WidgetMap | undefined>(undefined);
 
+/**
+ * Provide a theme resolver and scoped widgets to every `<SchemaComponent>`
+ * and `<SchemaView>` rendered inside the subtree.
+ *
+ * Wrap an application (or a region of it) with `<SchemaProvider>` so a
+ * single theme — typically one of the bundled adapters
+ * ({@link shadcnResolver}, {@link muiResolver}, {@link mantineResolver},
+ * {@link radixResolver}) or a custom one — drives every schema render.
+ * Without a provider, schema-components fall back to the headless HTML
+ * renderer.
+ *
+ * @group Components
+ * @example
+ * ```tsx
+ * import { SchemaProvider } from "schema-components/react/SchemaComponent";
+ * import { shadcnResolver } from "schema-components/themes/shadcn";
+ *
+ * <SchemaProvider resolver={shadcnResolver}>
+ *   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+ * </SchemaProvider>
+ * ```
+ */
 export function SchemaProvider({
     resolver,
     widgets,
@@ -243,6 +265,15 @@ export type InferredValue<
     Mode extends SchemaIoSide = "output",
 > = NarrowAtPath<InferSchemaValue<T, Ref, Mode>, P>;
 
+/**
+ * Props accepted by {@link SchemaComponent}.
+ *
+ * The generic parameters carry the inferred schema shape through to
+ * `value`, `onChange`, and `fields` so a typed `schema` prop drives
+ * typed props on the rest of the component.
+ *
+ * @group Components
+ */
 export interface SchemaComponentProps<
     T = unknown,
     Ref extends string | undefined = undefined,
@@ -364,6 +395,29 @@ export interface SchemaComponentProps<
 // <SchemaComponent>
 // ---------------------------------------------------------------------------
 
+/**
+ * Render an editable (or read-only) UI from a Zod schema, JSON Schema, or
+ * OpenAPI document.
+ *
+ * Auto-detects the input format, normalises to JSON Schema via the
+ * adapter, walks the JSON Schema tree, and delegates per-field rendering
+ * to the {@link ComponentResolver} supplied via {@link SchemaProvider} —
+ * falling back to a headless HTML renderer when no provider is present.
+ *
+ * Pass `readOnly` to render a presentational view instead of inputs, or
+ * wrap with `<SchemaProvider resolver={…}>` to swap the theme.
+ *
+ * @group Components
+ * @example
+ * ```tsx
+ * import { z } from "zod";
+ * import { SchemaComponent } from "schema-components/react/SchemaComponent";
+ *
+ * const userSchema = z.object({ name: z.string(), email: z.email() });
+ *
+ * <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+ * ```
+ */
 export function SchemaComponent<
     T = unknown,
     Ref extends string | undefined = undefined,
@@ -888,6 +942,14 @@ type InferSchemaType<T> = T extends z.ZodType
           : FromJSONSchema<T>
       : unknown;
 
+/**
+ * Props accepted by {@link SchemaField}. The generic `P` constrains
+ * `path` to dot-paths reachable through the schema's inferred value
+ * type — typed schemas get autocomplete; runtime schemas fall back to
+ * `string`.
+ *
+ * @group Components
+ */
 export interface SchemaFieldProps<
     T = unknown,
     Ref extends string | undefined = undefined,
@@ -919,6 +981,16 @@ export interface SchemaFieldProps<
     onValidationError?: (error: unknown) => void;
 }
 
+/**
+ * Render a single field from a schema by dot-separated `path`.
+ *
+ * Walks the full schema tree and resolves the field at the supplied
+ * `path`, then renders only that field through the same resolver
+ * pipeline as {@link SchemaComponent}. Useful for embedding individual
+ * fields inside bespoke layouts.
+ *
+ * @group Components
+ */
 export function SchemaField<
     T = unknown,
     Ref extends string | undefined = undefined,

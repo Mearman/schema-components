@@ -53,6 +53,15 @@ import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
 // Props
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link SchemaView}.
+ *
+ * Mirrors {@link SchemaComponentProps} for the read-only / RSC path —
+ * no `onChange`, no `validate`, and the theme is supplied via the
+ * `resolver` prop because Server Components cannot read React context.
+ *
+ * @group Components
+ */
 export interface SchemaViewProps<
     T = unknown,
     Ref extends string | undefined = undefined,
@@ -116,11 +125,26 @@ export interface SchemaViewProps<
 // ---------------------------------------------------------------------------
 
 /**
- * Server-safe schema renderer — no context and no state. The only hook
- * called is `useId()`, which is RSC-safe.
+ * Read-only schema renderer that is safe to use inside a React Server
+ * Component.
  *
- * Always renders in read-only mode. For editable forms, use
- * `<SchemaComponent>` with `"use client"`.
+ * Uses no context, state, or effects — the only hook called is
+ * `useId()`, which is RSC-safe. Always renders read-only; pair with
+ * {@link SchemaComponent} (which requires `"use client"`) when an
+ * editable form is required. Because Server Components cannot read
+ * React context, the theme adapter is passed via the `resolver` prop
+ * rather than {@link SchemaProvider}.
+ *
+ * @group Components
+ * @example
+ * ```tsx
+ * import { SchemaView } from "schema-components/react/SchemaView";
+ *
+ * export default async function Page() {
+ *   const user = await getUser();
+ *   return <SchemaView schema={userSchema} value={user} />;
+ * }
+ * ```
  */
 export function SchemaView<
     T = unknown,

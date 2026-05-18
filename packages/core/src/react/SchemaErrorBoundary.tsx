@@ -28,6 +28,11 @@ import { SchemaError } from "../core/errors.ts";
 // Props
 // ---------------------------------------------------------------------------
 
+/**
+ * Props accepted by {@link SchemaErrorBoundary}.
+ *
+ * @group Components
+ */
 export interface SchemaErrorBoundaryProps {
     /** Called with the caught error. Returns fallback ReactNode to render. */
     fallback: (error: Error, reset: () => void) => ReactNode;
@@ -47,10 +52,22 @@ interface ErrorBoundaryState {
 // ---------------------------------------------------------------------------
 
 /**
- * React error boundary that catches schema rendering errors.
+ * React error boundary that catches rendering errors from
+ * {@link SchemaComponent}, theme adapters, and any descendant.
  *
  * Provides a `reset` callback that clears the error state, allowing
  * the children to re-render (e.g. after fixing a bad schema prop).
+ * Does not catch errors thrown from event handlers, async work, or
+ * server-side rendering — those paths must be handled by the host
+ * application.
+ *
+ * @group Components
+ * @example
+ * ```tsx
+ * <SchemaErrorBoundary fallback={(error) => <p>{error.message}</p>}>
+ *   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
+ * </SchemaErrorBoundary>
+ * ```
  */
 export class SchemaErrorBoundary extends Component<
     SchemaErrorBoundaryProps,
