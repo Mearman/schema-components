@@ -29,6 +29,11 @@ import {
     type DiagnosticsOptions,
 } from "../core/diagnostics.ts";
 import {
+    matchUnionOption,
+    resolveDiscriminatedActive,
+} from "../core/unionMatch.ts";
+import { SC_CLASSES, EM_DASH } from "../core/cssClasses.ts";
+import {
     h,
     serialize,
     serializeAttributes,
@@ -47,6 +52,7 @@ import {
 } from "./a11y.ts";
 import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import { recursionSentinelHtml } from "./renderToHtml.ts";
+import { panelId, tabId } from "./renderers.ts";
 
 // ---------------------------------------------------------------------------
 // Yield helpers (passed from the parent module)
@@ -54,8 +60,12 @@ import { recursionSentinelHtml } from "./renderToHtml.ts";
 
 export function yieldOpen(el: HtmlElement): string {
     const attrStr = serializeAttributes(el.attributes);
-    if (el.children.length === 0 && VOID_ELEMENTS.has(el.tag)) {
-        return `<${el.tag}${attrStr}>`;
+    // Void elements (`input`, `br`, etc.) have no closing tag — emit a
+    // self-closing form so a single `yieldOpen` chunk produces a complete,
+    // structurally valid element rather than a dangling opening tag waiting
+    // for a `yieldClose` that will never come.
+    if (VOID_ELEMENTS.has(el.tag)) {
+        return `<${el.tag}${attrStr} />`;
     }
     return `<${el.tag}${attrStr}>`;
 }
@@ -93,12 +103,12 @@ export function renderLeaf(
 
     // Fallback for unhandled types
     if (value === undefined || value === null) {
-        return serialize(h("span", { class: "sc-value sc-value--empty" }, "—"));
+        return serialize(h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH));
     }
     return serialize(
         h(
             "span",
-            { class: "sc-value" },
+            { class: SC_CLASSES.value },
             typeof value === "string" ? value : JSON.stringify(value)
         )
     );
@@ -129,32 +139,6 @@ export function renderFieldSync(
         ),
     ];
     return chunks.join("");
-}
-
-// ---------------------------------------------------------------------------
-// Union matching
-// ---------------------------------------------------------------------------
-
-export function matchUnionOption(
-    options: WalkedField[],
-    value: unknown
-): WalkedField | undefined {
-    if (typeof value === "string") {
-        return options.find((o) => o.type === "string" || o.type === "enum");
-    }
-    if (typeof value === "number") {
-        return options.find((o) => o.type === "number");
-    }
-    if (typeof value === "boolean") {
-        return options.find((o) => o.type === "boolean");
-    }
-    if (Array.isArray(value)) {
-        return options.find((o) => o.type === "array");
-    }
-    if (typeof value === "object" && value !== null) {
-        return options.find((o) => o.type === "object");
-    }
-    return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -337,7 +321,7 @@ function* streamObject(
     const labelAttrs = ariaLabelAttrs(descriptionText);
 
     if (readOnly) {
-        const dlAttrs: HtmlAttributes = { class: "sc-object" };
+        const dlAttrs: HtmlAttributes = { class: SC_CLASSES.object };
         Object.assign(dlAttrs, labelAttrs);
         const dl = h("dl", dlAttrs);
 
@@ -364,16 +348,16 @@ function* streamObject(
                 currentDepth + 1,
                 diagnostics
             );
-            const dt = serialize(h("dt", { class: "sc-label" }, label));
+            const dt = serialize(h("dt", { class: SC_CLASSES.label }, label));
             const dd = serialize(
-                h("dd", { class: "sc-value" }, raw(childHtml))
+                h("dd", { class: SC_CLASSES.value }, raw(childHtml))
             );
             yield `${dt}${dd}`;
         }
 
         yield yieldClose(dl);
     } else {
-        const fieldsetAttrs: HtmlAttributes = { class: "sc-object" };
+        const fieldsetAttrs: HtmlAttributes = { class: SC_CLASSES.object };
         Object.assign(fieldsetAttrs, labelAttrs);
         const fieldset = h("fieldset", fieldsetAttrs);
 
@@ -412,7 +396,7 @@ function* streamObject(
             const fieldChildren: HtmlNode[] = [
                 h(
                     "label",
-                    { class: "sc-label", for: fieldId },
+                    { class: SC_CLASSES.label, for: fieldId },
                     ...labelContent
                 ),
                 raw(childChunks),
@@ -420,7 +404,11 @@ function* streamObject(
             const hint = buildHintElement(key, field.constraints);
             if (hint !== undefined) fieldChildren.push(hint);
 
-            const fieldDiv = h("div", { class: "sc-field" }, ...fieldChildren);
+            const fieldDiv = h(
+                "div",
+                { class: SC_CLASSES.field },
+                ...fieldChildren
+            );
             yield serialize(fieldDiv);
         }
 
@@ -465,7 +453,7 @@ function* streamArray(
     const readOnly = tree.editability === "presentation";
 
     if (readOnly) {
-        const ul = h("ul", { class: "sc-array" });
+        const ul = h("ul", { class: SC_CLASSES.array });
         yield yieldOpen(ul);
         for (const [i, item] of arr.entries()) {
             // Derive per-item path from the index, not from the element's
@@ -486,7 +474,7 @@ function* streamArray(
         }
         yield yieldClose(ul);
     } else {
-        const div = h("div", { class: "sc-array" });
+        const div = h("div", { class: SC_CLASSES.array });
         yield yieldOpen(div);
         for (const [i, item] of arr.entries()) {
             const elementPath = joinPath(path, `[${String(i)}]`);
@@ -537,7 +525,7 @@ function* streamRecord(
     const obj: Record<string, unknown> = isObject(value) ? value : {};
 
     const readOnly = tree.editability === "presentation";
-    const attrs: HtmlAttributes = { class: "sc-record", role: "group" };
+    const attrs: HtmlAttributes = { class: SC_CLASSES.record, role: "group" };
 
     if (readOnly) {
         const dl = h("dl", attrs);
@@ -553,9 +541,9 @@ function* streamRecord(
                 currentDepth + 1,
                 diagnostics
             );
-            const dt = serialize(h("dt", { class: "sc-label" }, key));
+            const dt = serialize(h("dt", { class: SC_CLASSES.label }, key));
             const dd = serialize(
-                h("dd", { class: "sc-value" }, raw(childHtml))
+                h("dd", { class: SC_CLASSES.value }, raw(childHtml))
             );
             yield `${dt}${dd}`;
         }
@@ -577,8 +565,8 @@ function* streamRecord(
             yield serialize(
                 h(
                     "div",
-                    { class: "sc-field" },
-                    h("label", { class: "sc-label" }, key),
+                    { class: SC_CLASSES.field },
+                    h("label", { class: SC_CLASSES.label }, key),
                     raw(childHtml)
                 )
             );
@@ -604,11 +592,11 @@ function* streamUnion(
     if (options === undefined || options.length === 0) {
         if (value === undefined || value === null) {
             yield serialize(
-                h("span", { class: "sc-value sc-value--empty" }, "—")
+                h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH)
             );
         } else {
             yield serialize(
-                h("span", { class: "sc-value" }, JSON.stringify(value))
+                h("span", { class: SC_CLASSES.value }, JSON.stringify(value))
             );
         }
         return;
@@ -631,7 +619,7 @@ function* streamUnion(
             diagnostics
         );
     } else {
-        yield serialize(h("span", { class: "sc-value sc-value--empty" }, "—"));
+        yield serialize(h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH));
     }
 }
 
@@ -644,45 +632,28 @@ function* streamDiscriminatedUnion(
     currentDepth: number,
     diagnostics: DiagnosticsOptions | undefined
 ): Iterable<string, void, undefined> {
-    const options =
-        tree.type === "discriminatedUnion" ? tree.options : undefined;
-    const discriminator =
-        tree.type === "discriminatedUnion" ? tree.discriminator : undefined;
-    if (options === undefined || options.length === 0) {
+    if (tree.type !== "discriminatedUnion") return;
+    // Narrow once at the top — `discriminator` is `string` on every
+    // `DiscriminatedUnionField`, so no `?? ""` empty fallback is needed.
+    const { options, discriminator } = tree;
+    if (options.length === 0) {
         if (value === undefined || value === null) {
             yield serialize(
-                h("span", { class: "sc-value sc-value--empty" }, "—")
+                h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH)
             );
         } else {
             yield serialize(
-                h("span", { class: "sc-value" }, JSON.stringify(value))
+                h("span", { class: SC_CLASSES.value }, JSON.stringify(value))
             );
         }
         return;
     }
 
-    const obj: Record<string, unknown> = isObject(value) ? value : {};
-    const discKey = discriminator ?? "";
-    const currentDiscriminatorValue =
-        typeof obj[discKey] === "string" ? obj[discKey] : undefined;
-
-    const optionLabels = options.map((opt: WalkedField) => {
-        if (opt.type === "object") {
-            const discriminatorField = opt.fields[discKey];
-            if (discriminatorField?.type === "literal") {
-                const constVal = discriminatorField.literalValues[0];
-                if (typeof constVal === "string") return constVal;
-            }
-        }
-        return typeof opt.meta.title === "string" ? opt.meta.title : opt.type;
-    });
-
-    let activeIndex = 0;
-    if (currentDiscriminatorValue !== undefined) {
-        const found = optionLabels.indexOf(currentDiscriminatorValue);
-        if (found !== -1) activeIndex = found;
-    }
-    const activeOption = options[activeIndex];
+    const valueObject: Record<string, unknown> | undefined = isObject(value)
+        ? value
+        : undefined;
+    const { optionLabels, activeIndex, activeOption } =
+        resolveDiscriminatedActive(options, discriminator, valueObject);
 
     const isPresentation = tree.editability === "presentation";
 
@@ -702,9 +673,16 @@ function* streamDiscriminatedUnion(
         return;
     }
 
-    // Editable: WAI-ARIA tabs pattern
-    const panelId = `sc-${path}-panel`;
-    const wrapper = h("div", { class: "sc-discriminated-union" });
+    // Editable: WAI-ARIA tabs pattern. Route ids through `panelId` /
+    // `tabId` (from `./renderers.ts`) so the streaming and sync renderers
+    // — and, through Agent G's parallel work, the React headless renderer
+    // — produce structurally identical ids for the same path. Both
+    // helpers delegate to the canonical `panelIdFor` / `tabIdFor` in
+    // `core/idPath.ts` for non-empty paths so dots / brackets in nested
+    // paths can no longer leak into the id and break CSS selectors or
+    // the `aria-labelledby` ↔ tab `id` association.
+    const tabPanelId = panelId(path);
+    const wrapper = h("div", { class: SC_CLASSES.discriminatedUnion });
     yield yieldOpen(wrapper);
 
     // Tab bar
@@ -712,10 +690,10 @@ function* streamDiscriminatedUnion(
         const attrs: HtmlAttributes = {
             type: "button",
             role: "tab",
-            class: i === activeIndex ? "sc-tab sc-tab--active" : "sc-tab",
-            id: `sc-${path}-tab-${String(i)}`,
+            class: i === activeIndex ? SC_CLASSES.tabActive : SC_CLASSES.tab,
+            id: tabId(path, i),
             "aria-selected": i === activeIndex ? "true" : undefined,
-            "aria-controls": panelId,
+            "aria-controls": tabPanelId,
             tabindex: i === activeIndex ? "0" : "-1",
         };
         return h("button", attrs, optionLabels[i]);
@@ -725,7 +703,7 @@ function* streamDiscriminatedUnion(
             "div",
             {
                 role: "tablist",
-                class: "sc-tabs",
+                class: SC_CLASSES.tabs,
                 "aria-label": "Select variant",
             },
             ...tabButtons
@@ -735,8 +713,8 @@ function* streamDiscriminatedUnion(
     // Tab panel
     const panelOpen = h("div", {
         role: "tabpanel",
-        id: panelId,
-        "aria-labelledby": `sc-${path}-tab-${String(activeIndex)}`,
+        id: tabPanelId,
+        "aria-labelledby": tabId(path, activeIndex),
     });
     yield yieldOpen(panelOpen);
 
