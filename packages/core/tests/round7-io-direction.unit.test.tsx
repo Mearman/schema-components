@@ -41,8 +41,16 @@ afterEach(() => {
  * Asymmetry guarantees the `io` prop's effect is observable — a
  * symmetric codec would render the same input element in either
  * direction.
+ *
+ * The codec is exposed as `unknown` because
+ * `RejectUnrepresentableZod<ZodCodec>` returns the compile-time
+ * rejection sentinel — codecs cannot round-trip through
+ * `z.toJSONSchema()`'s `unrepresentable: "throw"` mode in the
+ * general case. Reaching the runtime path requires an `unknown`
+ * boundary, mirroring the documented consumer escape hatch for
+ * codec validation.
  */
-const stringToNumber = z.codec(z.string(), z.number(), {
+const stringToNumber: unknown = z.codec(z.string(), z.number(), {
     decode: (s) => Number(s),
     encode: (n) => String(n),
 });
