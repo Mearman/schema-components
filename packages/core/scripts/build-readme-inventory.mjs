@@ -105,7 +105,16 @@ function loadStoryIndex() {
 
     for (const fileName of storyFiles) {
         const source = readFileSync(join(storiesDir, fileName), "utf8");
-        const titleMatch = source.match(/^\s*title:\s*"([^"]+)"/m);
+        // Storybook CSF meta declares `title:` at the top level of the
+        // default-exported meta object. Other `title:` keys can appear in
+        // story fixtures (e.g. OpenAPI `info.title`, content data with a
+        // `title` property), so we scope the search to the meta object
+        // declared as `const meta` / `const meta:` / `const meta =`.
+        const metaMatch = source.match(
+            /\bconst\s+meta\b[^{]*\{([\s\S]*?)^\}\s*(?:satisfies|as|;|$)/m,
+        );
+        const metaBody = metaMatch ? metaMatch[1] : source;
+        const titleMatch = metaBody.match(/^\s*title:\s*"([^"]+)"/m);
         if (!titleMatch) continue;
         const apiSymbolsMatch = source.match(
             /apiSymbols\s*:\s*\[([^\]]*)\]/m,
