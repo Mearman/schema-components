@@ -26,7 +26,7 @@ import {
     documentContainsKeyword,
     normaliseOpenApiSchemas,
 } from "../core/normalise.ts";
-import type { DiagnosticsOptions } from "../core/diagnostics.ts";
+import type { Diagnostic, DiagnosticsOptions } from "../core/diagnostics.ts";
 import { emitDiagnostic } from "../core/diagnostics.ts";
 import { resolveRefChain } from "../core/refChain.ts";
 
@@ -34,7 +34,22 @@ import { resolveRefChain } from "../core/refChain.ts";
 // Document caching
 // ---------------------------------------------------------------------------
 
-const docCache = new WeakMap<object, OpenApiDocument>();
+/**
+ * A single cached parse of an OpenAPI document together with every
+ * doc-level diagnostic that normalisation emitted while producing it.
+ *
+ * Diagnostics are captured once — at first parse — and then replayed
+ * through whatever sink subsequent callers supply. This keeps the
+ * cardinality of each diagnostic at exactly one per real cause when
+ * the same document is rendered through multiple components (for
+ * example `ApiWebhooks` rendering `ApiWebhook` per webhook entry).
+ */
+interface CachedParse {
+    readonly parsed: OpenApiDocument;
+    readonly diagnostics: readonly Diagnostic[];
+}
+
+const docCache = new WeakMap<object, CachedParse>();
 
 /**
  * Parse and cache an OpenAPI document. Returns the cached parse for the
@@ -49,44 +64,77 @@ const docCache = new WeakMap<object, OpenApiDocument>();
  * same form `<SchemaComponent>` does, keeping the OpenAPI components on
  * the same pipeline as the top-level adapter.
  *
- * When `diagnostics` is supplied, normalisation events
- * (`duplicate-body-parameter`, `dropped-swagger-feature`,
- * `unknown-json-schema-dialect`, `divisible-by-conflict`,
- * `relative-ref-resolved`, etc.) are forwarded to the sink. Passing
- * diagnostics also bypasses the cache so each call observes the
- * normalisation pipeline running against the supplied sink — caching
- * would silently swallow every emission after the first.
+ * ### Caching and diagnostics
  *
- * The cache is keyed by the caller-supplied document so subsequent
- * cache-eligible calls with the same input bypass both normalisation
- * and parsing.
+ * Normalisation runs at most once per document identity. The full set
+ * of doc-level diagnostics emitted during that single run is captured
+ * into the cache alongside the parsed result. Every later call —
+ * whether or not the caller supplies its own sink — receives the same
+ * parsed value, and any caller-supplied sink has the captured
+ * diagnostics replayed through it.
+ *
+ * The previous implementation bypassed the cache whenever
+ * `diagnostics` was supplied so each call could re-run the
+ * normalisation pipeline against the new sink. That fired every
+ * doc-level diagnostic once per call, so a parent like `ApiWebhooks`
+ * that renders `ApiWebhook` per webhook entry caused N-fold emission
+ * of a single real cause.
+ *
+ * The replay path uses `emitDiagnostic`, so a caller with
+ * `strict: true` still throws on the first replayed diagnostic and
+ * short-circuits the rest — matching the prior fail-fast behaviour
+ * from the consumer's perspective.
  */
 export function getParsed(
     doc: Record<string, unknown>,
     diagnostics?: DiagnosticsOptions
 ): OpenApiDocument {
-    // The cache stores the result of a previous normalisation that did
-    // not observe a diagnostics sink. Re-running normalisation is the
-    // only way to surface diagnostics to a new sink, so callers that
-    // supply diagnostics opt out of the cache entirely.
-    if (diagnostics === undefined) {
-        const cached = docCache.get(doc);
-        if (cached !== undefined) return cached;
+    let cached = docCache.get(doc);
+    if (cached === undefined) {
+        cached = buildCachedParse(doc);
+        docCache.set(doc, cached);
+        // Components expose `parsed.doc` (the normalised reference) as
+        // the resolution root passed back into `getParsed` by nested
+        // calls; a second lookup with that reference must hit the same
+        // entry rather than re-running normalisation against a fresh
+        // capturing sink.
+        if (cached.parsed.doc !== doc) {
+            docCache.set(cached.parsed.doc, cached);
+        }
     }
+    if (diagnostics !== undefined) {
+        replayCapturedDiagnostics(cached.diagnostics, diagnostics);
+    }
+    return cached.parsed;
+}
+
+/**
+ * Run the normalisation, validation, and parse pipeline against a doc
+ * once, capturing every emitted diagnostic into a private array. The
+ * private array becomes the source of truth for later replay through
+ * caller-supplied sinks.
+ *
+ * The internal capturing sink does NOT set `strict`. Letting strict
+ * mode throw mid-walk would leave the cache empty and force every
+ * subsequent caller to re-run the pipeline from scratch — and the
+ * defect this caching strategy fixes was precisely that kind of
+ * re-running. Strict is enforced instead during replay
+ * (see {@link replayCapturedDiagnostics}).
+ */
+function buildCachedParse(doc: Record<string, unknown>): CachedParse {
+    const captured: Diagnostic[] = [];
+    const captureOpts: DiagnosticsOptions = {
+        diagnostics: (d) => captured.push(d),
+    };
     const version = detectOpenApiVersion(doc);
     // Detect OAS 3.0/3.1 `xml` Schema Object metadata before normalisation.
     // Swagger 2.0 already surfaces this from `swagger2.ts`; OAS 3.0 and 3.1
     // share the same Schema Object that includes the same `xml` keyword
-    // and have no renderer surface for it. Emit a single diagnostic per
-    // document so consumers can audit silent feature drops without spam.
-    // `documentContainsKeyword` is the canonical cycle-safe scanner
-    // (visited-set protected) shared with the normalisation pipeline.
-    if (
-        diagnostics !== undefined &&
-        version?.major === 3 &&
-        documentContainsKeyword(doc, "xml")
-    ) {
-        emitDiagnostic(diagnostics, {
+    // and have no renderer surface for it. `documentContainsKeyword` is the
+    // canonical cycle-safe scanner (visited-set protected) shared with
+    // the normalisation pipeline.
+    if (version?.major === 3 && documentContainsKeyword(doc, "xml")) {
+        emitDiagnostic(captureOpts, {
             code: "dropped-swagger-feature",
             message: `OpenAPI ${String(version.major)}.${String(version.minor)} xml Schema Object metadata is not rendered and will be ignored`,
             pointer: "",
@@ -95,28 +143,26 @@ export function getParsed(
     }
     const normalisedDoc =
         version !== undefined
-            ? normaliseOpenApiSchemas(doc, version, diagnostics)
+            ? normaliseOpenApiSchemas(doc, version, captureOpts)
             : doc;
-    if (diagnostics !== undefined) {
-        validateSecuritySchemeTypes(normalisedDoc, diagnostics);
-        detectUnsupportedCrossSchemaRefs(normalisedDoc, diagnostics);
-    }
+    validateSecuritySchemeTypes(normalisedDoc, captureOpts);
+    detectUnsupportedCrossSchemaRefs(normalisedDoc, captureOpts);
     const parsed = parseOpenApiDocument(normalisedDoc);
-    // Only populate the cache for the no-diagnostics path. Caching a
-    // diagnostics-bearing parse would let later non-diagnostics callers
-    // pick up a parse that already emitted into an unrelated sink — the
-    // parse itself is fine, but the second cache lookup would skip
-    // running diagnostics entirely if that later caller did supply one.
-    if (diagnostics === undefined) {
-        // Cache by both the caller-supplied input and the normalised
-        // document. Components expose `parsed.doc` (the normalised
-        // reference) as the resolution root passed back into `getParsed`
-        // by nested calls; a second lookup with that reference must hit
-        // the same parse result rather than re-running normalisation.
-        docCache.set(doc, parsed);
-        if (normalisedDoc !== doc) docCache.set(normalisedDoc, parsed);
+    return { parsed, diagnostics: captured };
+}
+
+/**
+ * Replay each captured diagnostic through the caller-supplied sink.
+ * Goes through `emitDiagnostic` so `strict: true` is honoured on the
+ * first replayed entry, matching the historical fail-fast contract.
+ */
+function replayCapturedDiagnostics(
+    captured: readonly Diagnostic[],
+    sink: DiagnosticsOptions
+): void {
+    for (const diagnostic of captured) {
+        emitDiagnostic(sink, diagnostic);
     }
-    return parsed;
 }
 
 /**
