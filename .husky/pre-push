@@ -1,1 +1,18 @@
+#!/usr/bin/env sh
+
+# Mirror the checks CI gates pushes on so we catch failures locally
+# rather than after the push round-trip. Skips the slowest two CI jobs
+# (Playwright-backed e2e and Storybook tests) so a normal warm-cache
+# run stays in the ~20-30s range. Use --no-verify only when knowingly
+# pushing work that is not yet ready (e.g. backup branches).
+
+set -e
+
+echo "→ pnpm audit --audit-level high"
 pnpm audit --audit-level high
+
+echo "→ pnpm validate (typecheck, lint, build, test)"
+pnpm validate
+
+echo "→ pnpm test:coverage (enforces coverage thresholds)"
+pnpm test:coverage
