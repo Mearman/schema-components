@@ -133,7 +133,41 @@ function renderStoriesCell(stories) {
         .join("<br>");
 }
 
-function summaryOf(reflection) {
+/**
+ * Build an `id → reflection` lookup across every nested child in the
+ * TypeDoc project tree. Used by {@link summaryOf} to resolve re-export
+ * references (kind 4194304) to their original reflection so the
+ * inventory shows the source documentation rather than reporting the
+ * re-export as undocumented.
+ */
+function indexReflections(project) {
+    const byId = new Map();
+    const visit = (node) => {
+        if (node === null || typeof node !== "object") return;
+        if (typeof node.id === "number") byId.set(node.id, node);
+        const children = node.children;
+        if (Array.isArray(children)) {
+            for (const child of children) visit(child);
+        }
+        const signatures = node.signatures;
+        if (Array.isArray(signatures)) {
+            for (const sig of signatures) visit(sig);
+        }
+    };
+    visit(project);
+    return byId;
+}
+
+function summaryOf(reflection, byId) {
+    // Re-exports (kind 4194304) carry a `target` pointer to the original
+    // reflection rather than a comment of their own. Resolve through the
+    // index so the inventory shows the source documentation.
+    if (reflection.target !== undefined) {
+        const target = byId.get(reflection.target);
+        if (target !== undefined) {
+            return summaryOf(target, byId);
+        }
+    }
     // For function / method reflections TypeDoc attaches the JSDoc block
     // to the first signature, not the reflection itself. Fall back to the
     // signature comment so functions are not all reported as undocumented.
@@ -164,6 +198,7 @@ function isInternalNamespace(name) {
 function collectExports(project, storyIndex) {
     const bySubpath = new Map();
     for (const subpath of SUBPATH_ORDER) bySubpath.set(subpath, []);
+    const byId = indexReflections(project);
 
     for (const moduleRef of project.children ?? []) {
         const modulePath = moduleRef.name;
@@ -178,7 +213,7 @@ function collectExports(project, storyIndex) {
                 name: child.name,
                 kind: child.kind,
                 modulePath,
-                summary: summaryOf(child),
+                summary: summaryOf(child, byId),
                 stories: storyIndex.get(child.name) ?? [],
             });
         }
