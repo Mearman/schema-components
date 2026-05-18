@@ -1,8 +1,8 @@
 /**
  * @vitest-environment happy-dom
  *
- * Round-7 fix-cycle regression tests for the `io` prop on
- * `<SchemaComponent>` and `<SchemaView>`.
+ * Regression tests for the `io` prop on `<SchemaComponent>` and
+ * `<SchemaView>`.
  *
  * The `io` prop selects which side of every transform / pipe / codec
  * the renderer draws. It flows through `normaliseSchema` to
