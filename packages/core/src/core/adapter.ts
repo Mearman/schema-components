@@ -42,7 +42,22 @@ const schemaCache = new WeakMap<object, NormalisedSchema>();
 
 export type { JsonObject, SchemaMeta };
 
+/**
+ * Permissive input alias accepted by {@link normaliseSchema}. Every
+ * supported source (Zod 4 schema, plain JSON Schema, OpenAPI document)
+ * is reachable through `Record<string, unknown>`, so consumers can
+ * accept the union without committing to a specific shape at the API
+ * boundary.
+ *
+ * @group Adapter
+ */
 export type SchemaInput = Record<string, unknown>;
+/**
+ * Classification produced by {@link detectSchemaKind} when inspecting a
+ * runtime schema input.
+ *
+ * @group Adapter
+ */
 export type SchemaKind =
     | "zod4"
     | "zod3"
@@ -57,7 +72,9 @@ export type SchemaKind =
 // ---------------------------------------------------------------------------
 
 /**
- * Classify the input schema by its structural markers.
+ * Classify a runtime schema input by structural markers — Zod 4, Zod 3,
+ * OpenAPI document, plain JSON Schema, or an unsupported third-party
+ * schema library.
  *
  * - `zod4` — has a `_zod` marker (further validation that `_zod.def` is a
  *   non-null object happens inside `normaliseZod4`).
@@ -72,6 +89,8 @@ export type SchemaKind =
  *   implementations (valibot, arktype, etc.) that would otherwise flow
  *   through as "malformed JSON Schema".
  * - `jsonSchema` — fallback for anything that does not match the above.
+ *
+ * @group Adapter
  */
 export function detectSchemaKind(input: unknown): SchemaKind {
     if (hasProperty(input, "_zod")) return "zod4";
@@ -195,12 +214,16 @@ function extractStandardSchemaVendor(input: unknown): string | undefined {
  * field so consumers can still inspect the Zod stack trace.
  */
 /**
- * IO side passed to the internal `callToJsonSchema` helper. The Zod runtime accepts
- * `"input" | "output"` for the corresponding `io` option on
- * `z.toJSONSchema`. Defaults to `"output"` everywhere in the adapter
- * pipeline; the parameter exists so a future renderer or component
- * (currently SchemaComponent — see TODO below) can request the input
- * side without forking the helper.
+ * Direction of the Zod transform / pipe / codec that
+ * {@link normaliseSchema} should surface to the renderer.
+ *
+ * - `"output"` (default) — the server-facing side of every transform,
+ *   matching `z.toJSONSchema`'s default and the historic adapter
+ *   behaviour.
+ * - `"input"` — the client-facing side; flips a `z.codec(...)` chain
+ *   so consumers can render its input shape.
+ *
+ * @group Adapter
  */
 export type SchemaIoSide = "input" | "output";
 
@@ -1340,6 +1363,14 @@ export const __CLASSIFIER_RULES_FOR_TEST: readonly {
 // Schema normalisation — synchronous
 // ---------------------------------------------------------------------------
 
+/**
+ * Result of {@link normaliseSchema}. Carries the canonical Draft 2020-12
+ * JSON Schema the walker consumes, the optional original Zod schema
+ * (used for validation), and the resolved root document so cross-document
+ * `$ref`s can be dereferenced downstream.
+ *
+ * @group Adapter
+ */
 export interface NormalisedSchema {
     /** JSON Schema object — the authoritative schema for rendering. */
     jsonSchema: JsonObject;
@@ -1351,6 +1382,11 @@ export interface NormalisedSchema {
     rootDocument: JsonObject;
 }
 
+/**
+ * Options accepted by {@link normaliseSchema}.
+ *
+ * @group Adapter
+ */
 export interface NormaliseOptions {
     /** Diagnostics channel for surfacing silent fallbacks. */
     diagnostics?: DiagnosticsOptions;
@@ -1366,6 +1402,21 @@ export interface NormaliseOptions {
     io?: SchemaIoSide;
 }
 
+/**
+ * Normalise any supported schema input — Zod 4 schema, plain JSON
+ * Schema (any draft), Swagger 2.0, OpenAPI 3.0 or 3.1 document — into
+ * a canonical Draft 2020-12 {@link NormalisedSchema} the walker can
+ * consume.
+ *
+ * Dispatches on {@link detectSchemaKind}, applies the appropriate
+ * version normaliser, and returns the JSON Schema alongside the
+ * original Zod schema (for validation) and the resolved root document
+ * (for cross-document `$ref` resolution). Throws
+ * `SchemaNormalisationError` for unsupported inputs (Zod 3, valibot,
+ * arktype, codec or other unrepresentable Zod types).
+ *
+ * @group Adapter
+ */
 export function normaliseSchema(
     input: unknown,
     ref?: string,

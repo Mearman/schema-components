@@ -21,6 +21,8 @@ import { SchemaNormalisationError } from "./errors.ts";
 /**
  * Machine-readable codes identifying each class of diagnostic.
  * Stable across releases — consumers can pattern-match on these.
+ *
+ * @group Diagnostics
  */
 export type DiagnosticCode =
     | "allof-conflict"
@@ -89,6 +91,8 @@ export type DiagnosticCode =
 
 /**
  * A single diagnostic emitted during schema processing.
+ *
+ * @group Diagnostics
  */
 export interface Diagnostic {
     /** Machine-readable code for programmatic handling. */
@@ -107,11 +111,15 @@ export interface Diagnostic {
 
 /**
  * Callback that receives each diagnostic as it is emitted.
+ *
+ * @group Diagnostics
  */
 export type DiagnosticSink = (d: Diagnostic) => void;
 
 /**
  * Diagnostics configuration threaded through the processing pipeline.
+ *
+ * @group Diagnostics
  */
 export interface DiagnosticsOptions {
     /**

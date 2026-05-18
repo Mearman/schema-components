@@ -79,6 +79,14 @@ const SINGLE_SUBSCHEMA_KEYS: ReadonlySet<string> = new Set([
 // Recursive normalisation engine
 // ---------------------------------------------------------------------------
 
+/**
+ * Per-node transform applied by {@link deepNormalise} when no
+ * diagnostics context needs to be threaded — see
+ * {@link NodeTransformWithContext} for the variant used by the JSON
+ * Schema normalisation path.
+ *
+ * @group Adapter
+ */
 export type NodeTransform = (
     node: Record<string, unknown>
 ) => Record<string, unknown>;
@@ -221,6 +229,13 @@ export interface NodeContext {
     declaredDraft: JsonSchemaDraft | undefined;
 }
 
+/**
+ * Per-node transform applied by {@link deepNormaliseWithContext}.
+ * Receives the supplied {@link NodeContext} alongside the node so
+ * draft-specific rewrites can emit diagnostics with accurate pointers.
+ *
+ * @group Adapter
+ */
 export type NodeTransformWithContext = (
     node: Record<string, unknown>,
     ctx: NodeContext

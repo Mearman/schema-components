@@ -174,6 +174,19 @@ function applyStrictestUnevaluated(
 // Walker entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Walk a normalised JSON Schema and produce a {@link WalkedField} tree
+ * that drives every rendering pipeline in schema-components (React,
+ * HTML, streaming HTML).
+ *
+ * Reads standard Draft 2020-12 keywords only — no Zod internals. Handles
+ * `$ref` resolution, `allOf` merging, `nullable` detection from
+ * `anyOf`, and discriminated-union detection from `oneOf` + `const`.
+ * Pass `rootDocument` so cross-document refs resolve correctly and
+ * `diagnostics` to receive per-keyword warnings.
+ *
+ * @group Walkers
+ */
 export function walk(schema: unknown, options: WalkOptions = {}): WalkedField {
     const {
         componentMeta,

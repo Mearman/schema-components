@@ -18,13 +18,16 @@ import type { SchemaType } from "./types.ts";
 // ---------------------------------------------------------------------------
 
 /**
- * Base class for all schema-components errors.
- * Catch this to handle any library error uniformly.
+ * Base class for every schema-components error. Catch this to handle
+ * any library error uniformly.
  *
- * Forwards the optional `cause` to the native ES2022 `Error` constructor so
- * `error.cause` is wired up by the runtime and rendered correctly by
- * `util.inspect` ("Caused by: ..."). Subclasses that need a typed `cause`
- * field still get it via the platform's own `Error.cause` getter.
+ * Forwards the optional `cause` to the native ES2022 `Error` constructor
+ * so `error.cause` is wired up by the runtime and rendered correctly by
+ * `util.inspect` ("Caused by: ..."). Subclasses that need a typed
+ * `cause` field still get it via the platform's own `Error.cause`
+ * getter.
+ *
+ * @group Errors
  */
 export class SchemaError extends Error {
     /** The schema input that caused the error. */
@@ -45,7 +48,12 @@ export class SchemaError extends Error {
  * The adapter failed to convert the input schema to JSON Schema.
  *
  * Causes: invalid Zod schema, Zod 3 schema (unsupported), malformed
- * JSON Schema, missing OpenAPI ref, unsupported ref format.
+ * JSON Schema, missing OpenAPI ref, unsupported ref format,
+ * unrepresentable Zod types, conversion bugs, cycles, and duplicate
+ * ids. The `kind` field carries the precise classification — see the
+ * union declaration below.
+ *
+ * @group Errors
  */
 export class SchemaNormalisationError extends SchemaError {
     readonly kind:
@@ -93,9 +101,10 @@ export class SchemaNormalisationError extends SchemaError {
 // ---------------------------------------------------------------------------
 
 /**
- * A theme adapter's render function threw during rendering.
+ * A theme adapter's render function threw during rendering. The
+ * original error is preserved on `cause`.
  *
- * The `cause` is the original error from the render function.
+ * @group Errors
  */
 export class SchemaRenderError extends SchemaError {
     /**
@@ -125,10 +134,11 @@ export class SchemaRenderError extends SchemaError {
 // ---------------------------------------------------------------------------
 
 /**
- * A field path couldn't be resolved against the walked schema tree.
+ * A field path could not be resolved against the walked schema tree.
+ * Produced by `<SchemaField>` when the `path` prop does not match any
+ * field in the schema.
  *
- * This is produced by `<SchemaField>` when the `path` prop doesn't
- * match any field in the schema.
+ * @group Errors
  */
 export class SchemaFieldError extends SchemaError {
     /** The unresolvable dot-separated path. */

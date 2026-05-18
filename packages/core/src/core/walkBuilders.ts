@@ -59,6 +59,13 @@ export function getObject(
 // Walk options
 // ---------------------------------------------------------------------------
 
+/**
+ * Options accepted by `walk`. Use to inject meta overrides, field-level
+ * overrides, the root document for cross-document `$ref` resolution, a
+ * diagnostics sink, and an external `$ref` resolver.
+ *
+ * @group Walkers
+ */
 export interface WalkOptions {
     componentMeta?: SchemaMeta | undefined;
     rootMeta?: SchemaMeta | undefined;
@@ -154,6 +161,14 @@ export function extractChildOverride(
 // Walk context — shared state for the recursive walk
 // ---------------------------------------------------------------------------
 
+/**
+ * Mutable context threaded through every recursive walk step. Carries
+ * the merged metadata, field overrides, document root, nullability /
+ * optionality flags, `$ref` cache, diagnostics sink, and per-document
+ * `$ref` depth bound that `walkBuilders` and the walker itself share.
+ *
+ * @group Walkers
+ */
 export interface WalkContext {
     componentMeta: SchemaMeta | undefined;
     rootMeta: SchemaMeta | undefined;

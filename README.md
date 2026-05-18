@@ -189,16 +189,16 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
 | [`__CLASSIFIER_RULES_FOR_TEST`](https://mearman.github.io/schema-components/variables/core_adapter.__CLASSIFIER_RULES_FOR_TEST.html) | `core/adapter` | Variable | Exposed for unit testing — lets the contract test enumerate every rule's `prefix` value and assert mutual non-prefixing. |  |
-| [`detectSchemaKind`](https://mearman.github.io/schema-components/functions/core_adapter.detectSchemaKind.html) | `core/adapter` | Function | Classify the input schema by its structural markers. |  |
+| [`detectSchemaKind`](https://mearman.github.io/schema-components/functions/core_adapter.detectSchemaKind.html) | `core/adapter` | Function | Classify a runtime schema input by structural markers — Zod 4, Zod 3, OpenAPI document, plain JSON Schema, or an unsupported third-party schema library. |  |
 | [`extractRootMetaFromJson`](https://mearman.github.io/schema-components/functions/core_adapter.extractRootMetaFromJson.html) | `core/adapter` | Function | Surface root-level metadata from the JSON Schema into the `rootMeta` shape consumed by the walker. |  |
 | [`isCodecSchema`](https://mearman.github.io/schema-components/functions/core_adapter.isCodecSchema.html) | `core/adapter` | Function | True when `value` is a Zod schema implemented as a codec (`z.codec(...)`). |  |
 | `JsonObject` | `core/adapter` | Re-export | _undocumented_ |  |
-| [`NormalisedSchema`](https://mearman.github.io/schema-components/interfaces/core_adapter.NormalisedSchema.html) | `core/adapter` | Interface | _undocumented_ |  |
-| [`NormaliseOptions`](https://mearman.github.io/schema-components/interfaces/core_adapter.NormaliseOptions.html) | `core/adapter` | Interface | _undocumented_ |  |
-| [`normaliseSchema`](https://mearman.github.io/schema-components/functions/core_adapter.normaliseSchema.html) | `core/adapter` | Function | _undocumented_ |  |
-| [`SchemaInput`](https://mearman.github.io/schema-components/types/core_adapter.SchemaInput.html) | `core/adapter` | Type | _undocumented_ |  |
-| [`SchemaIoSide`](https://mearman.github.io/schema-components/types/core_adapter.SchemaIoSide.html) | `core/adapter` | Type | IO side passed to the internal `callToJsonSchema` helper. |  |
-| [`SchemaKind`](https://mearman.github.io/schema-components/types/core_adapter.SchemaKind.html) | `core/adapter` | Type | _undocumented_ |  |
+| [`NormalisedSchema`](https://mearman.github.io/schema-components/interfaces/core_adapter.NormalisedSchema.html) | `core/adapter` | Interface | Result of normaliseSchema. |  |
+| [`NormaliseOptions`](https://mearman.github.io/schema-components/interfaces/core_adapter.NormaliseOptions.html) | `core/adapter` | Interface | Options accepted by normaliseSchema. |  |
+| [`normaliseSchema`](https://mearman.github.io/schema-components/functions/core_adapter.normaliseSchema.html) | `core/adapter` | Function | Normalise any supported schema input — Zod 4 schema, plain JSON Schema (any draft), Swagger 2.0, OpenAPI 3.0 or 3.1 document — into a canonical Draft 2020-12 NormalisedSchema the walker can consume. |  |
+| [`SchemaInput`](https://mearman.github.io/schema-components/types/core_adapter.SchemaInput.html) | `core/adapter` | Type | Permissive input alias accepted by normaliseSchema. |  |
+| [`SchemaIoSide`](https://mearman.github.io/schema-components/types/core_adapter.SchemaIoSide.html) | `core/adapter` | Type | Direction of the Zod transform / pipe / codec that normaliseSchema should surface to the renderer. |  |
+| [`SchemaKind`](https://mearman.github.io/schema-components/types/core_adapter.SchemaKind.html) | `core/adapter` | Type | Classification produced by detectSchemaKind when inspecting a runtime schema input. |  |
 | `SchemaMeta` | `core/adapter` | Re-export | _undocumented_ |  |
 | [`extractArrayConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractArrayConstraints.html) | `core/constraints` | Function | _undocumented_ |  |
 | [`extractFileConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractFileConstraints.html) | `core/constraints` | Function | _undocumented_ |  |
@@ -217,8 +217,8 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`DiagnosticSink`](https://mearman.github.io/schema-components/types/core_diagnostics.DiagnosticSink.html) | `core/diagnostics` | Type | Callback that receives each diagnostic as it is emitted. |  |
 | [`DiagnosticsOptions`](https://mearman.github.io/schema-components/interfaces/core_diagnostics.DiagnosticsOptions.html) | `core/diagnostics` | Interface | Diagnostics configuration threaded through the processing pipeline. |  |
 | [`emitDiagnostic`](https://mearman.github.io/schema-components/functions/core_diagnostics.emitDiagnostic.html) | `core/diagnostics` | Function | Emit a diagnostic through the configured sink. |  |
-| [`SchemaError`](https://mearman.github.io/schema-components/classes/core_errors.SchemaError.html) | `core/errors` | Class | Base class for all schema-components errors. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
-| [`SchemaFieldError`](https://mearman.github.io/schema-components/classes/core_errors.SchemaFieldError.html) | `core/errors` | Class | A field path couldn't be resolved against the walked schema tree. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
+| [`SchemaError`](https://mearman.github.io/schema-components/classes/core_errors.SchemaError.html) | `core/errors` | Class | Base class for every schema-components error. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
+| [`SchemaFieldError`](https://mearman.github.io/schema-components/classes/core_errors.SchemaFieldError.html) | `core/errors` | Class | A field path could not be resolved against the walked schema tree. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
 | [`SchemaNormalisationError`](https://mearman.github.io/schema-components/classes/core_errors.SchemaNormalisationError.html) | `core/errors` | Class | The adapter failed to convert the input schema to JSON Schema. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
 | [`SchemaRenderError`](https://mearman.github.io/schema-components/classes/core_errors.SchemaRenderError.html) | `core/errors` | Class | A theme adapter's render function threw during rendering. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
 | [`sortFieldsByOrder`](https://mearman.github.io/schema-components/functions/core_fieldOrder.sortFieldsByOrder.html) | `core/fieldOrder` | Function | Sort `Object.entries(fields)` by `meta.order`. |  |
@@ -253,8 +253,8 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`deepNormaliseWithContext`](https://mearman.github.io/schema-components/functions/core_normalise.deepNormaliseWithContext.html) | `core/normalise` | Function | Deep-normalise a JSON Schema object, threading a context (diagnostics sink + JSON Pointer) through each recursive call. |  |
 | [`documentContainsKeyword`](https://mearman.github.io/schema-components/functions/core_normalise.documentContainsKeyword.html) | `core/normalise` | Function | Scan a JSON document body for the presence of a named keyword anywhere in the structure. |  |
 | [`NodeContext`](https://mearman.github.io/schema-components/interfaces/core_normalise.NodeContext.html) | `core/normalise` | Interface | Per-node context threaded through `deepNormaliseWithContext`. |  |
-| [`NodeTransform`](https://mearman.github.io/schema-components/types/core_normalise.NodeTransform.html) | `core/normalise` | Type | _undocumented_ |  |
-| [`NodeTransformWithContext`](https://mearman.github.io/schema-components/types/core_normalise.NodeTransformWithContext.html) | `core/normalise` | Type | _undocumented_ |  |
+| [`NodeTransform`](https://mearman.github.io/schema-components/types/core_normalise.NodeTransform.html) | `core/normalise` | Type | Per-node transform applied by deepNormalise when no diagnostics context needs to be threaded — see NodeTransformWithContext for the variant used by the JSON Schema normalisation path. |  |
+| [`NodeTransformWithContext`](https://mearman.github.io/schema-components/types/core_normalise.NodeTransformWithContext.html) | `core/normalise` | Type | Per-node transform applied by deepNormaliseWithContext. |  |
 | [`normaliseDraft04Node`](https://mearman.github.io/schema-components/functions/core_normalise.normaliseDraft04Node.html) | `core/normalise` | Function | Normalise Draft 04 `exclusiveMinimum`/`exclusiveMaximum` from boolean to number form, plus the other Draft 04 translations applied to a single node. |  |
 | [`normaliseJsonSchema`](https://mearman.github.io/schema-components/functions/core_normalise.normaliseJsonSchema.html) | `core/normalise` | Function | Normalise a JSON Schema to canonical Draft 2020-12 form. |  |
 | [`normaliseOpenApiSchemas`](https://mearman.github.io/schema-components/functions/core_normalise.normaliseOpenApiSchemas.html) | `core/normalise` | Function | Normalise an OpenAPI document's schemas for walker consumption. |  |
@@ -400,12 +400,12 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`getObject`](https://mearman.github.io/schema-components/functions/core_walkBuilders.getObject.html) | `core/walkBuilders` | Function | _undocumented_ |  |
 | [`getString`](https://mearman.github.io/schema-components/functions/core_walkBuilders.getString.html) | `core/walkBuilders` | Function | _undocumented_ |  |
 | [`isPrimitive`](https://mearman.github.io/schema-components/functions/core_walkBuilders.isPrimitive.html) | `core/walkBuilders` | Function | _undocumented_ |  |
-| [`WalkContext`](https://mearman.github.io/schema-components/interfaces/core_walkBuilders.WalkContext.html) | `core/walkBuilders` | Interface | _undocumented_ |  |
+| [`WalkContext`](https://mearman.github.io/schema-components/interfaces/core_walkBuilders.WalkContext.html) | `core/walkBuilders` | Interface | Mutable context threaded through every recursive walk step. |  |
 | [`walkDependentRequiredMap`](https://mearman.github.io/schema-components/functions/core_walkBuilders.walkDependentRequiredMap.html) | `core/walkBuilders` | Function | Walk a dependentRequired map (Record<string, string[]>). |  |
-| [`WalkOptions`](https://mearman.github.io/schema-components/interfaces/core_walkBuilders.WalkOptions.html) | `core/walkBuilders` | Interface | _undocumented_ |  |
+| [`WalkOptions`](https://mearman.github.io/schema-components/interfaces/core_walkBuilders.WalkOptions.html) | `core/walkBuilders` | Interface | Options accepted by `walk`. |  |
 | [`walkSubSchemaMap`](https://mearman.github.io/schema-components/functions/core_walkBuilders.walkSubSchemaMap.html) | `core/walkBuilders` | Function | Walk a map of sub-schemas (patternProperties, dependentSchemas, $defs). |  |
 | [`withoutKeys`](https://mearman.github.io/schema-components/functions/core_walkBuilders.withoutKeys.html) | `core/walkBuilders` | Function | Return a copy of the schema without the specified keys. |  |
-| [`walk`](https://mearman.github.io/schema-components/functions/core_walker.walk.html) | `core/walker` | Function | _undocumented_ |  |
+| [`walk`](https://mearman.github.io/schema-components/functions/core_walker.walk.html) | `core/walker` | Function | Walk a normalised JSON Schema and produce a WalkedField tree that drives every rendering pipeline in schema-components (React, HTML, streaming HTML). |  |
 
 </details>
 
