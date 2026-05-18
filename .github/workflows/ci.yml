@@ -12,7 +12,12 @@ permissions:
     contents: write
     id-token: write
     issues: write
+    pages: write
     pull-requests: write
+
+concurrency:
+    group: pages-${{ github.ref }}
+    cancel-in-progress: false
 
 jobs:
     lint-commits:
@@ -195,3 +200,59 @@ jobs:
                     echo "released=false" >> "$GITHUB_OUTPUT"
                   fi
                   exit $EXIT_CODE
+
+    pages-build:
+        name: Build Pages site
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        needs: [check, test, storybook-test]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6.0.2
+
+            - uses: pnpm/action-setup@v6.0.8
+
+            - uses: actions/setup-node@v6.4.0
+              with:
+                  node-version-file: .tool-versions
+                  cache: pnpm
+
+            - run: pnpm install --frozen-lockfile
+
+            - uses: actions/cache@v5.0.5
+              with:
+                  path: .turbo
+                  key: turbo-${{ runner.os }}-${{ github.sha }}
+                  restore-keys: |
+                      turbo-${{ runner.os }}-
+
+            - run: pnpm build
+
+            - run: pnpm docs
+
+            - name: Build Storybook with sub-path
+              env:
+                  STORYBOOK_BASE_PATH: /schema-components/storybook/
+              run: pnpm build-storybook
+
+            - name: Assemble Pages site
+              run: |
+                  mkdir -p site
+                  cp -R packages/core/typedoc-static/. site/
+                  mkdir -p site/storybook
+                  cp -R packages/docs/storybook-static/. site/storybook/
+
+            - uses: actions/upload-pages-artifact@v5.0.0
+              with:
+                  path: site
+
+    pages-deploy:
+        name: Deploy Pages site
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        needs: pages-build
+        runs-on: ubuntu-latest
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - uses: actions/deploy-pages@v5.0.0
+              id: deployment
