@@ -19,6 +19,7 @@ import { MAX_PATH_ITEM_REF_HOPS } from "../core/limits.ts";
 import { HTTP_METHODS } from "../core/openapiConstants.ts";
 import { resolveRefChain } from "../core/refChain.ts";
 import { isPrototypePollutingKey } from "../core/uri.ts";
+import { detectOpenApiVersion } from "../core/version.ts";
 
 // Type guards imported from core/guards.ts
 
@@ -526,6 +527,17 @@ export function getResponses(
  * it has no `$ref`, or `undefined` when the `$ref` is malformed or
  * cannot be resolved (so the caller skips the entry rather than reading
  * stale fields from the bare `{ $ref }` envelope).
+ *
+ * OpenAPI 3.1 Reference Object — sibling merge. OAS 3.1 explicitly
+ * permits `summary` and `description` siblings of `$ref`; the wrapper's
+ * siblings override the corresponding fields on the referenced node
+ * (spec: "If the property is present on both the Reference Object and
+ * the referenced node, the value on the Reference Object overrides the
+ * value of the referenced node"). OAS 3.0 forbids siblings, so the merge
+ * is gated on the document version. The gating is best-effort — if no
+ * recognisable `openapi`/`swagger` field is present we err on the side
+ * of NOT merging siblings to avoid changing behaviour for ambiguous or
+ * partially-built documents.
  */
 function resolveWrapperRef(
     doc: JsonObject,
@@ -533,7 +545,45 @@ function resolveWrapperRef(
 ): JsonObject | undefined {
     const ref = getString(wrapper, "$ref");
     if (ref === undefined) return wrapper;
-    return resolveRefInDoc(doc, ref);
+    const target = resolveRefInDoc(doc, ref);
+    if (target === undefined) return undefined;
+    if (!documentAllowsReferenceSiblings(doc)) return target;
+    return mergeReferenceSiblings(wrapper, target);
+}
+
+/**
+ * OAS 3.1 admits `summary` and `description` siblings on a Reference
+ * Object; OAS 3.0 does not. Detect the document version once per call
+ * — `detectOpenApiVersion` reads the top-level `openapi`/`swagger` field
+ * and is cheap enough to call on every resolution without caching.
+ */
+function documentAllowsReferenceSiblings(doc: JsonObject): boolean {
+    const version = detectOpenApiVersion(doc);
+    if (version === undefined) return false;
+    return version.major === 3 && version.minor >= 1;
+}
+
+/**
+ * Per OAS 3.1, only `summary` and `description` siblings on a Reference
+ * Object are permitted and they override the referenced node. Any other
+ * sibling is ignored (spec: "Any properties of a Reference Object other
+ * than those described above SHALL be ignored"). The returned object is
+ * a fresh shallow merge — the input wrapper and target are not mutated.
+ */
+const REFERENCE_OBJECT_SIBLING_KEYS = ["summary", "description"] as const;
+
+function mergeReferenceSiblings(
+    wrapper: JsonObject,
+    target: JsonObject
+): JsonObject {
+    const merged: JsonObject = { ...target };
+    for (const key of REFERENCE_OBJECT_SIBLING_KEYS) {
+        const siblingValue = wrapper[key];
+        if (typeof siblingValue === "string") {
+            merged[key] = siblingValue;
+        }
+    }
+    return merged;
 }
 
 // ---------------------------------------------------------------------------
