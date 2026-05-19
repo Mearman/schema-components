@@ -748,12 +748,12 @@ function applyDraft04Translations(
  * single node.
  *
  * In Draft 04:
- * - `exclusiveMinimum: true` + `minimum: 5` → value must be > 5
- * - `exclusiveMinimum: false` (or absent) + `minimum: 5` → value must be >= 5
+ * - `exclusiveMinimum: true` + `minimum: 5` → value must be \> 5
+ * - `exclusiveMinimum: false` (or absent) + `minimum: 5` → value must be \>= 5
  *
  * In Draft 06+:
- * - `exclusiveMinimum: 5` → value must be > 5 (no separate `minimum`)
- * - `minimum: 5` → value must be >= 5
+ * - `exclusiveMinimum: 5` → value must be \> 5 (no separate `minimum`)
+ * - `minimum: 5` → value must be \>= 5
  *
  * The transform converts boolean form to number form so the walker can
  * treat `exclusiveMinimum`/`exclusiveMaximum` uniformly as numbers.
