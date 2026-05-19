@@ -12,13 +12,110 @@ React components that render UI from Zod schemas, JSON Schema, and OpenAPI docum
 npm install schema-components
 ```
 
-Peer dependencies: `zod@^4.0.0`, `react@^18.0.0 || ^19.0.0`.
+Peer dependencies: `zod@^4.0.0`, `react@^18.0.0 || ^19.0.0`. `preact@>=10.0.0` is also accepted as an optional peer for the Preact entry point — see [Preact support](#preact-support).
 
 ### Zod version requirement
 
 schema-components requires **Zod 4**. If you are on Zod 3, see the [Zod 4 migration guide](https://zod.dev/v4/migration). Zod 3 schemas are detected structurally — any object exposing `_def` without the Zod 4 `_zod` marker is classified as Zod 3, with or without the historical `_def.typeName` field. (Some third-party Zod-3-style libraries omit `typeName`; the detector keys on the presence of `_def` alone.) A descriptive `SchemaNormalisationError` is raised pointing at the Zod 4 migration guide.
 
 Schemas from other libraries that conform to the [Standard Schema](https://standardschema.dev/) spec (valibot, arktype, ...) are also detected and rejected. When the input advertises a `~standard.vendor` field, the error message includes the vendor name so consumers know which library produced the input.
+
+### Preact support
+
+Preact is supported as an optional peer dependency via `preact/compat` aliasing. The Preact entry point (`schema-components/preact/*`) re-exports every public symbol from the React entry point (`SchemaComponent`, `SchemaProvider`, `SchemaField`, `SchemaView`, `SchemaErrorBoundary`, `registerWidget`, `headlessResolver`). The renderer tree is identical — `preact/compat` translates React-style `onChange` to `onInput` at render time, matching the "fires on every keystroke" semantics the controlled inputs rely on.
+
+Import from `schema-components/preact/*` instead of `schema-components/react/*`, then configure your bundler to alias `react` and `react-dom` to `preact/compat`.
+
+```tsx
+import { SchemaComponent } from "schema-components/preact/SchemaComponent";
+```
+
+#### Vite
+
+```ts
+// vite.config.ts
+import { defineConfig } from "vite";
+
+export default defineConfig({
+    resolve: {
+        alias: {
+            "react-dom/test-utils": "preact/test-utils",
+            "react-dom/client": "preact/compat/client",
+            "react-dom/server": "preact/compat/server",
+            "react-dom": "preact/compat",
+            "react/jsx-runtime": "preact/jsx-runtime",
+            "react/jsx-dev-runtime": "preact/jsx-dev-runtime",
+            react: "preact/compat",
+        },
+    },
+});
+```
+
+The order matters: longer, path-specific entries (`react-dom/client`, `react/jsx-runtime`) must come before the bare entries (`react`, `react-dom`) so they get a chance to claim the request first.
+
+#### Next.js
+
+```ts
+// next.config.ts
+import type { NextConfig } from "next";
+
+const config: NextConfig = {
+    webpack(webpackConfig) {
+        webpackConfig.resolve.alias = {
+            ...webpackConfig.resolve.alias,
+            "react-dom/test-utils": "preact/test-utils",
+            "react-dom/client": "preact/compat/client",
+            "react-dom/server": "preact/compat/server",
+            "react-dom": "preact/compat",
+            "react/jsx-runtime": "preact/jsx-runtime",
+            "react/jsx-dev-runtime": "preact/jsx-dev-runtime",
+            react: "preact/compat",
+        };
+        return webpackConfig;
+    },
+};
+
+export default config;
+```
+
+#### Node (without a bundler)
+
+Use the package manager's overrides field to swap the resolved package at install time. For npm:
+
+```jsonc
+// package.json
+{
+    "overrides": {
+        "react": "npm:@preact/compat@*",
+        "react-dom": "npm:@preact/compat@*"
+    }
+}
+```
+
+For pnpm:
+
+```jsonc
+// package.json
+{
+    "pnpm": {
+        "overrides": {
+            "react": "npm:@preact/compat@*",
+            "react-dom": "npm:@preact/compat@*"
+        }
+    }
+}
+```
+
+For yarn, use the `resolutions` field with the same value.
+
+#### Known limitations
+
+1. **React Server Components is React-only.** `<SchemaView>` runs as a client component under Preact, losing the zero-client-JS deployment story documented in [Server Components](#server-components). The component still renders correctly — it just executes in the browser rather than at request time on the server.
+2. **`onChange` semantics requires `preact/compat`.** Raw `preact` (without `compat`) fires `onChange` on commit / blur, matching the DOM standard. `preact/compat` aliases `onChange` to `onInput` so the controlled inputs fire on every keystroke, matching React's behaviour. Importing from `schema-components/preact/*` without aliasing `react` to `preact/compat` will leave events misrouted.
+3. **HTML serialization differs slightly.** Preact emits HTML5 boolean-attribute shorthand (`value` for an empty string) where React emits `value=""`. The semantics are identical; only string snapshots that match the exact React form will need adjusting under Preact.
+4. **Vnode prop shape differs.** Preact-compat rewrites React-style event prop names (`onChange`, `onBlur`) to lowercase DOM event names (`oninput`, `onfocusout`) on the vnode prop bag during rendering. Tests that inspect a React element's `.props` directly (rather than the rendered DOM) need to expect the lowercase form when running under Preact.
+
+The test suite is parametrised with a `unit-preact` Vitest project that runs the same files under `preact/compat` aliasing. Run it via `pnpm test:preact` from the repo root, or directly with `pnpm exec vitest run --project=unit-preact` from `packages/core`. A small set of tests (the ones bound to the three known limitations above) fail intentionally; the remaining ~99% pass under both runtimes and establish the cross-runtime regression boundary.
 
 ## `SchemaComponent`
 
