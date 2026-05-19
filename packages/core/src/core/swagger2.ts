@@ -1342,7 +1342,7 @@ function normaliseSwaggerHeader(
  * Deep-rewrite $ref strings in a normalised Swagger 2.0 document
  * from Swagger 2.0 locations to OpenAPI 3.x locations using the
  * shared {@link rewriteSwaggerRefPrefix} mapping. Mutates the object
- * in place \u2014 called only on the fresh clone produced by
+ * in place — called only on the fresh clone produced by
  * normaliseSwagger2Document.
  */
 function rewriteSwaggerRefs(node: unknown): void {
