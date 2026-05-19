@@ -7,14 +7,14 @@
  * Supports all JSON Schema draft versions (04-2020-12) and OpenAPI 3.x / Swagger 2.0.
  *
  * Known limitations:
- * - Recursive schemas ($recursiveRef) -> unknown (TS cannot express recursive types)
- * - `not` -> unknown (TS cannot negate types)
- * - `if`/`then`/`else` -> base schema without conditionals (TS cannot evaluate conditions)
- * - `propertyNames` -> ignored (TS cannot validate key shapes)
- * - `dependentSchemas` / `dependentRequired` -> ignored (runtime-only conditionals)
- * - `unevaluatedProperties` -> ignored (runtime-only)
- * - `contains` / `minContains` / `maxContains` -> element type unchanged (runtime constraints)
- * - OpenAPI path-based refs -> uses existing path traversal types where possible
+ * - Recursive schemas ($recursiveRef) -\> unknown (TS cannot express recursive types)
+ * - `not` -\> unknown (TS cannot negate types)
+ * - `if`/`then`/`else` -\> base schema without conditionals (TS cannot evaluate conditions)
+ * - `propertyNames` -\> ignored (TS cannot validate key shapes)
+ * - `dependentSchemas` / `dependentRequired` -\> ignored (runtime-only conditionals)
+ * - `unevaluatedProperties` -\> ignored (runtime-only)
+ * - `contains` / `minContains` / `maxContains` -\> element type unchanged (runtime constraints)
+ * - OpenAPI path-based refs -\> uses existing path traversal types where possible
  */
 
 import type { z } from "zod";
@@ -182,23 +182,23 @@ export type FromJSONSchemaMode = "input" | "output" | "both";
  *
  * Supports all JSON Schema draft versions (04-2020-12) and OpenAPI 3.x:
  * - Primitive types: string, number, integer, boolean, null
- * - type as array: `["string", "null"]` -> `string | null` (nullable)
- * - enum -> union of literal types
- * - const -> literal type
- * - object with properties/required -> specific object type
- * - object with properties + additionalProperties -> object & Record<string, V>
- * - object with additionalProperties only -> Record<string, T>
- * - array with items -> T[]
- * - array with prefixItems -> tuple type
- * - allOf -> intersection type
- * - anyOf -> union type
- * - oneOf -> union type (plain union, or tagged union when `discriminator` is set)
- * - $ref -> resolved via $defs/definitions/$anchor context
- * - $dynamicRef -> resolved via $dynamicAnchor in definitions
- * - $recursiveRef -> unknown (recursive types not expressible in TS)
- * - if/then/else -> base schema (conditionals not expressible in TS)
- * - not -> unknown (negation not expressible in TS)
- * - patternProperties -> merged into loose index signature
+ * - type as array: `["string", "null"]` -\> `string | null` (nullable)
+ * - enum -\> union of literal types
+ * - const -\> literal type
+ * - object with properties/required -\> specific object type
+ * - object with properties + additionalProperties -\> object & `Record<string, V>`
+ * - object with additionalProperties only -\> `Record<string, T>`
+ * - array with items -\> `T[]`
+ * - array with prefixItems -\> tuple type
+ * - allOf -\> intersection type
+ * - anyOf -\> union type
+ * - oneOf -\> union type (plain union, or tagged union when `discriminator` is set)
+ * - $ref -\> resolved via $defs/definitions/$anchor context
+ * - $dynamicRef -\> resolved via $dynamicAnchor in definitions
+ * - $recursiveRef -\> unknown (recursive types not expressible in TS)
+ * - if/then/else -\> base schema (conditionals not expressible in TS)
+ * - not -\> unknown (negation not expressible in TS)
+ * - patternProperties -\> merged into loose index signature
  *
  * The `Mode` parameter controls how `readOnly` / `writeOnly` keywords
  * influence inferred object properties — see {@link FromJSONSchemaMode}.
@@ -409,11 +409,12 @@ export interface __SchemaInferenceFellBack {
  * a silent default.
  *
  * Earlier revisions made the brand optional (`__unsafe?: true`).
- * That defeated the brand's purpose: any plain `Record<string,
- * FieldOverride>` literal silently satisfied the type and the
- * "unsafe" intent was invisible to readers and reviewers. Marking
- * the brand required forces callers to write `{ __unsafe: true,
- * ... }`, making the escape-hatch use visible at the call site.
+ * That defeated the brand's purpose: any plain
+ * `Record<string, FieldOverride>` literal silently satisfied the type
+ * and the "unsafe" intent was invisible to readers and reviewers.
+ * Marking the brand required forces callers to write
+ * `{ __unsafe: true, ... }`, making the escape-hatch use visible at
+ * the call site.
  *
  * The brand key is carved out of the field-name index signature so
  * `__unsafe: true` does not collide with the `FieldOverride` value
@@ -546,8 +547,8 @@ type ResolveSchemaRef<
  * but TypeScript's mapped-type machinery — combined with the conditional
  * dispatch above — does not always recover that distribution when the
  * union arises from a `FromJSONSchema` expansion. The pinned regression
- * test `allOf of unions is treated as the intersection of the union
- * members` in `tests/type-inference-issue-fixes.test.ts` documents the
+ * test "allOf of unions is treated as the intersection of the union
+ * members" in `tests/type-inference-issue-fixes.test.ts` documents the
  * current behaviour so future refactors do not silently make it worse.
  * There is no known way to express "distribute every member-side union
  * across the intersection" in TypeScript today without losing the
@@ -785,7 +786,7 @@ type NullableResult<Base, S> = S extends { type: readonly (infer T)[] }
     : Base;
 
 /**
- * Parse an array schema: prefixItems -> tuple, items -> T[], or unknown[].
+ * Parse an array schema: prefixItems -\> tuple, items -\> `T[]`, or `unknown[]`.
  *
  * Draft 04 used tuple-form `items` (an array of schemas) for tuple typing;
  * Draft 2020-12 renamed this to `prefixItems`. The runtime normaliser in
@@ -829,19 +830,19 @@ type PrefixItemsToTuple<
     : [];
 
 /**
- * Parse an object schema: properties + required -> specific object,
- * additionalProperties -> Record, or empty object.
+ * Parse an object schema: properties + required -\> specific object,
+ * additionalProperties -\> Record, or empty object.
  *
  * Handles:
- * - `properties` + `required` -> specific object type with required/optional keys
- * - `additionalProperties` as schema -> Record<string, T>
- * - `properties` + `additionalProperties` -> base object intersected with
+ * - `properties` + `required` -\> specific object type with required/optional keys
+ * - `additionalProperties` as schema -\> `Record<string, T>`
+ * - `properties` + `additionalProperties` -\> base object intersected with
  *   `Record<string, V>`, preserving the typed value shape of the extra props
- * - `patternProperties` -> merged into a loose index signature alongside specific props
+ * - `patternProperties` -\> merged into a loose index signature alongside specific props
  *   (TypeScript cannot express regex-keyed properties)
- * - `propertyNames` -> ignored at type level (TS cannot validate key shapes)
- * - `dependentSchemas` / `dependentRequired` -> ignored (runtime-only conditionals)
- * - `unevaluatedProperties` -> ignored (runtime-only)
+ * - `propertyNames` -\> ignored at type level (TS cannot validate key shapes)
+ * - `dependentSchemas` / `dependentRequired` -\> ignored (runtime-only conditionals)
+ * - `unevaluatedProperties` -\> ignored (runtime-only)
  *
  * Properties marked `readOnly: true` are omitted when `Mode` is
  * `"input"`; properties marked `writeOnly: true` are omitted when
@@ -1039,7 +1040,7 @@ type RawComponentSchemasOf<S> = S extends {
     : Record<string, never>;
 
 /**
- * Build a map of `$anchor` name -> schema from a definitions block.
+ * Build a map of `$anchor` name -\> schema from a definitions block.
  * Scans each definition value for `$anchor`, `$dynamicAnchor`, or the
  * Draft 2019-09 `$recursiveAnchor` keyword and creates entries like
  * `{ Tree: <schema-with-$anchor-Tree> }`.
@@ -1069,7 +1070,7 @@ type ExtractAnchors<D extends Record<string, unknown>> = {
 
 /**
  * Convert a union to an intersection.
- * `A | B` -> `A & B`. Used for allOf merging.
+ * `A | B` -\> `A & B`. Used for allOf merging.
  */
 type UnionToIntersection<U> = (
     U extends unknown ? (k: U) => void : never
@@ -1178,11 +1179,11 @@ type ExtractDefinitions<Spec> = Spec extends { definitions: infer D }
 /**
  * Resolve a path-based $ref after the `#/paths/` prefix.
  * Splits on `/` and navigates the document tree, decoding JSON Pointer
- * tilde escapes (`~1` -> `/`, `~0` -> `~`) on every segment.
+ * tilde escapes (`~1` -\> `/`, `~0` -\> `~`) on every segment.
  *
  * SOURCE-OF-TRUTH: mirrors runtime `dereference` in
  * `packages/core/src/core/ref.ts` (line 226), which applies the same
- * `~1` -> `/`, `~0` -> `~` substitutions per RFC 6901 §4. The runtime
+ * `~1` -\> `/`, `~0` -\> `~` substitutions per RFC 6901 §4. The runtime
  * uses ordered string replacement; the type-level mirror does the same
  * via {@link DecodeJsonPointerSegment}.
  */
@@ -1211,7 +1212,7 @@ type ReplaceAll<
 
 /**
  * Decode a single JSON Pointer reference token per RFC 6901 §4:
- * apply `~1` -> `/` first, then `~0` -> `~`. The order matters — an
+ * apply `~1` -\> `/` first, then `~0` -\> `~`. The order matters — an
  * encoded `~` containing a literal `1` (e.g. `~01`) must remain `~1`
  * after decoding, which only works when `~1` is processed first.
  */
@@ -1223,7 +1224,7 @@ type DecodeJsonPointerSegment<S extends string> = ReplaceAll<
 
 /**
  * Split a path string on `/` into a tuple of segments.
- * The first segment is the path key (may be empty for `/pets` -> `""` / `"pets"`).
+ * The first segment is the path key (may be empty for `/pets` -\> `""` / `"pets"`).
  */
 type SplitPath<S extends string> = S extends `${infer Head}/${infer Tail}`
     ? [Head, ...SplitPath<Tail>]
@@ -1361,7 +1362,7 @@ type ResponseSchemaOf<
 
 /**
  * Resolve a response entry from a status code following the OpenAPI
- * priority order: concrete > class wildcard > `default`. When none of
+ * priority order: concrete \> class wildcard \> `default`. When none of
  * the three matches, the result is `never` and the caller's outer
  * conditional falls through to `unknown`.
  */
@@ -1503,7 +1504,7 @@ export type OpenAPIRequestBodyType<
  * declared content type when the default is absent.
  *
  * Status-code resolution follows the OpenAPI priority order: concrete
- * code > class wildcard (e.g. `"2XX"`) > `"default"`. See
+ * code \> class wildcard (e.g. `"2XX"`) \> `"default"`. See
  * {@link ResponseSchemaOf}.
  *
  * Swagger 2.0 documents are not normalised at the type level. When the
@@ -1553,8 +1554,8 @@ export type OpenAPIResponseType<
  * documents, and the existing `@ts-expect-error` regressions in
  * `type-inference.test.ts` rely on the current widening behaviour.
  * The trade-off is pinned by the
- * `FieldsFromInferred widens to Record<string, FieldOverride> when the
- * operation is unknown` regression test.
+ * "FieldsFromInferred widens to `Record<string, FieldOverride>` when the
+ * operation is unknown" regression test.
  */
 type FieldsFromInferred<T> = [T] extends [__SchemaInferenceFellBack]
     ? __SchemaInferenceFellBack
