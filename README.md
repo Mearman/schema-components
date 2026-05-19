@@ -184,7 +184,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 <!-- @generated:api-inventory:start -->
 <details>
-<summary><code>core/*</code> — 230 exports</summary>
+<summary><code>core/*</code> — 233 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -206,6 +206,9 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`extractObjectConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractObjectConstraints.html) | `core/constraints` | Function | Read the JSON Schema object constraint keywords (`minProperties`, `maxProperties`) from a schema node and return them in the `ObjectConstraints` shape. |  |
 | [`extractStringConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractStringConstraints.html) | `core/constraints` | Function | Read the JSON Schema string constraint keywords (`minLength`, `maxLength`, `pattern`, `format`, `contentEncoding`, `contentMediaType`) from a schema node and return them in the `StringConstraints` shape consumed by string field renderers. |  |
 | [`stripInapplicableConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.stripInapplicableConstraints.html) | `core/constraints` | Function | Return a copy of the schema with constraint keywords that don't apply to the given type removed. |  |
+| [`ContextPort`](https://mearman.github.io/schema-components/interfaces/core_contexts.ContextPort.html) | `core/contexts` | Interface | Abstract provide / consume port that framework adapters implement against their native context primitive. |  |
+| [`ResolverContextShape`](https://mearman.github.io/schema-components/types/core_contexts.ResolverContextShape.html) | `core/contexts` | Type | Shape carried by the resolver context. |  |
+| [`WidgetsContextShape`](https://mearman.github.io/schema-components/types/core_contexts.WidgetsContextShape.html) | `core/contexts` | Type | Shape carried by the widgets context. |  |
 | [`ELLIPSIS`](https://mearman.github.io/schema-components/variables/core_cssClasses.ELLIPSIS.html) | `core/cssClasses` | Variable | Single-character ellipsis used in placeholders like "Select…". |  |
 | [`EM_DASH`](https://mearman.github.io/schema-components/variables/core_cssClasses.EM_DASH.html) | `core/cssClasses` | Variable | Common em-dash placeholder for empty / unset values. |  |
 | [`SC_CLASSES`](https://mearman.github.io/schema-components/variables/core_cssClasses.SC_CLASSES.html) | `core/cssClasses` | Variable | Canonical CSS class names exposed by the default render pipelines. |  |
