@@ -364,6 +364,159 @@ describe("Swagger 2.0 oauth2 missing flow", () => {
     });
 });
 
+describe("Swagger 2.0 path-level parameters", () => {
+    // Common idiom in Swagger 2.0: declare the `{id}` path placeholder
+    // on the Path Item Object so every operation under that path
+    // inherits it. The OpenAPI 3.x normaliser must preserve those
+    // parameters under `paths["/x"].parameters` and lift their type /
+    // format keywords into the OAS 3.x `schema` shape just like it
+    // does for operation-level parameters.
+    it("normalises a shared path-level {id} parameter into OAS 3.x form", () => {
+        const doc: Record<string, unknown> = {
+            swagger: "2.0",
+            info: { title: "Test", version: "1.0.0" },
+            paths: {
+                "/items/{id}": {
+                    parameters: [
+                        {
+                            name: "id",
+                            in: "path",
+                            required: true,
+                            type: "string",
+                            format: "uuid",
+                        },
+                    ],
+                    get: {
+                        operationId: "get",
+                        responses: { "200": { description: "ok" } },
+                    },
+                    delete: {
+                        operationId: "del",
+                        responses: { "204": { description: "ok" } },
+                    },
+                },
+            },
+        };
+
+        const { result } = collect(doc);
+        const paths = result.paths as Record<string, unknown>;
+        const item = paths["/items/{id}"] as Record<string, unknown>;
+        const params = item.parameters as Record<string, unknown>[];
+        expect(params).toHaveLength(1);
+        const idParam = assertDefined(params[0], "id param survives");
+        expect(idParam.name).toBe("id");
+        expect(idParam.in).toBe("path");
+        expect(idParam.required).toBe(true);
+        // Swagger 2.0 keywords have been hoisted into `schema`; the
+        // shorthand `type` / `format` keys must not survive on the
+        // OAS 3.x parameter root.
+        expect("type" in idParam).toBe(false);
+        expect("format" in idParam).toBe(false);
+        const schema = idParam.schema as Record<string, unknown>;
+        expect(schema.type).toBe("string");
+        expect(schema.format).toBe("uuid");
+        // Operations are still preserved alongside the shared params.
+        expect(item.get).toBeDefined();
+        expect(item.delete).toBeDefined();
+    });
+
+    it("resolves a $ref in the path-level parameters array", () => {
+        const doc: Record<string, unknown> = {
+            swagger: "2.0",
+            info: { title: "Test", version: "1.0.0" },
+            paths: {
+                "/items/{id}": {
+                    parameters: [{ $ref: "#/parameters/IdParam" }],
+                    get: {
+                        operationId: "get",
+                        responses: { "200": { description: "ok" } },
+                    },
+                },
+            },
+            parameters: {
+                IdParam: {
+                    name: "id",
+                    in: "path",
+                    required: true,
+                    type: "integer",
+                    minimum: 1,
+                },
+            },
+        };
+
+        const { result } = collect(doc);
+        const paths = result.paths as Record<string, unknown>;
+        const item = paths["/items/{id}"] as Record<string, unknown>;
+        const params = item.parameters as Record<string, unknown>[];
+        expect(params).toHaveLength(1);
+        const idParam = assertDefined(params[0], "resolved $ref param");
+        expect(idParam.name).toBe("id");
+        expect(idParam.in).toBe("path");
+        const schema = idParam.schema as Record<string, unknown>;
+        expect(schema.type).toBe("integer");
+        expect(schema.minimum).toBe(1);
+    });
+
+    it("emits swagger-cyclic-parameter-ref for a cyclic path-level $ref and skips the entry", () => {
+        const doc: Record<string, unknown> = {
+            swagger: "2.0",
+            info: { title: "Test", version: "1.0.0" },
+            paths: {
+                "/items/{id}": {
+                    parameters: [{ $ref: "#/parameters/Recursive" }],
+                    get: {
+                        operationId: "get",
+                        responses: { "200": { description: "ok" } },
+                    },
+                },
+            },
+            parameters: {
+                Recursive: { $ref: "#/parameters/Recursive" },
+            },
+        };
+
+        const { result, diagnostics } = collect(doc);
+        const diag = diagnostics.find(
+            (d) => d.code === "swagger-cyclic-parameter-ref"
+        );
+        expect(diag).toBeDefined();
+        expect(diag?.detail?.ref).toBe("#/parameters/Recursive");
+
+        const paths = result.paths as Record<string, unknown>;
+        const item = paths["/items/{id}"] as Record<string, unknown>;
+        const params = item.parameters as unknown[];
+        // The cyclic entry is dropped — empty array remains so the
+        // shape is canonical (always an array, never `undefined`).
+        expect(params).toEqual([]);
+    });
+
+    it("preserves non-object entries in the path-level parameters array verbatim", () => {
+        // Defensive: a Swagger 2.0 document may carry a malformed
+        // non-object entry. The normaliser passes it through
+        // unchanged so downstream validators still see the original
+        // shape and can flag it.
+        const doc: Record<string, unknown> = {
+            swagger: "2.0",
+            info: { title: "Test", version: "1.0.0" },
+            paths: {
+                "/items": {
+                    parameters: ["not-an-object", 42],
+                    get: {
+                        operationId: "get",
+                        responses: { "200": { description: "ok" } },
+                    },
+                },
+            },
+        };
+
+        const { result } = collect(doc);
+        const paths = result.paths as Record<string, unknown>;
+        const item = paths["/items"] as Record<string, unknown>;
+        const params = item.parameters as unknown[];
+        expect(params).toEqual(["not-an-object", 42]);
+    });
+});
+
 describe("Swagger 2.0 cyclic parameter ref via shared resolveRefChain", () => {
     it("still emits swagger-cyclic-parameter-ref on a self-cycle", () => {
         const doc: Record<string, unknown> = {
