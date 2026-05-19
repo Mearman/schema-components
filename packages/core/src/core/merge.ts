@@ -400,9 +400,9 @@ export interface Discriminated {
  * see why the union falls back to a generic oneOf.
  *
  * When two or more options share the same discriminator `const` value,
- * the union is still treated as discriminated (the first-match
- * behaviour in {@link import("./unionMatch.ts").resolveDiscriminatedActive}
- * resolves the active option), but a `discriminator-duplicate`
+ * the union is still treated as discriminated — the first-match
+ * behaviour in `resolveDiscriminatedActive` (in `core/unionMatch.ts`)
+ * resolves the active option — but a `discriminator-duplicate`
  * diagnostic is emitted so the unreachable branch is visible to the
  * consumer. Changing the behaviour to fall back to a generic union
  * would be a silent regression for the much commoner case of two
