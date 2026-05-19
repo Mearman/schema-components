@@ -90,8 +90,8 @@ export function isSafeHyperlink(value: string): boolean {
  * the resulting `mailto:` URI. Refuse any value containing `%` to close
  * that header-injection vector. The plain email-format regex stays a
  * pure email-syntax check; the additional `%` filter lives here so other
- * callers of the format pattern (form validators, JSON Schema `format:
- * email` checks) are not affected.
+ * callers of the format pattern (form validators, JSON Schema
+ * `format: email` checks) are not affected.
  */
 export function isSafeMailtoAddress(value: string): boolean {
     // A literal `%` in an email address cannot have a legitimate
