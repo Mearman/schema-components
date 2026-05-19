@@ -15,25 +15,6 @@ import { ApiCallbacks } from "../src/openapi/ApiCallbacks.tsx";
 import { ApiLinks } from "../src/openapi/ApiLinks.tsx";
 import { ApiResponseHeaders } from "../src/openapi/ApiResponseHeaders.tsx";
 import { SchemaComponent } from "../src/react/SchemaComponent.tsx";
-import { IS_PREACT } from "./helpers.ts";
-
-/**
- * Under `preact/compat`, `createElement` strips the `ref` prop from the
- * vnode prop bag (legacy React 16/17 behaviour). `<SchemaComponent>` uses
- * `ref` as a regular prop to select an OpenAPI operation, so passing
- * `ref="/animals/post"` through `createElement` lands in the component as
- * `refInput === undefined` and `normaliseSchema` falls back to the first
- * `components/schemas` entry. The `<ApiRequestBody>` path is unaffected
- * because it passes the ref via a function argument, not a JSX prop.
- *
- * Tests that exercise the `<SchemaComponent ref="…">` form via
- * `createElement` are skipped under Preact; the parity contract holds on
- * the React side and is verified by the `unit` project run. Resolving
- * this for Preact properly requires renaming the prop on `<SchemaComponent>`
- * (breaking change) or special-casing the Preact entry to forward `ref`
- * through a non-reserved alias — flagged for the Preact adapter owner.
- */
-const itReact = IS_PREACT ? it.skip : it;
 
 const doc = {
     openapi: "3.1.0",
@@ -461,15 +442,15 @@ describe("OpenAPI 3.0 request body normalisation", () => {
         expect(html).toContain(">Cat<");
     });
 
-    itReact("matches <SchemaComponent> output for the same schema", () => {
+    it("matches <SchemaComponent> output for the same schema", () => {
         // Both paths must run the identical 3.0 → 3.1 normalisation pipeline.
-        // Render the schema directly via <SchemaComponent> with a ref into
-        // the request body, then assert <ApiRequestBody> produces the same
-        // tablist + tab structure.
+        // Render the schema directly via <SchemaComponent> with a schemaRef
+        // into the request body, then assert <ApiRequestBody> produces the
+        // same tablist + tab structure.
         const viaSchemaComponent = renderToString(
             createElement(SchemaComponent, {
                 schema: oas30Doc,
-                ref: "/animals/post",
+                schemaRef: "/animals/post",
                 value: { kind: "Dog", name: "Fido" },
             })
         );
@@ -495,53 +476,50 @@ describe("OpenAPI 3.0 request body normalisation", () => {
         expect(viaSchemaComponent).toContain(">Cat<");
     });
 
-    itReact(
-        "matches <SchemaComponent> structurally for nullable + example fields",
-        () => {
-            // The `nickname` field is `nullable: true` with `example: "Rex"`.
-            // After 3.0 normalisation, `nullable` becomes `anyOf [T, null]`
-            // and `example` becomes `examples: [...]`. Asserting the two
-            // pipelines produce identical structural output (modulo
-            // per-instance React `useId` values) proves that both ran the
-            // same normalisation pipeline. If <ApiRequestBody> skipped the
-            // 3.0 normalisation, its walker output would differ — `nullable`
-            // would surface as an unknown keyword, no anyOf branch would
-            // exist, and the structure of the nickname input would diverge.
-            const value = { kind: "Dog", name: "Fido", nickname: "Buddy" };
-            const stripVariableIds = (html: string): string =>
-                html
-                    .replace(/id="[^"]*"/g, 'id=""')
-                    .replace(/aria-controls="[^"]*"/g, 'aria-controls=""')
-                    .replace(/aria-labelledby="[^"]*"/g, 'aria-labelledby=""')
-                    .replace(/for="[^"]*"/g, 'for=""');
+    it("matches <SchemaComponent> structurally for nullable + example fields", () => {
+        // The `nickname` field is `nullable: true` with `example: "Rex"`.
+        // After 3.0 normalisation, `nullable` becomes `anyOf [T, null]`
+        // and `example` becomes `examples: [...]`. Asserting the two
+        // pipelines produce identical structural output (modulo
+        // per-instance React `useId` values) proves that both ran the
+        // same normalisation pipeline. If <ApiRequestBody> skipped the
+        // 3.0 normalisation, its walker output would differ — `nullable`
+        // would surface as an unknown keyword, no anyOf branch would
+        // exist, and the structure of the nickname input would diverge.
+        const value = { kind: "Dog", name: "Fido", nickname: "Buddy" };
+        const stripVariableIds = (html: string): string =>
+            html
+                .replace(/id="[^"]*"/g, 'id=""')
+                .replace(/aria-controls="[^"]*"/g, 'aria-controls=""')
+                .replace(/aria-labelledby="[^"]*"/g, 'aria-labelledby=""')
+                .replace(/for="[^"]*"/g, 'for=""');
 
-            const viaRequestBody = renderToString(
-                createElement(ApiRequestBody, {
-                    schema: oas30Doc,
-                    path: "/animals",
-                    method: "post",
-                    value,
-                })
-            );
-            const viaSchemaComponent = renderToString(
-                createElement(SchemaComponent, {
-                    schema: oas30Doc,
-                    ref: "/animals/post",
-                    value,
-                })
-            );
+        const viaRequestBody = renderToString(
+            createElement(ApiRequestBody, {
+                schema: oas30Doc,
+                path: "/animals",
+                method: "post",
+                value,
+            })
+        );
+        const viaSchemaComponent = renderToString(
+            createElement(SchemaComponent, {
+                schema: oas30Doc,
+                schemaRef: "/animals/post",
+                value,
+            })
+        );
 
-            // <SchemaComponent>'s output is the inner schema rendering;
-            // <ApiRequestBody> wraps it in a <section data-request-body>.
-            // The inner schema portion must match structurally.
-            const innerSchema = stripVariableIds(viaSchemaComponent);
-            const wrapped = stripVariableIds(viaRequestBody);
-            expect(wrapped).toContain(innerSchema);
-            // The user-supplied value must be present in both renderings.
-            expect(viaRequestBody).toContain("Buddy");
-            expect(viaSchemaComponent).toContain("Buddy");
-        }
-    );
+        // <SchemaComponent>'s output is the inner schema rendering;
+        // <ApiRequestBody> wraps it in a <section data-request-body>.
+        // The inner schema portion must match structurally.
+        const innerSchema = stripVariableIds(viaSchemaComponent);
+        const wrapped = stripVariableIds(viaRequestBody);
+        expect(wrapped).toContain(innerSchema);
+        // The user-supplied value must be present in both renderings.
+        expect(viaRequestBody).toContain("Buddy");
+        expect(viaSchemaComponent).toContain("Buddy");
+    });
 });
 
 // ---------------------------------------------------------------------------

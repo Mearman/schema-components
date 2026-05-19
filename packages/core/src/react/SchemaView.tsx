@@ -69,7 +69,7 @@ import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
  */
 export interface SchemaViewProps<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
 > {
     /**
@@ -80,8 +80,13 @@ export interface SchemaViewProps<
      * {@link RejectUnrepresentableZod}.
      */
     schema: RejectUnrepresentableZod<T>;
-    /** For OpenAPI: a ref string like "#/components/schemas/User". */
-    ref?: Ref;
+    /**
+     * For OpenAPI / JSON Schema documents: a `$ref` string like
+     * `"#/components/schemas/User"`. Named `schemaRef` (not `ref`) to
+     * avoid the React / `preact/compat` reserved prop name. See
+     * {@link SchemaComponentProps.schemaRef}.
+     */
+    schemaRef?: SchemaRef;
     /**
      * Which side of every transform / pipe / codec to render. Mirrors
      * `<SchemaComponent io>`. Defaults to `"output"` — the inferred
@@ -94,18 +99,18 @@ export interface SchemaViewProps<
     io?: Mode;
     /**
      * Current value to render. Typed against
-     * `InferSchemaValue<T, Ref, Mode>` so the prop tracks the schema's
-     * inferred shape for the chosen `io` direction. Falls back to
-     * `unknown` for runtime schemas where the value type cannot be
+     * `InferSchemaValue<T, SchemaRef, Mode>` so the prop tracks the
+     * schema's inferred shape for the chosen `io` direction. Falls back
+     * to `unknown` for runtime schemas where the value type cannot be
      * statically inferred.
      */
-    value?: InferredValue<T, Ref, undefined, Mode>;
+    value?: InferredValue<T, SchemaRef, undefined, Mode>;
     /**
      * Per-field meta overrides — nested object mirroring schema shape.
      * Typed against {@link InferFields} so a typed `schema` prop drives
      * autocomplete on the override map, matching `<SchemaComponent>`.
      */
-    fields?: InferFields<T, Ref>;
+    fields?: InferFields<T, SchemaRef>;
     /** Meta overrides applied to the root schema. */
     meta?: SchemaMeta;
     /** Convenience: sets description on the root. */
@@ -158,11 +163,11 @@ export interface SchemaViewProps<
  */
 export function SchemaView<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
 >({
     schema: schemaInput,
-    ref: refInput,
+    schemaRef: schemaRefInput,
     io,
     value,
     fields,
@@ -173,7 +178,7 @@ export function SchemaView<
     onDiagnostic,
     strict,
     idPrefix,
-}: SchemaViewProps<T, Ref, Mode>): ReactNode {
+}: SchemaViewProps<T, SchemaRef, Mode>): ReactNode {
     const generatedId = useId();
     const rootPath = idPrefix ?? sanitisePrefix(generatedId);
     const mergedMeta: SchemaMeta = { ...componentMeta, readOnly: true };
@@ -205,7 +210,7 @@ export function SchemaView<
                 : undefined;
         const normalised = normaliseSchema(
             schemaInput,
-            refInput,
+            schemaRefInput,
             normaliseOptions
         );
         jsonSchema = normalised.jsonSchema;
@@ -223,10 +228,11 @@ export function SchemaView<
     }
 
     // Coerce the typed `fields` into the loose runtime record shape
-    // the walker consumes. `InferFields<T, Ref>` widens to a union that
-    // includes `__SchemaInferenceFellBack` (Swagger 2.0) and typed
-    // `FieldOverrides<...>` variants — neither is structurally
-    // assignable to the walker's `Record<string, unknown>` slot.
+    // the walker consumes. `InferFields<T, SchemaRef>` widens to a
+    // union that includes `__SchemaInferenceFellBack` (Swagger 2.0)
+    // and typed `FieldOverrides<...>` variants — neither is
+    // structurally assignable to the walker's `Record<string, unknown>`
+    // slot.
     const fieldsRecord = toRecordOrUndefined(fields);
 
     // Walk the JSON Schema tree

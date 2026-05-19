@@ -261,7 +261,8 @@ export const OpenApi30Nullable: Story = {
     name: "OpenAPI 3.0 nullable",
     args: {
         schema: openApi30Spec,
-        ref: "#/paths/~1users~1{id}/get/responses/200/content/application~1json/schema",
+        schemaRef:
+            "#/paths/~1users~1{id}/get/responses/200/content/application~1json/schema",
         value: { name: "Ada", nickname: null, deletedAt: null },
     },
 };
@@ -270,7 +271,8 @@ export const OpenApi30NullablePresent: Story = {
     name: "OpenAPI 3.0 nullable (values present)",
     args: {
         schema: openApi30Spec,
-        ref: "#/paths/~1users~1{id}/get/responses/200/content/application~1json/schema",
+        schemaRef:
+            "#/paths/~1users~1{id}/get/responses/200/content/application~1json/schema",
         value: {
             name: "Grace",
             nickname: "Amazing Grace",
@@ -283,7 +285,7 @@ export const OpenApi30NullablePresent: Story = {
 export const DiscriminatorDog: Story = {
     args: {
         schema: discriminatorSpec,
-        ref: "#/components/schemas/Dog",
+        schemaRef: "#/components/schemas/Dog",
         value: { petType: "dog", name: "Rex", breed: "labrador" },
     },
 };
@@ -291,7 +293,7 @@ export const DiscriminatorDog: Story = {
 export const DiscriminatorCat: Story = {
     args: {
         schema: discriminatorSpec,
-        ref: "#/components/schemas/Cat",
+        schemaRef: "#/components/schemas/Cat",
         value: { petType: "cat", name: "Whiskers", indoor: true },
         readOnly: true,
     },
@@ -301,7 +303,7 @@ export const Swagger2Definition: Story = {
     name: "Swagger 2.0 definition ref",
     args: {
         schema: swaggerSpec,
-        ref: "#/definitions/Error",
+        schemaRef: "#/definitions/Error",
         value: { code: 404, message: "Not found" },
         readOnly: true,
     },

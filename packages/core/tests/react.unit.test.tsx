@@ -14,7 +14,7 @@
  *    the validate branch.
  * 3. Swagger 2.0 documents must surface as `__SchemaInferenceFellBack`
  *    in both `InferFields` and `InferSchemaValue` (compile-time check).
- * 4. `SchemaView` must accept the same `<T, Ref>` generic signature as
+ * 4. `SchemaView` must accept the same `<T, SchemaRef>` generic signature as
  *    `SchemaComponent` so consumers can hand typed schemas through to
  *    the read-only renderer.
  * 5. `renderDiscriminatedUnion` must narrow on `tree.type ===
@@ -265,7 +265,7 @@ describe("SchemaView typed prop inference parity", () => {
         expect(fromView).toBe(fromComponent);
     });
 
-    it("type-only: SchemaView preserves Ref generic when an OpenAPI ref is supplied", () => {
+    it("type-only: SchemaView preserves SchemaRef generic when an OpenAPI schemaRef is supplied", () => {
         const openapi = {
             openapi: "3.1.0",
             info: { title: "x", version: "1" },
@@ -283,13 +283,13 @@ describe("SchemaView typed prop inference parity", () => {
         } as const;
 
         // The generics flow through — `SchemaView` accepts the typed
-        // schema/ref pair just like `SchemaComponent` does. No runtime
-        // assertion is required; the file type-checks only when the
-        // generic plumbing is intact.
+        // schema/schemaRef pair just like `SchemaComponent` does. No
+        // runtime assertion is required; the file type-checks only when
+        // the generic plumbing is intact.
         const element = (
             <SchemaView
                 schema={openapi}
-                ref="#/components/schemas/User"
+                schemaRef="#/components/schemas/User"
                 value={{ name: "Ada" }}
             />
         );

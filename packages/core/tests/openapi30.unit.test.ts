@@ -886,7 +886,7 @@ describe("applyDiscriminatorAllOfPrepass", () => {
         const html = renderToString(
             createElement(SchemaComponent, {
                 schema: allOfCompositeDoc,
-                ref: "#/components/schemas/Pet",
+                schemaRef: "#/components/schemas/Pet",
                 value: { petType: "Dog", name: "Fido", bark: true },
             })
         );
@@ -905,7 +905,7 @@ describe("applyDiscriminatorAllOfPrepass", () => {
         const html = renderToString(
             createElement(SchemaComponent, {
                 schema: oas30Doc,
-                ref: "#/components/schemas/Pet",
+                schemaRef: "#/components/schemas/Pet",
                 value: { petType: "Dog", name: "Fido", bark: true },
             })
         );

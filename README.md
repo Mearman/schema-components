@@ -101,10 +101,10 @@ See [packages/core/README.md](packages/core/README.md#spec-support) for the full
   value={data}
 />
 
-// OpenAPI document + ref
+// OpenAPI document + schemaRef
 <SchemaComponent
   schema={openApiSpec}
-  ref="#/components/schemas/User"
+  schemaRef="#/components/schemas/User"
   value={data}
 />
 ```

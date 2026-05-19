@@ -165,8 +165,8 @@ import { SchemaComponent } from "schema-components/react/SchemaComponent";
 // JSON Schema object
 <SchemaComponent schema={{ type: "object", properties: { name: { type: "string" } } }} value={data} />
 
-// OpenAPI document + ref
-<SchemaComponent schema={openApiSpec} ref="#/components/schemas/User" value={data} />
+// OpenAPI document + schemaRef
+<SchemaComponent schema={openApiSpec} schemaRef="#/components/schemas/User" value={data} />
 ```
 
 ### Props
@@ -178,7 +178,7 @@ import { SchemaComponent } from "schema-components/react/SchemaComponent";
 | `onChange` | `(value: unknown) => void` | Callback when value changes |
 | `readOnly` | `boolean` | Force read-only presentation |
 | `writeOnly` | `boolean` | Force write-only (blank inputs) |
-| `ref` | `string` | JSON Pointer into OpenAPI document |
+| `schemaRef` | `string` | JSON Pointer into OpenAPI document |
 | `fields` | `InferFields<T>` | Type-safe per-field overrides |
 | `widgets` | `WidgetMap` | Instance-scoped widget overrides |
 | `validate` | `boolean` | Enable Zod validation on change |
@@ -257,7 +257,7 @@ const jsonSchema = {
   }}
 />
 
-// OpenAPI as const + ref — full autocomplete
+// OpenAPI as const + schemaRef — full autocomplete
 const spec = {
   openapi: "3.1.0",
   components: {
@@ -276,9 +276,9 @@ const spec = {
 
 <SchemaComponent
   schema={spec}
-  ref="#/components/schemas/User"
+  schemaRef="#/components/schemas/User"
   fields={{
-    id: { readOnly: true },              // ✓ inferred through ref
+    id: { readOnly: true },              // ✓ inferred through schemaRef
   }}
 />
 ```

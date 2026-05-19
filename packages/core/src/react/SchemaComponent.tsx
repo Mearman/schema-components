@@ -10,7 +10,7 @@
  * The `fields` prop type is inferred from the `schema` prop:
  * - Zod schemas → `FieldOverrides<z.infer<T>>` (full autocomplete)
  * - JSON Schema `as const` → `FieldOverrides<FromJSONSchema<T>>` (full autocomplete)
- * - OpenAPI `as const` + `ref` → `FieldOverrides<ResolveOpenAPIRef<T, Ref>>`
+ * - OpenAPI `as const` + `schemaRef` → `FieldOverrides<ResolveOpenAPIRef<T, SchemaRef>>`
  * - Runtime schemas → `Record<string, FieldOverride>` (no autocomplete)
  */
 
@@ -176,7 +176,7 @@ export type {
  */
 export interface SchemaComponentProps<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
 > {
     /**
@@ -190,8 +190,16 @@ export interface SchemaComponentProps<
      * — the static rejection surfaces the same failure at compile time.
      */
     schema: RejectUnrepresentableZod<T>;
-    /** For OpenAPI: a ref string like "#/components/schemas/User" or "/users/post". */
-    ref?: Ref;
+    /**
+     * For OpenAPI / JSON Schema documents: a `$ref` string pointing at
+     * the sub-schema to render — e.g. `"#/components/schemas/User"` or
+     * `"/users/post"`.
+     *
+     * Named `schemaRef` (not `ref`) so the prop survives the React /
+     * `preact/compat` `createElement` boundary, which strips the
+     * reserved `ref` name from the vnode prop bag.
+     */
+    schemaRef?: SchemaRef;
     /**
      * Which side of every transform / pipe / codec to render.
      *
@@ -215,8 +223,8 @@ export interface SchemaComponentProps<
     io?: Mode;
     /**
      * Current value to render. Typed against
-     * `InferSchemaValue<T, Ref, Mode>` so the prop tracks the schema's
-     * inferred shape for the chosen `io` direction.
+     * `InferSchemaValue<T, SchemaRef, Mode>` so the prop tracks the
+     * schema's inferred shape for the chosen `io` direction.
      *
      * Falls back to `unknown` when the schema's value type cannot be
      * statically inferred (runtime `Record<string, unknown>` JSON
@@ -231,7 +239,7 @@ export interface SchemaComponentProps<
      * <SchemaComponent schema={userSchema} value={user} readOnly />
      * ```
      */
-    value?: InferSchemaValue<T, Ref, Mode>;
+    value?: InferSchemaValue<T, SchemaRef, Mode>;
     /**
      * Called when the value changes (editable fields). The parameter
      * shares the same shape as {@link SchemaComponentProps.value} so
@@ -241,7 +249,7 @@ export interface SchemaComponentProps<
      * Falls back to `unknown` for schemas whose value type cannot be
      * statically inferred — see {@link SchemaComponentProps.value}.
      */
-    onChange?: (value: InferSchemaValue<T, Ref, Mode>) => void;
+    onChange?: (value: InferSchemaValue<T, SchemaRef, Mode>) => void;
     /** Run schema.safeParse() on change and surface errors via onValidationError. */
     validate?: boolean;
     /** Called with the ZodError when validation fails. */
@@ -253,7 +261,7 @@ export interface SchemaComponentProps<
     /** When true, any diagnostic becomes a thrown error. */
     strict?: boolean;
     /** Per-field meta overrides — nested object mirroring schema shape. */
-    fields?: InferFields<T, Ref>;
+    fields?: InferFields<T, SchemaRef>;
     /** Meta overrides applied to the root schema. */
     meta?: SchemaMeta;
     /** Convenience: sets readOnly on all fields. */
@@ -302,12 +310,12 @@ export interface SchemaComponentProps<
  */
 export function SchemaComponent<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
->(props: SchemaComponentProps<T, Ref, Mode>): ReactNode {
+>(props: SchemaComponentProps<T, SchemaRef, Mode>): ReactNode {
     const {
         schema: schemaInput,
-        ref: refInput,
+        schemaRef: schemaRefInput,
         io,
         value,
         onChange,
@@ -364,7 +372,7 @@ export function SchemaComponent<
                 : undefined;
         const normalised = normaliseSchema(
             schemaInput,
-            refInput,
+            schemaRefInput,
             normaliseOptions
         );
         jsonSchema = normalised.jsonSchema;
@@ -393,8 +401,8 @@ export function SchemaComponent<
 
     // Coerce the typed `fields` into the loose runtime record shape used
     // by both the walker (`fieldOverrides`) and the per-field error
-    // dispatcher. `InferFields<T, Ref>` widens to a union that includes
-    // `__SchemaInferenceFellBack` (Swagger 2.0) and typed
+    // dispatcher. `InferFields<T, SchemaRef>` widens to a union that
+    // includes `__SchemaInferenceFellBack` (Swagger 2.0) and typed
     // `FieldOverrides<...>` variants — none of which are structurally
     // assignable to the walker's `Record<string, unknown>` slot. The
     // narrowing happens once so the cache key for `useCallback` below
@@ -853,7 +861,7 @@ type InferSchemaType<T> = T extends z.ZodType
  */
 export interface SchemaFieldProps<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     P extends string =
         | PathOfType<InferSchemaType<T>>
         | (string extends PathOfType<InferSchemaType<T>> ? string : never),
@@ -869,8 +877,12 @@ export interface SchemaFieldProps<
      * unrepresentable-Zod rejection as {@link SchemaComponentProps.schema}.
      */
     schema: RejectUnrepresentableZod<T>;
-    /** For OpenAPI: a ref string. */
-    ref?: Ref;
+    /**
+     * For OpenAPI / JSON Schema documents: a `$ref` string. Named
+     * `schemaRef` (not `ref`) to avoid the React / `preact/compat`
+     * reserved prop name. See {@link SchemaComponentProps.schemaRef}.
+     */
+    schemaRef?: SchemaRef;
     /** Current value of the field at the given path. */
     value?: unknown;
     /** Called with the updated root value when this field changes. */
@@ -894,7 +906,7 @@ export interface SchemaFieldProps<
  */
 export function SchemaField<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     // Keep the default aligned with `SchemaFieldProps['P']`'s default so
     // path narrowing survives at the call site. Earlier revisions
     // collapsed `P` to `string` here, which silently undid the
@@ -905,13 +917,13 @@ export function SchemaField<
 >({
     path,
     schema: schemaInput,
-    ref: refInput,
+    schemaRef: schemaRefInput,
     value,
     onChange,
     meta: fieldMeta,
     validate,
     onValidationError,
-}: SchemaFieldProps<T, Ref, P>): ReactNode {
+}: SchemaFieldProps<T, SchemaRef, P>): ReactNode {
     const userResolver = useContext(UserResolverContext);
     const contextWidgets = useContext(WidgetsContext);
     const generatedId = useId();
@@ -921,7 +933,7 @@ export function SchemaField<
     let rootMeta: SchemaMeta | undefined;
     let rootDocument: Record<string, unknown>;
     try {
-        const normalised = normaliseSchema(schemaInput, refInput);
+        const normalised = normaliseSchema(schemaInput, schemaRefInput);
         jsonSchema = normalised.jsonSchema;
         zodSchema = normalised.zodSchema;
         rootMeta = normalised.rootMeta;
@@ -1039,7 +1051,7 @@ export function SchemaField<
  * Walks the fields override tree and matches errors by path prefix.
  *
  * The runtime shape of `fields` is always `Record<string, FieldOverride>`
- * after `InferFields<T, Ref>` is erased — the typed variants
+ * after `InferFields<T, SchemaRef>` is erased — the typed variants
  * (`FieldOverrides<U>`) and the loose `Record<string, FieldOverride>`
  * fallback share the same structural shape, so the dispatch logic only
  * needs the loose record. The previous parameter union

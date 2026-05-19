@@ -276,7 +276,7 @@ export const SchemaWithXmlAndDocs: StoryObj<typeof SchemaComponent> = {
     render: () => (
         <SchemaComponent
             schema={xmlDocsSpec}
-            ref="#/components/schemas/Pet"
+            schemaRef="#/components/schemas/Pet"
             value={{ id: 1, name: "Fido", status: "available" }}
         />
     ),
@@ -287,7 +287,7 @@ export const SchemaWithXmlAndDocsReadOnly: StoryObj<typeof SchemaComponent> = {
     render: () => (
         <SchemaComponent
             schema={xmlDocsSpec}
-            ref="#/components/schemas/Pet"
+            schemaRef="#/components/schemas/Pet"
             value={{ id: 1, name: "Fido", status: "available" }}
             readOnly
         />

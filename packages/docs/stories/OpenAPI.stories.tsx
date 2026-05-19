@@ -133,7 +133,7 @@ type Story = StoryObj<typeof meta>;
 export const ComponentSchema: Story = {
     args: {
         schema: petStoreSpec,
-        ref: "#/components/schemas/Pet",
+        schemaRef: "#/components/schemas/Pet",
         value: {
             id: "pet_abc123",
             name: "Fido",
@@ -145,7 +145,7 @@ export const ComponentSchema: Story = {
 export const ComponentSchemaReadOnly: Story = {
     args: {
         schema: petStoreSpec,
-        ref: "#/components/schemas/Pet",
+        schemaRef: "#/components/schemas/Pet",
         value: {
             id: "pet_abc123",
             name: "Fido",
