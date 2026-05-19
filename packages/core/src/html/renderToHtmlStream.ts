@@ -13,12 +13,15 @@
  * - `renderToHtmlReadable(schema, options)` → web `ReadableStream<string>`
  */
 
-import { normaliseSchema } from "../core/adapter.ts";
+import { normaliseSchema, type SchemaIoSide } from "../core/adapter.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import { mergeHtmlResolvers } from "../core/renderer.ts";
 import type { HtmlResolver } from "../core/renderer.ts";
+import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
+import { toRecordOrUndefined } from "../core/guards.ts";
+import type { InferFields, InferredValue } from "../react/SchemaComponent.tsx";
 import { defaultHtmlResolver } from "./renderers.ts";
 import { streamField } from "./streamRenderers.ts";
 
@@ -31,15 +34,29 @@ import { streamField } from "./streamRenderers.ts";
  * ({@link renderToHtmlChunks}, {@link renderToHtmlStream},
  * {@link renderToHtmlReadable}).
  *
+ * The generic parameters mirror `<SchemaComponent>` so a typed
+ * `schema` argument drives typed `value`, `ref`, and `fields` options.
+ *
  * @group HTML
  */
-export interface StreamRenderOptions {
-    /** The data value to render. */
-    value?: unknown;
+export interface StreamRenderOptions<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
+> {
+    /**
+     * The data value to render. Typed against `InferredValue<T, Ref, undefined, Mode>`
+     * so a typed `schema` argument drives the rendered value's shape.
+     */
+    value?: InferredValue<T, Ref, undefined, Mode>;
     /** For OpenAPI: a ref string like "#/components/schemas/User". */
-    ref?: string;
-    /** Per-field meta overrides. */
-    fields?: Record<string, unknown>;
+    ref?: Ref;
+    /**
+     * Per-field meta overrides — nested object mirroring schema shape.
+     * Typed against {@link InferFields} so a typed `schema` argument
+     * drives autocomplete on the override map.
+     */
+    fields?: InferFields<T, Ref>;
     /** Meta overrides applied to the root schema. */
     meta?: SchemaMeta;
     /** Force all fields read-only. */
@@ -72,9 +89,13 @@ export interface StreamRenderOptions {
  * }
  * ```
  */
-export function renderToHtmlChunks(
-    schema: unknown,
-    options: StreamRenderOptions = {}
+export function renderToHtmlChunks<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
+>(
+    schema: RejectUnrepresentableZod<T>,
+    options: StreamRenderOptions<T, Ref, Mode> = {}
 ): Iterable<string> {
     const { tree, resolver } = prepareTree(schema, options);
     const effectiveValue = options.value ?? tree.defaultValue;
@@ -94,9 +115,13 @@ export function renderToHtmlChunks(
  *
  * @group HTML
  */
-export async function* renderToHtmlStream(
-    schema: unknown,
-    options: StreamRenderOptions = {}
+export async function* renderToHtmlStream<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
+>(
+    schema: RejectUnrepresentableZod<T>,
+    options: StreamRenderOptions<T, Ref, Mode> = {}
 ): AsyncIterable<string> {
     const { tree, resolver } = prepareTree(schema, options);
     const effectiveValue = options.value ?? tree.defaultValue;
@@ -133,9 +158,13 @@ export async function* renderToHtmlStream(
  * });
  * ```
  */
-export function renderToHtmlReadable(
-    schema: unknown,
-    options: StreamRenderOptions = {}
+export function renderToHtmlReadable<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
+>(
+    schema: RejectUnrepresentableZod<T>,
+    options: StreamRenderOptions<T, Ref, Mode> = {}
 ): ReadableStream<string> {
     const { tree, resolver } = prepareTree(schema, options);
     const effectiveValue = options.value ?? tree.defaultValue;
@@ -167,9 +196,27 @@ export function renderToHtmlReadable(
 // Tree preparation (shared across all output formats)
 // ---------------------------------------------------------------------------
 
+/**
+ * Internal shape passed to `prepareTree` — the loose runtime view of
+ * `StreamRenderOptions<T, Ref, Mode>` after the generic parameters are
+ * erased. Mirrors `StreamRenderOptions` but with the typed fields
+ * widened to the underlying runtime types so the helper can accept any
+ * specialisation produced by the public generic entry points.
+ */
+interface PrepareTreeOptions {
+    value?: unknown;
+    ref?: string | undefined;
+    fields?: unknown;
+    meta?: SchemaMeta;
+    readOnly?: boolean;
+    writeOnly?: boolean;
+    description?: string;
+    resolver?: HtmlResolver;
+}
+
 function prepareTree(
     schema: unknown,
-    options: StreamRenderOptions
+    options: PrepareTreeOptions
 ): { tree: WalkedField; resolver: HtmlResolver } {
     const mergedMeta: SchemaMeta = { ...options.meta };
     if (options.readOnly === true) mergedMeta.readOnly = true;
@@ -183,7 +230,7 @@ function prepareTree(
     const walkOptions: WalkOptions = {
         componentMeta: mergedMeta,
         rootMeta,
-        fieldOverrides: options.fields,
+        fieldOverrides: toRecordOrUndefined(options.fields),
         rootDocument,
     };
 

@@ -501,7 +501,9 @@ describe("file upload — HTML", () => {
         const schema = z.object({
             avatar: z.string().meta({ format: "binary" }),
         });
-        const html = renderToHtml(schema, { value: { avatar: undefined } });
+        // The avatar value is intentionally absent so the renderer falls
+        // back to a fresh file input.
+        const html = renderToHtml(schema);
         expect(html.includes('type="file"')).toBeTruthy();
     });
 });

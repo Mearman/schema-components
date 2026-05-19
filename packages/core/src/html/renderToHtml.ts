@@ -19,13 +19,16 @@
  *   });
  */
 
-import { normaliseSchema } from "../core/adapter.ts";
+import { normaliseSchema, type SchemaIoSide } from "../core/adapter.ts";
 import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import { getHtmlRenderFn, mergeHtmlResolvers } from "../core/renderer.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
+import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
+import { toRecordOrUndefined } from "../core/guards.ts";
+import type { InferFields, InferredValue } from "../react/SchemaComponent.tsx";
 import { defaultHtmlResolver } from "./renderers.ts";
 import { joinPath } from "./a11y.ts";
 import { h, serialize } from "./html.ts";
@@ -59,15 +62,29 @@ export function recursionSentinelHtml(label: string): string {
 /**
  * Options accepted by {@link renderToHtml}.
  *
+ * The generic parameters mirror `<SchemaComponent>` so a typed
+ * `schema` argument drives typed `value`, `ref`, and `fields` options.
+ *
  * @group HTML
  */
-export interface RenderToHtmlOptions {
-    /** The data value to render. */
-    value?: unknown;
+export interface RenderToHtmlOptions<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
+> {
+    /**
+     * The data value to render. Typed against `InferredValue<T, Ref, undefined, Mode>`
+     * so a typed `schema` argument drives the rendered value's shape.
+     */
+    value?: InferredValue<T, Ref, undefined, Mode>;
     /** For OpenAPI: a ref string like "#/components/schemas/User". */
-    ref?: string;
-    /** Per-field meta overrides. */
-    fields?: Record<string, unknown>;
+    ref?: Ref;
+    /**
+     * Per-field meta overrides — nested object mirroring schema shape.
+     * Typed against {@link InferFields} so a typed `schema` argument
+     * drives autocomplete on the override map.
+     */
+    fields?: InferFields<T, Ref>;
     /** Meta overrides applied to the root schema. */
     meta?: SchemaMeta;
     /** Force all fields read-only. */
@@ -103,9 +120,13 @@ export interface RenderToHtmlOptions {
  * const html = renderToHtml(userSchema, { value: user, readOnly: true });
  * ```
  */
-export function renderToHtml(
-    schema: unknown,
-    options: RenderToHtmlOptions = {}
+export function renderToHtml<
+    T = unknown,
+    Ref extends string | undefined = undefined,
+    Mode extends SchemaIoSide = "output",
+>(
+    schema: RejectUnrepresentableZod<T>,
+    options: RenderToHtmlOptions<T, Ref, Mode> = {}
 ): string {
     const mergedMeta: SchemaMeta = { ...options.meta };
     if (options.readOnly === true) mergedMeta.readOnly = true;
@@ -119,7 +140,7 @@ export function renderToHtml(
     const walkOptions: WalkOptions = {
         componentMeta: mergedMeta,
         rootMeta,
-        fieldOverrides: options.fields,
+        fieldOverrides: toRecordOrUndefined(options.fields),
         rootDocument,
     };
 

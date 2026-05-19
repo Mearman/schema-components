@@ -122,7 +122,11 @@ describe("renderToHtml — number", () => {
     it("renders null number as dash", () => {
         const schema = z.object({ age: z.number() });
         const html = renderToHtml(schema, {
-            value: { age: undefined },
+            // Pass an empty object so `age` is absent at runtime — the
+            // renderer must render the missing value as a dash. Mirrors
+            // how a server-rendered form would surface optional /
+            // partially-populated data.
+            value: {} as { age: number },
             readOnly: true,
         });
         expect(html).toMatch(/sc-value--empty/);

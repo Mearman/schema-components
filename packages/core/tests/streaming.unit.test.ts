@@ -172,7 +172,7 @@ describe("renderToHtmlReadable", () => {
             name: z.string(),
             role: z.enum(["admin", "editor"]),
         });
-        const value = { name: "Ada", role: "admin" };
+        const value = { name: "Ada", role: "admin" as const };
         const options = { value, readOnly: true };
 
         const syncChunks = [...renderToHtmlChunks(schema, options)];
@@ -234,7 +234,12 @@ describe("Streaming equivalence with renderToHtml", () => {
             active: z.boolean(),
             role: z.enum(["admin", "editor"]),
         });
-        const value = { name: "Ada", age: 36, active: true, role: "admin" };
+        const value = {
+            name: "Ada",
+            age: 36,
+            active: true,
+            role: "admin" as const,
+        };
         const options = { value, readOnly: true };
 
         const fullHtml = renderToHtml(schema, options);
@@ -287,7 +292,7 @@ describe("Streaming equivalence with renderToHtml", () => {
             z.object({ type: z.literal("a"), name: z.string() }),
             z.object({ type: z.literal("b"), count: z.number() }),
         ]);
-        const value = { type: "a", name: "Ada" };
+        const value = { type: "a" as const, name: "Ada" };
         const options = { value, readOnly: true };
 
         const fullHtml = renderToHtml(schema, options);
@@ -298,7 +303,7 @@ describe("Streaming equivalence with renderToHtml", () => {
 
     it("matches for literal", () => {
         const schema = z.literal("yes");
-        const options = { value: "yes", readOnly: true };
+        const options = { value: "yes" as const, readOnly: true };
 
         const fullHtml = renderToHtml(schema, options);
         const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");
@@ -318,7 +323,7 @@ describe("Streaming equivalence with renderToHtml", () => {
 
     it("matches for null/undefined literal value", () => {
         const schema = z.literal("yes");
-        const options = { value: undefined, readOnly: true };
+        const options = { readOnly: true };
 
         const fullHtml = renderToHtml(schema, options);
         const streamedHtml = [...renderToHtmlChunks(schema, options)].join("");

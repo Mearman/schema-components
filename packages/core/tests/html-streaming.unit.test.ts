@@ -93,7 +93,7 @@ describe("Discriminated union tab IDs — sync ↔ streaming consistency", () =>
             z.object({ kind: z.literal("branch"), count: z.number() }),
         ]),
     });
-    const value = { node: { kind: "leaf", value: "x" } };
+    const value = { node: { kind: "leaf" as const, value: "x" } };
 
     it("renders matching aria-controls and panel id within the sync renderer", () => {
         const html = renderToHtml(schema, { value });
@@ -147,7 +147,7 @@ describe("Discriminated union tab IDs — sync ↔ streaming consistency", () =>
                 ])
             ),
         });
-        const nestedValue = { things: [{ kind: "a", a: "hello" }] };
+        const nestedValue = { things: [{ kind: "a" as const, a: "hello" }] };
 
         const validId = /^[A-Za-z][A-Za-z0-9_-]*$/;
         for (const html of [

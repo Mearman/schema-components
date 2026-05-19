@@ -192,6 +192,9 @@ describe("Normalisation errors", () => {
     it("classifies unrepresentable Zod types with kind zod-type-unrepresentable", () => {
         const schema = z.bigint();
         try {
+            // @ts-expect-error — ZodBigInt is statically rejected by
+            // RejectUnrepresentableZod; the runtime check is what this test
+            // exercises.
             renderToHtml(schema);
             expect.unreachable("Expected renderToHtml to throw");
         } catch (err) {
@@ -212,6 +215,9 @@ describe("Normalisation errors", () => {
     it("classifies z.custom() as unrepresentable with zodType 'custom'", () => {
         const schema = z.custom<number>(() => true);
         try {
+            // @ts-expect-error — ZodCustom is statically rejected by
+            // RejectUnrepresentableZod; the runtime check is what this test
+            // exercises.
             renderToHtml(schema);
             expect.unreachable("Expected renderToHtml to throw");
         } catch (err) {
