@@ -315,6 +315,8 @@ function buildResolver(): ComponentResolver {
         resolver.literal = headlessResolver.literal;
     if (headlessResolver.union !== undefined)
         resolver.union = headlessResolver.union;
+    if (headlessResolver.discriminatedUnion !== undefined)
+        resolver.discriminatedUnion = headlessResolver.discriminatedUnion;
     if (headlessResolver.record !== undefined)
         resolver.record = headlessResolver.record;
     if (headlessResolver.file !== undefined)
