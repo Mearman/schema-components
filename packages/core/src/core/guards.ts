@@ -7,8 +7,8 @@
  *
  * The `object → Record<string, unknown>` conversion (`toRecord`) is
  * the one place where a cast is genuinely unavoidable — TypeScript's
- * `object` type has no index signature. See AGENTS.md: "object →
- * Record<string, unknown>".
+ * `object` type has no index signature. See AGENTS.md
+ * (`object → Record<string, unknown>`).
  */
 
 // ---------------------------------------------------------------------------
