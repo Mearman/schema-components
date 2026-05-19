@@ -3,6 +3,9 @@ import { defineConfig } from "eslint/config";
 import type { Rule } from "eslint";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 import eslintPluginPrettier from "eslint-plugin-prettier";
+// eslint-plugin-jsx-a11y ships no `.d.ts`; the local ambient declaration in
+// `types/eslint-plugin-jsx-a11y.d.ts` describes the flat-config surface used here.
+import jsxA11y from "eslint-plugin-jsx-a11y";
 import { configs } from "typescript-eslint";
 
 const noPointlessReassignments: Rule.RuleModule = {
@@ -295,6 +298,40 @@ export default defineConfig(
         ],
         linterOptions: {
             noInlineConfig: true,
+        },
+    },
+
+    // jsx-a11y recommended — applied to TSX files only.
+    // The recommended config sets plugin + rules but no `files` filter; restrict
+    // it here so the rules don't fire against plain .ts modules.
+    {
+        files: [
+            "packages/core/src/**/*.tsx",
+            "packages/core/tests/**/*.tsx",
+            "packages/docs/stories/**/*.tsx",
+        ],
+        ...jsxA11y.flatConfigs.recommended,
+    },
+
+    // jsx-a11y overrides — temporary downgrades for in-flight a11y work.
+    // The W4 worktree is sweeping `aria-readonly` off non-supporting elements
+    // (e.g. `<a>` with the implicit `link` role) and reworking the tablist
+    // focus model. Once W4 lands, drop this block and elevate both rules back
+    // to `error` via the recommended config.
+    {
+        files: [
+            "packages/core/src/**/*.tsx",
+            "packages/core/tests/**/*.tsx",
+            "packages/docs/stories/**/*.tsx",
+        ],
+        rules: {
+            // TODO: elevate to `error` after W4 removes `aria-readonly` from
+            // `<a>` (and updates the tests asserting its presence).
+            "jsx-a11y/role-supports-aria-props": "warn",
+            // TODO: elevate to `error` after W4 finalises the tablist focus
+            // model — the inner tab buttons are focusable, but the tablist
+            // container itself currently is not.
+            "jsx-a11y/interactive-supports-focus": "warn",
         },
     },
     eslintConfigPrettier
