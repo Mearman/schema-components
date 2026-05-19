@@ -10,8 +10,8 @@ import { defineConfig } from "tsdown";
  * are intentionally excluded from `entry`. Consumers of the Vue and
  * Svelte adapters import the source files directly through their own
  * Vite-based toolchains — the `./vue/*` and `./svelte/*` export paths
- * resolve to the source tree (`src/svelte/**` ships in the tarball,
- * see `files` in `package.json`).
+ * resolve to the source tree (`src/vue/**` and `src/svelte/**` ship
+ * in the tarball, see `files` in `package.json`).
  *
  * The Preact, Solid, and Lit adapters are plain TypeScript / TSX and
  * are bundled normally into `dist/<adapter>/` so consumers receive

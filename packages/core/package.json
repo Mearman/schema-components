@@ -29,9 +29,10 @@
             "types": "./dist/themes/*.d.mts",
             "import": "./dist/themes/*.mjs"
         },
+        "./vue/*.vue": "./src/vue/*.vue",
         "./vue/*": {
-            "types": "./dist/vue/*.d.mts",
-            "import": "./dist/vue/*.mjs"
+            "types": "./src/vue/*.ts",
+            "import": "./src/vue/*.ts"
         },
         "./svelte/*.svelte": "./src/svelte/*.svelte",
         "./svelte/renderers/*.svelte": "./src/svelte/renderers/*.svelte",
@@ -52,6 +53,7 @@
     "files": [
         "dist",
         "src/svelte",
+        "src/vue",
         "LICENSE",
         "README.md",
         "CHANGELOG.md"
