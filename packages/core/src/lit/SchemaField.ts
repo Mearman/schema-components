@@ -59,7 +59,7 @@ export class SchemaField extends SchemaComponent {
         let rootMeta: SchemaMeta | undefined;
         let rootDocument: Record<string, unknown>;
         try {
-            const normalised = normaliseSchema(this.schema, this.ref);
+            const normalised = normaliseSchema(this.schema, this.schemaRef);
             jsonSchema = normalised.jsonSchema;
             rootMeta = normalised.rootMeta;
             rootDocument = normalised.rootDocument;

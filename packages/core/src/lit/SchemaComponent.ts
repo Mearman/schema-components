@@ -90,7 +90,7 @@ export class SchemaComponent extends LitElement {
         widgets: { attribute: false },
         fields: { attribute: false },
         meta: { attribute: false },
-        ref: { attribute: false },
+        schemaRef: { attribute: false },
         io: { attribute: false },
         idPrefix: { attribute: false },
         onDiagnostic: { attribute: false },
@@ -105,7 +105,7 @@ export class SchemaComponent extends LitElement {
      * values are seeded in the constructor.
      */
     declare schema: unknown;
-    declare ref: string | undefined;
+    declare schemaRef: string | undefined;
     declare io: SchemaIoSide | undefined;
     declare value: unknown;
     declare resolver: LitComponentResolver | undefined;
@@ -155,7 +155,7 @@ export class SchemaComponent extends LitElement {
                     : undefined;
             const normalised = normaliseSchema(
                 this.schema,
-                this.ref,
+                this.schemaRef,
                 normaliseOptions
             );
             jsonSchema = normalised.jsonSchema;
