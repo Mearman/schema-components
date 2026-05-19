@@ -32,10 +32,18 @@
         "./vue/*": {
             "types": "./dist/vue/*.d.mts",
             "import": "./dist/vue/*.mjs"
+        },
+        "./svelte/*.svelte": "./src/svelte/*.svelte",
+        "./svelte/renderers/*.svelte": "./src/svelte/renderers/*.svelte",
+        "./svelte/*": {
+            "types": "./src/svelte/*.ts",
+            "svelte": "./src/svelte/*.ts",
+            "import": "./src/svelte/*.ts"
         }
     },
     "files": [
         "dist",
+        "src/svelte",
         "LICENSE",
         "README.md",
         "CHANGELOG.md"
@@ -48,6 +56,7 @@
         "_test:e2e": "vitest run --project=e2e",
         "_test:preact": "vitest run --project=unit-preact",
         "_test:vue": "vitest run --project=unit-vue",
+        "_test:svelte": "vitest run --project=unit-svelte",
         "_test:coverage": "vitest run --project=unit --coverage",
         "_build": "tsdown && cp src/html/styles.css dist/html/styles.css",
         "_typedoc": "typedoc",
@@ -58,6 +67,7 @@
         "lint:fix": "turbo run _lint:fix",
         "test": "turbo run _test",
         "test:preact": "turbo run _test:preact",
+        "test:svelte": "turbo run _test:svelte",
         "test:coverage": "turbo run _test:coverage",
         "check": "turbo run _check",
         "validate": "turbo run _validate",
@@ -90,11 +100,15 @@
     "peerDependencies": {
         "preact": ">=10.0.0",
         "react": "^18.0.0 || ^19.0.0",
+        "svelte": ">=5.0.0",
         "vue": ">=3.5.0",
         "zod": "^4.0.0"
     },
     "peerDependenciesMeta": {
         "preact": {
+            "optional": true
+        },
+        "svelte": {
             "optional": true
         },
         "vue": {
@@ -103,7 +117,9 @@
     },
     "devDependencies": {
         "@eslint/js": "10.0.1",
+        "@sveltejs/vite-plugin-svelte": "7.1.2",
         "@testing-library/react": "16.3.2",
+        "@testing-library/svelte": "5.3.1",
         "@testing-library/user-event": "14.6.1",
         "@types/node": "25.6.2",
         "@types/react": "19.2.14",
@@ -124,6 +140,7 @@
         "prettier": "3.8.3",
         "react": "19.2.6",
         "react-dom": "19.2.6",
+        "svelte": "5.55.5",
         "tsdown": "0.22.0",
         "tslib": "2.8.1",
         "typedoc": "0.28.19",
