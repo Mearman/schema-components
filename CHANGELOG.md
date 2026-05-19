@@ -1,3 +1,23 @@
+## [2.0.2](https://github.com/Mearman/schema-components/compare/v2.0.1...v2.0.2) (2026-05-19)
+
+### Documentation
+
+* **core:** fix tsdoc code-span warnings in uri.ts ([07e2df5](https://github.com/Mearman/schema-components/commit/07e2df58488b54a405ff8f98131b3ce4e06202eb))
+* **core:** fix tsdoc escape-greater-than warnings in normalise.ts ([3908736](https://github.com/Mearman/schema-components/commit/3908736ac058dc4f73820a7a0ff2a8cef1953401))
+* **core:** fix tsdoc escape-greater-than warnings in walker.ts ([535040c](https://github.com/Mearman/schema-components/commit/535040c898d35cdaafb7891037d896aa70c6752c))
+* **core:** fix tsdoc html-tag warning in guards.ts header ([cd1b073](https://github.com/Mearman/schema-components/commit/cd1b073175d696680460131e18d1033af0fa97f9))
+* **core:** fix tsdoc html-tag warning in walkBuilders.ts ([924710d](https://github.com/Mearman/schema-components/commit/924710d2df0ec85144fb0b856e9b79fd2d4288e4))
+* **core:** fix tsdoc html-tag warnings in inferValue.ts ([2f85281](https://github.com/Mearman/schema-components/commit/2f852811e071651a6d82c69a2714968da77b396e))
+* **core:** fix tsdoc inline-tag warnings in openapi30.ts ([edcc34e](https://github.com/Mearman/schema-components/commit/edcc34e83ca8776674e286de870cd04404a66599))
+* **core:** fix tsdoc syntax in typeInference.ts comments ([0e322a0](https://github.com/Mearman/schema-components/commit/0e322a056df925b676030b20bd518a3c322c1665))
+* **core:** fix tsdoc syntax warnings in adapter.ts ([eaab046](https://github.com/Mearman/schema-components/commit/eaab04635c5091fe58608157e78449847ec8980a))
+* **core:** fix tsdoc unnecessary-backslash warning in swagger2.ts ([0ef8eab](https://github.com/Mearman/schema-components/commit/0ef8eab4ab9e39c3e3d54218f76d9181508bdcdf))
+* **html:** wrap html.ts usage example in fenced code block ([55fa22d](https://github.com/Mearman/schema-components/commit/55fa22d3f8d72bd59062711b6f09491f8b9912d3))
+* **html:** wrap renderToHtml usage examples in fenced code blocks ([7390268](https://github.com/Mearman/schema-components/commit/7390268dc53f958251c1a81434c2c9e558e763fe))
+* **openapi:** fix tsdoc escape-greater-than warnings in components.tsx ([15bf618](https://github.com/Mearman/schema-components/commit/15bf6180e0a8982f5b8c95c11b83015461eafc3d))
+* **react:** fix tsdoc syntax warnings in schema component JSDoc ([354a979](https://github.com/Mearman/schema-components/commit/354a979649c347c0fbe7e6229ee40a175965143d))
+* **themes:** fix tsdoc/syntax warnings in theme adapter docblocks ([cd30bf9](https://github.com/Mearman/schema-components/commit/cd30bf9357dd2fef2361329adb6aa58958a36948))
+
 ## [2.0.1](https://github.com/Mearman/schema-components/compare/v2.0.0...v2.0.1) (2026-05-19)
 
 ### Chores
