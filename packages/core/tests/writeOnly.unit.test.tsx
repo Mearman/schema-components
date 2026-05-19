@@ -219,7 +219,12 @@ describe("writeOnly — schema meta", () => {
             })
         );
         expect(html).toContain("Ada");
-        expect(html).not.toContain("hidden");
+        // The secret value must not appear in the rendered input. Match
+        // on the precise `value="hidden"` form rather than a substring —
+        // the React renderer also emits `aria-hidden="true"` on the
+        // required-field asterisk, which would falsely match a plain
+        // `toContain("hidden")` assertion.
+        expect(html).not.toMatch(/value="hidden"/);
     });
 
     it("component writeOnly overrides schema for specific field", () => {

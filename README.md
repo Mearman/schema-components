@@ -410,12 +410,14 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 </details>
 
 <details>
-<summary><code>react/*</code> — 46 exports</summary>
+<summary><code>react/*</code> — 48 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
 | [`ariaLabel`](https://mearman.github.io/schema-components/functions/react_a11y.ariaLabel.html) | `react/a11y` | Function | Narrow `meta.description` (typed `unknown`) to a string value safe to pass into JSX `aria-label`. |  |
 | [`buildAriaAttrs`](https://mearman.github.io/schema-components/functions/react_a11y.buildAriaAttrs.html) | `react/a11y` | Function | Build the ARIA attribute bundle for a renderer. |  |
+| [`buildHintInfo`](https://mearman.github.io/schema-components/functions/react_a11y.buildHintInfo.html) | `react/a11y` | Function | Build HintInfo for a field at `inputId` given its declared constraints. |  |
+| [`HintInfo`](https://mearman.github.io/schema-components/interfaces/react_a11y.HintInfo.html) | `react/a11y` | Interface | Structured constraint-hint data for the React renderers. |  |
 | [`resolvePath`](https://mearman.github.io/schema-components/functions/react_fieldPath.resolvePath.html) | `react/fieldPath` | Function | Resolve a dot-separated path through a WalkedField tree. |  |
 | [`resolveValue`](https://mearman.github.io/schema-components/functions/react_fieldPath.resolveValue.html) | `react/fieldPath` | Function | Resolve a dot-separated path through a data value. |  |
 | [`setNestedValue`](https://mearman.github.io/schema-components/functions/react_fieldPath.setNestedValue.html) | `react/fieldPath` | Function | Set a value at a dot-separated path, producing a new root object. |  |

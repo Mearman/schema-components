@@ -115,3 +115,36 @@ export function ariaLabel(description: unknown): string | undefined {
     if (description.length === 0) return undefined;
     return description;
 }
+
+/**
+ * Structured constraint-hint data for the React renderers.
+ *
+ * The HTML pipeline emits an inline `<small class="sc-hint">` element
+ * next to each input and references it through `aria-describedby`. The
+ * React pipeline mirrors that contract: the input takes the
+ * `ariaDescribedBy` id, the renderer emits a sibling `<small id={...}>`
+ * whose text is `hint`. Returns `undefined` when the field has no
+ * advertise-able constraints (`constraintHint` returns `undefined`) so
+ * callers can skip both the attribute and the element cleanly.
+ */
+export interface HintInfo {
+    readonly id: string;
+    readonly hint: string;
+    readonly ariaDescribedBy: string;
+}
+
+/**
+ * Build {@link HintInfo} for a field at `inputId` given its declared
+ * constraints. Returns `undefined` when no constraint message would be
+ * produced — the React renderers then skip emitting the hint element
+ * entirely so consumers don't see an empty `<small>`.
+ */
+export function buildHintInfo(
+    inputId: string,
+    constraints: AllConstraints
+): HintInfo | undefined {
+    const hint = coreConstraintHint(constraints);
+    if (hint === undefined) return undefined;
+    const id = hintIdFor(inputId);
+    return { id, hint, ariaDescribedBy: id };
+}

@@ -28,7 +28,7 @@ import {
     matchUnionOption as matchUnionOptionShared,
     resolveDiscriminatedActive,
 } from "../core/unionMatch.ts";
-import { ariaLabel, buildAriaAttrs } from "./a11y.ts";
+import { ariaLabel, buildAriaAttrs, buildHintInfo } from "./a11y.ts";
 
 // ---------------------------------------------------------------------------
 // Utility
@@ -143,9 +143,24 @@ export function renderString(props: RenderProps): ReactNode {
     const dateType = dateInputType(props.constraints.format);
 
     const ariaAttrs = buildAriaAttrs(props.tree);
+    // Mirror the HTML pipeline: emit `aria-describedby` plus a sibling
+    // `<small class="sc-hint">` whenever the field carries constraints
+    // worth announcing. The hint id is derived from the input id so the
+    // attribute resolves cleanly. When no constraints are advertised the
+    // helper returns `undefined` and the renderer emits the input on its
+    // own — keeping the existing single-element contract that the
+    // headless-union tests rely on.
+    const hintInfo = buildHintInfo(id, props.constraints);
+
+    const renderHint = (): ReactNode =>
+        hintInfo === undefined ? null : (
+            <small id={hintInfo.id} className="sc-hint">
+                {hintInfo.hint}
+            </small>
+        );
 
     if (dateType !== undefined) {
-        return (
+        const dateInput = (
             <input
                 id={id}
                 type={dateType}
@@ -153,20 +168,29 @@ export function renderString(props: RenderProps): ReactNode {
                 onChange={(e) => {
                     props.onChange(e.target.value);
                 }}
+                aria-describedby={hintInfo?.ariaDescribedBy}
                 {...ariaAttrs}
             />
+        );
+        if (hintInfo === undefined) return dateInput;
+        return (
+            <>
+                {dateInput}
+                {renderHint()}
+            </>
         );
     }
 
     if (props.tree.type === "enum" && props.tree.enumValues.length > 0) {
         const enumValues = props.tree.enumValues;
-        return (
+        const select = (
             <select
                 id={id}
                 value={strValue}
                 onChange={(e) => {
                     props.onChange(e.target.value);
                 }}
+                aria-describedby={hintInfo?.ariaDescribedBy}
                 {...ariaAttrs}
             >
                 <option value="">Select{ELLIPSIS}</option>
@@ -180,9 +204,16 @@ export function renderString(props: RenderProps): ReactNode {
                 })}
             </select>
         );
+        if (hintInfo === undefined) return select;
+        return (
+            <>
+                {select}
+                {renderHint()}
+            </>
+        );
     }
 
-    return (
+    const input = (
         <input
             id={id}
             type={
@@ -203,8 +234,16 @@ export function renderString(props: RenderProps): ReactNode {
             }
             minLength={props.constraints.minLength}
             maxLength={props.constraints.maxLength}
+            aria-describedby={hintInfo?.ariaDescribedBy}
             {...ariaAttrs}
         />
+    );
+    if (hintInfo === undefined) return input;
+    return (
+        <>
+            {input}
+            {renderHint()}
+        </>
     );
 }
 
@@ -220,6 +259,7 @@ export function renderNumber(props: RenderProps): ReactNode {
 
     const numValue = typeof props.value === "number" ? props.value : "";
     const ariaAttrs = buildAriaAttrs(props.tree);
+    const hintInfo = buildHintInfo(id, props.constraints);
 
     // `tree.type === "number"` is guaranteed by the resolver dispatch.
     // Narrowing exposes `isInteger`, which controls the mobile keypad
@@ -239,7 +279,7 @@ export function renderNumber(props: RenderProps): ReactNode {
               ? "1"
               : undefined;
 
-    return (
+    const numberInput = (
         <input
             id={id}
             type="number"
@@ -251,8 +291,18 @@ export function renderNumber(props: RenderProps): ReactNode {
             }}
             min={props.constraints.minimum}
             max={props.constraints.maximum}
+            aria-describedby={hintInfo?.ariaDescribedBy}
             {...ariaAttrs}
         />
+    );
+    if (hintInfo === undefined) return numberInput;
+    return (
+        <>
+            {numberInput}
+            <small id={hintInfo.id} className="sc-hint">
+                {hintInfo.hint}
+            </small>
+        </>
     );
 }
 
@@ -291,16 +341,18 @@ export function renderEnum(props: RenderProps): ReactNode {
     }
 
     const ariaAttrs = buildAriaAttrs(props.tree);
+    const hintInfo = buildHintInfo(id, props.constraints);
 
     const enumValues = props.tree.type === "enum" ? props.tree.enumValues : [];
 
-    return (
+    const select = (
         <select
             id={id}
             value={props.writeOnly ? "" : enumValue}
             onChange={(e) => {
                 props.onChange(e.target.value);
             }}
+            aria-describedby={hintInfo?.ariaDescribedBy}
             {...ariaAttrs}
         >
             <option value="">Select{ELLIPSIS}</option>
@@ -313,6 +365,15 @@ export function renderEnum(props: RenderProps): ReactNode {
                 );
             })}
         </select>
+    );
+    if (hintInfo === undefined) return select;
+    return (
+        <>
+            {select}
+            <small id={hintInfo.id} className="sc-hint">
+                {hintInfo.hint}
+            </small>
+        </>
     );
 }
 
@@ -348,22 +409,30 @@ export function renderObject(props: RenderProps): ReactNode {
                     // Suppress the label when the child renders nothing
                     // (e.g. empty array in read-only mode)
                     if (child === null || child === undefined) return null;
+                    // Mirror the HTML pipeline: fall back to the
+                    // structural key when no description is supplied so
+                    // every input has an accessible name. Without this,
+                    // an undecorated `z.object({ name: z.string() })`
+                    // produced an input with no `<label>` and no
+                    // `aria-label`.
+                    const labelText =
+                        typeof field.meta.description === "string"
+                            ? field.meta.description
+                            : key;
                     return (
                         <div key={key}>
-                            {typeof field.meta.description === "string" && (
-                                <label htmlFor={childId}>
-                                    {field.meta.description}
-                                    {field.isOptional === false && (
-                                        <span
-                                            aria-hidden="true"
-                                            style={{ color: "#dc2626" }}
-                                        >
-                                            {" "}
-                                            *
-                                        </span>
-                                    )}
-                                </label>
-                            )}
+                            <label htmlFor={childId}>
+                                {labelText}
+                                {field.isOptional === false && (
+                                    <span
+                                        aria-hidden="true"
+                                        style={{ color: "#dc2626" }}
+                                    >
+                                        {" "}
+                                        *
+                                    </span>
+                                )}
+                            </label>
                             {child}
                         </div>
                     );
@@ -847,8 +916,9 @@ export function renderFile(props: RenderProps): ReactNode {
     }
 
     const ariaAttrs = buildAriaAttrs(props.tree, props.meta.description);
+    const hintInfo = buildHintInfo(id, props.constraints);
 
-    return (
+    const fileInput = (
         <input
             id={id}
             type="file"
@@ -859,8 +929,18 @@ export function renderFile(props: RenderProps): ReactNode {
                     props.onChange(file);
                 }
             }}
+            aria-describedby={hintInfo?.ariaDescribedBy}
             {...ariaAttrs}
         />
+    );
+    if (hintInfo === undefined) return fileInput;
+    return (
+        <>
+            {fileInput}
+            <small id={hintInfo.id} className="sc-hint">
+                {hintInfo.hint}
+            </small>
+        </>
     );
 }
 
