@@ -16,6 +16,7 @@ import type {
     WalkedField,
     Editability,
     FieldBase,
+    FieldOverrides,
 } from "./types.ts";
 import { resolveEditability } from "./types.ts";
 import { isObject } from "./guards.ts";
@@ -67,13 +68,27 @@ export function getObject(
  * overrides, the root document for cross-document `$ref` resolution, a
  * diagnostics sink, and an external `$ref` resolver.
  *
+ * `WalkOptions` is generic in the schema's value type so callers that
+ * walk a typed schema can carry `FieldOverrides<T>` through. The
+ * default `T = unknown` preserves the loose runtime record shape for
+ * existing non-generic callers — `Record<string, unknown>`.
+ *
  * @group Walkers
  */
-export interface WalkOptions {
+export interface WalkOptions<T = unknown> {
     componentMeta?: SchemaMeta | undefined;
     rootMeta?: SchemaMeta | undefined;
-    /** Nested field overrides — same shape as the schema. */
-    fieldOverrides?: Record<string, unknown> | undefined;
+    /**
+     * Nested field overrides — same shape as the schema.
+     *
+     * Typed against `FieldOverrides<T>` when a schema value type is
+     * supplied; falls back to `Record<string, unknown>` for the
+     * default `T = unknown` so the loose runtime shape continues to
+     * compile.
+     */
+    fieldOverrides?: unknown extends T
+        ? Record<string, unknown> | undefined
+        : FieldOverrides<T> | undefined;
     /** The root document for $ref resolution. */
     rootDocument?: Record<string, unknown> | undefined;
     /** Diagnostics channel for surfacing silent fallbacks. */
