@@ -1,3 +1,21 @@
+## [2.1.1](https://github.com/Mearman/schema-components/compare/v2.1.0...v2.1.1) (2026-05-19)
+
+### Refactoring
+
+* **html:** route streaming leaf path through dispatchRenderField ([e3e3e41](https://github.com/Mearman/schema-components/commit/e3e3e41a9eaea58b6b515cccdf9c3dc365bb6b1b))
+
+### Documentation
+
+* **vue:** document Vue adapter ships as source ([2d527da](https://github.com/Mearman/schema-components/commit/2d527dac8ca4b3db1ec687c9f33ddb69e0863262))
+
+### Tests
+
+* **preact:** close the 14 preact/compat false negatives ([5470f10](https://github.com/Mearman/schema-components/commit/5470f100f38b9e2fb2c7b5035c5b8f7d96d1fcd5))
+
+### Build
+
+* **vue:** ship Vue adapter source in published tarball ([f95caf0](https://github.com/Mearman/schema-components/commit/f95caf068065b88b3ea13af41b746117e9ddbfd1))
+
 ## [2.1.0](https://github.com/Mearman/schema-components/compare/v2.0.2...v2.1.0) (2026-05-19)
 
 ### Features
