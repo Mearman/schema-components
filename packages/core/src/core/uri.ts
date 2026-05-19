@@ -26,6 +26,23 @@ import { EMAIL_FORMAT_PATTERN } from "./formats.ts";
 const ABSOLUTE_URI_SCHEME = /^\s*([a-z][a-z0-9+\-.]*):/i;
 
 /**
+ * ASCII control characters that the WHATWG URL parser strips before it
+ * detects a scheme. A value such as `"java\tscript:alert(1)"` therefore
+ * resolves to `javascript:alert(1)` in a browser, even though the literal
+ * scheme regex would not match. Splicing any of these characters into a
+ * URI is unambiguously hostile, so the safe-scheme check refuses such
+ * values outright.
+ *
+ * Source: WHATWG URL Living Standard §4.4 "URL parsing" — tab and newline
+ * (`\t`, `\n`, `\r`) are removed prior to state-machine entry. NUL bytes
+ * (`\0`) are likewise stripped by some user agents and never legitimate
+ * inside a URI.
+ *
+ * https://web.archive.org/web/20251101000000*\/https://url.spec.whatwg.org/#concept-basic-url-parser
+ */
+const URL_CONTROL_CHARACTERS = /[\t\n\r\0]/;
+
+/**
  * Schemes safe to emit unmodified into an `href` attribute. Anything
  * outside this set — most importantly `javascript:`, `data:`, `vbscript:`
  * and `file:` — is rejected and rendered as text.
@@ -38,9 +55,17 @@ const SAFE_HYPERLINK_SCHEMES: ReadonlySet<string> = new Set(["http", "https"]);
  * Returns `true` when the value is either a relative reference (no scheme
  * component) or an absolute URI using `http`/`https`. Returns `false`
  * for any other scheme, including dangerous ones like `javascript:` and
- * `data:`.
+ * `data:`, and for any value that splices ASCII tab/newline/NUL bytes
+ * into its scheme — the WHATWG URL parser strips those before scheme
+ * detection, so accepting them would let `"java\tscript:alert(1)"`
+ * resolve to `javascript:alert(1)` in a browser.
  */
 export function isSafeHyperlink(value: string): boolean {
+    // Reject values containing ASCII control characters the URL parser
+    // strips before scheme detection. A literal scheme regex would not
+    // match `"java\tscript:"`, but a browser would still resolve it to
+    // `javascript:` — refuse the value outright.
+    if (URL_CONTROL_CHARACTERS.test(value)) return false;
     const match = ABSOLUTE_URI_SCHEME.exec(value);
     if (match === null) {
         // No scheme means a relative reference — safe to emit as-is.
@@ -59,11 +84,21 @@ export function isSafeHyperlink(value: string): boolean {
  * Decide whether `value` is safe to interpolate into a `mailto:` URI.
  *
  * The check rejects values that do not match the standard email format
- * pattern. The format pattern excludes whitespace, which means a CRLF
- * sequence (or its percent-encoded form embedded by the caller) cannot
- * pass — eliminating the SMTP/`mailto` header-injection vector.
+ * pattern. The format pattern excludes whitespace, but it does permit
+ * `%`, and a browser decodes percent-escapes at click time — so a value
+ * such as `"foo%0Abcc:victim@bar.com"` would inject a `Bcc:` header into
+ * the resulting `mailto:` URI. Refuse any value containing `%` to close
+ * that header-injection vector. The plain email-format regex stays a
+ * pure email-syntax check; the additional `%` filter lives here so other
+ * callers of the format pattern (form validators, JSON Schema `format:
+ * email` checks) are not affected.
  */
 export function isSafeMailtoAddress(value: string): boolean {
+    // A literal `%` in an email address cannot have a legitimate
+    // interpretation inside a `mailto:` URI — the browser will decode
+    // any percent-escape before passing the result to the mail client,
+    // turning `%0A` / `%0D` into CRLF and splicing additional headers.
+    if (value.includes("%")) return false;
     return EMAIL_FORMAT_PATTERN.test(value);
 }
 
