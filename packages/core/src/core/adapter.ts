@@ -43,16 +43,6 @@ const schemaCache = new WeakMap<object, NormalisedSchema>();
 export type { JsonObject, SchemaMeta };
 
 /**
- * Permissive input alias accepted by {@link normaliseSchema}. Every
- * supported source (Zod 4 schema, plain JSON Schema, OpenAPI document)
- * is reachable through `Record<string, unknown>`, so consumers can
- * accept the union without committing to a specific shape at the API
- * boundary.
- *
- * @group Adapter
- */
-export type SchemaInput = Record<string, unknown>;
-/**
  * Classification produced by {@link detectSchemaKind} when inspecting a
  * runtime schema input.
  *
