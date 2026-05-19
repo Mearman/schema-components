@@ -139,6 +139,18 @@ export function registerWidget(
     globalWidgets.set(name, render);
 }
 
+/**
+ * Clear every globally registered widget. Intended for test isolation —
+ * `registerWidget` writes to module-level state and that state otherwise
+ * leaks across test cases, making the test suite order-dependent. Tests
+ * should call this from an `afterEach` hook.
+ *
+ * @internal
+ */
+export function __clearGlobalWidgets(): void {
+    globalWidgets.clear();
+}
+
 // ---------------------------------------------------------------------------
 // Generic props with type-safe fields dispatch
 // ---------------------------------------------------------------------------

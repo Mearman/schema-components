@@ -4,15 +4,23 @@
  * Verifies the three widget scopes: global, context, and per-instance.
  * Resolution order: instance → context → global → resolver → headless.
  */
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import { renderToString } from "react-dom/server";
 import {
     SchemaComponent,
     SchemaProvider,
     registerWidget,
+    __clearGlobalWidgets,
 } from "../src/react/SchemaComponent.tsx";
 import type { WidgetMap } from "../src/core/renderer.ts";
 import { z } from "zod";
+
+// `registerWidget` writes to module-level state; without per-test cleanup
+// the suite is order-dependent. Clear the registry between every test so
+// each case starts from a clean slate.
+afterEach(() => {
+    __clearGlobalWidgets();
+});
 
 // ---------------------------------------------------------------------------
 // Instance-scoped widgets (per-component)
@@ -256,6 +264,32 @@ describe("resolution order", () => {
         );
 
         expect(html).toContain("42");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Global widget cleanup
+// ---------------------------------------------------------------------------
+
+describe("__clearGlobalWidgets", () => {
+    it("removes a previously registered global widget", () => {
+        const schema = z.object({
+            name: z.string().meta({ component: "ephemeral-widget" }),
+        });
+
+        registerWidget("ephemeral-widget", () => <span>registered</span>);
+
+        const before = renderToString(
+            <SchemaComponent schema={schema} value={{ name: "x" }} />
+        );
+        expect(before).toContain("registered");
+
+        __clearGlobalWidgets();
+
+        const after = renderToString(
+            <SchemaComponent schema={schema} value={{ name: "x" }} />
+        );
+        expect(after).not.toContain("registered");
     });
 });
 
