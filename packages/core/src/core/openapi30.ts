@@ -215,7 +215,7 @@ function compositeAlreadyAllowsNull(options: readonly unknown[]): boolean {
  * values into each `oneOf`/`anyOf` option's discriminator property.
  *
  * In OpenAPI 3.0, `discriminator` is a sibling of `oneOf`/`anyOf`:
- *   discriminator: { propertyName: "type" }
+ *   `discriminator: { propertyName: "type" }`
  * The walker detects discriminated unions from `oneOf` + `const` on a
  * property, so this normaliser injects the `const` values from the
  * `mapping` or infers them from `$ref` fragment names.
