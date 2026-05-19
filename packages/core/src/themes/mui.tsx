@@ -1,29 +1,34 @@
 /**
  * MUI (Material UI) theme adapter.
  *
- * Maps schema types to MUI components. Requires @mui/material to be
+ * Maps schema types to MUI components. Requires `@mui/material` to be
  * installed in the consuming project: schema-components does not bundle
  * the MUI runtime so consumers stay in control of versioning.
  *
- * Usage:
- *   import {
- *     createMuiResolver,
- *   } from "schema-components/themes/mui";
- *   import TextField from "@mui/material/TextField";
- *   import Checkbox from "@mui/material/Checkbox";
- *   import Typography from "@mui/material/Typography";
- *   import Box from "@mui/material/Box";
- *   import MenuItem from "@mui/material/MenuItem";
- *   import FormControlLabel from "@mui/material/FormControlLabel";
+ * @example
+ * ```tsx
+ * import {
+ *   createMuiResolver,
+ * } from "schema-components/themes/mui";
+ * import TextField from "@mui/material/TextField";
+ * import Checkbox from "@mui/material/Checkbox";
+ * import Typography from "@mui/material/Typography";
+ * import Box from "@mui/material/Box";
+ * import MenuItem from "@mui/material/MenuItem";
+ * import FormControlLabel from "@mui/material/FormControlLabel";
  *
- *   const muiResolver = createMuiResolver({
- *     TextField, Checkbox, Typography, Box, MenuItem, FormControlLabel,
- *   });
+ * const muiResolver = createMuiResolver({
+ *   TextField, Checkbox, Typography, Box, MenuItem, FormControlLabel,
+ * });
  *
- *   <SchemaProvider resolver={muiResolver}>...</SchemaProvider>
+ * <SchemaProvider resolver={muiResolver}>...</SchemaProvider>
+ * ```
  *
  * Override individual types by spreading:
- *   const myResolver = { ...muiResolver, string: myStringRenderer };
+ *
+ * ```tsx
+ * const myResolver = { ...muiResolver, string: myStringRenderer };
+ * ```
  */
 
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";

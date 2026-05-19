@@ -4,12 +4,18 @@
  * Maps schema types to shadcn/ui components. Requires shadcn/ui
  * components to be installed in the consuming project.
  *
- * Usage:
- *   import { shadcnResolver } from "schema-components/themes/shadcn";
- *   <SchemaProvider resolver={shadcnResolver}>...</SchemaProvider>
+ * @example
+ * ```tsx
+ * import { shadcnResolver } from "schema-components/themes/shadcn";
+ *
+ * <SchemaProvider resolver={shadcnResolver}>...</SchemaProvider>
+ * ```
  *
  * Override individual types by spreading:
- *   const myResolver = { ...shadcnResolver, string: myStringRenderer };
+ *
+ * ```tsx
+ * const myResolver = { ...shadcnResolver, string: myStringRenderer };
+ * ```
  */
 
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";

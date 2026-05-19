@@ -1,21 +1,23 @@
 /**
  * Mantine theme adapter for schema-components.
  *
- * Maps schema types to Mantine components. Requires @mantine/core to be
+ * Maps schema types to Mantine components. Requires `@mantine/core` to be
  * installed in the consuming project: schema-components does not bundle
  * the Mantine runtime so consumers stay in control of versioning.
  *
- * Usage:
- *   import { createMantineResolver } from "schema-components/themes/mantine";
- *   import {
- *     TextInput, NumberInput, Switch, Select, Fieldset, Text,
- *   } from "@mantine/core";
+ * @example
+ * ```tsx
+ * import { createMantineResolver } from "schema-components/themes/mantine";
+ * import {
+ *   TextInput, NumberInput, Switch, Select, Fieldset, Text,
+ * } from "@mantine/core";
  *
- *   const mantineResolver = createMantineResolver({
- *     TextInput, NumberInput, Switch, Select, Fieldset, Text,
- *   });
+ * const mantineResolver = createMantineResolver({
+ *   TextInput, NumberInput, Switch, Select, Fieldset, Text,
+ * });
  *
- *   <SchemaProvider resolver={mantineResolver}>...</SchemaProvider>
+ * <SchemaProvider resolver={mantineResolver}>...</SchemaProvider>
+ * ```
  *
  * Falls back to headless HTML stubs (via mergeResolvers in the React
  * renderer) for types this adapter does not override.

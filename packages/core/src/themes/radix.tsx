@@ -2,29 +2,31 @@
  * Radix Themes adapter for schema-components.
  *
  * Maps schema types to Radix Themes components. Requires
- * @radix-ui/themes to be installed in the consuming project:
+ * `@radix-ui/themes` to be installed in the consuming project:
  * schema-components does not bundle the Radix runtime so consumers stay
  * in control of versioning.
  *
- * Usage:
- *   import { createRadixResolver } from "schema-components/themes/radix";
- *   import {
- *     Box, Checkbox, Flex, Select, Text, TextField,
- *   } from "@radix-ui/themes";
+ * @example
+ * ```tsx
+ * import { createRadixResolver } from "schema-components/themes/radix";
+ * import {
+ *   Box, Checkbox, Flex, Select, Text, TextField,
+ * } from "@radix-ui/themes";
  *
- *   const radixResolver = createRadixResolver({
- *     Box,
- *     Checkbox,
- *     Flex,
- *     SelectRoot: Select.Root,
- *     SelectTrigger: Select.Trigger,
- *     SelectContent: Select.Content,
- *     SelectItem: Select.Item,
- *     Text,
- *     TextField: TextField.Root,
- *   });
+ * const radixResolver = createRadixResolver({
+ *   Box,
+ *   Checkbox,
+ *   Flex,
+ *   SelectRoot: Select.Root,
+ *   SelectTrigger: Select.Trigger,
+ *   SelectContent: Select.Content,
+ *   SelectItem: Select.Item,
+ *   Text,
+ *   TextField: TextField.Root,
+ * });
  *
- *   <SchemaProvider resolver={radixResolver}>...</SchemaProvider>
+ * <SchemaProvider resolver={radixResolver}>...</SchemaProvider>
+ * ```
  */
 
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
