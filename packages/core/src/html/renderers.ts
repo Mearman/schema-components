@@ -130,9 +130,22 @@ function renderStringEditable(props: HtmlRenderProps): HtmlNode {
     const strValue = typeof props.value === "string" ? props.value : "";
     const format = props.constraints.format;
     const dateType = dateInputType(format);
+    // A `writeOnly` string with `format: "password"` is treated as a
+    // credential field — render as `<input type="password">` so the
+    // value is masked. The conservative heuristic uses Swagger 2.0 /
+    // OpenAPI 3.x's `format: "password"` as the explicit credential
+    // signal; key-name or description-based guesses are too fragile to
+    // ship by default.
+    const isCredential = props.writeOnly && format === "password";
     const inputType =
         dateType ??
-        (format === "email" ? "email" : format === "uri" ? "url" : "text");
+        (isCredential
+            ? "password"
+            : format === "email"
+              ? "email"
+              : format === "uri"
+                ? "url"
+                : "text");
     const id = fieldId(props.path);
 
     const attrs: HtmlAttributes = {
@@ -141,6 +154,17 @@ function renderStringEditable(props: HtmlRenderProps): HtmlNode {
         type: inputType,
         name: id,
     };
+
+    if (isCredential) {
+        // A non-empty initial value indicates the consumer is editing
+        // an existing credential (the value is still hidden from view —
+        // `writeOnly` clears `attrs.value` below — but the browser /
+        // password manager should treat the field as `current-password`
+        // so it offers to fill the existing entry). An empty initial
+        // value indicates a new-credential entry flow.
+        attrs.autocomplete =
+            strValue.length > 0 ? "current-password" : "new-password";
+    }
 
     if (!props.writeOnly) {
         attrs.value = strValue;

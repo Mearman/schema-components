@@ -223,6 +223,63 @@ describe("Record role", () => {
 });
 
 // ---------------------------------------------------------------------------
+// AC7 — writeOnly + format:"password" renders as <input type="password">
+// ---------------------------------------------------------------------------
+
+describe("writeOnly password rendering", () => {
+    it("renders writeOnly + format=password as <input type=password>", () => {
+        const html = renderToHtml(
+            { type: "string", writeOnly: true, format: "password" },
+            { value: "secret" }
+        );
+        expect(html).toMatch(/type="password"/);
+        // writeOnly clears the rendered value attribute so the secret
+        // never leaks back to the DOM.
+        expect(html).not.toMatch(/value="secret"/);
+    });
+
+    it("emits autocomplete=current-password when a writeOnly password has a value", () => {
+        const html = renderToHtml(
+            { type: "string", writeOnly: true, format: "password" },
+            { value: "existing" }
+        );
+        expect(html).toMatch(/autocomplete="current-password"/);
+    });
+
+    it("emits autocomplete=new-password when a writeOnly password is empty", () => {
+        const html = renderToHtml({
+            type: "string",
+            writeOnly: true,
+            format: "password",
+        });
+        expect(html).toMatch(/autocomplete="new-password"/);
+    });
+
+    it("does not switch to password type without format=password", () => {
+        // writeOnly alone is not enough — the field could be a non-credential
+        // write-only value (e.g. an arbitrary internal token). Keep type=text.
+        const html = renderToHtml(
+            { type: "string", writeOnly: true },
+            { value: "anything" }
+        );
+        expect(html).not.toMatch(/type="password"/);
+        expect(html).toMatch(/type="text"/);
+    });
+
+    it("does not switch to password type when readable (no writeOnly)", () => {
+        // `format: "password"` alone without `writeOnly` is treated as a
+        // visible string — Swagger 2.0 explicitly documents the format as a
+        // hint only when paired with write-only semantics.
+        const html = renderToHtml(
+            { type: "string", format: "password" },
+            { value: "visible" }
+        );
+        expect(html).not.toMatch(/type="password"/);
+        expect(html).toMatch(/type="text"/);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // AC13 — Number inputs carry inputmode + step for mobile keypads
 // ---------------------------------------------------------------------------
 

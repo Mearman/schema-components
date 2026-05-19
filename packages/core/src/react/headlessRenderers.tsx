@@ -213,16 +213,33 @@ export function renderString(props: RenderProps): ReactNode {
         );
     }
 
+    // A `writeOnly` string with `format: "password"` is treated as a
+    // credential field — render as `<input type="password">` so the
+    // value is masked. Conservative heuristic: only the explicit
+    // OpenAPI 3.x `format: "password"` signal triggers the switch;
+    // key-name guesses are too fragile to ship by default.
+    const isCredential =
+        props.writeOnly && props.constraints.format === "password";
+    const inputType = isCredential
+        ? "password"
+        : props.constraints.format === "email"
+          ? "email"
+          : props.constraints.format === "uri"
+            ? "url"
+            : "text";
+    // A pre-filled value indicates an existing-credential edit flow;
+    // the browser should offer to fill the saved entry rather than
+    // generate a new one.
+    const autoComplete = isCredential
+        ? strValue.length > 0
+            ? "current-password"
+            : "new-password"
+        : undefined;
     const input = (
         <input
             id={id}
-            type={
-                props.constraints.format === "email"
-                    ? "email"
-                    : props.constraints.format === "uri"
-                      ? "url"
-                      : "text"
-            }
+            type={inputType}
+            autoComplete={autoComplete}
             value={props.writeOnly ? "" : strValue}
             onChange={(e) => {
                 props.onChange(e.target.value);

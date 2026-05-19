@@ -66,7 +66,12 @@ export function extractStringConstraints(
         const pattern = FORMAT_PATTERNS[format];
         if (pattern !== undefined) {
             c.formatPattern = pattern;
-        } else if (format !== "binary") {
+        } else if (format !== "binary" && format !== "password") {
+            // `binary` (OpenAPI file uploads) and `password` (Swagger 2.0 /
+            // OpenAPI 3.x credential hint) carry no validation pattern but
+            // are well-known format names — emitting an `unknown-format`
+            // diagnostic for them would be noisy. They are surfaced to the
+            // renderers verbatim through `c.format`.
             emitDiagnostic(diagnostics, {
                 code: "unknown-format",
                 message: `Unknown format: ${format}`,
