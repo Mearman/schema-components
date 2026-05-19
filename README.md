@@ -184,7 +184,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 <!-- @generated:api-inventory:start -->
 <details>
-<summary><code>core/*</code> — 219 exports</summary>
+<summary><code>core/*</code> — 218 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -280,7 +280,6 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`RECURSIVE_ANCHOR_SENTINEL`](https://mearman.github.io/schema-components/variables/core_ref.RECURSIVE_ANCHOR_SENTINEL.html) | `core/ref` | Variable | The canonical recursive `$anchor` name synthesised by the Draft 2019-09 `$recursiveAnchor: true` rewrite. |  |
 | [`RefOptions`](https://mearman.github.io/schema-components/interfaces/core_ref.RefOptions.html) | `core/ref` | Interface | Options for $ref resolution. |  |
 | [`resolveRef`](https://mearman.github.io/schema-components/functions/core_ref.resolveRef.html) | `core/ref` | Function | Resolve a `$ref` in a schema against a root document. |  |
-| [`DEFAULT_REF_CHAIN_MAX_HOPS`](https://mearman.github.io/schema-components/variables/core_refChain.DEFAULT_REF_CHAIN_MAX_HOPS.html) | `core/refChain` | Variable | Maximum number of `$ref` hops permitted by default. |  |
 | [`resolveRefChain`](https://mearman.github.io/schema-components/functions/core_refChain.resolveRefChain.html) | `core/refChain` | Function | Resolve a `$ref` chain starting from `initial`. |  |
 | [`ResolveRefChainOptions`](https://mearman.github.io/schema-components/interfaces/core_refChain.ResolveRefChainOptions.html) | `core/refChain` | Interface | Configuration for a single chain resolution. |  |
 | [`AllConstraints`](https://mearman.github.io/schema-components/types/core_renderer.AllConstraints.html) | `core/renderer` | Type | Flat intersection of all constraint types. |  |

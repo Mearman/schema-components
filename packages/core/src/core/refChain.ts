@@ -13,8 +13,7 @@
  * what to do on cycle or depth-cap via `onCycle` / `onDepthExceeded`.
  */
 
-/** Maximum number of `$ref` hops permitted by default. */
-export const DEFAULT_REF_CHAIN_MAX_HOPS = 8;
+import { MAX_PATH_ITEM_REF_HOPS } from "./limits.ts";
 
 /**
  * Configuration for a single chain resolution.
@@ -52,7 +51,8 @@ export interface ResolveRefChainOptions<T> {
     readonly onDepthExceeded?: (ref: string) => T | undefined;
     /**
      * Maximum number of `$ref` hops permitted before `onDepthExceeded` fires.
-     * Defaults to `DEFAULT_REF_CHAIN_MAX_HOPS`.
+     * Defaults to `MAX_PATH_ITEM_REF_HOPS` from `core/limits.ts`, the
+     * canonical cap shared with the OpenAPI Path Item ref walker.
      */
     readonly maxHops?: number;
     /**
@@ -83,7 +83,7 @@ export function resolveRefChain<T>(
         extractRef = defaultExtractRef,
         onCycle,
         onDepthExceeded,
-        maxHops = DEFAULT_REF_CHAIN_MAX_HOPS,
+        maxHops = MAX_PATH_ITEM_REF_HOPS,
         visited = new Set<string>(),
     } = options;
 

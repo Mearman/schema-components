@@ -26,5 +26,10 @@ export const MAX_REF_DEPTH: MaxRefDepth = 64;
  * Maximum number of `$ref` hops permitted when walking a chain of
  * OpenAPI Path Item Object references. Beyond this a
  * `path-item-ref-too-deep` diagnostic is emitted and resolution stops.
+ *
+ * Also the default `maxHops` for the generic `resolveRefChain` helper
+ * in `core/refChain.ts`, so every ref-chain walker — Path Item refs,
+ * Parameter / Response refs, Reference Object chains, etc. — shares
+ * the same hop cap.
  */
 export const MAX_PATH_ITEM_REF_HOPS = 8;

@@ -394,8 +394,9 @@ describe("resolveParam — Reference Object chain", () => {
 
     it("emits parameter-ref-too-deep for an over-deep parameter ref chain", () => {
         const parameters: Record<string, unknown> = {};
-        // Default cap is 8 (DEFAULT_REF_CHAIN_MAX_HOPS). Build a chain
-        // of 10 refs so we exceed the cap before reaching the terminus.
+        // Default cap is 8 (MAX_PATH_ITEM_REF_HOPS from core/limits.ts).
+        // Build a chain of 10 refs so we exceed the cap before reaching
+        // the terminus.
         for (let i = 0; i < 10; i++) {
             parameters[`P${String(i)}`] = {
                 $ref: `#/components/parameters/P${String(i + 1)}`,
