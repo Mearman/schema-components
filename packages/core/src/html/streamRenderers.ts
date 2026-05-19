@@ -8,6 +8,33 @@
  * - Union / DiscriminatedUnion: matched option content
  * - Leaf types: rendered entirely as one chunk
  *
+ * # Shared dispatcher
+ *
+ * Leaf-type rendering (and the catch-all for non-container types that
+ * are not handled by a dedicated streaming generator) is delegated to
+ * the framework-agnostic {@link dispatchRenderField} dispatcher in
+ * `core/renderField.ts`. The dispatcher owns resolver lookup, widget
+ * lookup (currently unused by the HTML renderers), render-error
+ * wrapping, and the unhandled-type fallback. Streaming containers
+ * (object, array, record, union, discriminatedUnion) keep their own
+ * generator implementations because the dispatcher's single-output
+ * contract cannot express the streaming "yield open tag → recurse →
+ * yield close tag" chunk boundary.
+ *
+ * # Recursion-depth contract
+ *
+ * `streamField` performs the {@link MAX_RENDER_DEPTH} depth check as
+ * the very first step, before either the container dispatch or the
+ * shared dispatcher is invoked. Containers recurse back through
+ * `streamField` (so the check fires once per recursion step); leaves
+ * delegate to `dispatchRenderField` *only after* the streamField guard
+ * has already cleared the same threshold. The dispatcher carries an
+ * internal depth check too, but on the streaming leaf path that check
+ * is reached only with `depth < MAX_RENDER_DEPTH` — it never fires
+ * twice for the same recursion step. The redundancy exists so the
+ * dispatcher's own callers (sync HTML, React) do not need to
+ * pre-filter depth themselves.
+ *
  * All container generators thread `currentDepth` so cyclic walked-field
  * graphs (e.g. `z.lazy` schemas) terminate at `MAX_RENDER_DEPTH` with a
  * recursion sentinel rather than overflowing the stack. The cap is
@@ -24,6 +51,7 @@ import type { WalkedField } from "../core/types.ts";
 import { isObject } from "../core/guards.ts";
 import { getHtmlRenderFn } from "../core/renderer.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
+import { dispatchRenderField } from "../core/renderField.ts";
 import {
     emitDiagnostic,
     type DiagnosticsOptions,
@@ -90,34 +118,40 @@ export function yieldClose(el: HtmlElement): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Render a leaf {@link WalkedField} entirely as a single HTML chunk.
- * Used inside the streaming generators when descent into containers is
- * complete. Falls back to a `<span>`-wrapped value when no renderer is
- * registered for the field type.
+ * Build the per-leaf {@link HtmlRenderProps} bundle handed to resolver
+ * render functions and (in future) to widget renderers. The streaming
+ * pipeline never recurses through `renderChild` for leaves — container
+ * recursion happens through the streamField generators — so the
+ * supplied `renderChild` is the constant `() => ""` stub matching the
+ * historic streaming-leaf shape.
  */
-export function renderLeaf(
+function buildLeafProps(
     tree: WalkedField,
     value: unknown,
-    mergedResolver: HtmlResolver,
     path: string
-): string {
-    const renderFn = getHtmlRenderFn(tree.type, mergedResolver);
-    if (renderFn !== undefined) {
-        const props: HtmlRenderProps = {
-            value,
-            readOnly: tree.editability === "presentation",
-            writeOnly: tree.editability === "input",
-            meta: tree.meta,
-            constraints: tree.constraints,
-            path,
-            tree,
-            renderChild: () => "",
-        };
+): HtmlRenderProps {
+    const props: HtmlRenderProps = {
+        value,
+        readOnly: tree.editability === "presentation",
+        writeOnly: tree.editability === "input",
+        meta: tree.meta,
+        constraints: tree.constraints,
+        path,
+        tree,
+        renderChild: () => "",
+    };
+    if (tree.examples !== undefined) props.examples = tree.examples;
+    return props;
+}
 
-        return renderFn(props);
-    }
-
-    // Fallback for unhandled types
+/**
+ * Build the streaming-friendly placeholder a {@link dispatchRenderField}
+ * fallback emits when no resolver handled the leaf type. The sync HTML
+ * dispatcher throws in this position — streaming must keep producing
+ * output, so the streaming adapter renders the same `<span>` shape
+ * `renderLeaf` historically produced for unresolved types.
+ */
+function leafFallbackHtml(value: unknown): string {
     if (value === undefined || value === null) {
         return serialize(h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH));
     }
@@ -128,6 +162,62 @@ export function renderLeaf(
             typeof value === "string" ? value : JSON.stringify(value)
         )
     );
+}
+
+/**
+ * Render a leaf {@link WalkedField} entirely as a single HTML chunk.
+ * Used inside the streaming generators when descent into containers is
+ * complete.
+ *
+ * Delegates to the framework-agnostic {@link dispatchRenderField}
+ * dispatcher so resolver lookup, the (unused) widget step, error
+ * wrapping, and the unresolved-type fallback share one implementation
+ * with the sync HTML renderer and the React adapter.
+ *
+ * @param depth - Current recursion depth — defaults to `0` so the
+ *   public signature stays additive. Callers inside the streaming
+ *   pipeline thread the live `currentDepth` so the dispatcher's
+ *   internal depth check is consistent with the streamField gate.
+ */
+export function renderLeaf(
+    tree: WalkedField,
+    value: unknown,
+    mergedResolver: HtmlResolver,
+    path: string,
+    depth = 0
+): string {
+    return dispatchRenderField<HtmlRenderProps, string, HtmlResolver>({
+        tree,
+        value,
+        path,
+        depth,
+        resolver: mergedResolver,
+        config: {
+            buildProps: (fieldTree, fieldPath) =>
+                buildLeafProps(fieldTree, value, fieldPath),
+            lookupRenderFn: (type, htmlResolver) =>
+                getHtmlRenderFn(type, htmlResolver),
+            recursionSentinel: (fieldTree) => {
+                const label =
+                    typeof fieldTree.meta.description === "string"
+                        ? fieldTree.meta.description
+                        : "schema";
+                return recursionSentinelHtml(label);
+            },
+            // Streaming must keep producing output, so the fallback
+            // emits a visible placeholder rather than throwing the way
+            // the sync HTML adapter does. The placeholder shape
+            // matches the pre-unification `renderLeaf` behaviour, so
+            // tests asserting on the `sc-value` / `sc-value--empty`
+            // span around unresolved values continue to hold.
+            fallback: (_fieldTree, fieldValue) => leafFallbackHtml(fieldValue),
+            // HTML renderers always return strings. Anything else is
+            // treated as no result and the dispatcher falls through to
+            // the fallback above.
+            coerceResult: (result) =>
+                typeof result === "string" ? result : undefined,
+        },
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -206,8 +296,16 @@ export function* streamField(
     diagnostics?: DiagnosticsOptions
 ): Iterable<string, void, undefined> {
     // Recursion guard: cyclic walked-field graphs (z.lazy, mutually
-    // recursive $ref) would otherwise overflow the stack. Mirrors the
-    // sync renderer in `renderToHtml.ts`.
+    // recursive $ref) would otherwise overflow the stack. This is the
+    // single termination point for the streaming pipeline — every
+    // container recursion goes back through `streamField`, and the
+    // leaf path delegates to the dispatcher only after this guard has
+    // already cleared the threshold. `dispatchRenderField` carries its
+    // own depth check too, but on the streaming leaf path that check
+    // sees `depth < MAX_RENDER_DEPTH` by construction and never emits
+    // a sentinel; the recursion sentinel is yielded exactly once here.
+    // See the module-level comment in `core/renderField.ts` for the
+    // matching note.
     if (currentDepth >= MAX_RENDER_DEPTH) {
         const label =
             typeof tree.meta.description === "string"
@@ -220,7 +318,11 @@ export function* streamField(
     const effectiveValue = value ?? tree.defaultValue;
     const type = tree.type;
 
-    // Leaf types — render entirely as one chunk using the resolver
+    // Leaf types — render entirely as one chunk via the shared
+    // dispatcher. `streamField`'s leading depth check already gated
+    // the recursion step, so the dispatcher's own depth check is a
+    // no-op here (it remains in place for the sync HTML / React
+    // callers that do not pre-filter depth themselves).
     if (
         type === "string" ||
         type === "number" ||
@@ -230,7 +332,13 @@ export function* streamField(
         type === "file" ||
         type === "unknown"
     ) {
-        yield renderLeaf(tree, effectiveValue, mergedResolver, path);
+        yield renderLeaf(
+            tree,
+            effectiveValue,
+            mergedResolver,
+            path,
+            currentDepth
+        );
         return;
     }
 
@@ -304,8 +412,12 @@ export function* streamField(
         return;
     }
 
-    // Fallback
-    yield renderLeaf(tree, value, mergedResolver, path);
+    // Fallback for type variants without a dedicated streaming
+    // generator (null, tuple, conditional, negation, never). Routes
+    // through the shared dispatcher so resolver lookup, error
+    // wrapping, and the unresolved-type fallback all match the leaf
+    // path.
+    yield renderLeaf(tree, value, mergedResolver, path, currentDepth);
 }
 
 // ---------------------------------------------------------------------------

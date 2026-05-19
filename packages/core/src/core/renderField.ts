@@ -3,13 +3,14 @@
  *
  * Centralises the dispatch loop shared by the React `SchemaComponent` /
  * `SchemaView` renderers, the synchronous HTML renderer in
- * `renderToHtml`, and (in the future) Vue / Solid / Svelte / Lit
- * adapters. The dispatcher is intentionally framework-agnostic: it
- * neither imports React nor produces HTML strings directly. Each
- * adapter supplies a small {@link DispatchConfig} describing how to
- * build per-field props, how to handle a successful or absent resolver
- * lookup, and (optionally) how to handle widget overrides and the
- * recursion-depth cap.
+ * `renderToHtml`, the streaming HTML renderer in `streamRenderers.ts`
+ * (for its leaf path — see "Streaming integration" below), and (in
+ * the future) Vue / Solid / Svelte / Lit adapters. The dispatcher is
+ * intentionally framework-agnostic: it neither imports React nor
+ * produces HTML strings directly. Each adapter supplies a small
+ * {@link DispatchConfig} describing how to build per-field props, how
+ * to handle a successful or absent resolver lookup, and (optionally)
+ * how to handle widget overrides and the recursion-depth cap.
  *
  * The dispatch order is fixed and matches the historic React-side
  * behaviour so the React, HTML, and future adapters all observe the
@@ -29,6 +30,39 @@
  * The helpers that find render functions, merge resolvers, and build
  * the per-field props live in {@link "./renderer.ts"} and are reused
  * here — `core/renderField.ts` is purely the dispatch shell.
+ *
+ * # Streaming integration (design choice B)
+ *
+ * The streaming HTML renderer (`html/streamRenderers.ts` +
+ * `html/renderToHtmlStream.ts`) consumes this dispatcher for leaf
+ * field types — `string`, `number`, `boolean`, `enum`, `literal`,
+ * `file`, `unknown` — and for variants without a dedicated streaming
+ * generator (`null`, `tuple`, `conditional`, `negation`, `never`).
+ * Container types (`object`, `array`, `record`, `union`,
+ * `discriminatedUnion`) keep bespoke generator implementations
+ * because the dispatcher's single-output contract cannot express the
+ * "yield opening tag → recurse into children → yield closing tag"
+ * chunk-boundary semantics that streaming depends on.
+ *
+ * We deliberately chose this approach (the Phase 1 agent's "option
+ * B" — leaves dispatch through the shared loop, containers keep their
+ * own iteration) over the alternative of building a generator-output
+ * mode into the dispatcher itself. Approach B preserves the existing
+ * chunk boundaries byte-for-byte while still eliminating the duplicate
+ * resolver-lookup logic that previously lived in `renderLeaf`. A
+ * generator-aware dispatcher would require either a parallel "stream
+ * resolver" shape or a unified return type wide enough to cover both
+ * single-output and iterable cases — neither of which is justified by
+ * the small amount of dispatch logic the leaf path needs.
+ *
+ * The streaming `streamField` function performs its own depth check
+ * before invoking the dispatcher for leaf paths. The check appears
+ * textually in both places (streamField and this dispatcher) but at
+ * runtime fires exactly once per recursion step: streamField's guard
+ * filters the streaming path, and the dispatcher's guard remains in
+ * place for the sync HTML and React callers that do not pre-filter
+ * depth themselves. See `html/streamRenderers.ts` for the matching
+ * commentary.
  */
 
 import { MAX_RENDER_DEPTH } from "./limits.ts";
