@@ -109,9 +109,9 @@ type NarrowAtPath<V, P extends string | undefined> = P extends string
  * Public alias mapping a schema input to the rendered value type.
  *
  * Picks the OUTPUT side (server → client) of every transform / pipe /
- * codec. For an `<SchemaComponent io="output">` or `<SchemaView
- * io="output">` (both defaults), this is the inferred shape of
- * `value` and the parameter of `onChange`.
+ * codec. For a `<SchemaComponent io="output">` or `<SchemaView io="output">`
+ * (both defaults), this is the inferred shape of `value` and the
+ * parameter of `onChange`.
  */
 export type InferredOutputValue<
     T,
