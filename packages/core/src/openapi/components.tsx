@@ -39,6 +39,7 @@ import type {
     InferResponseFields,
 } from "../core/typeInference.ts";
 import { isObject, toRecordOrUndefined } from "../core/guards.ts";
+import { isSafeHyperlink } from "../core/uri.ts";
 import {
     toDoc,
     resolveOperationFromParsed,
@@ -466,11 +467,22 @@ function ExternalDocsLink({
     externalDocs: ExternalDocs | undefined;
 }): ReactNode {
     if (externalDocs === undefined) return null;
+    // OpenAPI documents are frequently authored by third parties; an
+    // attacker-controlled externalDocs.url with a `javascript:` or `data:`
+    // scheme would otherwise reach the DOM as a live anchor. Fall back to
+    // a plain `<span>` when the URL fails the safe-scheme check so the
+    // link is rendered as inert text rather than an XSS sink.
+    const label = externalDocs.description ?? externalDocs.url;
+    if (!isSafeHyperlink(externalDocs.url)) {
+        return (
+            <p data-external-docs>
+                <span>{label}</span>
+            </p>
+        );
+    }
     return (
         <p data-external-docs>
-            <a href={externalDocs.url}>
-                {externalDocs.description ?? externalDocs.url}
-            </a>
+            <a href={externalDocs.url}>{label}</a>
         </p>
     );
 }

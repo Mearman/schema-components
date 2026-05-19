@@ -15,6 +15,7 @@ import type { ReactNode } from "react";
 import type { SecurityRequirement, SecurityScheme } from "./parser.ts";
 import type { JsonObject, SchemaMeta } from "../core/types.ts";
 import { isObject } from "../core/guards.ts";
+import { isSafeHyperlink } from "../core/uri.ts";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -190,11 +191,16 @@ function SchemeDetails({ scheme }: SchemeDetailsProps): ReactNode {
             {scheme.location !== undefined && (
                 <span data-security-apikey-in>{scheme.location}</span>
             )}
-            {scheme.openIdConnectUrl !== undefined && (
-                <a data-security-openid-url href={scheme.openIdConnectUrl}>
-                    {scheme.openIdConnectUrl}
-                </a>
-            )}
+            {scheme.openIdConnectUrl !== undefined &&
+                (isSafeHyperlink(scheme.openIdConnectUrl) ? (
+                    <a data-security-openid-url href={scheme.openIdConnectUrl}>
+                        {scheme.openIdConnectUrl}
+                    </a>
+                ) : (
+                    <span data-security-openid-url>
+                        {scheme.openIdConnectUrl}
+                    </span>
+                ))}
             {flows.length > 0 && (
                 <section data-security-flows>
                     {flows.map((flow) => (
@@ -218,24 +224,37 @@ function FlowDetails({ flow }: FlowDetailsProps): ReactNode {
     return (
         <div data-security-flow={flow.name}>
             <span data-security-flow-name>{flow.name}</span>
-            {flow.authorizationUrl !== undefined && (
-                <a
-                    data-security-flow-authorization-url
-                    href={flow.authorizationUrl}
-                >
-                    {flow.authorizationUrl}
-                </a>
-            )}
-            {flow.tokenUrl !== undefined && (
-                <a data-security-flow-token-url href={flow.tokenUrl}>
-                    {flow.tokenUrl}
-                </a>
-            )}
-            {flow.refreshUrl !== undefined && (
-                <a data-security-flow-refresh-url href={flow.refreshUrl}>
-                    {flow.refreshUrl}
-                </a>
-            )}
+            {flow.authorizationUrl !== undefined &&
+                (isSafeHyperlink(flow.authorizationUrl) ? (
+                    <a
+                        data-security-flow-authorization-url
+                        href={flow.authorizationUrl}
+                    >
+                        {flow.authorizationUrl}
+                    </a>
+                ) : (
+                    <span data-security-flow-authorization-url>
+                        {flow.authorizationUrl}
+                    </span>
+                ))}
+            {flow.tokenUrl !== undefined &&
+                (isSafeHyperlink(flow.tokenUrl) ? (
+                    <a data-security-flow-token-url href={flow.tokenUrl}>
+                        {flow.tokenUrl}
+                    </a>
+                ) : (
+                    <span data-security-flow-token-url>{flow.tokenUrl}</span>
+                ))}
+            {flow.refreshUrl !== undefined &&
+                (isSafeHyperlink(flow.refreshUrl) ? (
+                    <a data-security-flow-refresh-url href={flow.refreshUrl}>
+                        {flow.refreshUrl}
+                    </a>
+                ) : (
+                    <span data-security-flow-refresh-url>
+                        {flow.refreshUrl}
+                    </span>
+                ))}
             {flow.scopes.size > 0 && (
                 <dl data-security-flow-scopes>
                     {[...flow.scopes.entries()].map(([name, description]) => (
