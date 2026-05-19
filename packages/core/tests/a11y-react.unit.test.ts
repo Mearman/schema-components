@@ -160,6 +160,16 @@ describe("discriminated union — ARIA tabs (HTML)", () => {
         expect(html).toMatch(/aria-label="Select variant"/);
     });
 
+    it("adds aria-orientation=horizontal on tablist", () => {
+        // APG-recommended explicit orientation aids screen readers in
+        // announcing the arrow-key navigation axis. The tabs render
+        // horizontally, so emit the matching attribute.
+        const html = renderToHtml(schema, {
+            value: { type: "email", address: "user@example.com" },
+        });
+        expect(html).toMatch(/aria-orientation="horizontal"/);
+    });
+
     it("produces WAI-ARIA tabs via streaming", () => {
         const chunks = [
             ...renderToHtmlChunks(schema, {

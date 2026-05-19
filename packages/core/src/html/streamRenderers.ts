@@ -749,6 +749,7 @@ function* streamDiscriminatedUnion(
                 role: "tablist",
                 class: SC_CLASSES.tabs,
                 "aria-label": "Select variant",
+                "aria-orientation": "horizontal",
             },
             ...tabButtons
         )

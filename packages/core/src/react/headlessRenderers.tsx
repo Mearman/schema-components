@@ -753,6 +753,7 @@ function DiscriminatedUnionTabs({
             <div
                 role="tablist"
                 aria-label="Select variant"
+                aria-orientation="horizontal"
                 style={{
                     display: "flex",
                     gap: "0.25rem",
