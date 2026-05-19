@@ -11,16 +11,18 @@
  *
  * Usage:
  *
- *     import { h, serialize } from "./html.ts";
+ * ```ts
+ * import { h, serialize } from "./html.ts";
  *
- *     const el = h("input", { type: "text", id: "name", "aria-required": true });
- *     serialize(el); // → '<input type="text" id="name" aria-required>'
+ * const el = h("input", { type: "text", id: "name", "aria-required": true });
+ * serialize(el); // → '<input type="text" id="name" aria-required>'
  *
- *     const form = h("form", {},
- *         h("label", { for: "name" }, "Name"),
- *         h("input", { type: "text", id: "name" }),
- *     );
- *     serialize(form); // → '<form><label for="name">Name</label><input type="text" id="name"></form>'
+ * const form = h("form", {},
+ *     h("label", { for: "name" }, "Name"),
+ *     h("input", { type: "text", id: "name" }),
+ * );
+ * serialize(form); // → '<form><label for="name">Name</label><input type="text" id="name"></form>'
+ * ```
  */
 
 // ---------------------------------------------------------------------------
