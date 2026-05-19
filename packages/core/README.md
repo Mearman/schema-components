@@ -117,6 +117,41 @@ For yarn, use the `resolutions` field with the same value.
 
 The test suite is parametrised with a `unit-preact` Vitest project that runs the same files under `preact/compat` aliasing. Run it via `pnpm test:preact` from the repo root, or directly with `pnpm exec vitest run --project=unit-preact` from `packages/core`. A small set of tests (the ones bound to the three known limitations above) fail intentionally; the remaining ~99% pass under both runtimes and establish the cross-runtime regression boundary.
 
+### Vue support
+
+Vue 3.5+ is supported as an optional peer dependency. The Vue adapter ships as **source** under `schema-components/vue/*` — the `.vue` Single File Components are not pre-compiled into the published tarball. Consumers need a Vite or webpack toolchain with `@vitejs/plugin-vue` (or equivalent) to compile the SFCs at their own build step.
+
+```ts
+// vite.config.ts
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+
+export default defineConfig({
+    plugins: [vue()],
+});
+```
+
+```vue
+<script setup lang="ts">
+import { ref } from "vue";
+import SchemaComponent from "schema-components/vue/SchemaComponent.vue";
+import { z } from "zod";
+
+const userSchema = z.object({
+    name: z.string(),
+    email: z.email(),
+});
+
+const user = ref({ name: "Ada", email: "ada@example.com" });
+</script>
+
+<template>
+    <SchemaComponent :schema="userSchema" v-model="user" />
+</template>
+```
+
+The `./vue/*` export subpath resolves to the source tree (`src/vue/*.ts`) and `./vue/*.vue` resolves to the `.vue` SFCs under `src/vue/`. The same pattern is used by the Svelte adapter — both rely on the consumer's bundler to handle the framework-specific compilation step.
+
 ## `SchemaComponent`
 
 The single entry point. Accepts Zod schemas, JSON Schema objects, or OpenAPI documents:
