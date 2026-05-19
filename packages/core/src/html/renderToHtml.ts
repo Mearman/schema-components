@@ -26,12 +26,12 @@
  */
 
 import { normaliseSchema, type SchemaIoSide } from "../core/adapter.ts";
-import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import { getHtmlRenderFn, mergeHtmlResolvers } from "../core/renderer.ts";
 import type { HtmlRenderProps, HtmlResolver } from "../core/renderer.ts";
+import { dispatchRenderField } from "../core/renderField.ts";
 import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
 import { toRecordOrUndefined } from "../core/guards.ts";
 import type { InferFields, InferredValue } from "../core/inferValue.ts";
@@ -153,11 +153,12 @@ export function renderToHtml<
     const tree = walk(jsonSchema, walkOptions);
     const resolver = options.resolver ?? defaultHtmlResolver;
 
-    // Depth limit prevents infinite recursion on circular schema references.
     // `parentPath` flows through the closure so each child path is derived
     // from its structural position (property key, array index) joined to the
     // parent \u2014 never from a description fallback that would collide across
-    // sibling fields without metadata.
+    // sibling fields without metadata. The recursion depth cap lives in
+    // `dispatchRenderField` and is threaded through `renderFieldHtml`'s
+    // `depth` argument.
     const makeRenderChild =
         (currentDepth: number, parentPath: string) =>
         (
@@ -165,31 +166,26 @@ export function renderToHtml<
             childValue: unknown,
             pathSuffix?: string
         ): string => {
-            if (currentDepth >= MAX_RENDER_DEPTH) {
-                const label =
-                    typeof childTree.meta.description === "string"
-                        ? childTree.meta.description
-                        : "schema";
-                return recursionSentinelHtml(label);
-            }
             const childPath = joinPath(parentPath, pathSuffix);
             return renderFieldHtml(
                 childTree,
                 childValue,
                 resolver,
                 childPath,
-                makeRenderChild(currentDepth + 1, childPath)
+                makeRenderChild(currentDepth + 1, childPath),
+                currentDepth + 1
             );
         };
 
     const renderChild = makeRenderChild(0, "");
 
     const effectiveValue = options.value ?? tree.defaultValue;
-    return renderFieldHtml(tree, effectiveValue, resolver, "", renderChild);
+    return renderFieldHtml(tree, effectiveValue, resolver, "", renderChild, 0);
 }
 
 // ---------------------------------------------------------------------------
-// Field rendering
+// Field rendering — thin HTML-flavoured wrapper around the
+// framework-agnostic `dispatchRenderField` dispatcher.
 // ---------------------------------------------------------------------------
 
 function renderFieldHtml(
@@ -197,37 +193,68 @@ function renderFieldHtml(
     value: unknown,
     resolver: HtmlResolver,
     path: string,
-    renderChild: (tree: WalkedField, value: unknown) => string
+    renderChild: (tree: WalkedField, value: unknown) => string,
+    depth = 0
 ): string {
-    // Visibility check — hidden fields render nothing
+    // Visibility check — hidden fields render nothing. Performed
+    // outside the dispatcher because the empty-string output is a
+    // structural feature of the HTML adapter; the dispatcher's
+    // dispatch chain only runs for visible fields.
     if (tree.meta.visible === false) return "";
 
     const effectiveValue = value ?? tree.defaultValue;
     const mergedResolver = mergeHtmlResolvers(resolver, defaultHtmlResolver);
-    // `mergeHtmlResolvers` fills every `RESOLVER_KEYS` entry from
-    // `defaultHtmlResolver`, and `typeToKey` maps every `WalkedField['type']`
-    // to one of those keys, so the lookup is total. The guard below exists to
-    // narrow the type for TypeScript and to fail loudly if the invariant ever
-    // breaks (e.g. a future `WalkedField` variant added without registering a
-    // default renderer).
-    const renderFn = getHtmlRenderFn(tree.type, mergedResolver);
-    if (renderFn === undefined) {
-        throw new Error(
-            `renderToHtml: no HTML renderer registered for type "${tree.type}"`
-        );
-    }
 
-    const props: HtmlRenderProps = {
-        value: effectiveValue,
-        readOnly: tree.editability === "presentation",
-        writeOnly: tree.editability === "input",
-        meta: tree.meta,
-        constraints: tree.constraints,
-        path,
+    return dispatchRenderField<HtmlRenderProps, string, HtmlResolver>({
         tree,
-        renderChild,
-    };
-    if (tree.examples !== undefined) props.examples = tree.examples;
-
-    return renderFn(props);
+        value: effectiveValue,
+        path,
+        depth,
+        resolver: mergedResolver,
+        config: {
+            buildProps: (fieldTree, fieldPath) => {
+                const props: HtmlRenderProps = {
+                    value: effectiveValue,
+                    readOnly: fieldTree.editability === "presentation",
+                    writeOnly: fieldTree.editability === "input",
+                    meta: fieldTree.meta,
+                    constraints: fieldTree.constraints,
+                    path: fieldPath,
+                    tree: fieldTree,
+                    renderChild,
+                };
+                if (fieldTree.examples !== undefined)
+                    props.examples = fieldTree.examples;
+                return props;
+            },
+            lookupRenderFn: (type, htmlResolver) =>
+                getHtmlRenderFn(type, htmlResolver),
+            recursionSentinel: (fieldTree) => {
+                const label =
+                    typeof fieldTree.meta.description === "string"
+                        ? fieldTree.meta.description
+                        : "schema";
+                return recursionSentinelHtml(label);
+            },
+            // `mergeHtmlResolvers` fills every `RESOLVER_KEYS` entry
+            // from `defaultHtmlResolver`, and `typeToKey` maps every
+            // `WalkedField['type']` to one of those keys, so the
+            // lookup is total. Hitting this fallback signals an
+            // invariant breakage — a future `WalkedField` variant
+            // added without registering a default renderer — and we
+            // surface it loudly rather than emitting silent empty
+            // output, matching the historic guard inside
+            // `renderFieldHtml`.
+            fallback: (fieldTree) => {
+                throw new Error(
+                    `renderToHtml: no HTML renderer registered for type "${fieldTree.type}"`
+                );
+            },
+            // HTML renderers always return strings. Narrow once;
+            // any other shape falls through to the adapter's
+            // `fallback`, which throws.
+            coerceResult: (result) =>
+                typeof result === "string" ? result : undefined,
+        },
+    });
 }
