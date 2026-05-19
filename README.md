@@ -184,7 +184,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 <!-- @generated:api-inventory:start -->
 <details>
-<summary><code>core/*</code> — 217 exports</summary>
+<summary><code>core/*</code> — 218 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -199,6 +199,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`SchemaIoSide`](https://mearman.github.io/schema-components/types/core_adapter.SchemaIoSide.html) | `core/adapter` | Type | Direction of the Zod transform / pipe / codec that normaliseSchema should surface to the renderer. |  |
 | [`SchemaKind`](https://mearman.github.io/schema-components/types/core_adapter.SchemaKind.html) | `core/adapter` | Type | Classification produced by detectSchemaKind when inspecting a runtime schema input. |  |
 | `SchemaMeta` | `core/adapter` | Re-export | Metadata attached to schemas via `.meta()` or passed as props to `<SchemaComponent>`. |  |
+| [`constraintHint`](https://mearman.github.io/schema-components/functions/core_constraintHint.constraintHint.html) | `core/constraintHint` | Function | Build a human-readable constraint description string. |  |
 | [`extractArrayConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractArrayConstraints.html) | `core/constraints` | Function | Read the JSON Schema array constraint keywords (`minItems`, `maxItems`, `uniqueItems`, `minContains`, `maxContains`) from a schema node and return them in the `ArrayConstraints` shape. |  |
 | [`extractFileConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractFileConstraints.html) | `core/constraints` | Function | Read the JSON Schema file constraints from a schema node — currently just `contentMediaType`, which surfaces as the single-entry `mimeTypes` array on `FileConstraints`. |  |
 | [`extractNumberConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractNumberConstraints.html) | `core/constraints` | Function | Read the JSON Schema number constraint keywords (`minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`) from a schema node and return them in the `NumberConstraints` shape consumed by number field renderers. |  |
@@ -279,7 +280,6 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`RECURSIVE_ANCHOR_SENTINEL`](https://mearman.github.io/schema-components/variables/core_ref.RECURSIVE_ANCHOR_SENTINEL.html) | `core/ref` | Variable | The canonical recursive `$anchor` name synthesised by the Draft 2019-09 `$recursiveAnchor: true` rewrite. |  |
 | [`RefOptions`](https://mearman.github.io/schema-components/interfaces/core_ref.RefOptions.html) | `core/ref` | Interface | Options for $ref resolution. |  |
 | [`resolveRef`](https://mearman.github.io/schema-components/functions/core_ref.resolveRef.html) | `core/ref` | Function | Resolve a `$ref` in a schema against a root document. |  |
-| [`DEFAULT_REF_CHAIN_MAX_HOPS`](https://mearman.github.io/schema-components/variables/core_refChain.DEFAULT_REF_CHAIN_MAX_HOPS.html) | `core/refChain` | Variable | Maximum number of `$ref` hops permitted by default. |  |
 | [`resolveRefChain`](https://mearman.github.io/schema-components/functions/core_refChain.resolveRefChain.html) | `core/refChain` | Function | Resolve a `$ref` chain starting from `initial`. |  |
 | [`ResolveRefChainOptions`](https://mearman.github.io/schema-components/interfaces/core_refChain.ResolveRefChainOptions.html) | `core/refChain` | Interface | Configuration for a single chain resolution. |  |
 | [`AllConstraints`](https://mearman.github.io/schema-components/types/core_renderer.AllConstraints.html) | `core/renderer` | Type | Flat intersection of all constraint types. |  |
@@ -297,6 +297,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`RenderProps`](https://mearman.github.io/schema-components/interfaces/core_renderer.RenderProps.html) | `core/renderer` | Interface | Props for React render functions. |  |
 | [`RESOLVER_KEYS`](https://mearman.github.io/schema-components/variables/core_renderer.RESOLVER_KEYS.html) | `core/renderer` | Variable | Canonical list of resolver keys, one per WalkedField variant. |  |
 | [`typeToKey`](https://mearman.github.io/schema-components/functions/core_renderer.typeToKey.html) | `core/renderer` | Function | Map a schema type to the resolver key that handles it. |  |
+| [`WidgetMap`](https://mearman.github.io/schema-components/types/core_renderer.WidgetMap.html) | `core/renderer` | Type | Widget map — maps component hints (from `.meta({ component })`) to render functions. | [Extensibility/Widgets](https://mearman.github.io/schema-components/storybook/?path=/docs/extensibility-widgets--docs) |
 | [`normaliseSwagger2Document`](https://mearman.github.io/schema-components/functions/core_swagger2.normaliseSwagger2Document.html) | `core/swagger2` | Function | Transform a Swagger 2.0 document into an OpenAPI 3.1-compatible structure. |  |
 | [`__SchemaInferenceFellBack`](https://mearman.github.io/schema-components/interfaces/core_typeInference.__SchemaInferenceFellBack.html) | `core/typeInference` | Interface | Marker type emitted when OpenAPI $ref resolution hits the type-level recursion depth limit. |  |
 | [`DEFAULT_MAX_DEPTH`](https://mearman.github.io/schema-components/types/core_typeInference.DEFAULT_MAX_DEPTH.html) | `core/typeInference` | Type | Type-level recursion bound for $ref resolution. |  |
@@ -409,14 +410,22 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 </details>
 
 <details>
-<summary><code>react/*</code> — 46 exports</summary>
+<summary><code>react/*</code> — 53 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
+| [`ariaLabel`](https://mearman.github.io/schema-components/functions/react_a11y.ariaLabel.html) | `react/a11y` | Function | Narrow `meta.description` (typed `unknown`) to a string value safe to pass into JSX `aria-label`. |  |
 | [`buildAriaAttrs`](https://mearman.github.io/schema-components/functions/react_a11y.buildAriaAttrs.html) | `react/a11y` | Function | Build the ARIA attribute bundle for a renderer. |  |
+| [`buildHintInfo`](https://mearman.github.io/schema-components/functions/react_a11y.buildHintInfo.html) | `react/a11y` | Function | Build HintInfo for a field at `inputId` given its declared constraints. |  |
+| [`constraintHint`](https://mearman.github.io/schema-components/functions/react_a11y.constraintHint.html) | `react/a11y` | Function | Derive the constraint-hint descriptor for a field at `inputId`. |  |
+| [`Hint`](https://mearman.github.io/schema-components/interfaces/react_a11y.Hint.html) | `react/a11y` | Interface | Description for a constraint hint emitted alongside an input. |  |
+| [`HintInfo`](https://mearman.github.io/schema-components/interfaces/react_a11y.HintInfo.html) | `react/a11y` | Interface | Structured constraint-hint data for the React renderers. |  |
+| [`isFieldRequired`](https://mearman.github.io/schema-components/functions/react_a11y.isFieldRequired.html) | `react/a11y` | Function | True when the supplied field is non-optional and therefore deserves a visual required indicator alongside its label. |  |
 | [`resolvePath`](https://mearman.github.io/schema-components/functions/react_fieldPath.resolvePath.html) | `react/fieldPath` | Function | Resolve a dot-separated path through a WalkedField tree. |  |
 | [`resolveValue`](https://mearman.github.io/schema-components/functions/react_fieldPath.resolveValue.html) | `react/fieldPath` | Function | Resolve a dot-separated path through a data value. |  |
 | [`setNestedValue`](https://mearman.github.io/schema-components/functions/react_fieldPath.setNestedValue.html) | `react/fieldPath` | Function | Set a value at a dot-separated path, producing a new root object. |  |
+| [`FieldShell`](https://mearman.github.io/schema-components/functions/react_fieldShell.FieldShell.html) | `react/fieldShell` | Function | Compose label, host primitive, and constraint hint around a render function supplied by the theme adapter. |  |
+| [`FieldShellProps`](https://mearman.github.io/schema-components/interfaces/react_fieldShell.FieldShellProps.html) | `react/fieldShell` | Interface | Render-time inputs to FieldShell. |  |
 | [`headlessResolver`](https://mearman.github.io/schema-components/variables/react_headless.headlessResolver.html) | `react/headless` | Variable | The headless resolver uses props.renderChild for recursive rendering. |  |
 | [`defaultRecordValue`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.defaultRecordValue.html) | `react/headlessRenderers` | Function | Compute the default value for a freshly added record entry based on the record's value-type schema. |  |
 | [`discriminatedUnionValueForTab`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.discriminatedUnionValueForTab.html) | `react/headlessRenderers` | Function | Pure helper: convert a tab index into the new value the discriminated union should emit. |  |
@@ -454,7 +463,6 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`SchemaField`](https://mearman.github.io/schema-components/functions/react_SchemaComponent.SchemaField.html) | `react/SchemaComponent` | Function | Render a single field from a schema by dot-separated `path`. | [Objects & Layout/SchemaField](https://mearman.github.io/schema-components/storybook/?path=/docs/objects-layout-schemafield--docs) |
 | [`SchemaFieldProps`](https://mearman.github.io/schema-components/interfaces/react_SchemaComponent.SchemaFieldProps.html) | `react/SchemaComponent` | Interface | Props accepted by SchemaField. |  |
 | [`SchemaProvider`](https://mearman.github.io/schema-components/functions/react_SchemaComponent.SchemaProvider.html) | `react/SchemaComponent` | Function | Provide a theme resolver and scoped widgets to every `<SchemaComponent>` and `<SchemaView>` rendered inside the subtree. | [Theme Adapters/Comparison](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-comparison--docs)<br>[Extensibility/Widgets](https://mearman.github.io/schema-components/storybook/?path=/docs/extensibility-widgets--docs) |
-| [`WidgetMap`](https://mearman.github.io/schema-components/types/react_SchemaComponent.WidgetMap.html) | `react/SchemaComponent` | Type | Widget map — maps component hints (from `.meta({ component })`) to render functions. | [Extensibility/Widgets](https://mearman.github.io/schema-components/storybook/?path=/docs/extensibility-widgets--docs) |
 | [`SchemaErrorBoundary`](https://mearman.github.io/schema-components/classes/react_SchemaErrorBoundary.SchemaErrorBoundary.html) | `react/SchemaErrorBoundary` | Class | React error boundary that catches rendering errors from `SchemaComponent`, theme adapters, and any descendant. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
 | [`SchemaErrorBoundaryProps`](https://mearman.github.io/schema-components/interfaces/react_SchemaErrorBoundary.SchemaErrorBoundaryProps.html) | `react/SchemaErrorBoundary` | Interface | Props accepted by SchemaErrorBoundary. |  |
 | [`SchemaView`](https://mearman.github.io/schema-components/functions/react_SchemaView.SchemaView.html) | `react/SchemaView` | Function | Read-only schema renderer that is safe to use inside a React Server Component. | [Server Rendering/SchemaView](https://mearman.github.io/schema-components/storybook/?path=/docs/server-rendering-schemaview--docs) |
@@ -542,7 +550,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`buildHintElement`](https://mearman.github.io/schema-components/functions/html_a11y.buildHintElement.html) | `html/a11y` | Function | Build a `<small class="sc-hint">` element for constraint hints. |  |
 | [`buildHintId`](https://mearman.github.io/schema-components/functions/html_a11y.buildHintId.html) | `html/a11y` | Function | Derive the hint element ID from the input ID. |  |
 | [`buildInputId`](https://mearman.github.io/schema-components/functions/html_a11y.buildInputId.html) | `html/a11y` | Function | Build the input ID for a field at a given path. |  |
-| [`constraintHint`](https://mearman.github.io/schema-components/functions/html_a11y.constraintHint.html) | `html/a11y` | Function | Build a human-readable constraint description string. |  |
+| `constraintHint` | `html/a11y` | Re-export | Build a human-readable constraint description string. |  |
 | [`joinPath`](https://mearman.github.io/schema-components/functions/html_a11y.joinPath.html) | `html/a11y` | Function | Append a structural suffix to a parent path. |  |
 | [`requiredIndicator`](https://mearman.github.io/schema-components/functions/html_a11y.requiredIndicator.html) | `html/a11y` | Function | Build the required-field asterisk indicator for labels. |  |
 | [`AttrValue`](https://mearman.github.io/schema-components/types/html_html.AttrValue.html) | `html/html` | Type | Attribute value types. |  |
@@ -581,16 +589,19 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 </details>
 
 <details>
-<summary><code>themes/*</code> — 7 exports</summary>
+<summary><code>themes/*</code> — 10 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
+| [`createMantineResolver`](https://mearman.github.io/schema-components/functions/themes_mantine.createMantineResolver.html) | `themes/mantine` | Function | Build a Mantine-flavoured ComponentResolver bound to the supplied element types. | [Theme Adapters/Setup](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-setup--docs) |
+| [`MantineComponents`](https://mearman.github.io/schema-components/interfaces/themes_mantine.MantineComponents.html) | `themes/mantine` | Interface | Element types the Mantine resolver renders into. |  |
 | [`mantineResolver`](https://mearman.github.io/schema-components/variables/themes_mantine.mantineResolver.html) | `themes/mantine` | Variable | Component resolver mapping schema field types to Mantine primitives — `TextInput`, `NumberInput`, `Switch`, `Select`, `Fieldset`, `Text`. | [Theme Adapters/Mantine](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-mantine--docs)<br>[Theme Adapters/Comparison](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-comparison--docs) |
-| [`registerMantineComponents`](https://mearman.github.io/schema-components/functions/themes_mantine.registerMantineComponents.html) | `themes/mantine` | Function | Inject real Mantine element types into the resolver. | [Theme Adapters/Setup](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-setup--docs) |
+| [`createMuiResolver`](https://mearman.github.io/schema-components/functions/themes_mui.createMuiResolver.html) | `themes/mui` | Function | Build a MUI-flavoured ComponentResolver bound to the supplied element types. | [Theme Adapters/Setup](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-setup--docs) |
+| [`MuiComponents`](https://mearman.github.io/schema-components/interfaces/themes_mui.MuiComponents.html) | `themes/mui` | Interface | Element types the MUI resolver renders into. |  |
 | [`muiResolver`](https://mearman.github.io/schema-components/variables/themes_mui.muiResolver.html) | `themes/mui` | Variable | Component resolver mapping schema field types to MUI (Material UI) primitives — `TextField`, `Checkbox`, `Typography`, etc. | [Theme Adapters/MUI](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-mui--docs)<br>[Theme Adapters/Comparison](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-comparison--docs) |
-| [`registerMuiComponents`](https://mearman.github.io/schema-components/functions/themes_mui.registerMuiComponents.html) | `themes/mui` | Function | Inject real MUI element types into the resolver. | [Theme Adapters/Setup](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-setup--docs) |
+| [`createRadixResolver`](https://mearman.github.io/schema-components/functions/themes_radix.createRadixResolver.html) | `themes/radix` | Function | Build a Radix-flavoured ComponentResolver bound to the supplied element types. | [Theme Adapters/Setup](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-setup--docs) |
+| [`RadixComponents`](https://mearman.github.io/schema-components/interfaces/themes_radix.RadixComponents.html) | `themes/radix` | Interface | Element types the Radix resolver renders into. |  |
 | [`radixResolver`](https://mearman.github.io/schema-components/variables/themes_radix.radixResolver.html) | `themes/radix` | Variable | Component resolver mapping schema field types to Radix Themes primitives — `Box`, `Checkbox`, `Flex`, `Select.*`, `Text`, `TextField`. | [Theme Adapters/Radix](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-radix--docs)<br>[Theme Adapters/Comparison](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-comparison--docs) |
-| [`registerRadixComponents`](https://mearman.github.io/schema-components/functions/themes_radix.registerRadixComponents.html) | `themes/radix` | Function | Inject real Radix Themes element types into the resolver. | [Theme Adapters/Setup](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-setup--docs) |
 | [`shadcnResolver`](https://mearman.github.io/schema-components/variables/themes_shadcn.shadcnResolver.html) | `themes/shadcn` | Variable | Component resolver mapping schema field types to shadcn/ui components. | [Theme Adapters/Setup](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-setup--docs)<br>[Theme Adapters/shadcn](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-shadcn--docs)<br>[Theme Adapters/Comparison](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-comparison--docs) |
 
 </details>
