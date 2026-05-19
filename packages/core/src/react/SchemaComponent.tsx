@@ -8,10 +8,10 @@
  * ComponentResolver (theme adapter). Falls back to headless HTML.
  *
  * The `fields` prop type is inferred from the `schema` prop:
- * - Zod schemas → FieldOverrides<z.infer<T>> (full autocomplete)
- * - JSON Schema `as const` → FieldOverrides<FromJSONSchema<T>> (full autocomplete)
- * - OpenAPI `as const` + `ref` → FieldOverrides<ResolveOpenAPIRef<T, Ref>>
- * - Runtime schemas → Record<string, FieldOverride> (no autocomplete)
+ * - Zod schemas → `FieldOverrides<z.infer<T>>` (full autocomplete)
+ * - JSON Schema `as const` → `FieldOverrides<FromJSONSchema<T>>` (full autocomplete)
+ * - OpenAPI `as const` + `ref` → `FieldOverrides<ResolveOpenAPIRef<T, Ref>>`
+ * - Runtime schemas → `Record<string, FieldOverride>` (no autocomplete)
  */
 
 import { z } from "zod";
@@ -214,9 +214,9 @@ export interface SchemaComponentProps<
      */
     io?: Mode;
     /**
-     * Current value to render. Typed against `InferSchemaValue<T,
-     * Ref, Mode>` so the prop tracks the schema's inferred shape for
-     * the chosen `io` direction.
+     * Current value to render. Typed against
+     * `InferSchemaValue<T, Ref, Mode>` so the prop tracks the schema's
+     * inferred shape for the chosen `io` direction.
      *
      * Falls back to `unknown` when the schema's value type cannot be
      * statically inferred (runtime `Record<string, unknown>` JSON
@@ -1026,9 +1026,9 @@ export function SchemaField<
  * (`FieldOverrides<U>`) and the loose `Record<string, FieldOverride>`
  * fallback share the same structural shape, so the dispatch logic only
  * needs the loose record. The previous parameter union
- * (`Record<string, FieldOverride> | FieldOverrides<unknown> |
- * undefined`) collapsed because `FieldOverrides<unknown>` reduces to
- * `{}`, contributing no extra precision while adding noise to readers.
+ * (`Record<string, FieldOverride> | FieldOverrides<unknown> | undefined`)
+ * collapsed because `FieldOverrides<unknown>` reduces to `{}`,
+ * contributing no extra precision while adding noise to readers.
  */
 function dispatchFieldErrors(
     fields: Record<string, unknown> | undefined,

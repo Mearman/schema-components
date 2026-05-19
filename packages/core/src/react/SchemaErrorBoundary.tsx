@@ -8,11 +8,14 @@
  * crashes the entire React tree.
  *
  * Usage:
- *   import { SchemaErrorBoundary } from "schema-components/react/SchemaErrorBoundary";
  *
- *   <SchemaErrorBoundary fallback={(error) => <p>{error.message}</p>}>
- *     <SchemaComponent schema={userSchema} value={user} />
- *   </SchemaErrorBoundary>
+ * ```tsx
+ * import { SchemaErrorBoundary } from "schema-components/react/SchemaErrorBoundary";
+ *
+ * <SchemaErrorBoundary fallback={(error) => <p>{error.message}</p>}>
+ *   <SchemaComponent schema={userSchema} value={user} />
+ * </SchemaErrorBoundary>
+ * ```
  *
  * The boundary catches `SchemaRenderError` from theme adapters and any
  * other errors thrown during rendering. It does NOT catch:

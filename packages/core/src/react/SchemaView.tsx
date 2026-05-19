@@ -93,10 +93,11 @@ export interface SchemaViewProps<
      */
     io?: Mode;
     /**
-     * Current value to render. Typed against `InferSchemaValue<T,
-     * Ref, Mode>` so the prop tracks the schema's inferred shape for
-     * the chosen `io` direction. Falls back to `unknown` for runtime
-     * schemas where the value type cannot be statically inferred.
+     * Current value to render. Typed against
+     * `InferSchemaValue<T, Ref, Mode>` so the prop tracks the schema's
+     * inferred shape for the chosen `io` direction. Falls back to
+     * `unknown` for runtime schemas where the value type cannot be
+     * statically inferred.
      */
     value?: InferredValue<T, Ref, undefined, Mode>;
     /**
