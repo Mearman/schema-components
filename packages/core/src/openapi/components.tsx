@@ -44,10 +44,10 @@ import { isObject, toRecordOrUndefined } from "../core/guards.ts";
 import { isSafeHyperlink } from "../core/uri.ts";
 import {
     toDoc,
-    resolveOperationFromParsed,
-    resolveParametersFromParsed,
-    resolveRequestBodyFromParsed,
-    resolveResponseFromParsed,
+    resolveOperation,
+    resolveParameters,
+    resolveRequestBody,
+    resolveResponse,
     getParsed,
 } from "./resolve.ts";
 import type { WidgetMap } from "../core/renderer.ts";
@@ -681,12 +681,7 @@ export function ApiOperation<
     // Diagnostics emit during normalisation, so a second `getParsed` with
     // the same sink would double-fire every event.
     const parsed = getParsed(rootDoc, diagnostics);
-    const resolved = resolveOperationFromParsed(
-        parsed,
-        path,
-        method,
-        diagnostics
-    );
+    const resolved = resolveOperation(parsed, path, method, diagnostics);
     const securityReqs = extractSecurityRequirements(parsed, path, method);
     const securitySchemes = extractSecuritySchemes(parsed);
     const callbacks = listCallbacks(parsed, path, method);
@@ -840,7 +835,7 @@ export function ApiParameters<
     const rootDoc = resolveRootDoc(doc, diagnostics);
     if (rootDoc === undefined) return null;
     const parsed = getParsed(rootDoc, diagnostics);
-    const params = resolveParametersFromParsed(parsed, path, method);
+    const params = resolveParameters(parsed, path, method);
 
     if (params.length === 0) return null;
 
@@ -936,7 +931,7 @@ export function ApiRequestBody<
     const rootDoc = resolveRootDoc(doc, diagnostics);
     if (rootDoc === undefined) return null;
     const parsed = getParsed(rootDoc, diagnostics);
-    const requestBody = resolveRequestBodyFromParsed(parsed, path, method);
+    const requestBody = resolveRequestBody(parsed, path, method);
 
     if (requestBody?.schema === undefined) {
         return null;
@@ -1054,7 +1049,7 @@ export function ApiResponse<
     const rootDoc = resolveRootDoc(doc, diagnostics);
     if (rootDoc === undefined) return null;
     const parsed = getParsed(rootDoc, diagnostics);
-    const response = resolveResponseFromParsed(parsed, path, method, status);
+    const response = resolveResponse(parsed, path, method, status);
 
     if (response.schema === undefined) {
         return (

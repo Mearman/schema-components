@@ -463,7 +463,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 </details>
 
 <details>
-<summary><code>openapi/*</code> — 64 exports</summary>
+<summary><code>openapi/*</code> — 60 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -522,13 +522,9 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`PathItemInfo`](https://mearman.github.io/schema-components/interfaces/openapi_resolve.PathItemInfo.html) | `openapi/resolve` | Interface | Path-Item-level metadata. |  |
 | [`ResolvedOperation`](https://mearman.github.io/schema-components/interfaces/openapi_resolve.ResolvedOperation.html) | `openapi/resolve` | Interface | Aggregate view of a single OpenAPI operation: the operation itself, its Path Item Object context, merged parameters, request body, and responses. |  |
 | [`resolveOperation`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveOperation.html) | `openapi/resolve` | Function | Resolve an operation from an OpenAPI document by path and method. |  |
-| [`resolveOperationFromParsed`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveOperationFromParsed.html) | `openapi/resolve` | Function | Resolve an operation against an already-parsed document. |  |
 | [`resolveParameters`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveParameters.html) | `openapi/resolve` | Function | Resolve parameters for an operation. |  |
-| [`resolveParametersFromParsed`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveParametersFromParsed.html) | `openapi/resolve` | Function | Resolve parameters against an already-parsed document. |  |
-| [`resolveRequestBody`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveRequestBody.html) | `openapi/resolve` | Function | Resolve request body for an operation. |  |
-| [`resolveRequestBodyFromParsed`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveRequestBodyFromParsed.html) | `openapi/resolve` | Function | Resolve a request body against an already-parsed document. |  |
+| [`resolveRequestBody`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveRequestBody.html) | `openapi/resolve` | Function | Resolve the request body for an operation. |  |
 | [`resolveResponse`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveResponse.html) | `openapi/resolve` | Function | Resolve a specific response by status code. |  |
-| [`resolveResponseFromParsed`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveResponseFromParsed.html) | `openapi/resolve` | Function | Resolve a specific response against an already-parsed document. |  |
 | [`resolveResponses`](https://mearman.github.io/schema-components/functions/openapi_resolve.resolveResponses.html) | `openapi/resolve` | Function | Resolve all responses for an operation. |  |
 | [`toDoc`](https://mearman.github.io/schema-components/functions/openapi_resolve.toDoc.html) | `openapi/resolve` | Function | Coerce an unknown value to a record, returning `undefined` when the value is not a plain object. |  |
 

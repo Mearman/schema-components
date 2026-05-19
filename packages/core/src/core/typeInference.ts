@@ -1337,7 +1337,7 @@ type RequestBodySchemaOf<
  * Without this fallback, querying a concrete status against a document
  * that declares only `"2XX"` or `"default"` would silently produce
  * `unknown`. The runtime resolver applies the same fall-through
- * behaviour in `resolveResponseFromParsed`.
+ * behaviour in `resolveResponse`.
  */
 type ResponseSchemaOf<
     Op,

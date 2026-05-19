@@ -344,8 +344,8 @@ export interface PathItemInfo {
 /**
  * Aggregate view of a single OpenAPI operation: the operation itself,
  * its Path Item Object context, merged parameters, request body, and
- * responses. Produced by {@link resolveOperation} /
- * {@link resolveOperationFromParsed} for rendering and inspection.
+ * responses. Produced by {@link resolveOperation} for rendering and
+ * inspection.
  */
 export interface ResolvedOperation {
     operation: OperationInfo;
@@ -483,21 +483,26 @@ function extractPathItemInfo(pathItem: Record<string, unknown>): PathItemInfo {
 }
 
 /**
- * Resolve an operation against an already-parsed document. Throws if
- * the operation is not found.
+ * Resolve an operation from an OpenAPI document by path and method.
+ * Throws if the operation is not found.
  *
- * Used by callers that have already obtained a parsed document via
- * {@link getParsed} — most importantly the React components, which
- * supply `diagnostics` to `getParsed` and must avoid re-running the
- * normalisation pipeline (every re-run would emit each diagnostic
- * again into the sink).
+ * Accepts either a raw document (parsed lazily via {@link getParsed}'s
+ * WeakMap cache) or an already-parsed {@link OpenApiDocument}. Callers
+ * that have a parsed document at hand can pass it directly to avoid
+ * an extra cache lookup; everyone else trusts the cache.
+ *
+ * `diagnostics` is forwarded to {@link getParsed} so normalisation
+ * events surface to the caller's sink exactly once per `(doc, sink)`
+ * pair, no matter how many times this function is called.
  */
-export function resolveOperationFromParsed(
-    parsed: OpenApiDocument,
+export function resolveOperation(
+    doc: Record<string, unknown> | OpenApiDocument,
     path: string,
     method: string,
     diagnostics?: DiagnosticsOptions
 ): ResolvedOperation {
+    const parsed = ensureParsed(doc, diagnostics);
+
     // Run path-item lookup first so multi-hop diagnostics
     // (cyclic-path-item-ref, path-item-ref-too-deep) surface before
     // the operation-not-found error. Without this, a Path Item with a
@@ -539,20 +544,42 @@ export function resolveOperationFromParsed(
 }
 
 /**
- * Resolve an operation from an OpenAPI document by path and method.
- * Throws if the operation is not found.
- *
- * `diagnostics` is forwarded to {@link getParsed} so normalisation
- * events surface to the caller's sink.
+ * Coerce the first argument of every `resolveX` function — either a
+ * raw OpenAPI document or an already-parsed {@link OpenApiDocument} —
+ * into a parsed view. Distinguishes the two by the presence of the
+ * `schemas` map on the parsed shape; falls through to {@link getParsed}
+ * for raw documents (which itself short-circuits on a WeakMap cache).
  */
-export function resolveOperation(
-    doc: Record<string, unknown>,
-    path: string,
-    method: string,
-    diagnostics?: DiagnosticsOptions
-): ResolvedOperation {
-    const parsed = getParsed(doc, diagnostics);
-    return resolveOperationFromParsed(parsed, path, method, diagnostics);
+function ensureParsed(
+    doc: Record<string, unknown> | OpenApiDocument,
+    diagnostics: DiagnosticsOptions | undefined
+): OpenApiDocument {
+    if (isParsedDocument(doc)) {
+        // Already parsed — replay captured diagnostics through the
+        // caller's sink if one was supplied, mirroring `getParsed`.
+        const cached = docCache.get(doc.doc);
+        if (
+            cached !== undefined &&
+            (diagnostics?.diagnostics !== undefined ||
+                diagnostics?.strict === true)
+        ) {
+            replayCapturedDiagnostics(cached, diagnostics);
+        }
+        return doc;
+    }
+    return getParsed(doc, diagnostics);
+}
+
+/**
+ * Decide whether `value` is an already-parsed {@link OpenApiDocument}.
+ * The parsed shape carries a `schemas` Map alongside the raw `doc`
+ * object; a raw OpenAPI document has neither — its keys are
+ * `openapi`/`swagger`, `info`, `paths`, etc.
+ */
+function isParsedDocument(
+    value: Record<string, unknown> | OpenApiDocument
+): value is OpenApiDocument {
+    return isObject(value.doc) && value.schemas instanceof Map;
 }
 
 // ---------------------------------------------------------------------------
@@ -560,34 +587,20 @@ export function resolveOperation(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve parameters against an already-parsed document. See
- * {@link resolveOperationFromParsed} for the rationale.
- */
-export function resolveParametersFromParsed(
-    parsed: OpenApiDocument,
-    path: string,
-    method: string
-): ParameterInfo[] {
-    return extractParameters(parsed, path, method);
-}
-
-/**
- * Resolve parameters for an operation. Returns empty array if none.
+ * Resolve parameters for an operation. Returns an empty array if none.
  *
- * `diagnostics` is forwarded to {@link getParsed} so normalisation
- * events surface to the caller's sink.
+ * Accepts either a raw document or an already-parsed
+ * {@link OpenApiDocument}. `diagnostics` is forwarded to
+ * {@link getParsed} so normalisation events surface to the caller's
+ * sink.
  */
 export function resolveParameters(
-    doc: Record<string, unknown>,
+    doc: Record<string, unknown> | OpenApiDocument,
     path: string,
     method: string,
     diagnostics?: DiagnosticsOptions
 ): ParameterInfo[] {
-    return resolveParametersFromParsed(
-        getParsed(doc, diagnostics),
-        path,
-        method
-    );
+    return extractParameters(ensureParsed(doc, diagnostics), path, method);
 }
 
 // ---------------------------------------------------------------------------
@@ -595,34 +608,21 @@ export function resolveParameters(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve a request body against an already-parsed document. See
- * {@link resolveOperationFromParsed} for the rationale.
- */
-export function resolveRequestBodyFromParsed(
-    parsed: OpenApiDocument,
-    path: string,
-    method: string
-): RequestBodyInfo | undefined {
-    return extractRequestBody(parsed, path, method);
-}
-
-/**
- * Resolve request body for an operation. Returns undefined if none.
+ * Resolve the request body for an operation. Returns `undefined` if
+ * the operation declares no request body.
  *
- * `diagnostics` is forwarded to {@link getParsed} so normalisation
- * events surface to the caller's sink.
+ * Accepts either a raw document or an already-parsed
+ * {@link OpenApiDocument}. `diagnostics` is forwarded to
+ * {@link getParsed} so normalisation events surface to the caller's
+ * sink.
  */
 export function resolveRequestBody(
-    doc: Record<string, unknown>,
+    doc: Record<string, unknown> | OpenApiDocument,
     path: string,
     method: string,
     diagnostics?: DiagnosticsOptions
 ): RequestBodyInfo | undefined {
-    return resolveRequestBodyFromParsed(
-        getParsed(doc, diagnostics),
-        path,
-        method
-    );
+    return extractRequestBody(ensureParsed(doc, diagnostics), path, method);
 }
 
 // ---------------------------------------------------------------------------
@@ -630,16 +630,25 @@ export function resolveRequestBody(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve a specific response against an already-parsed document. See
- * {@link resolveOperationFromParsed} for the rationale.
+ * Resolve a specific response by status code. Throws if not found.
+ *
+ * Accepts either a raw document or an already-parsed
+ * {@link OpenApiDocument}. `diagnostics` is forwarded to
+ * {@link getParsed} so normalisation events surface to the caller's
+ * sink.
  */
-export function resolveResponseFromParsed(
-    parsed: OpenApiDocument,
+export function resolveResponse(
+    doc: Record<string, unknown> | OpenApiDocument,
     path: string,
     method: string,
-    statusCode: string
+    statusCode: string,
+    diagnostics?: DiagnosticsOptions
 ): ResponseInfo {
-    const responses = extractResponses(parsed, path, method);
+    const responses = extractResponses(
+        ensureParsed(doc, diagnostics),
+        path,
+        method
+    );
     const response = responses.find((r) => r.statusCode === statusCode);
 
     if (response === undefined) {
@@ -650,38 +659,18 @@ export function resolveResponseFromParsed(
 }
 
 /**
- * Resolve a specific response by status code. Throws if not found.
- *
- * `diagnostics` is forwarded to {@link getParsed} so normalisation
- * events surface to the caller's sink.
- */
-export function resolveResponse(
-    doc: Record<string, unknown>,
-    path: string,
-    method: string,
-    statusCode: string,
-    diagnostics?: DiagnosticsOptions
-): ResponseInfo {
-    return resolveResponseFromParsed(
-        getParsed(doc, diagnostics),
-        path,
-        method,
-        statusCode
-    );
-}
-
-/**
  * Resolve all responses for an operation.
  *
- * `diagnostics` is forwarded to {@link getParsed} so normalisation
- * events surface to the caller's sink.
+ * Accepts either a raw document or an already-parsed
+ * {@link OpenApiDocument}. `diagnostics` is forwarded to
+ * {@link getParsed} so normalisation events surface to the caller's
+ * sink.
  */
 export function resolveResponses(
-    doc: Record<string, unknown>,
+    doc: Record<string, unknown> | OpenApiDocument,
     path: string,
     method: string,
     diagnostics?: DiagnosticsOptions
 ): ResponseInfo[] {
-    const parsed = getParsed(doc, diagnostics);
-    return extractResponses(parsed, path, method);
+    return extractResponses(ensureParsed(doc, diagnostics), path, method);
 }
