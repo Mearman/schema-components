@@ -1,14 +1,16 @@
 /**
  * Path resolution and value manipulation utilities.
  *
- * Used by SchemaComponent to navigate the WalkedField tree and the
+ * Framework-free helpers used by the schema renderers (React's
+ * `SchemaComponent`/`SchemaField`, plus future Vue / Solid / Svelte /
+ * Lit adapters) to navigate the `WalkedField` tree and the
  * corresponding data value/object by dot-separated paths, including
  * array index notation (`field[0]`).
  */
 
-import type { WalkedField } from "../core/types.ts";
-import { isObject } from "../core/guards.ts";
-import { isPrototypePollutingKey } from "../core/uri.ts";
+import type { WalkedField } from "./types.ts";
+import { isObject } from "./guards.ts";
+import { isPrototypePollutingKey } from "./uri.ts";
 
 // ---------------------------------------------------------------------------
 // Tree path resolution

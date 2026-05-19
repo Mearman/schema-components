@@ -34,7 +34,7 @@ import {
 } from "../src/react/SchemaComponent.tsx";
 import { SchemaView } from "../src/react/SchemaView.tsx";
 import type { __SchemaInferenceFellBack } from "../src/core/typeInference.ts";
-import * as fieldPath from "../src/react/fieldPath.ts";
+import * as fieldPath from "../src/core/fieldPath.ts";
 
 afterEach(() => {
     cleanup();

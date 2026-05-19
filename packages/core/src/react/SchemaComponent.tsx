@@ -57,7 +57,11 @@ import type {
 } from "../core/inferValue.ts";
 import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
 import { headlessResolver } from "./headless.tsx";
-import { resolvePath, resolveValue, setNestedValue } from "./fieldPath.ts";
+import {
+    resolvePath,
+    resolveValue,
+    setNestedValue,
+} from "../core/fieldPath.ts";
 import { isObject, toRecordOrUndefined } from "../core/guards.ts";
 import {
     SchemaNormalisationError,
@@ -539,7 +543,7 @@ export function SchemaComponent<
  *
  * Bracketed array indices like `[0]` append directly so `tags` + `[0]`
  * becomes `tags[0]` rather than `tags.[0]` — matching the canonical form
- * used by `html/a11y.ts` `joinPath` and `react/fieldPath.ts` `resolvePath`,
+ * used by `html/a11y.ts` `joinPath` and `core/fieldPath.ts` `resolvePath`,
  * which already parses bracket notation when navigating WalkedField trees.
  */
 export function joinPath(parent: string, suffix: string | undefined): string {

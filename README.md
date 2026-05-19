@@ -184,7 +184,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 <!-- @generated:api-inventory:start -->
 <details>
-<summary><code>core/*</code> — 223 exports</summary>
+<summary><code>core/*</code> — 226 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -222,6 +222,9 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`SchemaNormalisationError`](https://mearman.github.io/schema-components/classes/core_errors.SchemaNormalisationError.html) | `core/errors` | Class | The adapter failed to convert the input schema to JSON Schema. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
 | [`SchemaRenderError`](https://mearman.github.io/schema-components/classes/core_errors.SchemaRenderError.html) | `core/errors` | Class | A theme adapter's render function threw during rendering. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
 | [`sortFieldsByOrder`](https://mearman.github.io/schema-components/functions/core_fieldOrder.sortFieldsByOrder.html) | `core/fieldOrder` | Function | Sort `Object.entries(fields)` by `meta.order`. |  |
+| [`resolvePath`](https://mearman.github.io/schema-components/functions/core_fieldPath.resolvePath.html) | `core/fieldPath` | Function | Resolve a dot-separated path through a WalkedField tree. |  |
+| [`resolveValue`](https://mearman.github.io/schema-components/functions/core_fieldPath.resolveValue.html) | `core/fieldPath` | Function | Resolve a dot-separated path through a data value. |  |
+| [`setNestedValue`](https://mearman.github.io/schema-components/functions/core_fieldPath.setNestedValue.html) | `core/fieldPath` | Function | Set a value at a dot-separated path, producing a new root object. |  |
 | [`dateInputType`](https://mearman.github.io/schema-components/functions/core_formats.dateInputType.html) | `core/formats` | Function | Map a JSON Schema string `format` to the matching HTML `<input type="…">` value, or `undefined` when the format does not correspond to a date/time input. |  |
 | [`EMAIL_FORMAT_PATTERN`](https://mearman.github.io/schema-components/variables/core_formats.EMAIL_FORMAT_PATTERN.html) | `core/formats` | Variable | Email format pattern, exported as a named const so callers that need a guaranteed `RegExp` (rather than the `RegExp \| undefined` shape of `FORMAT_PATTERNS[name]` under `noUncheckedIndexedAccess`) can import it directly. |  |
 | [`FORMAT_PATTERNS`](https://mearman.github.io/schema-components/variables/core_formats.FORMAT_PATTERNS.html) | `core/formats` | Variable | Map of recognised JSON Schema string `format` values to RegExp patterns. |  |
@@ -415,7 +418,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 </details>
 
 <details>
-<summary><code>react/*</code> — 53 exports</summary>
+<summary><code>react/*</code> — 50 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -426,9 +429,6 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`Hint`](https://mearman.github.io/schema-components/interfaces/react_a11y.Hint.html) | `react/a11y` | Interface | Description for a constraint hint emitted alongside an input. |  |
 | [`HintInfo`](https://mearman.github.io/schema-components/interfaces/react_a11y.HintInfo.html) | `react/a11y` | Interface | Structured constraint-hint data for the React renderers. |  |
 | [`isFieldRequired`](https://mearman.github.io/schema-components/functions/react_a11y.isFieldRequired.html) | `react/a11y` | Function | True when the supplied field is non-optional and therefore deserves a visual required indicator alongside its label. |  |
-| [`resolvePath`](https://mearman.github.io/schema-components/functions/react_fieldPath.resolvePath.html) | `react/fieldPath` | Function | Resolve a dot-separated path through a WalkedField tree. |  |
-| [`resolveValue`](https://mearman.github.io/schema-components/functions/react_fieldPath.resolveValue.html) | `react/fieldPath` | Function | Resolve a dot-separated path through a data value. |  |
-| [`setNestedValue`](https://mearman.github.io/schema-components/functions/react_fieldPath.setNestedValue.html) | `react/fieldPath` | Function | Set a value at a dot-separated path, producing a new root object. |  |
 | [`FieldShell`](https://mearman.github.io/schema-components/functions/react_fieldShell.FieldShell.html) | `react/fieldShell` | Function | Compose label, host primitive, and constraint hint around a render function supplied by the theme adapter. |  |
 | [`FieldShellProps`](https://mearman.github.io/schema-components/interfaces/react_fieldShell.FieldShellProps.html) | `react/fieldShell` | Interface | Render-time inputs to FieldShell. |  |
 | [`headlessResolver`](https://mearman.github.io/schema-components/variables/react_headless.headlessResolver.html) | `react/headless` | Variable | The headless resolver uses props.renderChild for recursive rendering. |  |

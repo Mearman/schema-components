@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { resolveValue, setNestedValue } from "../src/react/fieldPath.ts";
+import { resolveValue, setNestedValue } from "../src/core/fieldPath.ts";
 
 // ---------------------------------------------------------------------------
 // resolveValue — read refusal
