@@ -1,3 +1,47 @@
+## [3.0.0](https://github.com/Mearman/schema-components/compare/v2.1.1...v3.0.0) (2026-05-19)
+
+### ⚠ BREAKING CHANGES
+
+* **react:** `<SchemaComponent>`, `<SchemaView>`, and
+`<SchemaField>`'s `ref` prop is renamed to `schemaRef`. The
+`SchemaComponentProps`, `SchemaViewProps`, and `SchemaFieldProps`
+generic parameter is renamed from `Ref` to `SchemaRef` to match.
+Lower-level type utilities in `core/typeInference.ts` keep their
+`Ref` generic parameter name unchanged.
+
+Migration: rename every `ref="..."` on `<SchemaComponent>` /
+`<SchemaView>` / `<SchemaField>` instance (and the corresponding
+`ref:` key when constructing via `createElement` or `args`) to
+`schemaRef`. A mechanical find-and-replace is sufficient; TypeScript
+catches misses at compile time.
+* **vue:** Vue `<SchemaComponent>`, `<SchemaView>`, and
+`<SchemaField>`'s `refPath` prop is renamed to `schemaRef`. Migration:
+rename every `:refPath="X"` or `refPath="X"` on a Vue SchemaComponent
+instance to `:schemaRef="X"` or `schemaRef="X"`.
+* **solid:** Solid `<SchemaComponent>`, `<SchemaView>`, and
+`<SchemaField>`'s `ref` prop is renamed to `schemaRef`. Update
+call sites that pass an OpenAPI `$ref` string via the `ref` prop
+to use `schemaRef` instead.
+* **svelte:** Svelte `<SchemaComponent>`, `<SchemaView>`, and
+`<SchemaField>`'s `ref` prop is renamed to `schemaRef`. Update
+every call site that passes `ref="#/components/schemas/..."` to
+pass `schemaRef="..."` instead.
+* **lit:** Lit `<schema-component>`, `<schema-view>`, and
+`<schema-field>`'s `ref` property is renamed to `schemaRef`.
+The element tag names are unchanged.
+
+Migration: in JS, change `element.ref = "X"` to
+`element.schemaRef = "X"`. In Lit templates, change `.ref=${X}`
+to `.schemaRef=${X}`.
+
+### Features
+
+* **lit:** rename Lit schema-component .ref property to schemaRef ([d81142f](https://github.com/Mearman/schema-components/commit/d81142f9b612d5aa5397fa5b27df7d6ffb0e9a90))
+* **react:** rename SchemaComponent.ref prop to schemaRef ([b70cefe](https://github.com/Mearman/schema-components/commit/b70cefea89f2596c6b6fd0edde60a605fecf6fe3))
+* **solid:** rename Solid SchemaComponent.ref prop to schemaRef ([e32fd86](https://github.com/Mearman/schema-components/commit/e32fd8606e0785c24c767243c907b1c2686572a6))
+* **svelte:** rename Svelte SchemaComponent.ref prop to schemaRef ([5a0617f](https://github.com/Mearman/schema-components/commit/5a0617fc848dab78e542e3bf5e6f5701743ecebd))
+* **vue:** rename Vue SchemaComponent.refPath prop to schemaRef ([0abecb8](https://github.com/Mearman/schema-components/commit/0abecb8c89fe5333924ce56a068b3be486c1ee6b))
+
 ## [2.1.1](https://github.com/Mearman/schema-components/compare/v2.1.0...v2.1.1) (2026-05-19)
 
 ### Refactoring
