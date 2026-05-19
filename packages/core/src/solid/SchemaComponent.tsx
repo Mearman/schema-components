@@ -127,19 +127,19 @@ export function SchemaProvider(props: {
  */
 export interface SchemaComponentProps<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
 > {
     /** Zod schema, JSON Schema object, or OpenAPI document. */
     schema: RejectUnrepresentableZod<T>;
     /** For OpenAPI: a ref string like `"#/components/schemas/User"`. */
-    ref?: Ref;
+    schemaRef?: SchemaRef;
     /** Which side of every transform / pipe / codec to render. */
     io?: Mode;
     /** Current value to render — typed against the schema's inferred shape. */
-    value?: InferSchemaValue<T, Ref, Mode>;
+    value?: InferSchemaValue<T, SchemaRef, Mode>;
     /** Called when the value changes; receives the next value. */
-    onChange?: (value: InferSchemaValue<T, Ref, Mode>) => void;
+    onChange?: (value: InferSchemaValue<T, SchemaRef, Mode>) => void;
     /** Run `safeParse` / `safeEncode` on change and route errors. */
     validate?: boolean;
     /** Called with the validation error when validation fails. */
@@ -151,7 +151,7 @@ export interface SchemaComponentProps<
     /** When true, any diagnostic becomes a thrown error. */
     strict?: boolean;
     /** Per-field meta overrides — nested object mirroring schema shape. */
-    fields?: InferFields<T, Ref>;
+    fields?: InferFields<T, SchemaRef>;
     /** Meta overrides applied to the root schema. */
     meta?: SchemaMeta;
     /** Convenience: sets readOnly on all fields. */
@@ -439,9 +439,9 @@ function getSolidRenderFunction(
  */
 export function SchemaComponent<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
->(props: SchemaComponentProps<T, Ref, Mode>): JSX.Element {
+>(props: SchemaComponentProps<T, SchemaRef, Mode>): JSX.Element {
     const [, rest] = splitProps(props, ["schema"]);
     // Re-borrow `schema` after `splitProps` so the destructure does not
     // pull the value off the live props proxy.
@@ -463,7 +463,7 @@ export function SchemaComponent<
         const onDiagnostic = rest.onDiagnostic;
         const strict = rest.strict;
         const io = rest.io;
-        const refInput = rest.ref;
+        const refInput = rest.schemaRef;
         const onError = rest.onError;
         const idPrefix = rest.idPrefix;
 

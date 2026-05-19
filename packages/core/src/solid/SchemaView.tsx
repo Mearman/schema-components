@@ -56,14 +56,14 @@ import type {
  */
 export interface SchemaViewProps<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
 > {
     schema: RejectUnrepresentableZod<T>;
-    ref?: Ref;
+    schemaRef?: SchemaRef;
     io?: Mode;
-    value?: InferredValue<T, Ref, undefined, Mode>;
-    fields?: InferFields<T, Ref>;
+    value?: InferredValue<T, SchemaRef, undefined, Mode>;
+    fields?: InferFields<T, SchemaRef>;
     meta?: SchemaMeta;
     description?: string;
     /** Theme resolver. Falls back to the headless resolver if omitted. */
@@ -93,9 +93,9 @@ export interface SchemaViewProps<
  */
 export function SchemaView<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
->(props: SchemaViewProps<T, Ref, Mode>): JSX.Element {
+>(props: SchemaViewProps<T, SchemaRef, Mode>): JSX.Element {
     const generatedId = createUniqueId();
     const rootPath = props.idPrefix ?? sanitisePrefix(generatedId);
     const mergedMeta: SchemaMeta = { ...props.meta, readOnly: true };
@@ -127,7 +127,7 @@ export function SchemaView<
                 : undefined;
         const normalised = normaliseSchema(
             props.schema,
-            props.ref,
+            props.schemaRef,
             normaliseOptions
         );
         jsonSchema = normalised.jsonSchema;

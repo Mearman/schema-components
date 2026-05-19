@@ -60,14 +60,14 @@ type InferSchemaType<T> = T extends z.ZodType
  */
 export interface SchemaFieldProps<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     P extends string =
         | PathOfType<InferSchemaType<T>>
         | (string extends PathOfType<InferSchemaType<T>> ? string : never),
 > {
     path: P;
     schema: RejectUnrepresentableZod<T>;
-    ref?: Ref;
+    schemaRef?: SchemaRef;
     value?: unknown;
     onChange?: (value: unknown) => void;
     meta?: SchemaMeta;
@@ -86,11 +86,11 @@ export interface SchemaFieldProps<
  */
 export function SchemaField<
     T = unknown,
-    Ref extends string | undefined = undefined,
+    SchemaRef extends string | undefined = undefined,
     P extends string =
         | PathOfType<InferSchemaType<T>>
         | (string extends PathOfType<InferSchemaType<T>> ? string : never),
->(props: SchemaFieldProps<T, Ref, P>): JSX.Element {
+>(props: SchemaFieldProps<T, SchemaRef, P>): JSX.Element {
     const generatedId = createUniqueId();
     const userResolver = useContext(UserResolverContext);
     const contextWidgets = useContext(WidgetsContext);
@@ -100,7 +100,7 @@ export function SchemaField<
     let rootMeta: SchemaMeta | undefined;
     let rootDocument: Record<string, unknown>;
     try {
-        const normalised = normaliseSchema(props.schema, props.ref);
+        const normalised = normaliseSchema(props.schema, props.schemaRef);
         jsonSchema = normalised.jsonSchema;
         zodSchema = normalised.zodSchema;
         rootMeta = normalised.rootMeta;
