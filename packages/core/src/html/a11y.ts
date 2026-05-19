@@ -11,6 +11,7 @@
 import type { WalkedField } from "../core/types.ts";
 import type { AllConstraints } from "../core/renderer.ts";
 import { fieldDomId, hintIdFor } from "../core/idPath.ts";
+import { constraintHint } from "../core/constraintHint.ts";
 import { h, type HtmlAttributes, type HtmlNode } from "./html.ts";
 
 // ---------------------------------------------------------------------------
@@ -62,26 +63,12 @@ export function buildHintId(inputId: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Build a human-readable constraint description string.
- * Returns undefined if no constraints are present.
+ * Public re-export of the canonical {@link constraintHint} text builder
+ * implemented in `core/constraintHint.ts`. Consumers can keep importing
+ * from `schema-components/html/a11y` — the implementation lives in
+ * `core/` so both the React and HTML pipelines share one text source.
  */
-export function constraintHint(c: AllConstraints): string | undefined {
-    const parts: string[] = [];
-    if (c.minLength !== undefined)
-        parts.push(`Minimum ${String(c.minLength)} characters`);
-    if (c.maxLength !== undefined)
-        parts.push(`Maximum ${String(c.maxLength)} characters`);
-    if (c.minimum !== undefined) parts.push(`Minimum ${String(c.minimum)}`);
-    if (c.maximum !== undefined) parts.push(`Maximum ${String(c.maximum)}`);
-    if (c.pattern !== undefined && c.format === undefined)
-        parts.push("Must match pattern");
-    if (c.minItems !== undefined)
-        parts.push(`Minimum ${String(c.minItems)} items`);
-    if (c.maxItems !== undefined)
-        parts.push(`Maximum ${String(c.maxItems)} items`);
-    if (parts.length === 0) return undefined;
-    return parts.join(". ");
-}
+export { constraintHint };
 
 // ---------------------------------------------------------------------------
 // ARIA attribute objects (for h() attrs)

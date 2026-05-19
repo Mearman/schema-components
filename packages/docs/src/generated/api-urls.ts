@@ -179,7 +179,8 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
         { name: "ConditionalField", modulePath: "core/types", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/core_types.ConditionalField.html" },
     ],
     constraintHint: [
-        { name: "constraintHint", modulePath: "html/a11y", kind: "Function", url: "https://mearman.github.io/schema-components/functions/html_a11y.constraintHint.html" },
+        { name: "constraintHint", modulePath: "core/constraintHint", kind: "Function", url: "https://mearman.github.io/schema-components/functions/core_constraintHint.constraintHint.html" },
+        { name: "constraintHint", modulePath: "react/a11y", kind: "Function", url: "https://mearman.github.io/schema-components/functions/react_a11y.constraintHint.html" },
     ],
     countDistinctRefs: [
         { name: "countDistinctRefs", modulePath: "core/ref", kind: "Function", url: "https://mearman.github.io/schema-components/functions/core_ref.countDistinctRefs.html" },
@@ -338,6 +339,12 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
     FieldOverrides: [
         { name: "FieldOverrides", modulePath: "core/types", kind: "Type", url: "https://mearman.github.io/schema-components/types/core_types.FieldOverrides.html" },
     ],
+    FieldShell: [
+        { name: "FieldShell", modulePath: "react/fieldShell", kind: "Function", url: "https://mearman.github.io/schema-components/functions/react_fieldShell.FieldShell.html" },
+    ],
+    FieldShellProps: [
+        { name: "FieldShellProps", modulePath: "react/fieldShell", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/react_fieldShell.FieldShellProps.html" },
+    ],
     FileConstraints: [
         { name: "FileConstraints", modulePath: "core/types", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/core_types.FileConstraints.html" },
     ],
@@ -425,6 +432,9 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
     headlessResolver: [
         { name: "headlessResolver", modulePath: "react/headless", kind: "Variable", url: "https://mearman.github.io/schema-components/variables/react_headless.headlessResolver.html" },
     ],
+    Hint: [
+        { name: "Hint", modulePath: "react/a11y", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/react_a11y.Hint.html" },
+    ],
     hintIdFor: [
         { name: "hintIdFor", modulePath: "core/idPath", kind: "Function", url: "https://mearman.github.io/schema-components/functions/core_idPath.hintIdFor.html" },
     ],
@@ -505,6 +515,9 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
     ],
     isEnumField: [
         { name: "isEnumField", modulePath: "core/types", kind: "Function", url: "https://mearman.github.io/schema-components/functions/core_types.isEnumField.html" },
+    ],
+    isFieldRequired: [
+        { name: "isFieldRequired", modulePath: "react/a11y", kind: "Function", url: "https://mearman.github.io/schema-components/functions/react_a11y.isFieldRequired.html" },
     ],
     isFileField: [
         { name: "isFileField", modulePath: "core/types", kind: "Function", url: "https://mearman.github.io/schema-components/functions/core_types.isFileField.html" },

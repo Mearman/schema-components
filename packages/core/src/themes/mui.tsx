@@ -30,8 +30,9 @@ import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { isObject } from "../core/guards.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
+import { FieldShell } from "../react/fieldShell.tsx";
+import { isFieldRequired } from "../react/a11y.ts";
 import { isValidElement, type ElementType, type ReactNode } from "react";
-import type { WalkedField } from "../core/types.ts";
 
 // ---------------------------------------------------------------------------
 // Dependency contract — element types supplied by the consumer
@@ -57,8 +58,13 @@ export interface MuiComponents {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function ariaRequired(tree: WalkedField): { required: boolean } {
-    return { required: tree.isOptional === false };
+/**
+ * MUI's TextField / Checkbox use the `required` prop to surface the
+ * native asterisk and `aria-required` together. Mirror it from the
+ * walked field so callers do not need a second check.
+ */
+function muiRequired(props: RenderProps): { required: boolean } {
+    return { required: isFieldRequired(props.tree) };
 }
 
 // ---------------------------------------------------------------------------
@@ -85,30 +91,38 @@ function makeRenderStringInput(
             );
         }
 
+        // MUI's TextField provides its own label, so the shell only
+        // contributes the constraint-hint `<small>` and the
+        // `aria-describedby` wiring back to it.
         return (
-            <TextField
-                id={id}
-                label={label}
-                type={
-                    props.constraints.format === "email"
-                        ? "email"
-                        : props.constraints.format === "uri"
-                          ? "url"
-                          : "text"
-                }
-                value={props.writeOnly ? "" : strValue}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    props.onChange(e.target.value);
-                }}
-                fullWidth
-                size="small"
-                variant="outlined"
-                inputProps={{
-                    minLength: props.constraints.minLength,
-                    maxLength: props.constraints.maxLength,
-                }}
-                {...ariaRequired(props.tree)}
-            />
+            <FieldShell props={props} inputId={id} hideLabel>
+                {(aria) => (
+                    <TextField
+                        id={id}
+                        label={label}
+                        type={
+                            props.constraints.format === "email"
+                                ? "email"
+                                : props.constraints.format === "uri"
+                                  ? "url"
+                                  : "text"
+                        }
+                        value={props.writeOnly ? "" : strValue}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            props.onChange(e.target.value);
+                        }}
+                        fullWidth
+                        size="small"
+                        variant="outlined"
+                        inputProps={{
+                            minLength: props.constraints.minLength,
+                            maxLength: props.constraints.maxLength,
+                            ...aria,
+                        }}
+                        {...muiRequired(props)}
+                    />
+                )}
+            </FieldShell>
         );
     };
 }
@@ -139,29 +153,34 @@ function makeRenderNumberInput(
         }
 
         return (
-            <TextField
-                id={id}
-                label={label}
-                type="number"
-                value={
-                    props.writeOnly
-                        ? ""
-                        : typeof props.value === "number"
-                          ? props.value
-                          : ""
-                }
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    props.onChange(Number(e.target.value));
-                }}
-                fullWidth
-                size="small"
-                variant="outlined"
-                inputProps={{
-                    min: props.constraints.minimum,
-                    max: props.constraints.maximum,
-                }}
-                {...ariaRequired(props.tree)}
-            />
+            <FieldShell props={props} inputId={id} hideLabel>
+                {(aria) => (
+                    <TextField
+                        id={id}
+                        label={label}
+                        type="number"
+                        value={
+                            props.writeOnly
+                                ? ""
+                                : typeof props.value === "number"
+                                  ? props.value
+                                  : ""
+                        }
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            props.onChange(Number(e.target.value));
+                        }}
+                        fullWidth
+                        size="small"
+                        variant="outlined"
+                        inputProps={{
+                            min: props.constraints.minimum,
+                            max: props.constraints.maximum,
+                            ...aria,
+                        }}
+                        {...muiRequired(props)}
+                    />
+                )}
+            </FieldShell>
         );
     };
 }
@@ -192,18 +211,29 @@ function makeRenderBooleanInput(
         }
 
         return (
-            <FormControlLabel
-                control={
-                    <Checkbox
-                        id={id}
-                        checked={props.writeOnly ? false : props.value === true}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                            props.onChange(e.target.checked);
-                        }}
+            <FieldShell props={props} inputId={id} hideLabel>
+                {(aria) => (
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                id={id}
+                                checked={
+                                    props.writeOnly
+                                        ? false
+                                        : props.value === true
+                                }
+                                onChange={(
+                                    e: React.ChangeEvent<HTMLInputElement>
+                                ) => {
+                                    props.onChange(e.target.checked);
+                                }}
+                                {...aria}
+                            />
+                        }
+                        label={label}
                     />
-                }
-                label={label}
-            />
+                )}
+            </FieldShell>
         );
     };
 }
@@ -229,28 +259,34 @@ function makeRenderEnumInput(
         }
 
         return (
-            <TextField
-                id={id}
-                select
-                label={label}
-                value={props.writeOnly ? "" : enumValue}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    props.onChange(e.target.value);
-                }}
-                fullWidth
-                size="small"
-                variant="outlined"
-                {...ariaRequired(props.tree)}
-            >
-                <MenuItem value="">Select{"…"}</MenuItem>
-                {(props.tree.type === "enum" ? props.tree.enumValues : []).map(
-                    (v) => (
-                        <MenuItem key={v} value={v}>
-                            {v}
-                        </MenuItem>
-                    )
+            <FieldShell props={props} inputId={id} hideLabel>
+                {(aria) => (
+                    <TextField
+                        id={id}
+                        select
+                        label={label}
+                        value={props.writeOnly ? "" : enumValue}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            props.onChange(e.target.value);
+                        }}
+                        fullWidth
+                        size="small"
+                        variant="outlined"
+                        inputProps={aria}
+                        {...muiRequired(props)}
+                    >
+                        <MenuItem value="">Select{"…"}</MenuItem>
+                        {(props.tree.type === "enum"
+                            ? props.tree.enumValues
+                            : []
+                        ).map((v) => (
+                            <MenuItem key={v} value={v}>
+                                {v}
+                            </MenuItem>
+                        ))}
+                    </TextField>
                 )}
-            </TextField>
+            </FieldShell>
         );
     };
 }

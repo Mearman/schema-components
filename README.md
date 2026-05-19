@@ -184,7 +184,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 <!-- @generated:api-inventory:start -->
 <details>
-<summary><code>core/*</code> — 218 exports</summary>
+<summary><code>core/*</code> — 219 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -200,6 +200,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`SchemaIoSide`](https://mearman.github.io/schema-components/types/core_adapter.SchemaIoSide.html) | `core/adapter` | Type | Direction of the Zod transform / pipe / codec that normaliseSchema should surface to the renderer. |  |
 | [`SchemaKind`](https://mearman.github.io/schema-components/types/core_adapter.SchemaKind.html) | `core/adapter` | Type | Classification produced by detectSchemaKind when inspecting a runtime schema input. |  |
 | `SchemaMeta` | `core/adapter` | Re-export | Metadata attached to schemas via `.meta()` or passed as props to `<SchemaComponent>`. |  |
+| [`constraintHint`](https://mearman.github.io/schema-components/functions/core_constraintHint.constraintHint.html) | `core/constraintHint` | Function | Build a human-readable constraint description string. |  |
 | [`extractArrayConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractArrayConstraints.html) | `core/constraints` | Function | Read the JSON Schema array constraint keywords (`minItems`, `maxItems`, `uniqueItems`, `minContains`, `maxContains`) from a schema node and return them in the `ArrayConstraints` shape. |  |
 | [`extractFileConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractFileConstraints.html) | `core/constraints` | Function | Read the JSON Schema file constraints from a schema node — currently just `contentMediaType`, which surfaces as the single-entry `mimeTypes` array on `FileConstraints`. |  |
 | [`extractNumberConstraints`](https://mearman.github.io/schema-components/functions/core_constraints.extractNumberConstraints.html) | `core/constraints` | Function | Read the JSON Schema number constraint keywords (`minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`) from a schema node and return them in the `NumberConstraints` shape consumed by number field renderers. |  |
@@ -410,14 +411,19 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 </details>
 
 <details>
-<summary><code>react/*</code> — 44 exports</summary>
+<summary><code>react/*</code> — 49 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
 | [`buildAriaAttrs`](https://mearman.github.io/schema-components/functions/react_a11y.buildAriaAttrs.html) | `react/a11y` | Function | Build the ARIA attribute bundle for a renderer. |  |
+| [`constraintHint`](https://mearman.github.io/schema-components/functions/react_a11y.constraintHint.html) | `react/a11y` | Function | Derive the constraint-hint descriptor for a field at `inputId`. |  |
+| [`Hint`](https://mearman.github.io/schema-components/interfaces/react_a11y.Hint.html) | `react/a11y` | Interface | Description for a constraint hint emitted alongside an input. |  |
+| [`isFieldRequired`](https://mearman.github.io/schema-components/functions/react_a11y.isFieldRequired.html) | `react/a11y` | Function | True when the supplied field is non-optional and therefore deserves a visual required indicator alongside its label. |  |
 | [`resolvePath`](https://mearman.github.io/schema-components/functions/react_fieldPath.resolvePath.html) | `react/fieldPath` | Function | Resolve a dot-separated path through a WalkedField tree. |  |
 | [`resolveValue`](https://mearman.github.io/schema-components/functions/react_fieldPath.resolveValue.html) | `react/fieldPath` | Function | Resolve a dot-separated path through a data value. |  |
 | [`setNestedValue`](https://mearman.github.io/schema-components/functions/react_fieldPath.setNestedValue.html) | `react/fieldPath` | Function | Set a value at a dot-separated path, producing a new root object. |  |
+| [`FieldShell`](https://mearman.github.io/schema-components/functions/react_fieldShell.FieldShell.html) | `react/fieldShell` | Function | Compose label, host primitive, and constraint hint around a render function supplied by the theme adapter. |  |
+| [`FieldShellProps`](https://mearman.github.io/schema-components/interfaces/react_fieldShell.FieldShellProps.html) | `react/fieldShell` | Interface | Render-time inputs to FieldShell. |  |
 | [`headlessResolver`](https://mearman.github.io/schema-components/variables/react_headless.headlessResolver.html) | `react/headless` | Variable | The headless resolver uses props.renderChild for recursive rendering. |  |
 | [`defaultRecordValue`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.defaultRecordValue.html) | `react/headlessRenderers` | Function | Compute the default value for a freshly added record entry based on the record's value-type schema. |  |
 | [`discriminatedUnionValueForTab`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.discriminatedUnionValueForTab.html) | `react/headlessRenderers` | Function | Pure helper: convert a tab index into the new value the discriminated union should emit. |  |
@@ -545,7 +551,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`buildHintElement`](https://mearman.github.io/schema-components/functions/html_a11y.buildHintElement.html) | `html/a11y` | Function | Build a `<small class="sc-hint">` element for constraint hints. |  |
 | [`buildHintId`](https://mearman.github.io/schema-components/functions/html_a11y.buildHintId.html) | `html/a11y` | Function | Derive the hint element ID from the input ID. |  |
 | [`buildInputId`](https://mearman.github.io/schema-components/functions/html_a11y.buildInputId.html) | `html/a11y` | Function | Build the input ID for a field at a given path. |  |
-| [`constraintHint`](https://mearman.github.io/schema-components/functions/html_a11y.constraintHint.html) | `html/a11y` | Function | Build a human-readable constraint description string. |  |
+| `constraintHint` | `html/a11y` | Re-export | Build a human-readable constraint description string. |  |
 | [`joinPath`](https://mearman.github.io/schema-components/functions/html_a11y.joinPath.html) | `html/a11y` | Function | Append a structural suffix to a parent path. |  |
 | [`requiredIndicator`](https://mearman.github.io/schema-components/functions/html_a11y.requiredIndicator.html) | `html/a11y` | Function | Build the required-field asterisk indicator for labels. |  |
 | [`AttrValue`](https://mearman.github.io/schema-components/types/html_html.AttrValue.html) | `html/html` | Type | Attribute value types. |  |

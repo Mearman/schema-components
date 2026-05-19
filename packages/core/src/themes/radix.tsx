@@ -31,6 +31,7 @@ import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
 import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { isObject } from "../core/guards.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
+import { FieldShell } from "../react/fieldShell.tsx";
 import type { ElementType, ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
@@ -94,28 +95,40 @@ function makeRenderStringInput(
         }
 
         return (
-            <Box>
-                {label !== undefined && (
-                    <Text as="label" size="2" weight="medium" htmlFor={id}>
-                        {label}
-                    </Text>
+            <FieldShell props={props} inputId={id} hideLabel>
+                {(aria) => (
+                    <Box>
+                        {label !== undefined && (
+                            <Text
+                                as="label"
+                                size="2"
+                                weight="medium"
+                                htmlFor={id}
+                            >
+                                {label}
+                            </Text>
+                        )}
+                        <TextField
+                            id={id}
+                            type={
+                                props.constraints.format === "email"
+                                    ? "email"
+                                    : props.constraints.format === "uri"
+                                      ? "url"
+                                      : "text"
+                            }
+                            value={props.writeOnly ? "" : strValue}
+                            onChange={(
+                                e: React.ChangeEvent<HTMLInputElement>
+                            ) => {
+                                props.onChange(e.target.value);
+                            }}
+                            mt="1"
+                            {...aria}
+                        />
+                    </Box>
                 )}
-                <TextField
-                    id={id}
-                    type={
-                        props.constraints.format === "email"
-                            ? "email"
-                            : props.constraints.format === "uri"
-                              ? "url"
-                              : "text"
-                    }
-                    value={props.writeOnly ? "" : strValue}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        props.onChange(e.target.value);
-                    }}
-                    mt="1"
-                />
-            </Box>
+            </FieldShell>
         );
     };
 }
@@ -135,28 +148,40 @@ function makeRenderNumberInput(
         }
 
         return (
-            <Box>
-                {label !== undefined && (
-                    <Text as="label" size="2" weight="medium" htmlFor={id}>
-                        {label}
-                    </Text>
+            <FieldShell props={props} inputId={id} hideLabel>
+                {(aria) => (
+                    <Box>
+                        {label !== undefined && (
+                            <Text
+                                as="label"
+                                size="2"
+                                weight="medium"
+                                htmlFor={id}
+                            >
+                                {label}
+                            </Text>
+                        )}
+                        <TextField
+                            id={id}
+                            type="number"
+                            value={
+                                props.writeOnly
+                                    ? ""
+                                    : typeof props.value === "number"
+                                      ? props.value
+                                      : ""
+                            }
+                            onChange={(
+                                e: React.ChangeEvent<HTMLInputElement>
+                            ) => {
+                                props.onChange(Number(e.target.value));
+                            }}
+                            mt="1"
+                            {...aria}
+                        />
+                    </Box>
                 )}
-                <TextField
-                    id={id}
-                    type="number"
-                    value={
-                        props.writeOnly
-                            ? ""
-                            : typeof props.value === "number"
-                              ? props.value
-                              : ""
-                    }
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        props.onChange(Number(e.target.value));
-                    }}
-                    mt="1"
-                />
-            </Box>
+            </FieldShell>
         );
     };
 }
@@ -176,21 +201,28 @@ function makeRenderBooleanInput(
         }
 
         return (
-            <Flex align="center" gap="2">
-                <Checkbox
-                    id={id}
-                    checked={props.writeOnly ? false : props.value === true}
-                    onCheckedChange={(checked: unknown) => {
-                        if (typeof checked === "boolean")
-                            props.onChange(checked);
-                    }}
-                />
-                {label !== undefined && (
-                    <Text as="label" htmlFor={id}>
-                        {label}
-                    </Text>
+            <FieldShell props={props} inputId={id} hideLabel>
+                {(aria) => (
+                    <Flex align="center" gap="2">
+                        <Checkbox
+                            id={id}
+                            checked={
+                                props.writeOnly ? false : props.value === true
+                            }
+                            onCheckedChange={(checked: unknown) => {
+                                if (typeof checked === "boolean")
+                                    props.onChange(checked);
+                            }}
+                            {...aria}
+                        />
+                        {label !== undefined && (
+                            <Text as="label" htmlFor={id}>
+                                {label}
+                            </Text>
+                        )}
+                    </Flex>
                 )}
-            </Flex>
+            </FieldShell>
         );
     };
 }
@@ -210,31 +242,40 @@ function makeRenderEnumInput(
         }
 
         return (
-            <Box>
-                {label !== undefined && (
-                    <Text as="label" size="2" weight="medium" htmlFor={id}>
-                        {label}
-                    </Text>
+            <FieldShell props={props} inputId={id} hideLabel>
+                {(aria) => (
+                    <Box>
+                        {label !== undefined && (
+                            <Text
+                                as="label"
+                                size="2"
+                                weight="medium"
+                                htmlFor={id}
+                            >
+                                {label}
+                            </Text>
+                        )}
+                        <SelectRoot
+                            value={props.writeOnly ? "" : enumValue}
+                            onValueChange={(value: string) => {
+                                props.onChange(value);
+                            }}
+                        >
+                            <SelectTrigger id={id} mt="1" {...aria} />
+                            <SelectContent>
+                                {(props.tree.type === "enum"
+                                    ? props.tree.enumValues
+                                    : []
+                                ).map((value) => (
+                                    <SelectItem key={value} value={value}>
+                                        {value}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </SelectRoot>
+                    </Box>
                 )}
-                <SelectRoot
-                    value={props.writeOnly ? "" : enumValue}
-                    onValueChange={(value: string) => {
-                        props.onChange(value);
-                    }}
-                >
-                    <SelectTrigger id={id} mt="1" />
-                    <SelectContent>
-                        {(props.tree.type === "enum"
-                            ? props.tree.enumValues
-                            : []
-                        ).map((value) => (
-                            <SelectItem key={value} value={value}>
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </SelectRoot>
-            </Box>
+            </FieldShell>
         );
     };
 }

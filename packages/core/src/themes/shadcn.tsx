@@ -17,6 +17,7 @@ import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { toRecord } from "../core/guards.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
 import { displayJsonValue } from "../core/walkBuilders.ts";
+import { FieldShell } from "../react/fieldShell.tsx";
 import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
@@ -32,7 +33,8 @@ function buildClassNames(...classes: (string | undefined)[]): string {
 }
 
 // ---------------------------------------------------------------------------
-// Renderers
+// Renderers — each leaf composes the host `<input>` inside FieldShell so
+// label, required indicator, and constraint hint render consistently.
 // ---------------------------------------------------------------------------
 
 function renderStringInput(props: RenderProps): ReactNode {
@@ -54,42 +56,31 @@ function renderStringInput(props: RenderProps): ReactNode {
         );
     }
 
-    if (props.writeOnly) {
-        return (
-            <input
-                id={id}
-                type={props.constraints.format === "email" ? "email" : "text"}
-                className={className}
-                placeholder={
-                    typeof props.meta.description === "string"
-                        ? props.meta.description
-                        : undefined
-                }
-                value=""
-                onChange={(e) => {
-                    props.onChange(e.target.value);
-                }}
-            />
-        );
-    }
+    const placeholder =
+        typeof props.meta.description === "string"
+            ? props.meta.description
+            : undefined;
 
     return (
-        <input
-            id={id}
-            type={props.constraints.format === "email" ? "email" : "text"}
-            className={className}
-            value={strValue}
-            onChange={(e) => {
-                props.onChange(e.target.value);
-            }}
-            placeholder={
-                typeof props.meta.description === "string"
-                    ? props.meta.description
-                    : undefined
-            }
-            minLength={props.constraints.minLength}
-            maxLength={props.constraints.maxLength}
-        />
+        <FieldShell props={props} inputId={id}>
+            {(aria) => (
+                <input
+                    id={id}
+                    type={
+                        props.constraints.format === "email" ? "email" : "text"
+                    }
+                    className={className}
+                    placeholder={placeholder}
+                    value={props.writeOnly ? "" : strValue}
+                    onChange={(e) => {
+                        props.onChange(e.target.value);
+                    }}
+                    minLength={props.constraints.minLength}
+                    maxLength={props.constraints.maxLength}
+                    {...aria}
+                />
+            )}
+        </FieldShell>
     );
 }
 
@@ -117,23 +108,28 @@ function renderNumberInput(props: RenderProps): ReactNode {
     }
 
     return (
-        <input
-            id={id}
-            type="number"
-            className={className}
-            value={
-                props.writeOnly
-                    ? ""
-                    : typeof props.value === "number"
-                      ? props.value
-                      : ""
-            }
-            onChange={(e) => {
-                props.onChange(Number(e.target.value));
-            }}
-            min={props.constraints.minimum}
-            max={props.constraints.maximum}
-        />
+        <FieldShell props={props} inputId={id}>
+            {(aria) => (
+                <input
+                    id={id}
+                    type="number"
+                    className={className}
+                    value={
+                        props.writeOnly
+                            ? ""
+                            : typeof props.value === "number"
+                              ? props.value
+                              : ""
+                    }
+                    onChange={(e) => {
+                        props.onChange(Number(e.target.value));
+                    }}
+                    min={props.constraints.minimum}
+                    max={props.constraints.maximum}
+                    {...aria}
+                />
+            )}
+        </FieldShell>
     );
 }
 
@@ -160,15 +156,67 @@ function renderBooleanInput(props: RenderProps): ReactNode {
     }
 
     return (
-        <input
-            id={id}
-            type="checkbox"
-            className={className}
-            checked={props.writeOnly ? false : props.value === true}
-            onChange={(e) => {
-                props.onChange(e.target.checked);
-            }}
-        />
+        <FieldShell props={props} inputId={id}>
+            {(aria) => (
+                <input
+                    id={id}
+                    type="checkbox"
+                    className={className}
+                    checked={props.writeOnly ? false : props.value === true}
+                    onChange={(e) => {
+                        props.onChange(e.target.checked);
+                    }}
+                    {...aria}
+                />
+            )}
+        </FieldShell>
+    );
+}
+
+function renderEnumInput(props: RenderProps): ReactNode {
+    const id = inputId(props.path);
+    const className = buildClassNames(
+        "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm",
+        "focus:outline-none focus:ring-1 focus:ring-ring",
+        "disabled:cursor-not-allowed disabled:opacity-50"
+    );
+
+    const enumValue = typeof props.value === "string" ? props.value : "";
+
+    if (props.readOnly) {
+        return (
+            <span id={id} className="text-sm">
+                {enumValue || "—"}
+            </span>
+        );
+    }
+
+    return (
+        <FieldShell props={props} inputId={id}>
+            {(aria) => (
+                <select
+                    id={id}
+                    className={className}
+                    value={props.writeOnly ? "" : enumValue}
+                    onChange={(e) => {
+                        props.onChange(e.target.value);
+                    }}
+                    {...aria}
+                >
+                    <option value="">Select{"…"}</option>
+                    {props.tree.type === "enum"
+                        ? props.tree.enumValues.map((v) => {
+                              const display = displayJsonValue(v);
+                              return (
+                                  <option key={display} value={display}>
+                                      {display}
+                                  </option>
+                              );
+                          })
+                        : null}
+                </select>
+            )}
+        </FieldShell>
     );
 }
 
@@ -183,6 +231,8 @@ function renderObjectContainer(props: RenderProps): ReactNode {
             ? props.value
             : {};
 
+    // The leaf field renderers compose `<label>` and the constraint hint
+    // via `FieldShell`. The container just lays out the children.
     return (
         <div className="space-y-4">
             {typeof props.meta.description === "string" && (
@@ -192,7 +242,6 @@ function renderObjectContainer(props: RenderProps): ReactNode {
             )}
             {sortFieldsByOrder(fields).map(([key, field]) => {
                 const childValue = toRecord(obj)[key];
-                const childId = inputId(`${props.path}.${key}`);
                 const childOnChange = (v: unknown) => {
                     const updated: Record<string, unknown> = {};
                     for (const [k, val] of Object.entries(obj)) {
@@ -203,12 +252,6 @@ function renderObjectContainer(props: RenderProps): ReactNode {
                 };
                 return (
                     <div key={key} className="space-y-1">
-                        <label
-                            htmlFor={childId}
-                            className="text-sm font-medium leading-none"
-                        >
-                            {field.meta.description ?? key}
-                        </label>
                         {toReactNode(
                             props.renderChild(
                                 field,
@@ -252,48 +295,6 @@ function renderArrayContainer(props: RenderProps): ReactNode {
                 );
             })}
         </div>
-    );
-}
-
-function renderEnumInput(props: RenderProps): ReactNode {
-    const id = inputId(props.path);
-    const className = buildClassNames(
-        "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm",
-        "focus:outline-none focus:ring-1 focus:ring-ring",
-        "disabled:cursor-not-allowed disabled:opacity-50"
-    );
-
-    const enumValue = typeof props.value === "string" ? props.value : "";
-
-    if (props.readOnly) {
-        return (
-            <span id={id} className="text-sm">
-                {enumValue || "—"}
-            </span>
-        );
-    }
-
-    return (
-        <select
-            id={id}
-            className={className}
-            value={props.writeOnly ? "" : enumValue}
-            onChange={(e) => {
-                props.onChange(e.target.value);
-            }}
-        >
-            <option value="">Select{"…"}</option>
-            {props.tree.type === "enum"
-                ? props.tree.enumValues.map((v) => {
-                      const display = displayJsonValue(v);
-                      return (
-                          <option key={display} value={display}>
-                              {display}
-                          </option>
-                      );
-                  })
-                : null}
-        </select>
     );
 }
 
