@@ -2,6 +2,7 @@ import eslint from "@eslint/js";
 import { defineConfig } from "eslint/config";
 import type { Rule } from "eslint";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
+import importPlugin from "eslint-plugin-import";
 import eslintPluginPrettier from "eslint-plugin-prettier";
 // eslint-plugin-jsx-a11y ships no `.d.ts`; the local ambient declaration in
 // `types/eslint-plugin-jsx-a11y.d.ts` describes the flat-config surface used here.
@@ -197,6 +198,7 @@ const sharedPluginRules = {
             "no-re-exports": noReExports,
         },
     },
+    import: importPlugin,
     prettier: eslintPluginPrettier,
 };
 
@@ -209,6 +211,79 @@ const sharedRules: Record<string, unknown> = {
         "error",
         { assertionStyle: "never" },
     ],
+};
+
+// Layer-boundary table for `import/no-restricted-paths`.
+//
+// The library is organised as a hub-and-spokes architecture: `core` carries
+// the schema walker and shared primitives, and `react`, `openapi`, `html`,
+// and `themes` are leaf consumers. The forbidden direction in every entry
+// below is "downstream layer → sibling leaf layer" or "leaf layer → core".
+//
+// Each zone uses absolute `target` paths (resolved against the repo root via
+// `tsconfigRootDir` semantics — see the `basePath` option below).
+const layerBoundaryZones: ReadonlyArray<{
+    target: string;
+    from: string[];
+    message: string;
+}> = [
+    {
+        target: "./packages/core/src/core",
+        from: [
+            "./packages/core/src/react",
+            "./packages/core/src/openapi",
+            "./packages/core/src/html",
+            "./packages/core/src/themes",
+        ],
+        message:
+            "core/ must not import from sibling layers — it is the shared foundation every other layer depends on.",
+    },
+    {
+        target: "./packages/core/src/openapi",
+        from: [
+            "./packages/core/src/react",
+            "./packages/core/src/html",
+            "./packages/core/src/themes",
+        ],
+        message:
+            "openapi/ must not import from react/, html/, or themes/. Move the dependency into core/.",
+    },
+    {
+        target: "./packages/core/src/react",
+        from: [
+            "./packages/core/src/openapi",
+            "./packages/core/src/html",
+            "./packages/core/src/themes",
+        ],
+        message:
+            "react/ must not import from openapi/, html/, or themes/. Move the dependency into core/.",
+    },
+    {
+        target: "./packages/core/src/html",
+        from: [
+            "./packages/core/src/react",
+            "./packages/core/src/openapi",
+            "./packages/core/src/themes",
+        ],
+        message:
+            "html/ must not import from react/, openapi/, or themes/. Move the dependency into core/.",
+    },
+    {
+        target: "./packages/core/src/themes",
+        from: [
+            "./packages/core/src/openapi",
+            "./packages/core/src/html",
+        ],
+        message:
+            "themes/ must not import from openapi/ or html/. Theme adapters belong on the React side of the renderer surface.",
+    },
+];
+
+const noRestrictedPathsOption = {
+    basePath: import.meta.dirname,
+    zones: layerBoundaryZones.flatMap(({ target, from, message }) =>
+        from.map((source) => ({ target, from: source, message }))
+    ),
 };
 
 export default defineConfig(
@@ -332,6 +407,28 @@ export default defineConfig(
             // model — the inner tab buttons are focusable, but the tablist
             // container itself currently is not.
             "jsx-a11y/interactive-supports-focus": "warn",
+        },
+    },
+
+    // Layer-boundary enforcement — see `layerBoundaryZones` above.
+    // Applied to `packages/core/src/**` only; tests are allowed to cross
+    // layers because integration assertions naturally span them.
+    //
+    // Severity is `warn`, not `error`, until the W3 worktree finishes moving
+    // shared render helpers (`WidgetMap`, `joinPath`, `renderField`,
+    // `sanitisePrefix`) from `react/SchemaComponent.tsx` into `core/`. The
+    // project bans inline `eslint-disable` comments via `noInlineConfig`, so
+    // a targeted downgrade is the cleanest deferral mechanism here.
+    {
+        files: [
+            "packages/core/src/**/*.ts",
+            "packages/core/src/**/*.tsx",
+        ],
+        rules: {
+            // TODO: elevate to `error` after W3 moves the shared render
+            // helpers out of `react/SchemaComponent.tsx`. The two surviving
+            // violations in `openapi/components.tsx` will disappear then.
+            "import/no-restricted-paths": ["warn", noRestrictedPathsOption],
         },
     },
     eslintConfigPrettier
