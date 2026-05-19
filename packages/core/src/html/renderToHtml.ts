@@ -9,14 +9,20 @@
  * compile-time tag/attribute checking and automatic escaping.
  *
  * Usage:
- *   import { renderToHtml } from "schema-components/html/renderToHtml";
- *   const html = renderToHtml(userSchema, { value: userData });
+ *
+ * ```ts
+ * import { renderToHtml } from "schema-components/html/renderToHtml";
+ * const html = renderToHtml(userSchema, { value: userData });
+ * ```
  *
  * Custom resolver:
- *   const html = renderToHtml(schema, {
- *     value,
- *     resolver: { string: (props) => h("b", {}, String(props.value)) },
- *   });
+ *
+ * ```ts
+ * const html = renderToHtml(schema, {
+ *   value,
+ *   resolver: { string: (props) => h("b", {}, String(props.value)) },
+ * });
+ * ```
  */
 
 import { normaliseSchema, type SchemaIoSide } from "../core/adapter.ts";
