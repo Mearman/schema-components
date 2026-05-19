@@ -99,55 +99,34 @@ export class SchemaComponent extends LitElement {
     };
 
     /**
-     * Zod schema, JSON Schema object, or OpenAPI document.
-     *
-     * Property-only — there is no way to serialise a schema through
-     * an HTML attribute. Framework wrappers (React, Vue, Svelte
-     * native CE interop) all support property binding; document the
-     * binding syntax in `lit/README.md`.
+     * Reactive property declarations. Each field is declared with
+     * `declare` (no runtime emit) so Lit's `static properties`
+     * accessors are not shadowed by class-field initialisers. Default
+     * values are seeded in the constructor.
      */
-    schema: unknown = undefined;
+    declare schema: unknown;
+    declare ref: string | undefined;
+    declare io: SchemaIoSide | undefined;
+    declare value: unknown;
+    declare resolver: LitComponentResolver | undefined;
+    declare widgets: ReadonlyMap<string, string> | undefined;
+    declare fields: Record<string, unknown> | undefined;
+    declare meta: SchemaMeta | undefined;
+    declare idPrefix: string | undefined;
+    declare readOnly: boolean;
+    declare strict: boolean;
+    declare onDiagnostic: ((diagnostic: Diagnostic) => void) | undefined;
 
-    /** For OpenAPI: a ref string like `"#/components/schemas/User"`. */
-    ref: string | undefined = undefined;
-
-    /** Which side of every transform / pipe / codec to render. */
-    io: SchemaIoSide | undefined = undefined;
-
-    /** Current value to render. */
-    value: unknown = undefined;
-
-    /**
-     * Theme adapter. Property-only — like the React {@link ComponentResolver}
-     * the resolver is a per-type function map.
-     */
-    resolver: LitComponentResolver | undefined = undefined;
-
-    /**
-     * Widget map: hint name → Custom Element tag. Property-only.
-     */
-    widgets: ReadonlyMap<string, string> | undefined = undefined;
-
-    /** Per-field meta overrides. */
-    fields: Record<string, unknown> | undefined = undefined;
-
-    /** Meta overrides applied to the root schema. */
-    meta: SchemaMeta | undefined = undefined;
-
-    /** Prefix used for every input id in this element's subtree. */
-    idPrefix: string | undefined = undefined;
-
-    /** Whether the element renders read-only. */
-    readOnly = false;
-
-    /** When true, any diagnostic becomes a thrown error. */
-    strict = false;
-
-    /**
-     * Called with each diagnostic emitted during schema processing.
-     * Property-only.
-     */
-    onDiagnostic: ((diagnostic: Diagnostic) => void) | undefined = undefined;
+    constructor() {
+        super();
+        // Seed defaults via property assignment (intercepted by Lit's
+        // accessors) rather than class-field initialisers (which would
+        // shadow them).
+        this.schema = undefined;
+        this.value = undefined;
+        this.readOnly = false;
+        this.strict = false;
+    }
 
     override render(): TemplateResult {
         if (this.schema === undefined) {

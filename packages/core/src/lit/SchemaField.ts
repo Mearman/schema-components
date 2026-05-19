@@ -34,14 +34,21 @@ import { SchemaComponent } from "./SchemaComponent.ts";
 export class SchemaField extends SchemaComponent {
     /**
      * Dot-separated path identifying the field to render
-     * (e.g. `"address.city"` or `"tags[0]"`).
+     * (e.g. `"address.city"` or `"tags[0]"`). Declared via `declare`
+     * so Lit's accessor (installed by the static `properties` table)
+     * is not shadowed by a class-field initialiser.
      */
-    path = "";
+    declare path: string;
 
     static override readonly properties = {
         ...SchemaComponent.properties,
         path: { attribute: false },
     };
+
+    constructor() {
+        super();
+        this.path = "";
+    }
 
     override render(): TemplateResult {
         if (this.schema === undefined || this.path.length === 0) {

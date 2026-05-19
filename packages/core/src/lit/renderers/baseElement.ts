@@ -88,36 +88,45 @@ export abstract class BaseScElement extends LitElement {
         renderChild: { attribute: false },
     };
 
-    // Field declarations. These default values exist so static type
-    // checking inside subclass templates does not have to narrow
-    // `undefined`. Real values are set as properties by the
-    // orchestrating element before the first render.
-    tree!: WalkedField;
-    value: unknown = undefined;
-    readOnly = false;
-    writeOnly = false;
-    path = "";
-    meta: SchemaMeta = {};
-    constraints: AllConstraints = {};
-    examples?: unknown[];
+    // Field declarations using `declare` so TypeScript types the
+    // fields without emitting a runtime class-field initialiser.
+    // Lit's `static properties` installs accessors at upgrade time
+    // for change detection — a runtime class field would shadow
+    // those accessors (the "class field shadowing" Lit warning).
+    // The orchestrating `<schema-component>` element sets every
+    // declared property to a real value before any subclass render()
+    // runs, so reading these declarations before assignment never
+    // happens in practice; the constructor below seeds safe defaults
+    // for the small number of fields whose absence the render path
+    // would crash on.
+    declare tree: WalkedField;
+    declare value: unknown;
+    declare readOnly: boolean;
+    declare writeOnly: boolean;
+    declare path: string;
+    declare meta: SchemaMeta;
+    declare constraints: AllConstraints;
+    declare examples?: unknown[];
+    declare change: (value: unknown) => void;
+    declare renderChild: LitRenderProps["renderChild"];
 
-    /**
-     * Default change handler — a no-op. The orchestrating
-     * `<schema-component>` sets a real callback on every child so the
-     * field's `change()` calls thread back up the structural tree.
-     */
-    change: (value: unknown) => void = () => {
-        /* intentional no-op default; replaced by orchestrator */
-    };
-
-    /**
-     * Default renderChild closure — emits an empty template. Container
-     * renderers (object, array, tuple, record, union, …) need this
-     * replaced by the orchestrator with the resolver-dispatching
-     * closure so nested fields render through the same theme as the
-     * root. Leaf renderers (string, number, boolean, …) never call it.
-     */
-    renderChild: LitRenderProps["renderChild"] = () => html``;
+    constructor() {
+        super();
+        // Seed defaults for every reactive property so a subclass's
+        // first render() call observes well-typed values. Lit's
+        // accessors (installed by `static properties`) intercept
+        // these assignments correctly — the warning fires only for
+        // raw class-field initialisers, not for constructor writes.
+        this.readOnly = false;
+        this.writeOnly = false;
+        this.path = "";
+        this.meta = {};
+        this.constraints = {};
+        this.change = () => {
+            /* default no-op; orchestrator replaces */
+        };
+        this.renderChild = () => html``;
+    }
 
     /**
      * Dispatch the canonical `sc-change` event. Renderers call this
