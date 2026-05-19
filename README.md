@@ -184,7 +184,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 <!-- @generated:api-inventory:start -->
 <details>
-<summary><code>core/*</code> — 226 exports</summary>
+<summary><code>core/*</code> — 227 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -292,6 +292,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`ResolveRefChainOptions`](https://mearman.github.io/schema-components/interfaces/core_refChain.ResolveRefChainOptions.html) | `core/refChain` | Interface | Configuration for a single chain resolution. |  |
 | [`AllConstraints`](https://mearman.github.io/schema-components/types/core_renderer.AllConstraints.html) | `core/renderer` | Type | Flat intersection of all constraint types. |  |
 | [`BaseFieldProps`](https://mearman.github.io/schema-components/interfaces/core_renderer.BaseFieldProps.html) | `core/renderer` | Interface | Properties available on every schema field, regardless of rendering target. |  |
+| [`BaseRenderProps`](https://mearman.github.io/schema-components/interfaces/core_renderer.BaseRenderProps.html) | `core/renderer` | Interface | Framework-agnostic base for the props passed to every render function. |  |
 | [`buildRenderProps`](https://mearman.github.io/schema-components/functions/core_renderer.buildRenderProps.html) | `core/renderer` | Function | Build the `RenderProps` object handed to a resolver render function or a widget. |  |
 | [`ComponentResolver`](https://mearman.github.io/schema-components/interfaces/core_renderer.ComponentResolver.html) | `core/renderer` | Interface | Theme adapter — maps every schema field type to its React renderer. |  |
 | [`getHtmlRenderFn`](https://mearman.github.io/schema-components/functions/core_renderer.getHtmlRenderFn.html) | `core/renderer` | Function | Look up the render function for a schema type in an HtmlResolver. |  |
@@ -301,7 +302,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`HtmlResolver`](https://mearman.github.io/schema-components/interfaces/core_renderer.HtmlResolver.html) | `core/renderer` | Interface | HTML resolver — maps schema types to HTML string renderers. | [HTML Rendering/Custom Resolver](https://mearman.github.io/schema-components/storybook/?path=/docs/html-rendering-custom-resolver--docs) |
 | [`mergeHtmlResolvers`](https://mearman.github.io/schema-components/functions/core_renderer.mergeHtmlResolvers.html) | `core/renderer` | Function | Merge two HtmlResolvers — user values take priority, fallback fills gaps. |  |
 | [`mergeResolvers`](https://mearman.github.io/schema-components/functions/core_renderer.mergeResolvers.html) | `core/renderer` | Function | Merge two ComponentResolvers — user values take priority, fallback fills gaps. |  |
-| [`RenderFunction`](https://mearman.github.io/schema-components/types/core_renderer.RenderFunction.html) | `core/renderer` | Type | Signature for a React render function attached to a ComponentResolver. |  |
+| [`RenderFunction`](https://mearman.github.io/schema-components/types/core_renderer.RenderFunction.html) | `core/renderer` | Type | Generic render-function signature parameterised over the output type (`Output`) and the per-framework props shape (`Props`). |  |
 | [`RenderProps`](https://mearman.github.io/schema-components/interfaces/core_renderer.RenderProps.html) | `core/renderer` | Interface | Props for React render functions. |  |
 | [`RESOLVER_KEYS`](https://mearman.github.io/schema-components/variables/core_renderer.RESOLVER_KEYS.html) | `core/renderer` | Variable | Canonical list of resolver keys, one per WalkedField variant. |  |
 | [`typeToKey`](https://mearman.github.io/schema-components/functions/core_renderer.typeToKey.html) | `core/renderer` | Function | Map a schema type to the resolver key that handles it. |  |

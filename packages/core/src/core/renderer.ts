@@ -1,13 +1,19 @@
 /**
- * Component resolver interfaces — shared between React and HTML renderers.
+ * Component resolver interfaces — shared between React, HTML, and
+ * future framework adapters (Vue, Solid, Svelte, Preact, Lit).
  *
- * `BaseFieldProps` defines the properties every render function receives,
- * regardless of output format. `RenderProps` and `HtmlRenderProps` extend it
- * with their respective `renderChild` signatures and (for React) `onChange`.
+ * `BaseFieldProps` defines the data properties every render function
+ * receives, regardless of output format. `BaseRenderProps<Output>` adds a
+ * framework-agnostic `renderChild` returning `Output`. Per-framework
+ * variants (`RenderProps` for React, `HtmlRenderProps` for HTML) extend
+ * `BaseRenderProps` with the framework-specific bits — `onChange` for
+ * editable React, the narrower three-argument `renderChild` for HTML —
+ * so a new adapter can layer its own props on top of the same base.
  *
- * Per-type schema data (enum values, object fields, array element schema,
- * union options, etc.) is read directly from the discriminated `tree` —
- * renderers narrow on `tree.type` and access the matching variant.
+ * Per-type schema data (enum values, object fields, array element
+ * schema, union options, etc.) is read directly from the discriminated
+ * `tree` — renderers narrow on `tree.type` and access the matching
+ * variant.
  */
 
 import type {
@@ -69,15 +75,53 @@ export interface BaseFieldProps {
 }
 
 // ---------------------------------------------------------------------------
+// Generic render props — shared between React, HTML, and future adapters
+// ---------------------------------------------------------------------------
+
+/**
+ * Framework-agnostic base for the props passed to every render
+ * function. Extends {@link BaseFieldProps} with a `renderChild`
+ * callable whose return type is parameterised over `Output` — the type
+ * the framework adapter emits per field (typically `unknown` /
+ * `ReactNode` for React, `string` for HTML, framework-specific for
+ * future Vue / Solid / Svelte / Lit adapters).
+ *
+ * The base `renderChild` is declared with a `...args: never[]` rest
+ * parameter so derived adapter interfaces can override it with a
+ * richer signature carrying extra required arguments (React's
+ * `onChange`, HTML's `pathSuffix`, etc.). The `never[]` rest makes the
+ * base callable signature the bottom of the function-subtype lattice:
+ * every adapter's concrete `renderChild` is assignable to it because
+ * `never` accepts any parameter type contravariantly. The base
+ * therefore documents the shared shape — "given a `WalkedField` and a
+ * value, produce an `Output`" — without preventing adapters from
+ * adding required parameters.
+ *
+ * @typeParam Output - The type the framework adapter emits per field
+ *   (e.g. `ReactNode` / `unknown` for React, `string` for HTML).
+ */
+export interface BaseRenderProps<Output = unknown> extends BaseFieldProps {
+    /**
+     * Render a child field. Theme adapters call this to recursively
+     * render nested structures (object fields, array elements, union
+     * options). Each adapter narrows the signature in its specialised
+     * variant ({@link RenderProps}, {@link HtmlRenderProps}, …) to
+     * match its native rendering primitives.
+     */
+    renderChild: (...args: never[]) => Output;
+}
+
+// ---------------------------------------------------------------------------
 // React render props
 // ---------------------------------------------------------------------------
 
 /**
- * Props for React render functions. Extends BaseFieldProps with:
+ * Props for React render functions. Extends {@link BaseRenderProps} with:
  * - `onChange` — callback to propagate value changes back to state
- * - `renderChild` — recursively renders a child field, threading onChange
+ * - `renderChild` — recursively renders a child field, threading
+ *   `onChange` through the four-argument React signature
  */
-export interface RenderProps extends BaseFieldProps {
+export interface RenderProps extends BaseRenderProps {
     /** Callback to update the field value. */
     onChange: (value: unknown) => void;
     /**
@@ -107,12 +151,11 @@ export interface RenderProps extends BaseFieldProps {
 // ---------------------------------------------------------------------------
 
 /**
- * Props for HTML render functions. Extends BaseFieldProps with:
- * - `renderChild` — recursively renders a child field to HTML string
- *
- * No `onChange` — HTML rendering is pure output with no event handling.
+ * Props for HTML render functions. Extends {@link BaseRenderProps} with
+ * a narrower three-argument `renderChild` and no `onChange` — HTML
+ * rendering is pure output with no event handling.
  */
-export interface HtmlRenderProps extends BaseFieldProps {
+export interface HtmlRenderProps extends BaseRenderProps<string> {
     /**
      * Render a child field to an HTML string. Theme adapters call this
      * to recursively render nested structures.
@@ -180,11 +223,23 @@ export function buildRenderProps(
 // ---------------------------------------------------------------------------
 
 /**
- * Signature for a React render function attached to a
- * {@link ComponentResolver}. Receives the per-field {@link RenderProps}
- * built by the walker and returns any ReactNode-compatible value.
+ * Generic render-function signature parameterised over the output type
+ * (`Output`) and the per-framework props shape (`Props`).
+ *
+ * The React adapter uses {@link RenderProps} with `unknown` output — see
+ * the default specialisation below — and the HTML adapter uses
+ * {@link HtmlRenderFunction} (an alias for
+ * `RenderFunction\<string, HtmlRenderProps\>`). Future framework
+ * adapters (Vue, Solid, Svelte, Lit) pick their own pairing.
+ *
+ * The default `Output = unknown, Props = RenderProps` keeps the historic
+ * React-flavoured signature compatible — any caller writing
+ * `RenderFunction` without type arguments gets exactly the previous
+ * `(props: RenderProps) =\> unknown` shape.
  */
-export type RenderFunction = (props: RenderProps) => unknown;
+export type RenderFunction<Output = unknown, Props = RenderProps> = (
+    props: Props
+) => Output;
 
 /**
  * Widget map — maps component hints (from `.meta({ component })`) to render
@@ -233,8 +288,12 @@ export interface ComponentResolver {
 // HtmlResolver — the HTML theme adapter interface
 // ---------------------------------------------------------------------------
 
-/** An HTML render function returns a string. */
-export type HtmlRenderFunction = (props: HtmlRenderProps) => string;
+/**
+ * An HTML render function returns a string. Specialisation of the
+ * generic {@link RenderFunction} signature with `Output = string` and
+ * `Props = HtmlRenderProps`.
+ */
+export type HtmlRenderFunction = RenderFunction<string, HtmlRenderProps>;
 
 /**
  * HTML resolver — maps schema types to HTML string renderers.
