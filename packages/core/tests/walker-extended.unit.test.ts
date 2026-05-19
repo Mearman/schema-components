@@ -258,8 +258,9 @@ describe("walk — examples", () => {
 
 describe("OpenAPI parser extensions", () => {
     it("extracts externalDocs from a schema", async () => {
-        const { getExternalDocs } = await import("../src/openapi/parser.ts");
-        const docs = getExternalDocs({
+        const { extractExternalDocs } =
+            await import("../src/openapi/parser.ts");
+        const docs = extractExternalDocs({
             externalDocs: {
                 url: "https://example.com/docs",
                 description: "API docs",
@@ -272,14 +273,15 @@ describe("OpenAPI parser extensions", () => {
     });
 
     it("returns undefined for missing externalDocs", async () => {
-        const { getExternalDocs } = await import("../src/openapi/parser.ts");
-        const docs = getExternalDocs({});
+        const { extractExternalDocs } =
+            await import("../src/openapi/parser.ts");
+        const docs = extractExternalDocs({});
         expect(docs).toBeUndefined();
     });
 
     it("extracts XML info from a schema", async () => {
-        const { getXmlInfo } = await import("../src/openapi/parser.ts");
-        const xml = getXmlInfo({
+        const { extractXmlInfo } = await import("../src/openapi/parser.ts");
+        const xml = extractXmlInfo({
             xml: {
                 name: "Pet",
                 namespace: "https://example.com",
@@ -298,8 +300,8 @@ describe("OpenAPI parser extensions", () => {
     });
 
     it("returns undefined for missing XML info", async () => {
-        const { getXmlInfo } = await import("../src/openapi/parser.ts");
-        const xml = getXmlInfo({});
+        const { extractXmlInfo } = await import("../src/openapi/parser.ts");
+        const xml = extractXmlInfo({});
         expect(xml).toBeUndefined();
     });
 
@@ -347,7 +349,7 @@ describe("OpenAPI parser extensions", () => {
     });
 
     it("lists links from a response", async () => {
-        const { parseOpenApiDocument, getLinks } =
+        const { parseOpenApiDocument, extractLinks } =
             await import("../src/openapi/parser.ts");
         const doc = {
             openapi: "3.0.3",
@@ -374,7 +376,7 @@ describe("OpenAPI parser extensions", () => {
             },
         };
         const parsed = parseOpenApiDocument(doc);
-        const links = getLinks(parsed, "/users", "post", "201");
+        const links = extractLinks(parsed, "/users", "post", "201");
         expect(links.length).toBe(1);
         expect(links[0]?.name).toBe("GetUserById");
         expect(links[0]?.operationId).toBe("getUser");
@@ -382,7 +384,7 @@ describe("OpenAPI parser extensions", () => {
     });
 
     it("returns empty arrays for missing callbacks and links", async () => {
-        const { parseOpenApiDocument, listCallbacks, getLinks } =
+        const { parseOpenApiDocument, listCallbacks, extractLinks } =
             await import("../src/openapi/parser.ts");
         const doc = {
             openapi: "3.0.3",
@@ -398,7 +400,7 @@ describe("OpenAPI parser extensions", () => {
         };
         const parsed = parseOpenApiDocument(doc);
         expect(listCallbacks(parsed, "/items", "get")).toEqual([]);
-        expect(getLinks(parsed, "/items", "get", "200")).toEqual([]);
+        expect(extractLinks(parsed, "/items", "get", "200")).toEqual([]);
     });
 });
 

@@ -23,9 +23,9 @@ import {
     listAllOperations,
     listWebhooks,
     listOperations,
-    getRequestBody,
-    getResponses,
-    getParameters,
+    extractRequestBody,
+    extractResponses,
+    extractParameters,
 } from "../src/openapi/parser.ts";
 import type { Diagnostic, DiagnosticSink } from "../src/core/diagnostics.ts";
 
@@ -199,7 +199,7 @@ describe("Reference Object sibling merge (OAS 3.1)", () => {
 
     it("wrapper description overrides the referenced node on OAS 3.1 requestBody", () => {
         const parsed = parseOpenApiDocument(doc31);
-        const body = getRequestBody(parsed, "/items", "post");
+        const body = extractRequestBody(parsed, "/items", "post");
         expect(body?.description).toBe("Wrapper-level item payload");
         // Non-sibling fields still come from the target — required stays true.
         expect(body?.required).toBe(true);
@@ -207,7 +207,7 @@ describe("Reference Object sibling merge (OAS 3.1)", () => {
 
     it("wrapper description overrides the referenced node on OAS 3.1 response", () => {
         const parsed = parseOpenApiDocument(doc31);
-        const responses = getResponses(parsed, "/items", "post");
+        const responses = extractResponses(parsed, "/items", "post");
         const ok = responses.find((r) => r.statusCode === "200");
         expect(ok?.description).toBe("Wrapper-level OK");
     });
@@ -244,7 +244,7 @@ describe("Reference Object sibling merge (OAS 3.1)", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc30);
-        const body = getRequestBody(parsed, "/items", "post");
+        const body = extractRequestBody(parsed, "/items", "post");
         expect(body?.description).toBe("Component-level");
     });
 });
@@ -282,7 +282,7 @@ describe("extractSchemaFromContent — media-type parameters", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/items", "get");
+        const responses = extractResponses(parsed, "/items", "get");
         expect(responses[0]?.schema).toEqual({
             type: "object",
             properties: { ok: { type: "boolean" } },
@@ -315,7 +315,7 @@ describe("extractSchemaFromContent — media-type parameters", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/items", "get");
+        const responses = extractResponses(parsed, "/items", "get");
         expect(responses[0]?.schema).toEqual({ type: "object" });
     });
 });
@@ -353,7 +353,7 @@ describe("resolveParam — Reference Object chain", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const params = getParameters(parsed, "/items", "get");
+        const params = extractParameters(parsed, "/items", "get");
         expect(params.length).toBe(1);
         expect(params[0]?.name).toBe("limit");
         expect(params[0]?.location).toBe("query");
@@ -380,7 +380,7 @@ describe("resolveParam — Reference Object chain", () => {
 
         const parsed = parseOpenApiDocument(doc);
         const { diagnostics, sink } = collectDiagnostics();
-        const params = getParameters(parsed, "/items", "get", {
+        const params = extractParameters(parsed, "/items", "get", {
             diagnostics: sink,
         });
         expect(params).toEqual([]);
@@ -423,7 +423,7 @@ describe("resolveParam — Reference Object chain", () => {
 
         const parsed = parseOpenApiDocument(doc);
         const { diagnostics, sink } = collectDiagnostics();
-        const params = getParameters(parsed, "/items", "get", {
+        const params = extractParameters(parsed, "/items", "get", {
             diagnostics: sink,
         });
         expect(params).toEqual([]);
@@ -473,7 +473,7 @@ describe("toParameterLocation — unknown `in` value", () => {
 
         const parsed = parseOpenApiDocument(doc);
         const { diagnostics, sink } = collectDiagnostics();
-        const params = getParameters(parsed, "/items", "get", {
+        const params = extractParameters(parsed, "/items", "get", {
             diagnostics: sink,
         });
 
@@ -512,7 +512,7 @@ describe("toParameterLocation — unknown `in` value", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const params = getParameters(parsed, "/items", "get");
+        const params = extractParameters(parsed, "/items", "get");
         expect(params).toEqual([]);
     });
 });

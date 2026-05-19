@@ -9,9 +9,9 @@
 import {
     parseOpenApiDocument,
     listAllOperations,
-    getParameters,
-    getRequestBody,
-    getResponses,
+    extractParameters,
+    extractRequestBody,
+    extractResponses,
     type OpenApiDocument,
     type OperationInfo,
     type ParameterInfo,
@@ -72,7 +72,7 @@ const docCache = new WeakMap<object, CachedParse>();
  * keywords (`nullable`, `discriminator`, `example`), OpenAPI 3.1.x
  * `discriminator`, and Swagger 2.0 documents are all converted to
  * canonical Draft 2020-12 form. The parser and downstream extractors
- * (`getRequestBody`, `getResponses`, etc.) then observe schemas in the
+ * (`extractRequestBody`, `extractResponses`, etc.) then observe schemas in the
  * same form `<SchemaComponent>` does, keeping the OpenAPI components on
  * the same pipeline as the top-level adapter.
  *
@@ -506,8 +506,8 @@ export function resolveOperationFromParsed(
     const pathItemNode = lookupPathItemNode(parsed, path, diagnostics);
 
     // Match against both `paths` and OpenAPI 3.1 `webhooks` — every
-    // downstream accessor (`getParameters`, `getRequestBody`,
-    // `getResponses`) already resolves either through `lookupPathItem`,
+    // downstream accessor (`extractParameters`, `extractRequestBody`,
+    // `extractResponses`) already resolves either through `lookupPathItem`,
     // so a single composed list keeps the failure-mode symmetrical.
     const operations = listAllOperations(parsed);
     const operation = operations.find(
@@ -532,9 +532,9 @@ export function resolveOperationFromParsed(
     return {
         operation,
         pathItem: extractPathItemInfo(pathItemNode),
-        parameters: getParameters(parsed, path, method),
-        requestBody: getRequestBody(parsed, path, method),
-        responses: getResponses(parsed, path, method),
+        parameters: extractParameters(parsed, path, method),
+        requestBody: extractRequestBody(parsed, path, method),
+        responses: extractResponses(parsed, path, method),
     };
 }
 
@@ -568,7 +568,7 @@ export function resolveParametersFromParsed(
     path: string,
     method: string
 ): ParameterInfo[] {
-    return getParameters(parsed, path, method);
+    return extractParameters(parsed, path, method);
 }
 
 /**
@@ -603,7 +603,7 @@ export function resolveRequestBodyFromParsed(
     path: string,
     method: string
 ): RequestBodyInfo | undefined {
-    return getRequestBody(parsed, path, method);
+    return extractRequestBody(parsed, path, method);
 }
 
 /**
@@ -639,7 +639,7 @@ export function resolveResponseFromParsed(
     method: string,
     statusCode: string
 ): ResponseInfo {
-    const responses = getResponses(parsed, path, method);
+    const responses = extractResponses(parsed, path, method);
     const response = responses.find((r) => r.statusCode === statusCode);
 
     if (response === undefined) {
@@ -683,5 +683,5 @@ export function resolveResponses(
     diagnostics?: DiagnosticsOptions
 ): ResponseInfo[] {
     const parsed = getParsed(doc, diagnostics);
-    return getResponses(parsed, path, method);
+    return extractResponses(parsed, path, method);
 }

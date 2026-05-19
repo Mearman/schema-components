@@ -11,14 +11,16 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseOpenApiDocument, getSchema } from "../src/openapi/parser.ts";
+import { parseOpenApiDocument, extractSchema } from "../src/openapi/parser.ts";
 import { bundleOpenApiDoc } from "../src/openapi/bundle.ts";
 import type { BundleResolver } from "../src/openapi/bundle.ts";
 import { dereference } from "../src/core/ref.ts";
 import { resolveOperation } from "../src/openapi/resolve.ts";
 import { isObject } from "../src/core/guards.ts";
 
-function getSchemasMap(doc: Record<string, unknown>): Record<string, unknown> {
+function extractSchemasMap(
+    doc: Record<string, unknown>
+): Record<string, unknown> {
     const components = doc.components;
     if (!isObject(components)) return {};
     const schemas = components.schemas;
@@ -33,7 +35,7 @@ function getRefString(value: unknown): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// parser.ts — resolveRefInDoc via getSchema
+// parser.ts — resolveRefInDoc via extractSchema
 // ---------------------------------------------------------------------------
 
 describe("parser resolveRefInDoc — prototype pollution refusal", () => {
@@ -44,7 +46,7 @@ describe("parser resolveRefInDoc — prototype pollution refusal", () => {
             paths: {},
         };
         const parsed = parseOpenApiDocument(doc);
-        const resolved = getSchema(parsed, "#/__proto__/polluted");
+        const resolved = extractSchema(parsed, "#/__proto__/polluted");
         expect(resolved).toBe(undefined);
     });
 
@@ -55,7 +57,7 @@ describe("parser resolveRefInDoc — prototype pollution refusal", () => {
             paths: {},
         };
         const parsed = parseOpenApiDocument(doc);
-        const resolved = getSchema(parsed, "#/constructor/prototype");
+        const resolved = extractSchema(parsed, "#/constructor/prototype");
         expect(resolved).toBe(undefined);
     });
 
@@ -66,7 +68,7 @@ describe("parser resolveRefInDoc — prototype pollution refusal", () => {
             paths: {},
         };
         const parsed = parseOpenApiDocument(doc);
-        const resolved = getSchema(parsed, "#/prototype");
+        const resolved = extractSchema(parsed, "#/prototype");
         expect(resolved).toBe(undefined);
     });
 
@@ -77,7 +79,7 @@ describe("parser resolveRefInDoc — prototype pollution refusal", () => {
             paths: {},
         };
         const parsed = parseOpenApiDocument(doc);
-        const resolved = getSchema(parsed, "#/__proto__");
+        const resolved = extractSchema(parsed, "#/__proto__");
         // The result must not be the global Object prototype object — a
         // truthy return here would let an attacker mutate every plain
         // object reachable from the resolved schema.
@@ -111,7 +113,7 @@ describe("bundle resolveFragment — prototype pollution refusal", () => {
         const bundled = await bundleOpenApiDoc(docWithDangerousRef, resolver);
         // The original ref is left untouched because the fragment did not
         // resolve to a usable schema — no inlined entry should appear.
-        const schemas = getSchemasMap(bundled);
+        const schemas = extractSchemasMap(bundled);
         // Only the original `Polluted` entry should be present — no
         // additional inlined entry sourced from `__proto__`.
         expect(Object.keys(schemas)).toStrictEqual(["Polluted"]);

@@ -15,9 +15,9 @@ import { normaliseOpenApiSchemas } from "../src/core/normalise.ts";
 import { detectOpenApiVersion } from "../src/core/version.ts";
 import {
     parseOpenApiDocument,
-    getSecurityRequirements,
-    getRequestBody,
-    getResponses,
+    extractSecurityRequirements,
+    extractRequestBody,
+    extractResponses,
 } from "../src/openapi/parser.ts";
 import type { JsonObject } from "../src/core/types.ts";
 import type { Diagnostic } from "../src/core/diagnostics.ts";
@@ -633,7 +633,11 @@ describe("Swagger 2.0 top-level security", () => {
         expect(normalised.security).toStrictEqual([{ apiKey: [] }]);
 
         const parsed = parseOpenApiDocument(normalised);
-        const requirements = getSecurityRequirements(parsed, "/items", "get");
+        const requirements = extractSecurityRequirements(
+            parsed,
+            "/items",
+            "get"
+        );
 
         expect(requirements).toStrictEqual([{ name: "apiKey", scopes: [] }]);
     });
@@ -666,7 +670,11 @@ describe("Swagger 2.0 top-level security", () => {
         const version = assertDefined(detectOpenApiVersion(doc), "version");
         const normalised = normaliseOpenApiSchemas(doc, version);
         const parsed = parseOpenApiDocument(normalised);
-        const requirements = getSecurityRequirements(parsed, "/secret", "get");
+        const requirements = extractSecurityRequirements(
+            parsed,
+            "/secret",
+            "get"
+        );
 
         expect(requirements).toStrictEqual([
             { name: "oauth", scopes: ["read"] },
@@ -691,9 +699,9 @@ describe("Swagger 2.0 top-level security", () => {
         expect("security" in normalised).toBe(false);
 
         const parsed = parseOpenApiDocument(normalised);
-        expect(getSecurityRequirements(parsed, "/open", "get")).toStrictEqual(
-            []
-        );
+        expect(
+            extractSecurityRequirements(parsed, "/open", "get")
+        ).toStrictEqual([]);
     });
 });
 
@@ -762,7 +770,7 @@ describe("Swagger 2.0 components.parameters deep normalisation", () => {
         // The operation already inlines the body, so the parser should also
         // surface a request body for the operation.
         const parsed = parseOpenApiDocument(normalised);
-        const opBody = getRequestBody(parsed, "/items", "post");
+        const opBody = extractRequestBody(parsed, "/items", "post");
         expect(opBody).toBeDefined();
         if (opBody === undefined) throw new Error("operation body missing");
         expect(opBody.required).toBe(true);
@@ -882,7 +890,7 @@ describe("Swagger 2.0 components.responses deep normalisation", () => {
 
         // The parser should surface the response for the operation.
         const parsed = parseOpenApiDocument(normalised);
-        const responses = getResponses(parsed, "/items/{id}", "get");
+        const responses = extractResponses(parsed, "/items/{id}", "get");
         const fourOhFour = assertDefined(
             responses.find((r) => r.statusCode === "404"),
             "404 response"

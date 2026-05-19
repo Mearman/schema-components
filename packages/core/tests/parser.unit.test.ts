@@ -9,11 +9,11 @@ import { describe, it, expect } from "vitest";
 import { assertDefined } from "./helpers.ts";
 import {
     parseOpenApiDocument,
-    getSchema,
+    extractSchema,
     listOperations,
-    getParameters,
-    getRequestBody,
-    getResponses,
+    extractParameters,
+    extractRequestBody,
+    extractResponses,
 } from "../src/openapi/parser.ts";
 
 // ---------------------------------------------------------------------------
@@ -162,27 +162,27 @@ describe("parseOpenApiDocument", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getSchema
+// extractSchema
 // ---------------------------------------------------------------------------
 
-describe("getSchema", () => {
+describe("extractSchema", () => {
     it("resolves a cached component schema", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const schema = getSchema(parsed, "#/components/schemas/Pet");
+        const schema = extractSchema(parsed, "#/components/schemas/Pet");
         expect(schema?.type).toBe("object");
     });
 
     it("returns undefined for unknown ref", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const schema = getSchema(parsed, "#/components/schemas/Unknown");
+        const schema = extractSchema(parsed, "#/components/schemas/Unknown");
         expect(schema).toBe(undefined);
     });
 
     it("caches on first resolve", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const schema = getSchema(parsed, "#/paths/~1pets/get");
+        const schema = extractSchema(parsed, "#/paths/~1pets/get");
         expect(schema).toBeTruthy();
-        const cached = getSchema(parsed, "#/paths/~1pets/get");
+        const cached = extractSchema(parsed, "#/paths/~1pets/get");
         expect(schema).toBe(cached);
     });
 });
@@ -227,13 +227,13 @@ describe("listOperations", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getParameters
+// extractParameters
 // ---------------------------------------------------------------------------
 
-describe("getParameters", () => {
+describe("extractParameters", () => {
     it("extracts query parameters", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const params = getParameters(parsed, "/pets", "get");
+        const params = extractParameters(parsed, "/pets", "get");
         expect(params.length).toBe(2);
 
         const limit = assertDefined(
@@ -251,7 +251,7 @@ describe("getParameters", () => {
 
     it("extracts path parameters", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const params = getParameters(parsed, "/pets/{petId}", "get");
+        const params = extractParameters(parsed, "/pets/{petId}", "get");
         expect(params.length).toBe(1);
 
         const petId = assertDefined(params[0], "petId");
@@ -288,7 +288,7 @@ describe("getParameters", () => {
             },
         };
         const parsed = parseOpenApiDocument(doc);
-        const params = getParameters(parsed, "/items/{itemId}", "get");
+        const params = extractParameters(parsed, "/items/{itemId}", "get");
         expect(params.length).toBe(2);
         const names = params.map((p) => p.name);
         expect(names.includes("itemId")).toBeTruthy();
@@ -323,7 +323,7 @@ describe("getParameters", () => {
             },
         };
         const parsed = parseOpenApiDocument(doc);
-        const params = getParameters(parsed, "/items", "get");
+        const params = extractParameters(parsed, "/items", "get");
         expect(params.length).toBe(1);
 
         const sort = assertDefined(params[0], "sort");
@@ -333,20 +333,20 @@ describe("getParameters", () => {
 
     it("returns empty for unknown operation", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const params = getParameters(parsed, "/pets", "delete");
+        const params = extractParameters(parsed, "/pets", "delete");
         expect(params.length).toBe(0);
     });
 });
 
 // ---------------------------------------------------------------------------
-// getRequestBody
+// extractRequestBody
 // ---------------------------------------------------------------------------
 
-describe("getRequestBody", () => {
+describe("extractRequestBody", () => {
     it("extracts request body schema", () => {
         const parsed = parseOpenApiDocument(petStore);
         const body = assertDefined(
-            getRequestBody(parsed, "/pets", "post"),
+            extractRequestBody(parsed, "/pets", "post"),
             "body"
         );
         expect(body).toBeTruthy();
@@ -362,7 +362,7 @@ describe("getRequestBody", () => {
     it("lists content types", () => {
         const parsed = parseOpenApiDocument(petStore);
         const body = assertDefined(
-            getRequestBody(parsed, "/pets", "post"),
+            extractRequestBody(parsed, "/pets", "post"),
             "body"
         );
         expect(body).toBeTruthy();
@@ -371,7 +371,7 @@ describe("getRequestBody", () => {
 
     it("returns undefined for operation without request body", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const body = getRequestBody(parsed, "/pets", "get");
+        const body = extractRequestBody(parsed, "/pets", "get");
         expect(body).toBe(undefined);
     });
 
@@ -389,7 +389,7 @@ describe("getRequestBody", () => {
         };
         const parsed = parseOpenApiDocument(doc);
         const body = assertDefined(
-            getRequestBody(parsed, "/test", "post"),
+            extractRequestBody(parsed, "/test", "post"),
             "body"
         );
         expect(body).toBeTruthy();
@@ -400,13 +400,13 @@ describe("getRequestBody", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getResponses
+// extractResponses
 // ---------------------------------------------------------------------------
 
-describe("getResponses", () => {
+describe("extractResponses", () => {
     it("extracts response schemas", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const responses = getResponses(parsed, "/pets", "get");
+        const responses = extractResponses(parsed, "/pets", "get");
         expect(responses.length).toBe(1);
 
         const ok = assertDefined(responses[0], "ok");
@@ -421,7 +421,7 @@ describe("getResponses", () => {
 
     it("lists content types for each response", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const responses = getResponses(parsed, "/pets", "get");
+        const responses = extractResponses(parsed, "/pets", "get");
 
         const ok = assertDefined(responses[0], "ok");
         expect(ok).toBeTruthy();
@@ -430,7 +430,7 @@ describe("getResponses", () => {
 
     it("handles responses without content (no schema)", () => {
         const parsed = parseOpenApiDocument(petStore);
-        const responses = getResponses(parsed, "/pets/{petId}", "get");
+        const responses = extractResponses(parsed, "/pets/{petId}", "get");
 
         const notFound = assertDefined(
             responses.find((r) => r.statusCode === "404"),
@@ -453,7 +453,7 @@ describe("getResponses", () => {
             },
         };
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/test", "get");
+        const responses = extractResponses(parsed, "/test", "get");
         expect(responses.length).toBe(0);
     });
 });
@@ -495,7 +495,7 @@ describe("$ref resolution", () => {
             },
         };
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/users", "get");
+        const responses = extractResponses(parsed, "/users", "get");
 
         const ok = assertDefined(responses[0], "ok");
         expect(ok).toBeTruthy();

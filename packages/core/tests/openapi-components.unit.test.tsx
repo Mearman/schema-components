@@ -630,16 +630,16 @@ describe("ApiResponse", () => {
         ).toThrow("Response not found");
     });
 
-    it("propagates errors from getLinks instead of silently swallowing them", () => {
+    it("propagates errors from extractLinks instead of silently swallowing them", () => {
         // A link whose `parameters` member is a getter that throws. The
-        // previous implementation wrapped the `getLinks` call in a bare
+        // previous implementation wrapped the `extractLinks` call in a bare
         // `try/catch` that silenced any exception — masking real bugs.
         // Removing the catch means this synthetic failure must surface.
         //
         // Using `parameters` (rather than `links` itself) localises the
-        // throw inside `getLinks`: the surrounding normalisation pipeline
+        // throw inside `extractLinks`: the surrounding normalisation pipeline
         // only shallow-copies the response and never descends into the
-        // links map, so the getter only fires when `getLinks` iterates
+        // links map, so the getter only fires when `extractLinks` iterates
         // each link.
         const linksError = new Error("synthetic links lookup failure");
         const malformedLink: Record<string, unknown> = {

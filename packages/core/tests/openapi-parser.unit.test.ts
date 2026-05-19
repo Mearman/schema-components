@@ -5,13 +5,13 @@
 import { describe, it, expect } from "vitest";
 import {
     parseOpenApiDocument,
-    getSecurityRequirements,
-    getSecuritySchemes,
-    getResponseHeaders,
+    extractSecurityRequirements,
+    extractSecuritySchemes,
+    extractResponseHeaders,
     listWebhooks,
-    getResponses,
-    getRequestBody,
-    getParameters,
+    extractResponses,
+    extractRequestBody,
+    extractParameters,
     listOperations,
 } from "../src/openapi/parser.ts";
 
@@ -66,17 +66,17 @@ describe("security requirements", () => {
     const parsed = parseOpenApiDocument(doc);
 
     it("returns global security for operations without explicit security", () => {
-        const reqs = getSecurityRequirements(parsed, "/private", "get");
+        const reqs = extractSecurityRequirements(parsed, "/private", "get");
         expect(reqs).toEqual([{ name: "apiKey", scopes: [] }]);
     });
 
     it("returns empty array for operations with empty security override", () => {
-        const reqs = getSecurityRequirements(parsed, "/public", "get");
+        const reqs = extractSecurityRequirements(parsed, "/public", "get");
         expect(reqs).toEqual([]);
     });
 
     it("returns operation-level security with multiple requirements", () => {
-        const reqs = getSecurityRequirements(parsed, "/admin", "post");
+        const reqs = extractSecurityRequirements(parsed, "/admin", "post");
         expect(reqs).toEqual([
             { name: "oauth", scopes: ["admin"] },
             { name: "apiKey", scopes: [] },
@@ -121,12 +121,12 @@ describe("security schemes", () => {
     const parsed = parseOpenApiDocument(doc);
 
     it("extracts all security schemes", () => {
-        const schemes = getSecuritySchemes(parsed);
+        const schemes = extractSecuritySchemes(parsed);
         expect(schemes.size).toBe(3);
     });
 
     it("extracts http bearer scheme details", () => {
-        const schemes = getSecuritySchemes(parsed);
+        const schemes = extractSecuritySchemes(parsed);
         const bearer = schemes.get("bearer");
         expect(bearer).toEqual({
             type: "http",
@@ -141,14 +141,14 @@ describe("security schemes", () => {
     });
 
     it("extracts oauth2 scheme with flows", () => {
-        const schemes = getSecuritySchemes(parsed);
+        const schemes = extractSecuritySchemes(parsed);
         const oauth = schemes.get("oauth");
         expect(oauth?.type).toBe("oauth2");
         expect(oauth?.flows).toBeDefined();
     });
 
     it("extracts openIdConnect scheme", () => {
-        const schemes = getSecuritySchemes(parsed);
+        const schemes = extractSecuritySchemes(parsed);
         const oidc = schemes.get("oidc");
         expect(oidc?.type).toBe("openIdConnect");
         expect(oidc?.openIdConnectUrl).toBe(
@@ -163,7 +163,7 @@ describe("security schemes", () => {
             paths: {},
         } as Record<string, unknown>;
         const parsed = parseOpenApiDocument(noSchemesDoc);
-        const schemes = getSecuritySchemes(parsed);
+        const schemes = extractSecuritySchemes(parsed);
         expect(schemes.size).toBe(0);
     });
 
@@ -181,7 +181,7 @@ describe("security schemes", () => {
             },
         } as Record<string, unknown>;
         const parsed = parseOpenApiDocument(doc);
-        const schemes = getSecuritySchemes(parsed);
+        const schemes = extractSecuritySchemes(parsed);
         const untyped = schemes.get("untyped");
         expect(untyped?.type).toBeUndefined();
         expect(untyped?.description).toBe("Scheme with no type field");
@@ -209,7 +209,7 @@ describe("response headers", () => {
             },
         } as Record<string, unknown>;
 
-        const headers = getResponseHeaders(response);
+        const headers = extractResponseHeaders(response);
         expect(headers.size).toBe(2);
 
         const rateLimit = headers.get("X-Rate-Limit");
@@ -224,11 +224,11 @@ describe("response headers", () => {
         const response = {
             description: "Success",
         } as Record<string, unknown>;
-        const headers = getResponseHeaders(response);
+        const headers = extractResponseHeaders(response);
         expect(headers.size).toBe(0);
     });
 
-    it("includes response headers in getResponses", () => {
+    it("includes response headers in extractResponses", () => {
         const doc = {
             openapi: "3.1.0",
             info: { title: "Test", version: "1.0" },
@@ -256,7 +256,7 @@ describe("response headers", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/data", "get");
+        const responses = extractResponses(parsed, "/data", "get");
         expect(responses.length).toBe(1);
         expect(responses[0]?.headers.size).toBe(1);
         expect(responses[0]?.headers.has("X-Total")).toBe(true);
@@ -348,7 +348,7 @@ describe("webhooks", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const body = getRequestBody(parsed, "orderCreated", "post");
+        const body = extractRequestBody(parsed, "orderCreated", "post");
         expect(body?.required).toBe(true);
         expect(body?.schema).toEqual({
             type: "object",
@@ -356,7 +356,7 @@ describe("webhooks", () => {
             required: ["orderId"],
         });
 
-        const responses = getResponses(parsed, "orderCreated", "post");
+        const responses = extractResponses(parsed, "orderCreated", "post");
         expect(responses.length).toBe(1);
         expect(responses[0]?.statusCode).toBe("200");
         expect(responses[0]?.description).toBe("Acknowledged");
@@ -386,9 +386,9 @@ describe("parser edge cases", () => {
         } as Record<string, unknown>;
         const parsed = parseOpenApiDocument(doc);
         expect(listOperations(parsed)).toEqual([]);
-        expect(getParameters(parsed, "/test", "get")).toEqual([]);
-        expect(getResponses(parsed, "/test", "get")).toEqual([]);
-        expect(getRequestBody(parsed, "/test", "get")).toBeUndefined();
+        expect(extractParameters(parsed, "/test", "get")).toEqual([]);
+        expect(extractResponses(parsed, "/test", "get")).toEqual([]);
+        expect(extractRequestBody(parsed, "/test", "get")).toBeUndefined();
     });
 
     it("handles operation without responses", () => {
@@ -400,7 +400,7 @@ describe("parser edge cases", () => {
             },
         } as Record<string, unknown>;
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/test", "get");
+        const responses = extractResponses(parsed, "/test", "get");
         expect(responses).toEqual([]);
     });
 
@@ -419,7 +419,7 @@ describe("parser edge cases", () => {
             },
         } as Record<string, unknown>;
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/test", "delete");
+        const responses = extractResponses(parsed, "/test", "delete");
         expect(responses.length).toBe(1);
         expect(responses[0]?.schema).toBeUndefined();
         expect(responses[0]?.contentTypes).toEqual([]);
@@ -489,14 +489,14 @@ describe("parser edge cases", () => {
                 ?.operationId
         ).toBe("listWidgets");
 
-        const responses = getResponses(parsed, "/widgets", "get");
+        const responses = extractResponses(parsed, "/widgets", "get");
         expect(responses.length).toBe(1);
         expect(responses[0]?.schema).toEqual({
             type: "array",
             items: { type: "string" },
         });
 
-        const params = getParameters(parsed, "/widgets/{id}", "get");
+        const params = extractParameters(parsed, "/widgets/{id}", "get");
         expect(params.length).toBe(1);
         expect(params[0]?.name).toBe("id");
         expect(params[0]?.location).toBe("path");
@@ -551,7 +551,7 @@ describe("parser edge cases", () => {
         expect(trace?.deprecated).toBe(true);
     });
 
-    it("returns responses for a HEAD operation via getResponses", () => {
+    it("returns responses for a HEAD operation via extractResponses", () => {
         const doc = {
             openapi: "3.1.0",
             info: { title: "Test", version: "1.0" },
@@ -574,7 +574,7 @@ describe("parser edge cases", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/foo", "head");
+        const responses = extractResponses(parsed, "/foo", "head");
 
         expect(responses.length).toBe(2);
         const ok = responses.find((r) => r.statusCode === "200");
@@ -624,7 +624,7 @@ describe("parser edge cases", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/items", "get");
+        const responses = extractResponses(parsed, "/items", "get");
         expect(responses.length).toBe(2);
 
         const ok = responses.find((r) => r.statusCode === "200");
@@ -677,7 +677,7 @@ describe("parser edge cases", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const body = getRequestBody(parsed, "/items", "post");
+        const body = extractRequestBody(parsed, "/items", "post");
         expect(body).toBeDefined();
         expect(body?.required).toBe(true);
         expect(body?.description).toBe("Item payload");
@@ -691,7 +691,7 @@ describe("parser edge cases", () => {
 
     it("prefers application/*+json variants over non-JSON content (RFC 6839)", () => {
         // OAS frequently expresses errors with `application/problem+json`
-        // (RFC 7807). Without `+json` matching, `getResponses` would fall
+        // (RFC 7807). Without `+json` matching, `extractResponses` would fall
         // through to "first available" — which in this document is
         // `application/xml`. Confirm the +json variant wins.
         const doc = {
@@ -725,7 +725,7 @@ describe("parser edge cases", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/items", "get");
+        const responses = extractResponses(parsed, "/items", "get");
         expect(responses.length).toBe(1);
         expect(responses[0]?.schema).toEqual({
             type: "object",
@@ -767,7 +767,7 @@ describe("parser edge cases", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const responses = getResponses(parsed, "/items", "get");
+        const responses = extractResponses(parsed, "/items", "get");
         expect(responses[0]?.schema).toEqual({
             type: "object",
             properties: { ok: { type: "boolean" } },
@@ -803,7 +803,7 @@ describe("parser edge cases", () => {
         } as Record<string, unknown>;
 
         const parsed = parseOpenApiDocument(doc);
-        const body = getRequestBody(parsed, "/items", "post");
+        const body = extractRequestBody(parsed, "/items", "post");
         expect(body?.schema).toEqual({
             type: "object",
             properties: { _links: { type: "object" } },
@@ -838,7 +838,7 @@ describe("parser edge cases", () => {
             },
         } as Record<string, unknown>;
         const parsed = parseOpenApiDocument(doc);
-        const body = getRequestBody(parsed, "/upload", "post");
+        const body = extractRequestBody(parsed, "/upload", "post");
         expect(body?.contentTypes).toEqual(["multipart/form-data"]);
         expect(body?.schema).toBeDefined();
     });

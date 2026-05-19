@@ -256,7 +256,7 @@ export function parseOpenApiDocument(doc: JsonObject): OpenApiDocument {
  * resolved value for arbitrary fragment refs), or `undefined` when the
  * ref cannot be resolved.
  */
-export function getSchema(
+export function extractSchema(
     parsed: OpenApiDocument,
     ref: string
 ): JsonObject | undefined {
@@ -328,7 +328,7 @@ function lookupPathItem(
     if (resolved !== undefined) return resolved;
     // OpenAPI 3.1 webhook fallback: identifiers without a leading `/` can
     // address `webhooks/<name>` directly, allowing the same accessors
-    // (getRequestBody, getResponses, etc.) to work for both paths and
+    // (extractRequestBody, extractResponses, etc.) to work for both paths and
     // webhooks.
     const webhooks = getProperty(parsed.doc, "webhooks");
     return resolvePathItem(parsed, getProperty(webhooks, path));
@@ -426,7 +426,7 @@ export function listOperations(
  * parameters with operation-level overrides and following any
  * Parameter Object `$ref` chains.
  */
-export function getParameters(
+export function extractParameters(
     parsed: OpenApiDocument,
     path: string,
     method: string,
@@ -605,7 +605,7 @@ function jsonPointerEscape(segment: string): string {
  * declared content types and schema. Returns `undefined` when the
  * operation declares no request body.
  */
-export function getRequestBody(
+export function extractRequestBody(
     parsed: OpenApiDocument,
     path: string,
     method: string
@@ -652,7 +652,7 @@ export function getRequestBody(
  * {@link ResponseInfo} per declared status code (including class
  * wildcards and `default`).
  */
-export function getResponses(
+export function extractResponses(
     parsed: OpenApiDocument,
     path: string,
     method: string,
@@ -681,7 +681,11 @@ export function getResponses(
         const schema = isObject(content)
             ? extractSchemaFromContent(content)
             : undefined;
-        const headers = getResponseHeaders(response, parsed.doc, diagnostics);
+        const headers = extractResponseHeaders(
+            response,
+            parsed.doc,
+            diagnostics
+        );
 
         result.push({
             statusCode,
@@ -877,7 +881,7 @@ function resolveRefInDoc(doc: JsonObject, ref: string): JsonObject | undefined {
  * Operation-level requirements override the document-level defaults
  * when present.
  */
-export function getSecurityRequirements(
+export function extractSecurityRequirements(
     parsed: OpenApiDocument,
     path: string,
     method: string
@@ -913,7 +917,7 @@ export function getSecurityRequirements(
  * Read the document's `components.securitySchemes` map as a map of
  * scheme names to {@link SecurityScheme} entries.
  */
-export function getSecuritySchemes(
+export function extractSecuritySchemes(
     parsed: OpenApiDocument
 ): Map<string, SecurityScheme> {
     const result = new Map<string, SecurityScheme>();
@@ -948,7 +952,7 @@ export function getSecuritySchemes(
  * header name to {@link HeaderInfo}. Follows Header Object `$ref`
  * chains via the optional document root.
  */
-export function getResponseHeaders(
+export function extractResponseHeaders(
     response: JsonObject,
     doc?: JsonObject,
     diagnostics?: DiagnosticsOptions
@@ -1075,7 +1079,7 @@ export function listAllOperations(
  * (document, operation, tag, schema, ...) into an {@link ExternalDocs}
  * record. Returns `undefined` when absent or malformed.
  */
-export function getExternalDocs(obj: JsonObject): ExternalDocs | undefined {
+export function extractExternalDocs(obj: JsonObject): ExternalDocs | undefined {
     const docs = getProperty(obj, "externalDocs");
     if (!isObject(docs)) return undefined;
     const url = getString(docs, "url");
@@ -1095,7 +1099,7 @@ export function getExternalDocs(obj: JsonObject): ExternalDocs | undefined {
  * {@link XmlInfo} record describing how the field is serialised in an
  * XML payload. Returns `undefined` when absent or malformed.
  */
-export function getXmlInfo(schema: JsonObject): XmlInfo | undefined {
+export function extractXmlInfo(schema: JsonObject): XmlInfo | undefined {
     const xml = getProperty(schema, "xml");
     if (!isObject(xml)) return undefined;
     return {
@@ -1179,7 +1183,7 @@ export function listCallbacks(
  * a single operation, returning each link's parsed
  * {@link LinkInfo} entry.
  */
-export function getLinks(
+export function extractLinks(
     parsed: OpenApiDocument,
     path: string,
     method: string,

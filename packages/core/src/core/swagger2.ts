@@ -309,7 +309,7 @@ export function normaliseSwagger2Document(
     //
     // The XML-namespace metadata Swagger 2.0 attaches to schemas (and the
     // `consumes: ["application/xml"]` annotations operations may carry)
-    // has no renderer surface — `getXmlInfo` exists but no React component
+    // has no renderer surface — `extractXmlInfo` exists but no React component
     // invokes it. Surface this loudly when any subtree carries `xml`
     // markup, regardless of whether it sits in definitions, paths,
     // parameters, or responses.

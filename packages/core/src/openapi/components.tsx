@@ -16,12 +16,12 @@ import { useId, type ReactNode } from "react";
 import type { OperationInfo, ParameterInfo, ResponseInfo } from "./parser.ts";
 import {
     listCallbacks,
-    getSecurityRequirements,
-    getSecuritySchemes,
-    getLinks,
+    extractSecurityRequirements,
+    extractSecuritySchemes,
+    extractLinks,
     listWebhooks,
-    getExternalDocs,
-    getXmlInfo,
+    extractExternalDocs,
+    extractXmlInfo,
     type ExternalDocs,
     type XmlInfo,
 } from "./parser.ts";
@@ -687,14 +687,16 @@ export function ApiOperation<
         method,
         diagnostics
     );
-    const securityReqs = getSecurityRequirements(parsed, path, method);
-    const securitySchemes = getSecuritySchemes(parsed);
+    const securityReqs = extractSecurityRequirements(parsed, path, method);
+    const securitySchemes = extractSecuritySchemes(parsed);
     const callbacks = listCallbacks(parsed, path, method);
 
-    const operationExternalDocs = getExternalDocs(resolved.operation.operation);
+    const operationExternalDocs = extractExternalDocs(
+        resolved.operation.operation
+    );
     const requestBodyXml =
         resolved.requestBody?.schema !== undefined
-            ? getXmlInfo(resolved.requestBody.schema)
+            ? extractXmlInfo(resolved.requestBody.schema)
             : undefined;
 
     return (
@@ -940,7 +942,7 @@ export function ApiRequestBody<
         return null;
     }
 
-    const requestBodyXml = getXmlInfo(requestBody.schema);
+    const requestBodyXml = extractXmlInfo(requestBody.schema);
 
     return (
         <section data-request-body>
@@ -1352,12 +1354,12 @@ function ResponseCard({
     }
 
     // Get links for this response if we have path/method context.
-    // `getLinks` returns `[]` for the no-links case, so any exception
+    // `extractLinks` returns `[]` for the no-links case, so any exception
     // bubbling out is a genuine bug (e.g. malformed parser state) — let it
     // propagate rather than silencing it with an empty array.
     let links: LinkInfo[] = [];
     if (path !== undefined && method !== undefined) {
-        links = getLinks(parsed, path, method, response.statusCode);
+        links = extractLinks(parsed, path, method, response.statusCode);
     }
 
     return (
