@@ -21,6 +21,11 @@ const config: UserConfig = {
                 "docs",
                 // Core modules
                 "react",
+                "preact",
+                "vue",
+                "svelte",
+                "solid",
+                "lit",
                 "themes",
                 "openapi",
                 "html",
