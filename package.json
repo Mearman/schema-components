@@ -12,6 +12,7 @@
         "test:vue": "turbo run _test:vue --filter=schema-components",
         "test:svelte": "turbo run _test:svelte --filter=schema-components",
         "test:solid": "turbo run _test:solid --filter=schema-components",
+        "test:lit": "turbo run _test:lit --filter=schema-components",
         "test:coverage": "turbo run test:coverage --filter=schema-components",
         "test-storybook": "turbo run test-storybook --filter=@schema-components/docs",
         "storybook": "pnpm --filter @schema-components/docs storybook",

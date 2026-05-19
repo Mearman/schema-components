@@ -29,6 +29,7 @@ export default defineConfig({
                 "src/themes/**",
                 "src/svelte/**",
                 "src/solid/**",
+                "src/lit/**",
             ],
         },
         projects: [
@@ -41,14 +42,15 @@ export default defineConfig({
                         "tests/**/*.integration.test.ts",
                     ],
                     // Keep the existing React/HTML/OpenAPI suite running on
-                    // the same default environment. Vue/Svelte/Solid tests run
-                    // in their sibling projects so each framework's compile
+                    // the same default environment. Vue/Svelte/Solid/Lit tests
+                    // run in their sibling projects so each framework's compile
                     // step only fires when actually needed.
                     exclude: [
                         "tests/**/*.vue.unit.test.ts",
                         "tests/svelte/**",
                         "tests/**/*.solid.unit.test.ts",
                         "tests/**/*.solid.unit.test.tsx",
+                        "tests/**/*.lit.unit.test.ts",
                         "node_modules/**",
                     ],
                 },
@@ -100,6 +102,7 @@ export default defineConfig({
                         "tests/svelte/**",
                         "tests/**/*.solid.unit.test.ts",
                         "tests/**/*.solid.unit.test.tsx",
+                        "tests/**/*.lit.unit.test.ts",
                     ],
                     // `@testing-library/react` and `react-dom` ship as CJS
                     // and resolve their React peer via `require("react")`,
@@ -175,6 +178,17 @@ export default defineConfig({
                 },
                 resolve: {
                     conditions: ["development", "browser"],
+                },
+            },
+            {
+                test: {
+                    name: "unit-lit",
+                    include: ["tests/**/*.lit.unit.test.ts"],
+                    // happy-dom has substantially better Custom Element
+                    // support than jsdom, including correctly invoking
+                    // connectedCallback/disconnectedCallback during element
+                    // upgrade — required for Lit's reactive update cycle.
+                    environment: "happy-dom",
                 },
             },
         ],

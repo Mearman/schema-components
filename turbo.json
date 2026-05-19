@@ -54,6 +54,10 @@
             "dependsOn": ["_typecheck"],
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
         },
+        "_test:lit": {
+            "dependsOn": ["_typecheck"],
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
+        },
         "_test:coverage": {
             "dependsOn": ["_typecheck"],
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
@@ -109,6 +113,9 @@
         },
         "test:solid": {
             "dependsOn": ["_test:solid"]
+        },
+        "test:lit": {
+            "dependsOn": ["_test:lit"]
         },
         "test:coverage": {
             "dependsOn": ["_test:coverage"]

@@ -43,6 +43,10 @@
         "./solid/*": {
             "types": "./dist/solid/*.d.mts",
             "import": "./dist/solid/*.mjs"
+        },
+        "./lit/*": {
+            "types": "./dist/lit/*.d.mts",
+            "import": "./dist/lit/*.mjs"
         }
     },
     "files": [
@@ -62,6 +66,7 @@
         "_test:vue": "vitest run --project=unit-vue",
         "_test:svelte": "vitest run --project=unit-svelte",
         "_test:solid": "vitest run --project=unit-solid",
+        "_test:lit": "vitest run --project=unit-lit",
         "_test:coverage": "vitest run --project=unit --coverage",
         "_build": "tsdown && cp src/html/styles.css dist/html/styles.css",
         "_typedoc": "typedoc",
@@ -74,6 +79,7 @@
         "test:preact": "turbo run _test:preact",
         "test:svelte": "turbo run _test:svelte",
         "test:solid": "turbo run _test:solid",
+        "test:lit": "turbo run _test:lit",
         "test:coverage": "turbo run _test:coverage",
         "check": "turbo run _check",
         "validate": "turbo run _validate",
@@ -104,6 +110,7 @@
         "provenance": true
     },
     "peerDependencies": {
+        "lit": ">=3.0.0",
         "preact": ">=10.0.0",
         "react": "^18.0.0 || ^19.0.0",
         "solid-js": ">=1.8.0",
@@ -112,6 +119,9 @@
         "zod": "^4.0.0"
     },
     "peerDependenciesMeta": {
+        "lit": {
+            "optional": true
+        },
         "preact": {
             "optional": true
         },
@@ -127,6 +137,9 @@
     },
     "devDependencies": {
         "@eslint/js": "10.0.1",
+        "@lit-labs/ssr": "4.0.0",
+        "@lit-labs/ssr-client": "1.1.8",
+        "@lit/context": "1.1.6",
         "@solidjs/testing-library": "0.8.10",
         "@sveltejs/vite-plugin-svelte": "7.1.2",
         "@testing-library/react": "16.3.2",
@@ -146,6 +159,7 @@
         "eslint-plugin-prettier": "5.5.5",
         "eslint-plugin-tsdoc": "0.5.2",
         "happy-dom": "20.9.0",
+        "lit": "3.3.2",
         "preact": "10.29.1",
         "preact-render-to-string": "6.6.7",
         "prettier": "3.8.3",
