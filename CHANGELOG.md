@@ -1,3 +1,120 @@
+## [2.0.0](https://github.com/Mearman/schema-components/compare/v1.29.0...v2.0.0) (2026-05-19)
+
+### ⚠ BREAKING CHANGES
+
+* **html:** `fieldId`, `panelId`, and `tabId` are no longer
+exported from `schema-components/html/renderers`. Migrate to
+`fieldDomId`, `panelIdFor`, and `tabIdFor` from
+`schema-components/core/idPath`.
+* **openapi:** the five `resolveXFromParsed` exports are removed.
+Migrate by calling `resolveX(doc, ...)` — either form (raw document or
+parsed) is accepted.
+* **openapi:** the ten parser functions are renamed:
+
+- `getSchema` → `extractSchema`
+- `getParameters` → `extractParameters`
+- `getRequestBody` → `extractRequestBody`
+- `getResponses` → `extractResponses`
+- `getSecurityRequirements` → `extractSecurityRequirements`
+- `getSecuritySchemes` → `extractSecuritySchemes`
+- `getResponseHeaders` → `extractResponseHeaders`
+- `getExternalDocs` → `extractExternalDocs`
+- `getXmlInfo` → `extractXmlInfo`
+- `getLinks` → `extractLinks`
+* **openapi:** `ApiOperationProps` now carries two additional generic
+parameters (`ResponseStatus`, `ResponseContentType`). Consumers that
+referenced `ApiOperationProps<Doc, Path, Method, ContentType>`
+explicitly continue to compile because both new parameters default to
+the union of declared statuses / media types.
+* **core:** `SchemaInput` is no longer exported from
+`schema-components/core/adapter`. Use `unknown` (or the specific shape
+your call site requires) directly.
+* **react:** `<SchemaComponent path>` no longer exists. The third
+generic argument of `SchemaComponentProps` is also removed. Migrate to
+`<SchemaField path="...">` for runtime sub-path rendering.
+* **core:** `ComponentResolver.recursive` and `HtmlResolver.recursive`
+are removed. They had no runtime effect, so any code referencing them
+was already a no-op.
+* **themes:** `registerMuiComponents`, `registerMantineComponents`,
+and `registerRadixComponents` are removed. Call
+`createMuiResolver(...)`, `createMantineResolver(...)`, or
+`createRadixResolver(...)` with the element-type bag and use the
+returned resolver directly.
+* **core:** DEFAULT_REF_CHAIN_MAX_HOPS is no longer exported
+from schema-components/core/refChain. Import MAX_PATH_ITEM_REF_HOPS
+from schema-components/core/limits instead.
+* **core:** WidgetMap is no longer exported from
+schema-components/react/SchemaComponent. Import it from
+schema-components/core/renderer instead.
+
+### Features
+
+* **core:** make `WalkOptions` generic in the schema value type ([12decd9](https://github.com/Mearman/schema-components/commit/12decd98a58cf923167831f30a70f2b2b9aca613))
+* **html:** thread schema-typed generics through HTML render entries ([6ed53a8](https://github.com/Mearman/schema-components/commit/6ed53a8c2f3a26b6a8c986a98591af69df5bfaf6))
+* **openapi:** type `ApiOperation` request/response values ([a424e50](https://github.com/Mearman/schema-components/commit/a424e505360ad42b876b57bedf38c2731086b66f))
+* **react:** plumb ARIA scaffolding through every theme adapter via FieldShell ([bc1fb7b](https://github.com/Mearman/schema-components/commit/bc1fb7bf3038c4b4cfdad01cd1d07e87f340681e))
+* **react:** type `SchemaView.fields` against `InferFields<T, Ref>` ([570fcfd](https://github.com/Mearman/schema-components/commit/570fcfd422a51f4646661a25ab283ea90c6ca8e3))
+
+### Bug Fixes
+
+* **core:** disambiguate DOM ids for non-ASCII field names ([c828e0d](https://github.com/Mearman/schema-components/commit/c828e0de8f21c6eba3ce36089fcfd1f07a0b1da1))
+* **core:** emit diagnostic for duplicate discriminator const values ([82b12ec](https://github.com/Mearman/schema-components/commit/82b12ec830fe24c644e71a6e44ff44ed459c5a65))
+* **core:** emit prototype-polluting-property diagnostic in merge and swagger2 normalisation ([2870017](https://github.com/Mearman/schema-components/commit/28700173f753141c0fbb8c4a025598d19fce3879))
+* **core:** reject control-byte and percent-encoded uri payloads ([04eef81](https://github.com/Mearman/schema-components/commit/04eef819e785bc4b4fb4940c2e3e057aeb2c991a))
+* **core:** render writeOnly + format=password as masked credential input ([7c2ccc1](https://github.com/Mearman/schema-components/commit/7c2ccc163f72f03878a33fc96a97e5c447af59cb))
+* **core:** wire inputmode and step on number inputs from schema ([d6fcbd6](https://github.com/Mearman/schema-components/commit/d6fcbd6270834641eda56449fd1fc752d602c200))
+* **html:** associate record entry labels with inputs via for= ([caf88f8](https://github.com/Mearman/schema-components/commit/caf88f855cfdbc6da76727cc0ce741bc7846fb4c))
+* **html:** derive streaming hint id from prefixed input id ([00781da](https://github.com/Mearman/schema-components/commit/00781dad65c2c8142cfd6ed2e7af9a2894db0608))
+* **html:** drop invalid aria-readonly from non-widget elements ([5185d4e](https://github.com/Mearman/schema-components/commit/5185d4ef4df8229d8158275d38a9edf3f899e96a))
+* **html:** emit aria-selected=false on inactive discriminated-union tabs ([c334770](https://github.com/Mearman/schema-components/commit/c334770689b745ed6e7ac63b1b0b55f1978d17fd))
+* **html:** set aria-orientation=horizontal on discriminated-union tablist ([88df1d7](https://github.com/Mearman/schema-components/commit/88df1d701606bcf3c38d225be7e4f764c6dd81d4))
+* **openapi:** guard anchor href values via isSafeHyperlink ([ba35b8d](https://github.com/Mearman/schema-components/commit/ba35b8dce611a3cf05361f86a001663a1804a27b))
+* **react:** add add/remove controls to editable array renderer ([bf77479](https://github.com/Mearman/schema-components/commit/bf77479cfcdd623515fd1d78777bef4cd89d1ae2))
+* **react:** drop aria-label for non-string descriptions ([fd81405](https://github.com/Mearman/schema-components/commit/fd814054e6a52f0c12416b36af725893248d5605))
+* **react:** emit aria-describedby + hint, fall back to key for object labels ([678979a](https://github.com/Mearman/schema-components/commit/678979aabea89577ad95d996c54905ab70ab5e30))
+* **react:** exhaust WalkedField variants in defaultRecordValue ([ff2c945](https://github.com/Mearman/schema-components/commit/ff2c945d0aab9e908dad8dc03934d42b39e2fe24))
+* **react:** refuse prototype-polluting path segments in fieldPath ([768c715](https://github.com/Mearman/schema-components/commit/768c7155ed7a286a2f4321ccee9ceff5e622b665))
+* **themes:** wire discriminatedUnion fallback in shadcn resolver ([07d23b5](https://github.com/Mearman/schema-components/commit/07d23b53466b1feb0a8f09c2bb10534a166dffe2))
+
+### Refactoring
+
+* **core:** extract schema-input value-type inference into core/ ([d60094d](https://github.com/Mearman/schema-components/commit/d60094dd839babf8703f63877150561f651d7048))
+* **core:** move WidgetMap into core/renderer ([0eaa822](https://github.com/Mearman/schema-components/commit/0eaa822288295d11bb30a87b69b7e37c1509e9f5))
+* **core:** remove dead `recursive` resolver key ([410e29c](https://github.com/Mearman/schema-components/commit/410e29c60ae18d17b823bcc0d9879d43e58c2da4))
+* **core:** remove dead `SchemaInput` type alias ([cb8cb72](https://github.com/Mearman/schema-components/commit/cb8cb7258d44ba0c42ee08d138e9979798f2fffa))
+* **core:** unify ref-chain hop cap on MAX_PATH_ITEM_REF_HOPS ([11e4181](https://github.com/Mearman/schema-components/commit/11e41818dd673a1252bef82ff4ad9c41c2f581b2))
+* **html:** collapse `fieldId`/`panelId`/`tabId` wrappers ([d2593f6](https://github.com/Mearman/schema-components/commit/d2593f6e1057901cc491cd8fad944a0d83d650ab))
+* **openapi:** drop `*FromParsed` resolver variants ([0912b28](https://github.com/Mearman/schema-components/commit/0912b2818061310cc2dbfddf1a8a07293dde1ab5))
+* **openapi:** refer to named parser types in `resolve` signatures ([1802e0c](https://github.com/Mearman/schema-components/commit/1802e0c7dd51e5d2da98e74fb4ceca8c11431571))
+* **openapi:** rename parser `getX` to `extractX` ([53f1a68](https://github.com/Mearman/schema-components/commit/53f1a68c28930782a600fc22682f431e3f5c3d9e))
+* **react:** remove half-implemented `path` prop on `SchemaComponent` ([aa0409b](https://github.com/Mearman/schema-components/commit/aa0409b0ec4d59ac1ad16c5fa19d1a39210dafb4))
+* **themes:** replace register*Components mutables with createXResolver factories ([4f10bf9](https://github.com/Mearman/schema-components/commit/4f10bf90caac19225b74640472cc25895773b30e))
+
+### Documentation
+
+* **core:** silence TypeDoc warning on detectDiscriminated JSDoc ([980ab07](https://github.com/Mearman/schema-components/commit/980ab07a739792055aa0c7e00032d75e31a2da92))
+* **core:** warn ExternalResolver and BundleResolver consumers about SSRF ([85e79e2](https://github.com/Mearman/schema-components/commit/85e79e27dee749a2ad3d42900baa98f949ae40c4))
+* **react:** clarify accessibility doc — remove unimplemented aria-invalid claim ([9d93929](https://github.com/Mearman/schema-components/commit/9d93929aa761aba7c580053a139b2aa04dd2b0cd))
+* rebuild README inventory after all six fix-agent integrations ([220c207](https://github.com/Mearman/schema-components/commit/220c20783a6f58c416b83148d355ddaf78778288))
+* rebuild README inventory after W3+W4 integration ([dcf2c15](https://github.com/Mearman/schema-components/commit/dcf2c158bf256a43f5a5bcb43b8da0635a6390d4))
+
+### Tests
+
+* **core:** add layer-boundary contract test for cross-sibling imports ([7346364](https://github.com/Mearman/schema-components/commit/7346364019e1b88d1df17f909b039e7896669178))
+* **core:** cover Swagger 2.0 path-level parameter normalisation ([3883fb7](https://github.com/Mearman/schema-components/commit/3883fb7a63d0412db32b4ce97ed72f874c7dd6af))
+* **core:** direct unit coverage for displayJsonValue, matchUnionOption, resolveDiscriminatedActive ([5e82746](https://github.com/Mearman/schema-components/commit/5e827468e8410e50fa3c6133cca42eba6a56b080))
+* **core:** include isInteger field in unionMatch test fixtures ([afb2df1](https://github.com/Mearman/schema-components/commit/afb2df1cda2b04d847900e21edf85dac38c506b6))
+* **core:** pin empty enum diagnostic behaviour ([94265f2](https://github.com/Mearman/schema-components/commit/94265f2f18f76788f170c58b4fad97efa75b4d15))
+* **html:** cover streaming resolver errors ([cc87509](https://github.com/Mearman/schema-components/commit/cc87509214bb79a7a8ab6b5e55e016555422b2c7))
+* **react:** isolate registerWidget global state between tests ([7340aef](https://github.com/Mearman/schema-components/commit/7340aefd7d6881e5648efb4a714a74de11c24719))
+
+### Chores
+
+* **ci:** add eslint-plugin-import no-restricted-paths layer boundaries ([f57dee8](https://github.com/Mearman/schema-components/commit/f57dee8ee6c941b618a64c20d923c69bfe79f0f9))
+* **ci:** add eslint-plugin-jsx-a11y recommended config for TSX ([efd38cd](https://github.com/Mearman/schema-components/commit/efd38cd8c42ef3daa6c2621857980608acec7e4f))
+* **ci:** add eslint-plugin-no-only-tests for staged test files ([8ad4f5c](https://github.com/Mearman/schema-components/commit/8ad4f5cc80617df8e61fd944ac8eca400c5864bb))
+* **ci:** enable @typescript-eslint/switch-exhaustiveness-check ([37ae348](https://github.com/Mearman/schema-components/commit/37ae34876d86523e43d7b118fac827d1e8530535))
+
 ## [1.29.0](https://github.com/Mearman/schema-components/compare/v1.28.2...v1.29.0) (2026-05-18)
 
 ### Features
