@@ -221,10 +221,30 @@ export function renderNumber(props: RenderProps): ReactNode {
     const numValue = typeof props.value === "number" ? props.value : "";
     const ariaAttrs = buildAriaAttrs(props.tree);
 
+    // `tree.type === "number"` is guaranteed by the resolver dispatch.
+    // Narrowing exposes `isInteger`, which controls the mobile keypad
+    // hint (`inputmode`) and the spinner step.
+    const isInteger =
+        props.tree.type === "number" ? props.tree.isInteger : false;
+    const inputMode = isInteger ? "numeric" : "decimal";
+    const multipleOf = props.constraints.multipleOf;
+    // Prefer the schema-declared `multipleOf` for `step`; integer
+    // schemas without `multipleOf` default to `step="1"` so the spinner
+    // increments cleanly. Decimal schemas without `multipleOf` omit
+    // `step` so the browser default (`any`) applies.
+    const step =
+        multipleOf !== undefined
+            ? String(multipleOf)
+            : isInteger
+              ? "1"
+              : undefined;
+
     return (
         <input
             id={id}
             type="number"
+            inputMode={inputMode}
+            step={step}
             value={props.writeOnly ? "" : numValue}
             onChange={(e) => {
                 props.onChange(Number(e.target.value));

@@ -182,13 +182,31 @@ function renderNumberReadOnly(props: HtmlRenderProps): HtmlNode {
 function renderNumberEditable(props: HtmlRenderProps): HtmlNode {
     const numValue = typeof props.value === "number" ? String(props.value) : "";
     const id = fieldId(props.path);
+    // `tree.type === "number"` is guaranteed by the resolver dispatch
+    // (the resolver routes `NumberField` to this renderer). Narrowing here
+    // exposes the `isInteger` flag for the inputmode / step heuristic.
+    const isInteger =
+        props.tree.type === "number" ? props.tree.isInteger : false;
+    // Integer schemas use a numeric keypad and a step of 1. Decimal
+    // schemas use the decimal keypad and derive `step` from `multipleOf`
+    // when supplied; HTML defaults to "any" for unconstrained decimals so
+    // the spinner button increments cleanly.
+    const inputMode = isInteger ? "numeric" : "decimal";
+    const multipleOf = props.constraints.multipleOf;
 
     const attrs: HtmlAttributes = {
         class: SC_CLASSES.input,
         id,
         type: "number",
         name: id,
+        inputmode: inputMode,
     };
+
+    if (multipleOf !== undefined) {
+        attrs.step = String(multipleOf);
+    } else if (isInteger) {
+        attrs.step = "1";
+    }
 
     if (!props.writeOnly) {
         attrs.value = numValue;

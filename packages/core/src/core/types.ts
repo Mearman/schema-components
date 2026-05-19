@@ -260,6 +260,13 @@ export interface StringField extends FieldBase {
 export interface NumberField extends FieldBase {
     type: "number";
     constraints: NumberConstraints;
+    /**
+     * True when the underlying schema declared `type: "integer"` rather
+     * than `type: "number"`. Renderers consult this to set HTML
+     * `inputmode="numeric"` and `step="1"` (for whole-number editing)
+     * instead of `inputmode="decimal"`.
+     */
+    isInteger: boolean;
 }
 
 export interface BooleanField extends FieldBase {

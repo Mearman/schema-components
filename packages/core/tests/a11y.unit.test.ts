@@ -221,3 +221,39 @@ describe("Record role", () => {
         expect(html).toMatch(/role="group"/);
     });
 });
+
+// ---------------------------------------------------------------------------
+// AC13 — Number inputs carry inputmode + step for mobile keypads
+// ---------------------------------------------------------------------------
+
+describe("Number input inputmode + step", () => {
+    it("emits inputmode=numeric and step=1 on integer schemas", () => {
+        const html = renderToHtml({ type: "integer" }, { value: 7 });
+        expect(html).toMatch(/inputmode="numeric"/);
+        expect(html).toMatch(/step="1"/);
+    });
+
+    it("emits inputmode=decimal and no implicit step on decimal schemas", () => {
+        const html = renderToHtml({ type: "number" }, { value: 3.14 });
+        expect(html).toMatch(/inputmode="decimal"/);
+        // No `multipleOf`, not an integer — `step` must be absent so the
+        // browser defaults to `step="any"`.
+        expect(html).not.toMatch(/step=/);
+    });
+
+    it("derives step from multipleOf when supplied", () => {
+        const html = renderToHtml(
+            { type: "number", multipleOf: 0.25 },
+            { value: 1.5 }
+        );
+        expect(html).toMatch(/step="0\.25"/);
+    });
+
+    it("derives step from multipleOf on integer schemas too", () => {
+        const html = renderToHtml(
+            { type: "integer", multipleOf: 5 },
+            { value: 10 }
+        );
+        expect(html).toMatch(/step="5"/);
+    });
+});

@@ -205,7 +205,11 @@ describe("WalkedField type guards", () => {
     });
 
     it("isNumberField narrows number fields", () => {
-        const field: WalkedField = { ...baseField, type: "number" };
+        const field: WalkedField = {
+            ...baseField,
+            type: "number",
+            isInteger: false,
+        };
         expect(isNumberField(field)).toBe(true);
         expect(isStringField(field)).toBe(false);
     });

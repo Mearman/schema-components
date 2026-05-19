@@ -268,10 +268,15 @@ export function buildNumberField(
     schema: Record<string, unknown>,
     ctx: WalkContext
 ): NumberField {
+    // `type: "integer"` is preserved as a structural flag — renderers
+    // need to distinguish whole-number fields so `inputmode="numeric"`
+    // and `step="1"` can be wired up without re-reading the schema.
+    const isInteger = schema.type === "integer";
     return {
         ...buildBase(schema, ctx),
         type: "number",
         constraints: extractNumberConstraints(schema),
+        isInteger,
     };
 }
 
