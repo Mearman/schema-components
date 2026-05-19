@@ -28,7 +28,7 @@ import {
     matchUnionOption as matchUnionOptionShared,
     resolveDiscriminatedActive,
 } from "../core/unionMatch.ts";
-import { buildAriaAttrs } from "./a11y.ts";
+import { ariaLabel, buildAriaAttrs } from "./a11y.ts";
 
 // ---------------------------------------------------------------------------
 // Utility
@@ -464,14 +464,7 @@ export function renderRecord(props: RenderProps): ReactNode {
             return <span aria-readonly="true">{EM_DASH}</span>;
         }
         return (
-            <div
-                role="group"
-                aria-label={
-                    typeof props.meta.description === "string"
-                        ? props.meta.description
-                        : undefined
-                }
-            >
+            <div role="group" aria-label={ariaLabel(props.meta.description)}>
                 {entries.map(([key, value]) => {
                     const childId = inputId(`${props.path}.${key}`);
                     return (
@@ -530,8 +523,12 @@ export function renderRecord(props: RenderProps): ReactNode {
         props.onChange(next);
     };
 
+    // `meta.description` is typed `unknown`; narrow it through `ariaLabel`
+    // so a non-string truthy value (e.g. `{}`) is dropped rather than being
+    // coerced to `"[object Object]"`. The previous `?? "Record"` fallback
+    // would also have masked missing descriptions with a generic literal.
     return (
-        <div role="group" aria-label={props.meta.description ?? "Record"}>
+        <div role="group" aria-label={ariaLabel(props.meta.description)}>
             {entries.map(([key, value]) => {
                 const childId = inputId(`${props.path}.${key}`);
                 const keyId = `${childId}-key`;
@@ -587,7 +584,7 @@ export function renderArray(props: RenderProps): ReactNode {
     if (arr.length === 0) return null;
 
     return (
-        <div role="group" aria-label={props.meta.description ?? undefined}>
+        <div role="group" aria-label={ariaLabel(props.meta.description)}>
             {arr.map((item, i) => {
                 const childOnChange = (v: unknown) => {
                     const next = arr.slice();
@@ -971,7 +968,7 @@ export function renderTuple(props: RenderProps): ReactNode {
             : 0;
 
     return (
-        <div role="group" aria-label={props.meta.description ?? undefined}>
+        <div role="group" aria-label={ariaLabel(props.meta.description)}>
             {prefixItems.map((element, i) => {
                 const itemValue: unknown = arr[i];
                 const childOnChange = (v: unknown) => {

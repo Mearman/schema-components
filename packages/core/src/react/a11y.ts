@@ -103,3 +103,15 @@ export function constraintHint(
 export function isFieldRequired(tree: WalkedField): boolean {
     return tree.isOptional === false;
 }
+
+/**
+ * Narrow `meta.description` (typed `unknown`) to a string value safe to
+ * pass into JSX `aria-label`. Returns `undefined` for non-string or
+ * empty-string descriptions so React drops the attribute rather than
+ * stringifying e.g. `{}` to `"[object Object]"`.
+ */
+export function ariaLabel(description: unknown): string | undefined {
+    if (typeof description !== "string") return undefined;
+    if (description.length === 0) return undefined;
+    return description;
+}

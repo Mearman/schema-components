@@ -466,3 +466,42 @@ describe("renderRecord — read-only", () => {
         expect(html).toContain("—");
     });
 });
+
+// ---------------------------------------------------------------------------
+// AC5 — aria-label only emitted when description is a non-empty string
+// ---------------------------------------------------------------------------
+
+describe("renderRecord — aria-label guard", () => {
+    it("omits aria-label entirely when no description is supplied (editable)", () => {
+        const html = renderToString(
+            <SchemaComponent schema={stringRecord} value={{ foo: "bar" }} />
+        );
+        // The previous implementation substituted the literal `"Record"`.
+        // The attribute must be dropped entirely when the schema author has
+        // not provided a description.
+        expect(html).not.toContain('aria-label="Record"');
+        expect(html).not.toContain('aria-label="[object Object]"');
+    });
+
+    it("omits aria-label entirely when no description is supplied (read-only)", () => {
+        const html = renderToString(
+            <SchemaComponent
+                schema={stringRecord}
+                value={{ foo: "bar" }}
+                readOnly
+            />
+        );
+        expect(html).not.toContain('aria-label="Record"');
+        expect(html).not.toContain('aria-label="[object Object]"');
+    });
+
+    it("emits aria-label from a string description (editable)", () => {
+        const labelledRecord = z
+            .record(z.string(), z.string())
+            .meta({ description: "Custom labels" });
+        const html = renderToString(
+            <SchemaComponent schema={labelledRecord} value={{ k: "v" }} />
+        );
+        expect(html).toContain('aria-label="Custom labels"');
+    });
+});
