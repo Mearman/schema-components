@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
     test: {
@@ -31,6 +32,12 @@ export default defineConfig({
                         "tests/**/*.unit.test.tsx",
                         "tests/**/*.integration.test.ts",
                     ],
+                    // Keep the existing React/HTML/OpenAPI suite running on
+                    // the same default environment. Vue tests run in the
+                    // sibling `unit-vue` project below so the `@vitejs/plugin-vue`
+                    // compilation step (which adds a measurable amount of
+                    // start-up time) only fires when actually needed.
+                    exclude: ["tests/**/*.vue.unit.test.ts"],
                 },
             },
             {
@@ -75,6 +82,7 @@ export default defineConfig({
                         "tests/**/*.unit.test.tsx",
                         "tests/**/*.integration.test.ts",
                     ],
+                    exclude: ["tests/**/*.vue.unit.test.ts"],
                     // `@testing-library/react` and `react-dom` ship as CJS
                     // and resolve their React peer via `require("react")`,
                     // which bypasses Vitest's ESM resolve.alias. Force them
@@ -91,6 +99,19 @@ export default defineConfig({
                             ],
                         },
                     },
+                },
+            },
+            {
+                // Vue-specific unit tests. Compiles `.vue` SFCs via
+                // `@vitejs/plugin-vue` so `<script setup lang="ts">` and
+                // `<template>` blocks resolve at test-time. Globbed
+                // narrowly to `*.vue.unit.test.ts` so the suite stays
+                // visibly scoped from the file system alone.
+                plugins: [vue()],
+                test: {
+                    name: "unit-vue",
+                    environment: "happy-dom",
+                    include: ["tests/**/*.vue.unit.test.ts"],
                 },
             },
         ],

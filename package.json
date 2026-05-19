@@ -9,6 +9,7 @@
         "validate": "turbo run validate --filter=schema-components",
         "test": "turbo run test --filter=schema-components",
         "test:preact": "turbo run _test:preact --filter=schema-components",
+        "test:vue": "turbo run _test:vue --filter=schema-components",
         "test:coverage": "turbo run test:coverage --filter=schema-components",
         "test-storybook": "turbo run test-storybook --filter=@schema-components/docs",
         "storybook": "pnpm --filter @schema-components/docs storybook",

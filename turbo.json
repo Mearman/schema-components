@@ -26,6 +26,18 @@
             "dependsOn": ["_typecheck"],
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
         },
+        "_test:vue": {
+            "dependsOn": ["_typecheck"],
+            "inputs": [
+                "src/**/*.ts",
+                "src/**/*.tsx",
+                "src/**/*.vue",
+                "tests/**/*.ts",
+                "tests/**/*.tsx",
+                "tests/**/*.vue",
+                "vitest.config.ts"
+            ]
+        },
         "_test:coverage": {
             "dependsOn": ["_typecheck"],
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
