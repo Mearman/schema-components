@@ -211,6 +211,17 @@ const sharedRules: Record<string, unknown> = {
         "error",
         { assertionStyle: "never" },
     ],
+    // Catch missing union members in `switch` statements (e.g. a new
+    // `WalkedField.type` variant added without updating every dispatcher).
+    // `requireDefaultForNonUnion: false` keeps switches on plain numbers /
+    // strings exempt; only discriminated-union switches must be exhaustive.
+    "@typescript-eslint/switch-exhaustiveness-check": [
+        "error",
+        {
+            allowDefaultCaseForExhaustiveSwitch: true,
+            requireDefaultForNonUnion: false,
+        },
+    ],
 };
 
 // Layer-boundary table for `import/no-restricted-paths`.
