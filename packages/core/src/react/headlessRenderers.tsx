@@ -465,6 +465,8 @@ export function renderObject(props: RenderProps): ReactNode {
  */
 export function defaultRecordValue(valueType: WalkedField): unknown {
     if (valueType.defaultValue !== undefined) return valueType.defaultValue;
+    // Exhaustive over `WalkedField.type` so a new schema variant added to the
+    // walker forces a deliberate choice of default for record values.
     switch (valueType.type) {
         case "string":
             return "";
@@ -477,7 +479,20 @@ export function defaultRecordValue(valueType: WalkedField): unknown {
         case "object":
         case "record":
             return {};
-        default:
+        case "null":
+            return null;
+        // For the remaining variants the user must supply a value — there is
+        // no sensible structural default.
+        case "unknown":
+        case "enum":
+        case "literal":
+        case "tuple":
+        case "union":
+        case "discriminatedUnion":
+        case "conditional":
+        case "negation":
+        case "file":
+        case "never":
             return undefined;
     }
 }
