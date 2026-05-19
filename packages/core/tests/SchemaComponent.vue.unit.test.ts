@@ -166,4 +166,57 @@ describe("<SchemaComponent>", () => {
         });
         expect(wrapper.find("input").attributes("id")).toBe("sc-stable");
     });
+
+    it("resolves the schemaRef sub-schema of an OpenAPI document, not the first schema", () => {
+        // Two distinct sub-schemas under components/schemas. `User` is
+        // first; if the renderer ignored or stripped `schemaRef`, the
+        // adapter would normalise the whole document and surface `User`
+        // (or the union of both). The test points `schemaRef` at
+        // `Animal` and asserts only `Animal`'s fields render.
+        const openApiDoc = {
+            openapi: "3.1.0",
+            info: { title: "Zoo", version: "1.0" },
+            paths: {},
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            userName: { type: "string" },
+                            userEmail: { type: "string" },
+                        },
+                        required: ["userName", "userEmail"],
+                    },
+                    Animal: {
+                        type: "object",
+                        properties: {
+                            species: { type: "string" },
+                            legCount: { type: "number" },
+                        },
+                        required: ["species", "legCount"],
+                    },
+                },
+            },
+        };
+        const wrapper = mount(SchemaComponent, {
+            props: {
+                schema: openApiDoc,
+                schemaRef: "#/components/schemas/Animal",
+                modelValue: { species: "Octopus", legCount: 8 },
+            },
+        });
+        // The resolved sub-schema is Animal — two inputs, one per property.
+        const inputs = wrapper.findAll("input");
+        expect(inputs.length).toBe(2);
+        // The first input carries Animal's string field value.
+        expect(inputs[0]?.element.value).toBe("Octopus");
+        expect(inputs[0]?.attributes("type")).not.toBe("number");
+        // The second input is the numeric leg count.
+        expect(inputs[1]?.attributes("type")).toBe("number");
+        expect(inputs[1]?.element.value).toBe("8");
+        // None of User's fields should appear in the rendered output.
+        const html = wrapper.html();
+        expect(html).not.toContain("userName");
+        expect(html).not.toContain("userEmail");
+    });
 });
