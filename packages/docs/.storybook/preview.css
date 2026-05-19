@@ -864,9 +864,14 @@ input[type="file"] {
 
 /* =========================================================================
    Read-only display values
-   ========================================================================= */
+   =========================================================================
+   Pre-fix this selector targeted `span[aria-readonly="true"]`. ARIA 1.2
+   restricts `aria-readonly` to widget roles, so the renderers no longer
+   emit it on plain `<span>` elements. The structural class names supplied
+   by the renderer are the canonical styling target. */
 
-span[aria-readonly="true"] {
+span.sc-value,
+span.sc-value--empty {
     font-size: 0.875rem;
     color: var(--sc-text);
     min-height: 1.5rem;

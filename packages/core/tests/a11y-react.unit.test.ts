@@ -266,13 +266,17 @@ describe("checkbox accessibility (HTML)", () => {
 // Read-only aria-readonly
 // ---------------------------------------------------------------------------
 
-describe("read-only aria-readonly (HTML)", () => {
-    it("adds aria-readonly to string values", () => {
+describe("read-only presentation does not emit invalid aria-readonly (HTML)", () => {
+    it("does not emit aria-readonly on the value span for read-only strings", () => {
+        // ARIA 1.2 restricts `aria-readonly` to widget roles. Emitting it
+        // on a plain `<span>` would fail `aria-attr-allowed`. The renderer
+        // now conveys read-only state structurally (no `<input>`).
         const html = renderToHtml(z.object({ name: z.string() }), {
             value: { name: "Ada" },
             readOnly: true,
         });
-        expect(html).toMatch(/aria-readonly="true"/);
+        expect(html).not.toMatch(/<span[^>]*aria-readonly/);
+        expect(html).not.toMatch(/<input/);
     });
 });
 

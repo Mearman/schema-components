@@ -98,11 +98,7 @@ function renderStringHtml(props: HtmlRenderProps): string {
 function renderStringReadOnly(props: HtmlRenderProps): HtmlNode {
     const strValue = typeof props.value === "string" ? props.value : undefined;
     if (strValue === undefined || strValue.length === 0) {
-        return h(
-            "span",
-            { class: SC_CLASSES.valueEmpty, ...ariaReadonlyAttrs() },
-            EM_DASH
-        );
+        return h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH);
     }
     const format = props.constraints.format;
     if (format === "email" && isSafeMailtoAddress(strValue)) {
@@ -127,11 +123,7 @@ function renderStringReadOnly(props: HtmlRenderProps): HtmlNode {
     // `javascript:`), or the email contains characters that could inject
     // mailto header lines. Fall through to text rendering so the value
     // is never interpreted as a navigable URI.
-    return h(
-        "span",
-        { class: SC_CLASSES.value, ...ariaReadonlyAttrs() },
-        strValue
-    );
+    return h("span", { class: SC_CLASSES.value }, strValue);
 }
 
 function renderStringEditable(props: HtmlRenderProps): HtmlNode {
@@ -182,17 +174,9 @@ function renderNumberHtml(props: HtmlRenderProps): string {
 
 function renderNumberReadOnly(props: HtmlRenderProps): HtmlNode {
     if (typeof props.value !== "number") {
-        return h(
-            "span",
-            { class: SC_CLASSES.valueEmpty, ...ariaReadonlyAttrs() },
-            EM_DASH
-        );
+        return h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH);
     }
-    return h(
-        "span",
-        { class: SC_CLASSES.value, ...ariaReadonlyAttrs() },
-        props.value.toLocaleString()
-    );
+    return h("span", { class: SC_CLASSES.value }, props.value.toLocaleString());
 }
 
 function renderNumberEditable(props: HtmlRenderProps): HtmlNode {
@@ -235,15 +219,11 @@ function renderBooleanHtml(props: HtmlRenderProps): string {
 
 function renderBooleanReadOnly(props: HtmlRenderProps): HtmlNode {
     if (typeof props.value !== "boolean") {
-        return h(
-            "span",
-            { class: SC_CLASSES.valueEmpty, ...ariaReadonlyAttrs() },
-            EM_DASH
-        );
+        return h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH);
     }
     return h(
         "span",
-        { class: "sc-value sc-value--boolean", ...ariaReadonlyAttrs() },
+        { class: "sc-value sc-value--boolean" },
         props.value ? "Yes" : "No"
     );
 }
@@ -282,17 +262,9 @@ function renderEnumHtml(props: HtmlRenderProps): string {
 function renderEnumReadOnly(props: HtmlRenderProps): HtmlNode {
     const enumValue = typeof props.value === "string" ? props.value : "";
     if (enumValue.length === 0) {
-        return h(
-            "span",
-            { class: SC_CLASSES.valueEmpty, ...ariaReadonlyAttrs() },
-            EM_DASH
-        );
+        return h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH);
     }
-    return h(
-        "span",
-        { class: SC_CLASSES.value, ...ariaReadonlyAttrs() },
-        enumValue
-    );
+    return h("span", { class: SC_CLASSES.value }, enumValue);
 }
 
 function renderEnumEditable(props: HtmlRenderProps): HtmlNode {
@@ -644,11 +616,7 @@ function renderFileHtml(props: HtmlRenderProps): string {
 
     if (props.readOnly) {
         return serialize(
-            h(
-                "span",
-                { class: SC_CLASSES.value, id, ...ariaReadonlyAttrs() },
-                "File field"
-            )
+            h("span", { class: SC_CLASSES.value, id }, "File field")
         );
     }
 
@@ -818,17 +786,7 @@ function renderNegationHtml(props: HtmlRenderProps): string {
  */
 function renderNullHtml(props: HtmlRenderProps): string {
     const id = fieldId(props.path);
-    return serialize(
-        h(
-            "span",
-            {
-                class: SC_CLASSES.valueEmpty,
-                id,
-                ...ariaReadonlyAttrs(),
-            },
-            EM_DASH
-        )
-    );
+    return serialize(h("span", { class: SC_CLASSES.valueEmpty, id }, EM_DASH));
 }
 
 // ---------------------------------------------------------------------------
@@ -847,11 +805,7 @@ function renderNeverHtml(props: HtmlRenderProps): string {
     return serialize(
         h(
             "span",
-            {
-                class: "sc-value sc-never",
-                id,
-                ...ariaReadonlyAttrs(),
-            },
+            { class: "sc-value sc-never", id },
             h("em", {}, "never matches")
         )
     );

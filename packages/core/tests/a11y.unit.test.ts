@@ -154,44 +154,57 @@ describe("Checkbox aria-label", () => {
 });
 
 // ---------------------------------------------------------------------------
-// aria-readonly on read-only values
+// Read-only presentation — conveyed structurally (no input), not via the
+// invalid `aria-readonly` attribute on a plain `<span>`. ARIA 1.2 restricts
+// `aria-readonly` to widget roles (textbox, combobox, gridcell, listbox),
+// so emitting it on a non-widget element fails the `aria-attr-allowed`
+// rule. The renderers now omit it; the read-only nature is communicated by
+// the absence of any input element and the surrounding semantic structure
+// (e.g. `<dl><dt><dd>` for objects).
 // ---------------------------------------------------------------------------
 
-describe("aria-readonly", () => {
-    it("adds aria-readonly to read-only string values", () => {
+describe("read-only presentation (no invalid aria-readonly)", () => {
+    it("renders read-only strings without aria-readonly on the span", () => {
         const schema = z.object({ name: z.string() });
         const html = renderToHtml(schema, {
             value: { name: "Ada" },
             readOnly: true,
         });
-        expect(html).toMatch(/aria-readonly="true"/);
+        expect(html).not.toMatch(/<span[^>]*aria-readonly/);
+        expect(html).not.toMatch(/<input/);
+        expect(html).toContain("Ada");
     });
 
-    it("adds aria-readonly to read-only number values", () => {
+    it("renders read-only numbers without aria-readonly on the span", () => {
         const schema = z.object({ age: z.number() });
         const html = renderToHtml(schema, {
             value: { age: 36 },
             readOnly: true,
         });
-        expect(html).toMatch(/aria-readonly="true"/);
+        expect(html).not.toMatch(/<span[^>]*aria-readonly/);
+        expect(html).not.toMatch(/<input/);
     });
 
-    it("adds aria-readonly to read-only boolean values", () => {
+    it("renders read-only booleans without aria-readonly on the span", () => {
         const schema = z.object({ active: z.boolean() });
         const html = renderToHtml(schema, {
             value: { active: true },
             readOnly: true,
         });
-        expect(html).toMatch(/aria-readonly="true"/);
+        expect(html).not.toMatch(/<span[^>]*aria-readonly/);
+        expect(html).not.toMatch(/<input/);
+        expect(html).toContain("Yes");
     });
 
-    it("adds aria-readonly to read-only enum values", () => {
+    it("renders read-only enums without aria-readonly on the span", () => {
         const schema = z.object({ role: z.enum(["admin"]) });
         const html = renderToHtml(schema, {
             value: { role: "admin" },
             readOnly: true,
         });
-        expect(html).toMatch(/aria-readonly="true"/);
+        expect(html).not.toMatch(/<span[^>]*aria-readonly/);
+        expect(html).not.toMatch(/<select/);
+        expect(html).toContain("admin");
     });
 });
 

@@ -106,11 +106,7 @@ export function renderString(props: RenderProps): ReactNode {
         const strValue =
             typeof props.value === "string" ? props.value : undefined;
         if (strValue === undefined || strValue.length === 0)
-            return (
-                <span id={id} aria-readonly="true">
-                    {EM_DASH}
-                </span>
-            );
+            return <span id={id}>{EM_DASH}</span>;
         const format = props.constraints.format;
         if (format === "email" && isSafeMailtoAddress(strValue))
             return (
@@ -130,33 +126,17 @@ export function renderString(props: RenderProps): ReactNode {
         // rendering so the value is never interpreted as a navigable URI.
         if (format === "date") {
             const formatted = formatDate(strValue);
-            return (
-                <span id={id} aria-readonly="true">
-                    {formatted ?? strValue}
-                </span>
-            );
+            return <span id={id}>{formatted ?? strValue}</span>;
         }
         if (format === "time") {
             const formatted = formatTime(strValue);
-            return (
-                <span id={id} aria-readonly="true">
-                    {formatted ?? strValue}
-                </span>
-            );
+            return <span id={id}>{formatted ?? strValue}</span>;
         }
         if (format === "date-time" || format === "datetime") {
             const formatted = formatDateTime(strValue);
-            return (
-                <span id={id} aria-readonly="true">
-                    {formatted ?? strValue}
-                </span>
-            );
+            return <span id={id}>{formatted ?? strValue}</span>;
         }
-        return (
-            <span id={id} aria-readonly="true">
-                {strValue}
-            </span>
-        );
+        return <span id={id}>{strValue}</span>;
     }
 
     const strValue = typeof props.value === "string" ? props.value : "";
@@ -234,16 +214,8 @@ export function renderNumber(props: RenderProps): ReactNode {
 
     if (props.readOnly) {
         if (typeof props.value !== "number")
-            return (
-                <span id={id} aria-readonly="true">
-                    {EM_DASH}
-                </span>
-            );
-        return (
-            <span id={id} aria-readonly="true">
-                {props.value.toLocaleString()}
-            </span>
-        );
+            return <span id={id}>{EM_DASH}</span>;
+        return <span id={id}>{props.value.toLocaleString()}</span>;
     }
 
     const numValue = typeof props.value === "number" ? props.value : "";
@@ -270,16 +242,8 @@ export function renderBoolean(props: RenderProps): ReactNode {
 
     if (props.readOnly) {
         if (typeof props.value !== "boolean")
-            return (
-                <span id={id} aria-readonly="true">
-                    {EM_DASH}
-                </span>
-            );
-        return (
-            <span id={id} aria-readonly="true">
-                {props.value ? "Yes" : "No"}
-            </span>
-        );
+            return <span id={id}>{EM_DASH}</span>;
+        return <span id={id}>{props.value ? "Yes" : "No"}</span>;
     }
 
     const ariaAttrs = buildAriaAttrs(props.tree, props.meta.description);
@@ -303,11 +267,7 @@ export function renderEnum(props: RenderProps): ReactNode {
     const enumValue = typeof props.value === "string" ? props.value : "";
 
     if (props.readOnly) {
-        return (
-            <span id={id} aria-readonly="true">
-                {enumValue || EM_DASH}
-            </span>
-        );
+        return <span id={id}>{enumValue || EM_DASH}</span>;
     }
 
     const ariaAttrs = buildAriaAttrs(props.tree);
@@ -461,7 +421,10 @@ export function renderRecord(props: RenderProps): ReactNode {
     // renders the em-dash placeholder to indicate no data.
     if (props.readOnly) {
         if (entries.length === 0) {
-            return <span aria-readonly="true">{EM_DASH}</span>;
+            // No `aria-readonly` — ARIA 1.2 restricts the attribute to
+            // widget roles (textbox, combobox, etc.). The empty record is
+            // structurally read-only by virtue of containing no controls.
+            return <span>{EM_DASH}</span>;
         }
         return (
             <div role="group" aria-label={ariaLabel(props.meta.description)}>
@@ -854,11 +817,7 @@ export function renderFile(props: RenderProps): ReactNode {
 
     if (props.readOnly) {
         // Read-only: no file input, indicate file field
-        return (
-            <span id={id} aria-readonly="true">
-                {"File field"}
-            </span>
-        );
+        return <span id={id}>{"File field"}</span>;
     }
 
     const ariaAttrs = buildAriaAttrs(props.tree, props.meta.description);
@@ -891,18 +850,10 @@ export function renderLiteral(props: RenderProps): ReactNode {
     if (props.tree.type !== "literal") return null;
     const values = props.tree.literalValues;
     if (values.length === 0) {
-        return (
-            <span id={id} aria-readonly="true">
-                {EM_DASH}
-            </span>
-        );
+        return <span id={id}>{EM_DASH}</span>;
     }
     const display = values.map((v) => displayJsonValue(v)).join(", ");
-    return (
-        <span id={id} aria-readonly="true">
-            {display}
-        </span>
-    );
+    return <span id={id}>{display}</span>;
 }
 
 /**
@@ -913,11 +864,7 @@ export function renderLiteral(props: RenderProps): ReactNode {
  */
 export function renderNull(props: RenderProps): ReactNode {
     const id = inputId(props.path);
-    return (
-        <span id={id} aria-readonly="true">
-            {EM_DASH}
-        </span>
-    );
+    return <span id={id}>{EM_DASH}</span>;
 }
 
 /**
@@ -932,7 +879,7 @@ export function renderNull(props: RenderProps): ReactNode {
 export function renderNever(props: RenderProps): ReactNode {
     const id = inputId(props.path);
     return (
-        <span id={id} aria-readonly="true" className={SC_CLASSES.never}>
+        <span id={id} className={SC_CLASSES.never}>
             <em>never matches</em>
         </span>
     );
@@ -1091,13 +1038,9 @@ export function renderUnknown(props: RenderProps): ReactNode {
 
     if (props.readOnly) {
         if (props.value === undefined || props.value === null)
-            return (
-                <span id={id} aria-readonly="true">
-                    {EM_DASH}
-                </span>
-            );
+            return <span id={id}>{EM_DASH}</span>;
         return (
-            <span id={id} aria-readonly="true">
+            <span id={id}>
                 {typeof props.value === "string"
                     ? props.value
                     : JSON.stringify(props.value)}

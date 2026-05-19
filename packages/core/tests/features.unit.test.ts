@@ -465,7 +465,11 @@ describe("file upload — HTML", () => {
         );
         expect(!html.includes('type="file"')).toBeTruthy();
         expect(html.includes("File field")).toBeTruthy();
-        expect(html.includes('aria-readonly="true"')).toBeTruthy();
+        // The read-only file presentation no longer emits `aria-readonly`
+        // on the surrounding `<span>` — ARIA 1.2 restricts the attribute
+        // to widget roles. The absence of an `<input>` conveys read-only
+        // state structurally.
+        expect(html.includes('aria-readonly="true"')).toBeFalsy();
     });
 
     it("adds aria-required for required file field", () => {
