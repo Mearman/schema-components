@@ -1,3 +1,58 @@
+## [2.1.0](https://github.com/Mearman/schema-components/compare/v2.0.2...v2.1.0) (2026-05-19)
+
+### Features
+
+* **core:** add abstract context port for framework adapters ([2c5610a](https://github.com/Mearman/schema-components/commit/2c5610aeca6e808fc8b7e07f917c671da115ecf0))
+* **core:** add lit web components adapter with sc-* custom elements ([0654e33](https://github.com/Mearman/schema-components/commit/0654e333e0ac830ed59626d2b8d02acb5cd4d551))
+* **core:** add preact entry point as thin alias of react adapter ([679ab1d](https://github.com/Mearman/schema-components/commit/679ab1dd9988095627097d9462450450b536e5b0))
+* **core:** add Solid adapter mirroring the React surface ([afa4473](https://github.com/Mearman/schema-components/commit/afa44734e756f332c219dd2168923ffbfb30c805))
+* **core:** add svelte 5 adapter with headless renderers ([1895f9b](https://github.com/Mearman/schema-components/commit/1895f9b603f1c2dc6147086c552aa3bc49fd4419))
+* **core:** add Vue 3 adapter with headless renderers and SFC entry points ([09b7b04](https://github.com/Mearman/schema-components/commit/09b7b0466d6646a8697abe42e59ba2fc1ce208e7))
+* **core:** use declare-only fields in lit elements to avoid class-field shadowing ([0765a25](https://github.com/Mearman/schema-components/commit/0765a25da12a2b458d62d33aa4112beb2f545676))
+
+### Bug Fixes
+
+* **build:** include preact, solid, and lit adapters in bundled output ([de7475c](https://github.com/Mearman/schema-components/commit/de7475cc0b7c1fb194eae898bdcf2222888550e4))
+* **core:** align bracket-notation test fixtures with canonical WalkedField shape ([5f2b330](https://github.com/Mearman/schema-components/commit/5f2b33042bdabc063ce6025e576acca93f6edb0f))
+* **lit:** import canonical ContextPort from core/contexts.ts ([065f17d](https://github.com/Mearman/schema-components/commit/065f17d4f1e13ceeda3b8002b889886b44b4023a))
+* **solid:** align contexts port with canonical ContextPort shape ([f652b5d](https://github.com/Mearman/schema-components/commit/f652b5d4d5058b56b335494b3c7fd946849fefc1))
+
+### Refactoring
+
+* **core:** extract render-field dispatch loop into core/renderField ([b2fa279](https://github.com/Mearman/schema-components/commit/b2fa279124595fb79a6873a7174b9838d0d18590))
+* **core:** generalise renderer types over output and props ([477b7e6](https://github.com/Mearman/schema-components/commit/477b7e68ecb50b51d3cabc11adf2d2b12ab1fe92))
+* **core:** move fieldPath helpers from react/ to core/ ([5e6ca00](https://github.com/Mearman/schema-components/commit/5e6ca0073df50c25862f8fde01276bc641187d8d))
+* **html:** consume core/renderField in renderToHtml ([2548309](https://github.com/Mearman/schema-components/commit/2548309ce8ac7cabae7f0520578eab4db9b353fa))
+* **react:** consume core/renderField in SchemaComponent and SchemaView ([2e91669](https://github.com/Mearman/schema-components/commit/2e916692f662816fa61f61915ac2f075465dcc7d))
+
+### Documentation
+
+* **core:** document lit adapter — tags, parts, ssr caveats, design qs ([a62998f](https://github.com/Mearman/schema-components/commit/a62998fb3f0682cbb151c2ef5f18930fb6c974b0))
+* **core:** document preact support in the core readme ([593d1c0](https://github.com/Mearman/schema-components/commit/593d1c077bfe0fefdd0346fce43b0f9409e16ed5))
+
+### Tests
+
+* **core:** add svelte adapter unit tests covering the dispatch chain ([b866885](https://github.com/Mearman/schema-components/commit/b866885916da564633f3c3762fe899c6d3ec89ba))
+* **core:** add Vue adapter test suite ([759c34e](https://github.com/Mearman/schema-components/commit/759c34ece0ab7a8af31a598b1567fb3991c0bfa6))
+* **core:** cover bracket-notation paths in fieldPath helpers ([8151e9e](https://github.com/Mearman/schema-components/commit/8151e9e646543c4a24359f1b137b8815ae0b9763))
+* **core:** cover lit adapter with unit-lit project (28 tests) ([6fd095f](https://github.com/Mearman/schema-components/commit/6fd095faeeed2658c0e9db14e5781ffba6c9a256))
+* **core:** cover the Solid adapter across renderers, tabs, and types ([4ca389c](https://github.com/Mearman/schema-components/commit/4ca389c9b553f971c9b56f4f30609b62c526c813))
+* **core:** run unit suite under preact/compat aliasing ([0f94d7e](https://github.com/Mearman/schema-components/commit/0f94d7e83b69c5f33ff0a59c39499ff9751b26d4))
+
+### Build
+
+* **core:** wire svelte vitest project, turbo task, and bundler exclusion ([4447f9d](https://github.com/Mearman/schema-components/commit/4447f9df9f05a27590dbc2cc3105abbfd5001ca1))
+* **deps:** add lit, @lit/context, @lit-labs/ssr for lit adapter ([bef46b3](https://github.com/Mearman/schema-components/commit/bef46b31b24b012ee72bbc7898a0c1716992baf9))
+* **deps:** add preact and preact-render-to-string as dev dependencies ([a027d3b](https://github.com/Mearman/schema-components/commit/a027d3b570b632e3266f8300fa69782a0ae4e270))
+* **deps:** add svelte 5 peer dep and devDependencies ([e2ccf99](https://github.com/Mearman/schema-components/commit/e2ccf9900ff1501d2bbe7aeb7af79cd610b7c34a))
+* **deps:** add vue, @vue/test-utils, and @vitejs/plugin-vue ([e22e01a](https://github.com/Mearman/schema-components/commit/e22e01a11df10208320cb897341a403807bbf072))
+* wire pnpm test:vue script and unit-vue vitest project ([12f699a](https://github.com/Mearman/schema-components/commit/12f699aa29e7faf309c8a1621eab804f596e069d))
+
+### Chores
+
+* **build:** allow framework adapter scopes in commitlint ([9f0f629](https://github.com/Mearman/schema-components/commit/9f0f629fb5928f073bc5e4cb681febca5006e7d1))
+* **build:** force devalue >=5.8.1 to patch GHSA-77vg-94rm-hx3p ([b69d16e](https://github.com/Mearman/schema-components/commit/b69d16e9369560e69c5570f030713530c6b54bc6))
+
 ## [2.0.2](https://github.com/Mearman/schema-components/compare/v2.0.1...v2.0.2) (2026-05-19)
 
 ### Documentation
