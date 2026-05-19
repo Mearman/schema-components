@@ -13,7 +13,6 @@
  */
 
 import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
-import { headlessResolver } from "../react/headless.tsx";
 import { inputId, toReactNode } from "../react/headlessRenderers.tsx";
 import { toRecord } from "../core/guards.ts";
 import { sortFieldsByOrder } from "../core/fieldOrder.ts";
@@ -302,37 +301,16 @@ function renderEnumInput(props: RenderProps): ReactNode {
 // Exported resolver — shadcn/ui components for all schema types
 // ---------------------------------------------------------------------------
 
-function buildResolver(): ComponentResolver {
-    const resolver: ComponentResolver = {
-        string: renderStringInput,
-        number: renderNumberInput,
-        boolean: renderBooleanInput,
-        enum: renderEnumInput,
-        object: renderObjectContainer,
-        array: renderArrayContainer,
-    };
-    if (headlessResolver.literal !== undefined)
-        resolver.literal = headlessResolver.literal;
-    if (headlessResolver.union !== undefined)
-        resolver.union = headlessResolver.union;
-    if (headlessResolver.discriminatedUnion !== undefined)
-        resolver.discriminatedUnion = headlessResolver.discriminatedUnion;
-    if (headlessResolver.record !== undefined)
-        resolver.record = headlessResolver.record;
-    if (headlessResolver.file !== undefined)
-        resolver.file = headlessResolver.file;
-    if (headlessResolver.unknown !== undefined)
-        resolver.unknown = headlessResolver.unknown;
-    return resolver;
-}
-
 /**
  * Component resolver mapping schema field types to shadcn/ui components.
  *
  * Pass to `SchemaProvider` to render every `<SchemaComponent>` /
  * `<SchemaView>` in the subtree with shadcn/ui inputs, selects, and
- * cards. Built on top of the headless resolver so any field types the
- * theme does not override fall back to plain HTML.
+ * cards. Returns only the keys this theme overrides — the runtime
+ * `mergeResolvers` call inside `<SchemaComponent>` / `<SchemaView>`
+ * fills unset keys from `headlessResolver`, so variants like literal,
+ * union, discriminatedUnion, record, file, and unknown still render via
+ * the headless fallback.
  *
  * Requires `shadcn/ui` components installed in the consuming project.
  *
@@ -347,4 +325,11 @@ function buildResolver(): ComponentResolver {
  * </SchemaProvider>
  * ```
  */
-export const shadcnResolver: ComponentResolver = buildResolver();
+export const shadcnResolver: ComponentResolver = {
+    string: renderStringInput,
+    number: renderNumberInput,
+    boolean: renderBooleanInput,
+    enum: renderEnumInput,
+    object: renderObjectContainer,
+    array: renderArrayContainer,
+};

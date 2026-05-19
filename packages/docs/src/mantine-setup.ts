@@ -1,7 +1,9 @@
 /**
- * Register real Mantine components with the Mantine theme adapter.
+ * Build the Mantine resolver against the real `@mantine/core` element
+ * types. Exposes `mantineResolver` so the Storybook stories and demo
+ * pages can wrap `<SchemaProvider>` around it.
  */
-import { registerMantineComponents } from "schema-components/themes/mantine";
+import { createMantineResolver } from "schema-components/themes/mantine";
 import {
     TextInput,
     NumberInput,
@@ -11,7 +13,7 @@ import {
     Text,
 } from "@mantine/core";
 
-registerMantineComponents({
+export const mantineResolver = createMantineResolver({
     TextInput,
     NumberInput,
     Switch,

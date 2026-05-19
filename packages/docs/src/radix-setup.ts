@@ -1,7 +1,9 @@
 /**
- * Register real Radix Themes components with the Radix adapter.
+ * Build the Radix Themes resolver against the real `@radix-ui/themes`
+ * element types. Exposes `radixResolver` so the Storybook stories and
+ * demo pages can wrap `<SchemaProvider>` around it.
  */
-import { registerRadixComponents } from "schema-components/themes/radix";
+import { createRadixResolver } from "schema-components/themes/radix";
 import {
     Box,
     Checkbox,
@@ -11,7 +13,7 @@ import {
     TextField,
 } from "@radix-ui/themes";
 
-registerRadixComponents({
+export const radixResolver = createRadixResolver({
     Box,
     Checkbox,
     Flex,

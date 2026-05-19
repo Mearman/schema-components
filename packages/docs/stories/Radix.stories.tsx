@@ -9,9 +9,8 @@ import { Card, Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 import { SchemaProvider } from "schema-components/react/SchemaComponent";
-import { radixResolver } from "schema-components/themes/radix";
 
-import "../src/radix-setup.ts";
+import { radixResolver } from "../src/radix-setup.ts";
 import { useThemeClass } from "../src/useThemeClass.ts";
 
 const profileSchema = z.object({

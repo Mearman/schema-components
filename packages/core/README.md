@@ -298,14 +298,20 @@ import { shadcnResolver } from "schema-components/themes/shadcn";
 ### MUI
 
 ```tsx
-import { registerMuiComponents } from "schema-components/themes/mui";
-import { shadcnResolver } from "schema-components/themes/shadcn";
+import { SchemaProvider } from "schema-components/react/SchemaComponent";
+import { createMuiResolver } from "schema-components/themes/mui";
+import TextField from "@mui/material/TextField";
+import Checkbox from "@mui/material/Checkbox";
+import Typography from "@mui/material/Typography";
+import Box from "@mui/material/Box";
+import MenuItem from "@mui/material/MenuItem";
+import FormControlLabel from "@mui/material/FormControlLabel";
 
-// Register MUI components at app startup
-registerMuiComponents();
+const muiResolver = createMuiResolver({
+  TextField, Checkbox, Typography, Box, MenuItem, FormControlLabel,
+});
 
-// Use via SchemaProvider
-<SchemaProvider resolver={shadcnResolver}>
+<SchemaProvider resolver={muiResolver}>
   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
 </SchemaProvider>
 ```
@@ -313,12 +319,17 @@ registerMuiComponents();
 ### Mantine
 
 ```tsx
-import { registerMantineComponents } from "schema-components/themes/mantine";
-import { shadcnResolver } from "schema-components/themes/shadcn";
+import { SchemaProvider } from "schema-components/react/SchemaComponent";
+import { createMantineResolver } from "schema-components/themes/mantine";
+import {
+  TextInput, NumberInput, Switch, Select, Fieldset, Text,
+} from "@mantine/core";
 
-registerMantineComponents();
+const mantineResolver = createMantineResolver({
+  TextInput, NumberInput, Switch, Select, Fieldset, Text,
+});
 
-<SchemaProvider resolver={shadcnResolver}>
+<SchemaProvider resolver={mantineResolver}>
   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
 </SchemaProvider>
 ```
@@ -326,12 +337,23 @@ registerMantineComponents();
 ### Radix Themes
 
 ```tsx
-import { registerRadixComponents } from "schema-components/themes/radix";
-import { shadcnResolver } from "schema-components/themes/shadcn";
+import { SchemaProvider } from "schema-components/react/SchemaComponent";
+import { createRadixResolver } from "schema-components/themes/radix";
+import { Box, Checkbox, Flex, Select, Text, TextField } from "@radix-ui/themes";
 
-registerRadixComponents();
+const radixResolver = createRadixResolver({
+  Box,
+  Checkbox,
+  Flex,
+  SelectRoot: Select.Root,
+  SelectTrigger: Select.Trigger,
+  SelectContent: Select.Content,
+  SelectItem: Select.Item,
+  Text,
+  TextField: TextField.Root,
+});
 
-<SchemaProvider resolver={shadcnResolver}>
+<SchemaProvider resolver={radixResolver}>
   <SchemaComponent schema={userSchema} value={user} onChange={setUser} />
 </SchemaProvider>
 ```

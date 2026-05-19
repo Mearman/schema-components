@@ -8,14 +8,11 @@ import "@mantine/core/styles.css";
 import type { z } from "zod";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 import { SchemaProvider } from "schema-components/react/SchemaComponent";
-import { muiResolver } from "schema-components/themes/mui";
-import { mantineResolver } from "schema-components/themes/mantine";
-import { radixResolver } from "schema-components/themes/radix";
 import { shadcnResolver } from "schema-components/themes/shadcn";
 
-import "./mantine-setup.ts";
-import "./mui-setup.ts";
-import "./radix-setup.ts";
+import { mantineResolver } from "./mantine-setup.ts";
+import { muiResolver } from "./mui-setup.ts";
+import { radixResolver } from "./radix-setup.ts";
 import "./tailwind.css";
 import { useThemeClass } from "./useThemeClass.ts";
 

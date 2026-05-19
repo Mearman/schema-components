@@ -9,9 +9,8 @@ import { createTheme, ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 import { SchemaProvider } from "schema-components/react/SchemaComponent";
-import { muiResolver } from "schema-components/themes/mui";
 
-import "../src/mui-setup.ts";
+import { muiResolver } from "../src/mui-setup.ts";
 import { useThemeClass } from "../src/useThemeClass.ts";
 
 const profileSchema = z.object({

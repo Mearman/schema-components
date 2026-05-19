@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { DemoCard, DemoGrid, StoryPage } from "../src/story-layout.tsx";
 
 const snippets = {
-    mui: `import { registerMuiComponents } from "schema-components/themes/mui";
+    mui: `import { createMuiResolver } from "schema-components/themes/mui";
 import TextField from "@mui/material/TextField";
 import Checkbox from "@mui/material/Checkbox";
 import Typography from "@mui/material/Typography";
@@ -10,7 +10,7 @@ import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import FormControlLabel from "@mui/material/FormControlLabel";
 
-registerMuiComponents({
+const muiResolver = createMuiResolver({
   TextField,
   Checkbox,
   Typography,
@@ -18,22 +18,25 @@ registerMuiComponents({
   MenuItem,
   FormControlLabel,
 });`,
-    mantine: `import { registerMantineComponents } from "schema-components/themes/mantine";
-import { TextInput, NumberInput, Switch, Select, Fieldset } from "@mantine/core";
+    mantine: `import { createMantineResolver } from "schema-components/themes/mantine";
+import {
+  TextInput, NumberInput, Switch, Select, Fieldset, Text,
+} from "@mantine/core";
 import "@mantine/core/styles.css";
 
-registerMantineComponents({
+const mantineResolver = createMantineResolver({
   TextInput,
   NumberInput,
   Switch,
   Select,
   Fieldset,
+  Text,
 });`,
-    radix: `import { registerRadixComponents } from "schema-components/themes/radix";
+    radix: `import { createRadixResolver } from "schema-components/themes/radix";
 import { Box, Checkbox, Flex, Select, Text, TextField } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 
-registerRadixComponents({
+const radixResolver = createRadixResolver({
   Box,
   Checkbox,
   Flex,
@@ -75,7 +78,7 @@ function AdapterSetup() {
     return (
         <StoryPage
             title="Adapter setup"
-            description="Component-library adapters keep heavy UI packages out of the published core package. Consumers install their UI library and register the components once at application startup."
+            description="Component-library adapters keep heavy UI packages out of the published core package. Consumers install their UI library and build the resolver once with the createXResolver factory, capturing the element types in a closure so the resolver is safe under SSR and in multi-tenant runtimes."
         >
             <DemoGrid>
                 <DemoCard title="MUI">
@@ -101,9 +104,9 @@ const meta = {
     tags: ["theme-adapter"],
     parameters: {
         apiSymbols: [
-            "registerMuiComponents",
-            "registerMantineComponents",
-            "registerRadixComponents",
+            "createMuiResolver",
+            "createMantineResolver",
+            "createRadixResolver",
             "shadcnResolver",
         ],
     },

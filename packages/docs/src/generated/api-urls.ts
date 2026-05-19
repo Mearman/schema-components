@@ -184,6 +184,15 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
     countDistinctRefs: [
         { name: "countDistinctRefs", modulePath: "core/ref", kind: "Function", url: "https://mearman.github.io/schema-components/functions/core_ref.countDistinctRefs.html" },
     ],
+    createMantineResolver: [
+        { name: "createMantineResolver", modulePath: "themes/mantine", kind: "Function", url: "https://mearman.github.io/schema-components/functions/themes_mantine.createMantineResolver.html" },
+    ],
+    createMuiResolver: [
+        { name: "createMuiResolver", modulePath: "themes/mui", kind: "Function", url: "https://mearman.github.io/schema-components/functions/themes_mui.createMuiResolver.html" },
+    ],
+    createRadixResolver: [
+        { name: "createRadixResolver", modulePath: "themes/radix", kind: "Function", url: "https://mearman.github.io/schema-components/functions/themes_radix.createRadixResolver.html" },
+    ],
     dateInputType: [
         { name: "dateInputType", modulePath: "core/formats", kind: "Function", url: "https://mearman.github.io/schema-components/functions/core_formats.dateInputType.html" },
     ],
@@ -205,9 +214,6 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
     DEFAULT_OPENAPI_CONTENT_TYPE: [
         { name: "DEFAULT_OPENAPI_CONTENT_TYPE", modulePath: "core/openapiConstants", kind: "Variable", url: "https://mearman.github.io/schema-components/variables/core_openapiConstants.DEFAULT_OPENAPI_CONTENT_TYPE.html" },
         { name: "DEFAULT_OPENAPI_CONTENT_TYPE", modulePath: "core/typeInference", kind: "Type", url: "https://mearman.github.io/schema-components/types/core_typeInference.DEFAULT_OPENAPI_CONTENT_TYPE.html" },
-    ],
-    DEFAULT_REF_CHAIN_MAX_HOPS: [
-        { name: "DEFAULT_REF_CHAIN_MAX_HOPS", modulePath: "core/refChain", kind: "Variable", url: "https://mearman.github.io/schema-components/variables/core_refChain.DEFAULT_REF_CHAIN_MAX_HOPS.html" },
     ],
     defaultHtmlResolver: [
         { name: "defaultHtmlResolver", modulePath: "html/renderers", kind: "Variable", url: "https://mearman.github.io/schema-components/variables/html_renderers.defaultHtmlResolver.html" },
@@ -597,6 +603,9 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
     LiteralField: [
         { name: "LiteralField", modulePath: "core/types", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/core_types.LiteralField.html" },
     ],
+    MantineComponents: [
+        { name: "MantineComponents", modulePath: "themes/mantine", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/themes_mantine.MantineComponents.html" },
+    ],
     mantineResolver: [
         { name: "mantineResolver", modulePath: "themes/mantine", kind: "Variable", url: "https://mearman.github.io/schema-components/variables/themes_mantine.mantineResolver.html" },
     ],
@@ -632,6 +641,9 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
     ],
     mergeResolvers: [
         { name: "mergeResolvers", modulePath: "core/renderer", kind: "Function", url: "https://mearman.github.io/schema-components/functions/core_renderer.mergeResolvers.html" },
+    ],
+    MuiComponents: [
+        { name: "MuiComponents", modulePath: "themes/mui", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/themes_mui.MuiComponents.html" },
     ],
     muiResolver: [
         { name: "muiResolver", modulePath: "themes/mui", kind: "Variable", url: "https://mearman.github.io/schema-components/variables/themes_mui.muiResolver.html" },
@@ -744,6 +756,9 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
     PathOfType: [
         { name: "PathOfType", modulePath: "core/typeInference", kind: "Type", url: "https://mearman.github.io/schema-components/types/core_typeInference.PathOfType.html" },
     ],
+    RadixComponents: [
+        { name: "RadixComponents", modulePath: "themes/radix", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/themes_radix.RadixComponents.html" },
+    ],
     radixResolver: [
         { name: "radixResolver", modulePath: "themes/radix", kind: "Variable", url: "https://mearman.github.io/schema-components/variables/themes_radix.radixResolver.html" },
     ],
@@ -770,15 +785,6 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
     ],
     RefOptions: [
         { name: "RefOptions", modulePath: "core/ref", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/core_ref.RefOptions.html" },
-    ],
-    registerMantineComponents: [
-        { name: "registerMantineComponents", modulePath: "themes/mantine", kind: "Function", url: "https://mearman.github.io/schema-components/functions/themes_mantine.registerMantineComponents.html" },
-    ],
-    registerMuiComponents: [
-        { name: "registerMuiComponents", modulePath: "themes/mui", kind: "Function", url: "https://mearman.github.io/schema-components/functions/themes_mui.registerMuiComponents.html" },
-    ],
-    registerRadixComponents: [
-        { name: "registerRadixComponents", modulePath: "themes/radix", kind: "Function", url: "https://mearman.github.io/schema-components/functions/themes_radix.registerRadixComponents.html" },
     ],
     registerWidget: [
         { name: "registerWidget", modulePath: "react/SchemaComponent", kind: "Function", url: "https://mearman.github.io/schema-components/functions/react_SchemaComponent.registerWidget.html" },
@@ -1129,7 +1135,7 @@ export const apiUrls: Readonly<Record<string, readonly ApiPage[]>> = {
         { name: "WebhookInfo", modulePath: "openapi/parser", kind: "Interface", url: "https://mearman.github.io/schema-components/interfaces/openapi_parser.WebhookInfo.html" },
     ],
     WidgetMap: [
-        { name: "WidgetMap", modulePath: "react/SchemaComponent", kind: "Type", url: "https://mearman.github.io/schema-components/types/react_SchemaComponent.WidgetMap.html" },
+        { name: "WidgetMap", modulePath: "core/renderer", kind: "Type", url: "https://mearman.github.io/schema-components/types/core_renderer.WidgetMap.html" },
     ],
     withoutKeys: [
         { name: "withoutKeys", modulePath: "core/walkBuilders", kind: "Function", url: "https://mearman.github.io/schema-components/functions/core_walkBuilders.withoutKeys.html" },
