@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/Mearman/schema-components/compare/v2.0.0...v2.0.1) (2026-05-19)
+
+### Chores
+
+* **core:** declare [@group](https://github.com/group) as a TSDoc block tag ([e8dd286](https://github.com/Mearman/schema-components/commit/e8dd28620ee0ad5678e25853f17209a614c61498))
+* **deps:** add eslint-plugin-tsdoc syntax rule as warning ([8229438](https://github.com/Mearman/schema-components/commit/822943869f12fd1c10292cde98407924f82a2807))
+
 ## [2.0.0](https://github.com/Mearman/schema-components/compare/v1.29.0...v2.0.0) (2026-05-19)
 
 ### ⚠ BREAKING CHANGES
