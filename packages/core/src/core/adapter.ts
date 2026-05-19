@@ -142,7 +142,7 @@ function extractStandardSchemaVendor(input: unknown): string | undefined {
  * The _zod guard in normaliseZod4 has confirmed this is a valid Zod schema,
  * but TypeScript cannot represent "has _zod.def" as the $ZodType parameter
  * that z.toJSONSchema expects. This is the library boundary equivalent of
- * object → Record<string, unknown> — the type mismatch is genuinely unavoidable.
+ * `object → Record<string, unknown>` — the type mismatch is genuinely unavoidable.
  *
  * # Options
  *
@@ -261,8 +261,8 @@ function callToJsonSchema(
  *   without ever being told the wrapping was lost.
  *
  * Detection happens BEFORE the call to `z.toJSONSchema` so the response is
- * an immediate `SchemaNormalisationError` with `kind:
- * "zod-type-unrepresentable"`, matching the philosophy of
+ * an immediate `SchemaNormalisationError` with `kind: "zod-type-unrepresentable"`,
+ * matching the philosophy of
  * `UnrepresentableZodType` in `typeInference.ts` — these types are
  * rejected, not coerced.
  */
@@ -769,33 +769,41 @@ function unrepresentableMessage(typeName: string, fullMessage: string): string {
 
 /**
  * Classifier rules ordered most-specific first. Order is load-bearing:
- * `Literal \`undefined\` cannot be represented` must precede the broader
- * `Undefined cannot be represented` so the literal classification wins
- * even when both share a leading word. A consistency check in the unit
- * test suite asserts no two `prefix` values are prefixes of each other —
- * any future rule that breaks the invariant fails the build.
+ * the Literal-undefined message must precede the broader
+ * Undefined-cannot-be-represented message so the literal classification
+ * wins even when both share a leading word. A consistency check in the
+ * unit test suite asserts no two `prefix` values are prefixes of each
+ * other — any future rule that breaks the invariant fails the build.
  *
  * Verbatim sources (kept aligned with `tests/zod-error-wording-contract.unit.test.ts`).
  * Source files are referenced by message-content anchors rather than line
  * numbers — line numbers drift across Zod patch releases but the message
- * strings themselves are stable and protected by the contract test suite:
+ * strings themselves are stable and protected by the contract test suite.
  *
- * - `zod/src/v4/core/json-schema-processors.ts` — emits `BigInt cannot be
- *   represented`, `Symbols cannot be represented`, `Undefined cannot be
- *   represented`, `Void cannot be represented`, `Date cannot be
- *   represented`, `Literal \`undefined\` cannot be represented`,
- *   `BigInt literals cannot be represented`, `NaN cannot be represented`,
- *   `Custom types cannot be represented`, `Function types cannot be
- *   represented`, `Transforms cannot be represented`, `Map cannot be
- *   represented`, `Set cannot be represented`, `Dynamic catch values are
- *   not supported`.
- * - `zod/src/v4/core/to-json-schema.ts` — emits `[toJSONSchema]:
- *   Non-representable type encountered: ${def.type}` (the catch-all
- *   fallback), `Unprocessed schema. This is a bug in Zod.` (the
- *   internal-bug branch), `Duplicate schema id "${id}" detected during
- *   JSON Schema conversion.` (the duplicate-id branch), `Cycle detected:
- *   ` (the cycle-throw branch), and `Error converting schema to JSON.`
- *   (the Standard Schema boundary wrapper).
+ * Messages from `zod/src/v4/core/json-schema-processors.ts`:
+ *
+ * - `BigInt cannot be represented`
+ * - `Symbols cannot be represented`
+ * - `Undefined cannot be represented`
+ * - `Void cannot be represented`
+ * - `Date cannot be represented`
+ * - the Literal-undefined message (the string literal at the matching `prefix` below holds the verbatim Zod text, including its own embedded backticks)
+ * - `BigInt literals cannot be represented`
+ * - `NaN cannot be represented`
+ * - `Custom types cannot be represented`
+ * - `Function types cannot be represented`
+ * - `Transforms cannot be represented`
+ * - `Map cannot be represented`
+ * - `Set cannot be represented`
+ * - `Dynamic catch values are not supported`
+ *
+ * Messages from `zod/src/v4/core/to-json-schema.ts`:
+ *
+ * - `[toJSONSchema]: Non-representable type encountered: ${def.type}` (the catch-all fallback)
+ * - `Unprocessed schema. This is a bug in Zod.` (the internal-bug branch)
+ * - `Duplicate schema id "${id}" detected during JSON Schema conversion.` (the duplicate-id branch)
+ * - `Cycle detected: ` (the cycle-throw branch)
+ * - `Error converting schema to JSON.` (the Standard Schema boundary wrapper)
  */
 const CLASSIFIER_RULES: readonly ClassifierRule[] = [
     // Literal-only forms must precede their broader counterparts.
