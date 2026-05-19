@@ -8,11 +8,23 @@
  * functions defined in `headlessRenderers.tsx`.
  *
  * Accessibility:
- * - All inputs have `id`; labels use `htmlFor` for programmatic association
- * - Discriminated union tabs follow WAI-ARIA tabs pattern (role, aria-selected,
- *   arrow key navigation, Home/End)
- * - Checkboxes are linked to visible labels where available
- * - Validation state surfaced via `aria-invalid` and `aria-errormessage`
+ * - All inputs have `id`; labels use `htmlFor` for programmatic association.
+ * - Object fields fall back to the structural key as label text when no
+ *   `description` is supplied.
+ * - Discriminated union tabs follow WAI-ARIA tabs pattern (role,
+ *   aria-selected on every tab, aria-orientation, arrow key navigation,
+ *   Home/End).
+ * - Constraint hints emit a sibling `<small class="sc-hint">` referenced
+ *   from the input via `aria-describedby`.
+ * - Checkboxes are linked to visible labels where available.
+ *
+ * Known gap: per-field validation errors are dispatched through the
+ * `onValidationError` field override callbacks but are NOT yet surfaced
+ * to inputs as `aria-invalid="true"` / `aria-errormessage`. Wiring that
+ * requires plumbing error state through `RenderProps`, deciding the
+ * trigger semantics (per-keystroke vs. blur), and adding inline
+ * error-message containers — left for a dedicated change rather than
+ * shipping a partial implementation here.
  */
 
 import type { ComponentResolver } from "../core/renderer.ts";
