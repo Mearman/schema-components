@@ -37,7 +37,11 @@ import {
     getRenderFunction,
     mergeResolvers,
 } from "../core/renderer.ts";
-import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
+import type {
+    ComponentResolver,
+    RenderProps,
+    WidgetMap,
+} from "../core/renderer.ts";
 import type {
     FieldOverride,
     FieldOverrides,
@@ -71,18 +75,6 @@ import {
 const UserResolverContext = createContext<ComponentResolver | undefined>(
     undefined
 );
-
-/**
- * Widget map — maps component hints (from `.meta({ component })`) to render
- * functions. Scoped at three levels:
- *
- * 1. **Per-instance** — `widgets` prop on `<SchemaComponent>`
- * 2. **Context-scoped** — `widgets` prop on `<SchemaProvider>`
- * 3. **Global** — `registerWidget()` (app-wide defaults)
- *
- * Resolution order: instance → context → global → resolver → headless.
- */
-export type WidgetMap = ReadonlyMap<string, (props: RenderProps) => unknown>;
 
 const WidgetsContext = createContext<WidgetMap | undefined>(undefined);
 

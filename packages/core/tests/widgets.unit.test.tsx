@@ -10,8 +10,8 @@ import {
     SchemaComponent,
     SchemaProvider,
     registerWidget,
-    type WidgetMap,
 } from "../src/react/SchemaComponent.tsx";
+import type { WidgetMap } from "../src/core/renderer.ts";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------

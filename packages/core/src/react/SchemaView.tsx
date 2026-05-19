@@ -27,7 +27,11 @@
  */
 
 import { createElement, isValidElement, useId, type ReactNode } from "react";
-import type { ComponentResolver, RenderProps } from "../core/renderer.ts";
+import type {
+    ComponentResolver,
+    RenderProps,
+    WidgetMap,
+} from "../core/renderer.ts";
 import {
     buildRenderProps,
     getRenderFunction,
@@ -37,7 +41,6 @@ import {
     joinPath,
     sanitisePrefix,
     type InferredValue,
-    type WidgetMap,
 } from "./SchemaComponent.tsx";
 import { headlessResolver } from "./headless.tsx";
 import { normaliseSchema, type SchemaIoSide } from "../core/adapter.ts";

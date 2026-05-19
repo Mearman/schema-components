@@ -187,6 +187,23 @@ export function buildRenderProps(
 export type RenderFunction = (props: RenderProps) => unknown;
 
 /**
+ * Widget map — maps component hints (from `.meta({ component })`) to render
+ * functions. A per-render bag consumed by every renderer surface that
+ * dispatches widget overrides; conceptually parallel to
+ * {@link ComponentResolver} but keyed by user-supplied hint names rather
+ * than schema types.
+ *
+ * Scoped at three levels in the React renderer:
+ *
+ * 1. **Per-instance** — `widgets` prop on `<SchemaComponent>`
+ * 2. **Context-scoped** — `widgets` prop on `<SchemaProvider>`
+ * 3. **Global** — `registerWidget()` (app-wide defaults)
+ *
+ * Resolution order: instance → context → global → resolver → headless.
+ */
+export type WidgetMap = ReadonlyMap<string, RenderFunction>;
+
+/**
  * Theme adapter — maps every schema field type to its React renderer.
  * Unset keys fall back to the headless resolver. Pass to
  * `SchemaProvider` (or `SchemaView.resolver`) to drive every

@@ -184,7 +184,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 <!-- @generated:api-inventory:start -->
 <details>
-<summary><code>core/*</code> — 218 exports</summary>
+<summary><code>core/*</code> — 219 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -298,6 +298,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`RenderProps`](https://mearman.github.io/schema-components/interfaces/core_renderer.RenderProps.html) | `core/renderer` | Interface | Props for React render functions. |  |
 | [`RESOLVER_KEYS`](https://mearman.github.io/schema-components/variables/core_renderer.RESOLVER_KEYS.html) | `core/renderer` | Variable | Canonical list of resolver keys, one per WalkedField variant. |  |
 | [`typeToKey`](https://mearman.github.io/schema-components/functions/core_renderer.typeToKey.html) | `core/renderer` | Function | Map a schema type to the resolver key that handles it. |  |
+| [`WidgetMap`](https://mearman.github.io/schema-components/types/core_renderer.WidgetMap.html) | `core/renderer` | Type | Widget map — maps component hints (from `.meta({ component })`) to render functions. | [Extensibility/Widgets](https://mearman.github.io/schema-components/storybook/?path=/docs/extensibility-widgets--docs) |
 | [`normaliseSwagger2Document`](https://mearman.github.io/schema-components/functions/core_swagger2.normaliseSwagger2Document.html) | `core/swagger2` | Function | Transform a Swagger 2.0 document into an OpenAPI 3.1-compatible structure. |  |
 | [`__SchemaInferenceFellBack`](https://mearman.github.io/schema-components/interfaces/core_typeInference.__SchemaInferenceFellBack.html) | `core/typeInference` | Interface | Marker type emitted when OpenAPI $ref resolution hits the type-level recursion depth limit. |  |
 | [`DEFAULT_MAX_DEPTH`](https://mearman.github.io/schema-components/types/core_typeInference.DEFAULT_MAX_DEPTH.html) | `core/typeInference` | Type | Type-level recursion bound for $ref resolution. |  |
@@ -410,7 +411,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 </details>
 
 <details>
-<summary><code>react/*</code> — 45 exports</summary>
+<summary><code>react/*</code> — 44 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -454,7 +455,6 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`SchemaField`](https://mearman.github.io/schema-components/functions/react_SchemaComponent.SchemaField.html) | `react/SchemaComponent` | Function | Render a single field from a schema by dot-separated `path`. | [Objects & Layout/SchemaField](https://mearman.github.io/schema-components/storybook/?path=/docs/objects-layout-schemafield--docs) |
 | [`SchemaFieldProps`](https://mearman.github.io/schema-components/interfaces/react_SchemaComponent.SchemaFieldProps.html) | `react/SchemaComponent` | Interface | Props accepted by SchemaField. |  |
 | [`SchemaProvider`](https://mearman.github.io/schema-components/functions/react_SchemaComponent.SchemaProvider.html) | `react/SchemaComponent` | Function | Provide a theme resolver and scoped widgets to every `<SchemaComponent>` and `<SchemaView>` rendered inside the subtree. | [Theme Adapters/Comparison](https://mearman.github.io/schema-components/storybook/?path=/docs/theme-adapters-comparison--docs)<br>[Extensibility/Widgets](https://mearman.github.io/schema-components/storybook/?path=/docs/extensibility-widgets--docs) |
-| [`WidgetMap`](https://mearman.github.io/schema-components/types/react_SchemaComponent.WidgetMap.html) | `react/SchemaComponent` | Type | Widget map — maps component hints (from `.meta({ component })`) to render functions. | [Extensibility/Widgets](https://mearman.github.io/schema-components/storybook/?path=/docs/extensibility-widgets--docs) |
 | [`SchemaErrorBoundary`](https://mearman.github.io/schema-components/classes/react_SchemaErrorBoundary.SchemaErrorBoundary.html) | `react/SchemaErrorBoundary` | Class | React error boundary that catches rendering errors from `SchemaComponent`, theme adapters, and any descendant. | [Validation/Errors](https://mearman.github.io/schema-components/storybook/?path=/docs/validation-errors--docs) |
 | [`SchemaErrorBoundaryProps`](https://mearman.github.io/schema-components/interfaces/react_SchemaErrorBoundary.SchemaErrorBoundaryProps.html) | `react/SchemaErrorBoundary` | Interface | Props accepted by SchemaErrorBoundary. |  |
 | [`SchemaView`](https://mearman.github.io/schema-components/functions/react_SchemaView.SchemaView.html) | `react/SchemaView` | Function | Read-only schema renderer that is safe to use inside a React Server Component. | [Server Rendering/SchemaView](https://mearman.github.io/schema-components/storybook/?path=/docs/server-rendering-schemaview--docs) |

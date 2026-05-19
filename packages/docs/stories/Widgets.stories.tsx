@@ -9,9 +9,8 @@ import {
     SchemaComponent,
     SchemaProvider,
     registerWidget,
-    type WidgetMap,
 } from "schema-components/react/SchemaComponent";
-import type { RenderProps } from "schema-components/core/renderer";
+import type { RenderProps, WidgetMap } from "schema-components/core/renderer";
 
 // Register a global widget
 registerWidget("badge", ({ value }: RenderProps) => (

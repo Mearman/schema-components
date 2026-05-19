@@ -47,7 +47,7 @@ import {
     resolveResponseFromParsed,
     getParsed,
 } from "./resolve.ts";
-import type { WidgetMap } from "../react/SchemaComponent.tsx";
+import type { WidgetMap } from "../core/renderer.ts";
 import { ApiSecurity } from "./ApiSecurity.tsx";
 import { ApiCallbacks } from "./ApiCallbacks.tsx";
 import { ApiLinks } from "./ApiLinks.tsx";

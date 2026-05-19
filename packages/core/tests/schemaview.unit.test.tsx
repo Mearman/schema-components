@@ -11,8 +11,11 @@ import { renderToString } from "react-dom/server";
 import { z } from "zod";
 import { SchemaView } from "../src/react/SchemaView.tsx";
 import { SchemaComponent } from "../src/react/SchemaComponent.tsx";
-import type { ComponentResolver, RenderProps } from "../src/core/renderer.ts";
-import type { WidgetMap } from "../src/react/SchemaComponent.tsx";
+import type {
+    ComponentResolver,
+    RenderProps,
+    WidgetMap,
+} from "../src/core/renderer.ts";
 
 const EM_DASH = "—";
 
