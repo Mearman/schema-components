@@ -426,6 +426,120 @@ describe("discriminated union detection diagnostics", () => {
             diags.filter((d) => d.code === "discriminator-inconsistent").length
         ).toBe(0);
     });
+
+    it("emits discriminator-duplicate when two options share the same const", () => {
+        const schema = {
+            oneOf: [
+                {
+                    type: "object",
+                    properties: {
+                        kind: { const: "shared" },
+                        a: { type: "string" },
+                    },
+                },
+                {
+                    type: "object",
+                    properties: {
+                        kind: { const: "shared" },
+                        b: { type: "number" },
+                    },
+                },
+            ],
+        };
+        const diags = collectDiagnostics((sink) => {
+            walk(schema, { diagnostics: { diagnostics: sink } });
+        });
+        const duplicates = diags.filter(
+            (d) => d.code === "discriminator-duplicate"
+        );
+        expect(duplicates.length).toBe(1);
+        const detail = assertDefined(
+            duplicates[0],
+            "expected duplicate diagnostic"
+        ).detail;
+        expect(detail?.discriminator).toBe("kind");
+        expect(detail?.value).toBe("shared");
+        expect(detail?.indices).toEqual([0, 1]);
+
+        // Behaviour is preserved — the union is still discriminated.
+        const result = walk(schema);
+        expect(result.type).toBe("discriminatedUnion");
+    });
+
+    it("emits discriminator-duplicate covering all colliding indices in a three-option schema", () => {
+        const schema = {
+            oneOf: [
+                {
+                    type: "object",
+                    properties: {
+                        kind: { const: "x" },
+                        v: { type: "string" },
+                    },
+                },
+                {
+                    type: "object",
+                    properties: {
+                        kind: { const: "y" },
+                        v: { type: "number" },
+                    },
+                },
+                {
+                    type: "object",
+                    properties: {
+                        kind: { const: "x" },
+                        v: { type: "boolean" },
+                    },
+                },
+            ],
+        };
+        const diags = collectDiagnostics((sink) => {
+            walk(schema, { diagnostics: { diagnostics: sink } });
+        });
+        const duplicates = diags.filter(
+            (d) => d.code === "discriminator-duplicate"
+        );
+        expect(duplicates.length).toBe(1);
+        const detail = assertDefined(
+            duplicates[0],
+            "expected duplicate diagnostic"
+        ).detail;
+        expect(detail?.value).toBe("x");
+        expect(detail?.indices).toEqual([0, 2]);
+    });
+
+    it("does not emit discriminator-duplicate when every option has a unique const", () => {
+        const schema = {
+            oneOf: [
+                {
+                    type: "object",
+                    properties: {
+                        kind: { const: "a" },
+                        v: { type: "string" },
+                    },
+                },
+                {
+                    type: "object",
+                    properties: {
+                        kind: { const: "b" },
+                        v: { type: "number" },
+                    },
+                },
+                {
+                    type: "object",
+                    properties: {
+                        kind: { const: "c" },
+                        v: { type: "boolean" },
+                    },
+                },
+            ],
+        };
+        const diags = collectDiagnostics((sink) => {
+            walk(schema, { diagnostics: { diagnostics: sink } });
+        });
+        expect(
+            diags.filter((d) => d.code === "discriminator-duplicate").length
+        ).toBe(0);
+    });
 });
 
 // ---------------------------------------------------------------------------

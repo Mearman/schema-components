@@ -37,6 +37,7 @@ export type DiagnosticCode =
     | "dependencies-conflict"
     | "dependent-required-invalid"
     | "depth-exceeded"
+    | "discriminator-duplicate"
     | "discriminator-inconsistent"
     | "divisible-by-conflict"
     | "doc-not-object"

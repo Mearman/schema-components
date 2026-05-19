@@ -398,6 +398,17 @@ export interface Discriminated {
  * uses `kind` while another uses `type`) detection fails and a
  * `discriminator-inconsistent` diagnostic is emitted so callers can
  * see why the union falls back to a generic oneOf.
+ *
+ * When two or more options share the same discriminator `const` value,
+ * the union is still treated as discriminated (the first-match
+ * behaviour in {@link import("./unionMatch.ts").resolveDiscriminatedActive}
+ * resolves the active option), but a `discriminator-duplicate`
+ * diagnostic is emitted so the unreachable branch is visible to the
+ * consumer. Changing the behaviour to fall back to a generic union
+ * would be a silent regression for the much commoner case of two
+ * intentionally-identical discriminator values appearing in distinct
+ * sub-schemas (e.g. an `allOf`-driven hierarchy where the base option
+ * duplicates the leaf).
  */
 export function detectDiscriminated(
     options: unknown[],
@@ -456,5 +467,70 @@ export function detectDiscriminated(
 
     if (discriminator === undefined) return undefined;
 
-    return { options: options.filter(isObject), discriminator };
+    const objectOptions = options.filter(isObject);
+
+    // Detect duplicate discriminator `const` values. Downstream the
+    // active-option resolver picks by `indexOf` on the rendered label
+    // list, so any option past the first occurrence of a given value
+    // is unreachable. We still treat the union as discriminated — that
+    // matches the prior behaviour and keeps the surface area stable —
+    // but surface the lost branch through a diagnostic so the consumer
+    // is not blind to it.
+    emitDuplicateDiscriminatorDiagnostic(
+        objectOptions,
+        discriminator,
+        diagnostics,
+        pointer
+    );
+
+    return { options: objectOptions, discriminator };
+}
+
+/**
+ * Inspect the discriminator `const` value declared on each option and
+ * emit a `discriminator-duplicate` diagnostic when two or more options
+ * share the same value. The diagnostic detail carries the offending
+ * value plus the indices of the colliding options so consumers can
+ * point at them directly.
+ */
+function emitDuplicateDiscriminatorDiagnostic(
+    options: readonly Record<string, unknown>[],
+    discriminator: string,
+    diagnostics: DiagnosticsOptions | undefined,
+    pointer: string
+): void {
+    // Group option indices by serialised discriminator value. Stringify
+    // via `JSON.stringify` so non-string discriminators (numbers,
+    // booleans, null) participate in the comparison without coercing
+    // `null` and the string `"null"` to the same bucket.
+    const groups = new Map<string, { value: unknown; indices: number[] }>();
+    for (const [index, option] of options.entries()) {
+        const props = getObject(option, "properties");
+        if (props === undefined) continue;
+        const discriminatorSchema = getObject(props, discriminator);
+        if (discriminatorSchema === undefined) continue;
+        if (!("const" in discriminatorSchema)) continue;
+        const constValue = discriminatorSchema.const;
+        const key = JSON.stringify(constValue);
+        const existing = groups.get(key);
+        if (existing === undefined) {
+            groups.set(key, { value: constValue, indices: [index] });
+        } else {
+            existing.indices.push(index);
+        }
+    }
+
+    for (const { value, indices } of groups.values()) {
+        if (indices.length < 2) continue;
+        emitDiagnostic(diagnostics, {
+            code: "discriminator-duplicate",
+            message: `oneOf options ${indices.join(", ")} share the same discriminator value for "${discriminator}" (${JSON.stringify(value)}); only the first option is reachable`,
+            pointer,
+            detail: {
+                discriminator,
+                value,
+                indices,
+            },
+        });
+    }
 }
