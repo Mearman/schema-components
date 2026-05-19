@@ -114,9 +114,9 @@ function walkSubSchema(value: unknown, ctx: WalkContext): WalkedField {
  * JSON Schema 2020-12 §11.2/§11.3 semantics:
  *
  *   false (forbid all extras)
- *     > schema-object (extras must match the schema)
- *     > true (extras explicitly permitted)
- *     > absent (extras implicitly permitted)
+ *     \> schema-object (extras must match the schema)
+ *     \> true (extras explicitly permitted)
+ *     \> absent (extras implicitly permitted)
  *
  * Unknown shapes (numbers, arrays, strings) sort below absent — we
  * cannot reason about them, so do not let them override anything.
