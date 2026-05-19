@@ -52,7 +52,7 @@ import {
 } from "./a11y.ts";
 import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import { recursionSentinelHtml } from "./renderToHtml.ts";
-import { panelId, tabId } from "./renderers.ts";
+import { panelIdFor, tabIdFor } from "../core/idPath.ts";
 
 // ---------------------------------------------------------------------------
 // Yield helpers (passed from the parent module)
@@ -713,15 +713,16 @@ function* streamDiscriminatedUnion(
         return;
     }
 
-    // Editable: WAI-ARIA tabs pattern. Route ids through `panelId` /
-    // `tabId` (from `./renderers.ts`) so the streaming and sync renderers
+    // Editable: WAI-ARIA tabs pattern. Route ids through the canonical
+    // `panelIdFor` / `tabIdFor` (from `core/idPath.ts`) so the
+    // streaming and sync renderers
     // — and, through Agent G's parallel work, the React headless renderer
     // — produce structurally identical ids for the same path. Both
     // helpers delegate to the canonical `panelIdFor` / `tabIdFor` in
     // `core/idPath.ts` for non-empty paths so dots / brackets in nested
     // paths can no longer leak into the id and break CSS selectors or
     // the `aria-labelledby` ↔ tab `id` association.
-    const tabPanelId = panelId(path);
+    const tabPanelId = panelIdFor(path);
     const wrapper = h("div", { class: SC_CLASSES.discriminatedUnion });
     yield yieldOpen(wrapper);
 
@@ -731,7 +732,7 @@ function* streamDiscriminatedUnion(
             type: "button",
             role: "tab",
             class: i === activeIndex ? SC_CLASSES.tabActive : SC_CLASSES.tab,
-            id: tabId(path, i),
+            id: tabIdFor(path, i),
             // Emit the literal `"false"` rather than omitting the
             // attribute on inactive tabs — some screen readers only
             // announce selection state when `aria-selected` is
@@ -759,7 +760,7 @@ function* streamDiscriminatedUnion(
     const panelOpen = h("div", {
         role: "tabpanel",
         id: tabPanelId,
-        "aria-labelledby": tabId(path, activeIndex),
+        "aria-labelledby": tabIdFor(path, activeIndex),
     });
     yield yieldOpen(panelOpen);
 

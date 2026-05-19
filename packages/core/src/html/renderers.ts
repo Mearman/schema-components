@@ -38,53 +38,6 @@ import {
 export { dateInputType };
 
 // ---------------------------------------------------------------------------
-// ID normalisation — dots and brackets become hyphens for valid HTML IDs
-// ---------------------------------------------------------------------------
-
-/**
- * Thin wrapper over `fieldDomId` from `core/idPath.ts`. Every render
- * pipeline must derive ids from the same canonical normaliser so that
- * `aria-controls`, `aria-labelledby`, and `htmlFor` references resolve
- * consistently across the React, sync-HTML, and streaming-HTML outputs.
- *
- * The wrapper tolerates an empty path here (returning `sc-`) so that
- * a leaf renderer at the schema root — `renderToHtml(z.string())` — has
- * a usable id without throwing. Container renderers always thread a
- * non-empty path through `renderChild`, so the empty-id fallback can
- * never produce sibling collisions inside a structured form.
- */
-export function fieldId(path: string): string {
-    if (path.length === 0) return "sc-";
-    return fieldDomId(path);
-}
-
-/**
- * Tab-panel id for a discriminated union at `path`. Delegates to the
- * canonical `panelIdFor` from `core/idPath.ts` for the normal case so
- * the sync, streaming, and React renderers all emit identical ids; falls
- * back to a structurally-equivalent string when the renderer is invoked
- * with an empty root path (a discriminated union at the schema root —
- * see the `fieldId` doc comment for the wider context).
- *
- * Exported because `streamRenderers.ts` needs to derive identical ids
- * — the panel id on the `<div role="tabpanel">` must match the
- * `aria-controls` on every tab regardless of which pipeline rendered it.
- */
-export function panelId(path: string): string {
-    if (path.length === 0) return `${fieldId(path)}-panel`;
-    return panelIdFor(path);
-}
-
-/**
- * Tab id for tab `i` within a discriminated union at `path`. Mirror of
- * `panelId` above — see its comment.
- */
-export function tabId(path: string, i: number): string {
-    if (path.length === 0) return `${fieldId(path)}-tab-${String(i)}`;
-    return tabIdFor(path, i);
-}
-
-// ---------------------------------------------------------------------------
 // String renderers
 // ---------------------------------------------------------------------------
 
@@ -146,7 +99,7 @@ function renderStringEditable(props: HtmlRenderProps): HtmlNode {
               : format === "uri"
                 ? "url"
                 : "text");
-    const id = fieldId(props.path);
+    const id = fieldDomId(props.path);
 
     const attrs: HtmlAttributes = {
         class: SC_CLASSES.input,
@@ -205,7 +158,7 @@ function renderNumberReadOnly(props: HtmlRenderProps): HtmlNode {
 
 function renderNumberEditable(props: HtmlRenderProps): HtmlNode {
     const numValue = typeof props.value === "number" ? String(props.value) : "";
-    const id = fieldId(props.path);
+    const id = fieldDomId(props.path);
     // `tree.type === "number"` is guaranteed by the resolver dispatch
     // (the resolver routes `NumberField` to this renderer). Narrowing here
     // exposes the `isInteger` flag for the inputmode / step heuristic.
@@ -271,7 +224,7 @@ function renderBooleanReadOnly(props: HtmlRenderProps): HtmlNode {
 }
 
 function renderBooleanEditable(props: HtmlRenderProps): HtmlNode {
-    const id = fieldId(props.path);
+    const id = fieldDomId(props.path);
 
     const attrs: HtmlAttributes = {
         class: SC_CLASSES.input,
@@ -311,7 +264,7 @@ function renderEnumReadOnly(props: HtmlRenderProps): HtmlNode {
 
 function renderEnumEditable(props: HtmlRenderProps): HtmlNode {
     const enumValue = typeof props.value === "string" ? props.value : "";
-    const id = fieldId(props.path);
+    const id = fieldDomId(props.path);
     const selectedValue = props.writeOnly ? "" : enumValue;
     const enumValues = props.tree.type === "enum" ? props.tree.enumValues : [];
 
@@ -595,20 +548,19 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
         return serialize(h("span", { class: SC_CLASSES.valueEmpty }, EM_DASH));
     }
 
-    // Editable: WAI-ARIA tabs pattern. Route ids through the local
-    // `panelId` / `tabId` helpers — both delegate to the canonical
-    // `panelIdFor` / `tabIdFor` from `core/idPath.ts` for non-empty paths
-    // so the sync, streaming, and React renderers all derive the same id
-    // for the same structural path. The helpers also sanitise dots /
-    // brackets out of the path so the tab/panel ids remain valid CSS
-    // selectors when nested beneath arrays or under deep object paths.
-    const tabPanelId = panelId(props.path);
+    // Editable: WAI-ARIA tabs pattern. Both `panelIdFor` and `tabIdFor`
+    // are the canonical id helpers from `core/idPath.ts`, so the sync,
+    // streaming, and React renderers all derive the same id for the
+    // same structural path. The helpers also sanitise dots / brackets
+    // out of the path so the tab/panel ids remain valid CSS selectors
+    // when nested beneath arrays or under deep object paths.
+    const tabPanelId = panelIdFor(props.path);
     const tabButtons = options.map((_opt, i) => {
         const attrs: HtmlAttributes = {
             type: "button",
             role: "tab",
             class: i === activeIndex ? SC_CLASSES.tabActive : SC_CLASSES.tab,
-            id: tabId(props.path, i),
+            id: tabIdFor(props.path, i),
             // Emit the literal `"false"` rather than omitting the
             // attribute on inactive tabs — some screen readers only
             // announce selection state when `aria-selected` is
@@ -641,7 +593,7 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
                 {
                     role: "tabpanel",
                     id: tabPanelId,
-                    "aria-labelledby": tabId(props.path, activeIndex),
+                    "aria-labelledby": tabIdFor(props.path, activeIndex),
                 },
                 raw(childHtml)
             )
@@ -658,7 +610,7 @@ function renderDiscriminatedUnionHtml(props: HtmlRenderProps): string {
 // ---------------------------------------------------------------------------
 
 function renderFileHtml(props: HtmlRenderProps): string {
-    const id = fieldId(props.path);
+    const id = fieldDomId(props.path);
     const accept = props.constraints.mimeTypes?.join(",");
 
     if (props.readOnly) {
@@ -832,8 +784,18 @@ function renderNegationHtml(props: HtmlRenderProps): string {
  * The only valid value is `null`, so render an em-dash placeholder.
  */
 function renderNullHtml(props: HtmlRenderProps): string {
-    const id = fieldId(props.path);
-    return serialize(h("span", { class: SC_CLASSES.valueEmpty, id }, EM_DASH));
+    const id = fieldDomId(props.path);
+    return serialize(
+        h(
+            "span",
+            {
+                class: SC_CLASSES.valueEmpty,
+                id,
+                ...ariaReadonlyAttrs(),
+            },
+            EM_DASH
+        )
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -848,7 +810,7 @@ function renderNullHtml(props: HtmlRenderProps): string {
  * intentionally contain `never` branches.
  */
 function renderNeverHtml(props: HtmlRenderProps): string {
-    const id = fieldId(props.path);
+    const id = fieldDomId(props.path);
     return serialize(
         h(
             "span",

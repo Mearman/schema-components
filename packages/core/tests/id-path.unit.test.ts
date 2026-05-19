@@ -26,8 +26,13 @@ describe("fieldDomId", () => {
         expect(fieldDomId("user.name")).toBe("sc-user-name");
     });
 
-    it("throws on empty input rather than collapsing to a shared root id", () => {
-        expect(() => fieldDomId("")).toThrow(/non-empty path/);
+    it("returns the bare prefix for an empty path", () => {
+        // Leaf renderers at the schema root (e.g. `renderToHtml(z.string())`)
+        // pass an empty path; the helper must produce a usable id without
+        // throwing. Container renderers always thread a non-empty path
+        // through `renderChild`, so the empty-id case can never produce
+        // sibling collisions inside a structured form.
+        expect(fieldDomId("")).toBe("sc-");
     });
 });
 

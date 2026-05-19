@@ -531,7 +531,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 </details>
 
 <details>
-<summary><code>html/*</code> — 45 exports</summary>
+<summary><code>html/*</code> — 42 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -564,10 +564,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`VOID_ELEMENTS`](https://mearman.github.io/schema-components/variables/html_html.VOID_ELEMENTS.html) | `html/html` | Variable | HTML5 void-element tag names — self-closing, must not carry children. |  |
 | `dateInputType` | `html/renderers` | Re-export | Map a JSON Schema string `format` to the matching HTML `<input type="…">` value, or `undefined` when the format does not correspond to a date/time input. |  |
 | [`defaultHtmlResolver`](https://mearman.github.io/schema-components/variables/html_renderers.defaultHtmlResolver.html) | `html/renderers` | Variable | Default HTML resolver used by `renderToHtml` and the streaming renderers when the consumer does not pass a custom resolver. |  |
-| [`fieldId`](https://mearman.github.io/schema-components/functions/html_renderers.fieldId.html) | `html/renderers` | Function | Thin wrapper over `fieldDomId` from `core/idPath.ts`. |  |
 | `matchUnionOption` | `html/renderers` | Re-export | Pick the union option that structurally matches the supplied value. |  |
-| [`panelId`](https://mearman.github.io/schema-components/functions/html_renderers.panelId.html) | `html/renderers` | Function | Tab-panel id for a discriminated union at `path`. |  |
-| [`tabId`](https://mearman.github.io/schema-components/functions/html_renderers.tabId.html) | `html/renderers` | Function | Tab id for tab `i` within a discriminated union at `path`. |  |
 | [`recursionSentinelHtml`](https://mearman.github.io/schema-components/functions/html_renderToHtml.recursionSentinelHtml.html) | `html/renderToHtml` | Function | Build the recursion-cap sentinel element used when the renderer encounters circular schema references. |  |
 | [`renderToHtml`](https://mearman.github.io/schema-components/functions/html_renderToHtml.renderToHtml.html) | `html/renderToHtml` | Function | Render a schema to a semantic HTML string. | [HTML Rendering/Custom Resolver](https://mearman.github.io/schema-components/storybook/?path=/docs/html-rendering-custom-resolver--docs)<br>[HTML Rendering/Parity](https://mearman.github.io/schema-components/storybook/?path=/docs/html-rendering-parity--docs)<br>[HTML Rendering/Static](https://mearman.github.io/schema-components/storybook/?path=/docs/html-rendering-static--docs) |
 | [`RenderToHtmlOptions`](https://mearman.github.io/schema-components/interfaces/html_renderToHtml.RenderToHtmlOptions.html) | `html/renderToHtml` | Interface | Options accepted by renderToHtml. |  |

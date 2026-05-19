@@ -120,20 +120,19 @@ function hashSuffix(value: string): string {
 }
 
 /**
- * Build the canonical `sc-`-prefixed DOM id for a structural path.
- * Use this as the base id for an input element; derived ids (panel, tab,
+ * Build the canonical `sc-`-prefixed DOM id for a structural path. Use
+ * this as the base id for an input element; derived ids (panel, tab,
  * hint) compose suffixes onto the returned string.
  *
- * Throws on an empty path: a previous "sc-field" fallback caused every
- * input across a form to share the same id, breaking label-input pairing
- * and screen reader navigation.
+ * An empty `path` is permitted — it surfaces as the bare prefix `sc-`
+ * so a leaf renderer at the schema root (e.g.
+ * `renderToHtml(z.string())`) still emits a usable id without throwing.
+ * Container renderers always thread a non-empty path through
+ * `renderChild`, so the empty-id case can never produce sibling
+ * collisions inside a structured form.
  */
 export function fieldDomId(path: string): string {
-    if (path.length === 0) {
-        throw new Error(
-            "fieldDomId requires a non-empty path. Thread a root path from the renderer entry point and derive children via joinPath()."
-        );
-    }
+    if (path.length === 0) return SC_ID_PREFIX;
     return `${SC_ID_PREFIX}${normaliseIdSegment(path)}`;
 }
 
