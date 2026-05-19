@@ -25,60 +25,32 @@
  * resolver when the resolver context is unset, matching their browser
  * behaviour when no consumer wraps the schema element.
  *
+ * **Canonical {@link ContextPort} compatibility.** The canonical
+ * {@link ContextPort} interface declared in `core/contexts.ts` is
+ * deliberately host-agnostic: `provide(value, children): unknown` and
+ * `consume(): T`. Lit's `@lit/context` requires a `ReactiveControllerHost`
+ * at every call site to register provider / consumer controllers, so
+ * the Lit ports below cannot match the canonical signature directly.
+ * Rather than declaring a parallel local `ContextPort<T>` (which would
+ * shadow the canonical type), the Lit adapter exports the port objects
+ * with inferred local types and re-exports the canonical
+ * {@link ContextPort} so consumers retain a single source of truth for
+ * the type name.
+ *
  * @packageDocumentation
  */
 
 import { ContextProvider, ContextConsumer, createContext } from "@lit/context";
 import type { ReactiveControllerHost, ReactiveElement } from "lit";
+import type { ContextPort } from "../core/contexts.ts";
 import type { LitComponentResolver } from "./types.ts";
 
-// ---------------------------------------------------------------------------
-// ContextPort<T> — framework-agnostic shape
-// ---------------------------------------------------------------------------
-
 /**
- * Framework-agnostic context port.
- *
- * Each framework adapter implements `provide` and `consume` over its
- * native primitive: React `createContext` + `useContext`, Vue
- * `provide`/`inject`, Svelte `setContext`/`getContext`, Lit
- * `@lit/context` (this file). The schema-components core can therefore
- * thread a value (e.g. a {@link LitComponentResolver}) through the
- * render tree without depending on any framework's runtime — the only
- * coupling is through the well-typed `ContextPort` contract.
- *
- * `provide` and `consume` are intentionally asymmetric: provide takes
- * a host (in Lit, a `ReactiveControllerHost`; in React, a parent
- * component) plus the initial value, while consume takes a host and
- * returns the current value (which may be `undefined` if no provider
- * is reachable).
- *
- * @typeParam T - The value type carried by the port.
+ * Re-export the canonical {@link ContextPort} so Lit consumers that
+ * need the type name keep a single import path that points at the
+ * core declaration.
  */
-export interface ContextPort<T> {
-    /**
-     * Provide a value at a host. Returns an opaque controller object
-     * the caller can hold onto in order to update the provided value
-     * later — the shape of the controller is framework-specific.
-     */
-    provide: (
-        host: ReactiveControllerHost & ReactiveElement,
-        value: T
-    ) => {
-        setValue: (value: T) => void;
-    };
-    /**
-     * Consume the value from the nearest ancestor provider. Returns a
-     * disposable consumer object whose `value` property carries the
-     * currently-provided value, or `undefined` if no provider is
-     * reachable (the property is marked optional to match Lit's
-     * `ContextConsumer` shape — which itself uses optional because
-     * the value may genuinely be absent before a provider is mounted).
-     */
-    consume: (host: ReactiveControllerHost & ReactiveElement) => {
-        readonly value?: T;
-    };
-}
+export type { ContextPort };
 
 // ---------------------------------------------------------------------------
 // Resolver context — provided by <schema-component>, consumed by every <sc-*>
@@ -101,18 +73,22 @@ export const resolverContext = createContext<LitComponentResolver>(
 );
 
 /**
- * {@link ContextPort} implementation for the {@link resolverContext}.
+ * Lit binding wrapping `ContextProvider` / `ContextConsumer` from
+ * `@lit/context` for the {@link resolverContext}.
  *
- * The Lit binding wraps `ContextProvider` and `ContextConsumer` from
- * `@lit/context` in the `ContextPort<T>` shape so the core renderer
- * dispatch loop never touches `@lit/context` directly. This is the
- * same indirection the React adapter applies through `createContext` /
- * `useContext`, and is what lets a future Vue / Solid / Svelte adapter
- * implement the same port over its native API without churning the
- * renderer code.
+ * The port is host-scoped — both `provide` and `consume` require a
+ * `ReactiveControllerHost` reference so `@lit/context` can register
+ * its controllers on the element's lifecycle. This is unavoidable
+ * given Lit's reactive update model and is the reason the Lit port
+ * does not match the canonical {@link ContextPort} signature in
+ * `core/contexts.ts` directly — see this module's docstring for the
+ * rationale.
  */
-export const resolverContextPort: ContextPort<LitComponentResolver> = {
-    provide(host, value) {
+export const resolverContextPort = {
+    provide(
+        host: ReactiveControllerHost & ReactiveElement,
+        value: LitComponentResolver
+    ): { setValue: (value: LitComponentResolver) => void } {
         const controller = new ContextProvider(host, {
             context: resolverContext,
             initialValue: value,
@@ -123,7 +99,9 @@ export const resolverContextPort: ContextPort<LitComponentResolver> = {
             },
         };
     },
-    consume(host) {
+    consume(host: ReactiveControllerHost & ReactiveElement): {
+        readonly value?: LitComponentResolver;
+    } {
         const consumer = new ContextConsumer(host, {
             context: resolverContext,
             // `subscribe: true` re-renders the consuming element when
@@ -163,10 +141,17 @@ export const widgetsContext = createContext<LitWidgetMap>(
 );
 
 /**
- * {@link ContextPort} implementation for the {@link widgetsContext}.
+ * Lit binding wrapping `ContextProvider` / `ContextConsumer` from
+ * `@lit/context` for the {@link widgetsContext}. Parallel to
+ * {@link resolverContextPort}; see that export for the rationale on
+ * why the Lit port is host-scoped rather than matching the canonical
+ * {@link ContextPort} signature directly.
  */
-export const widgetsContextPort: ContextPort<LitWidgetMap> = {
-    provide(host, value) {
+export const widgetsContextPort = {
+    provide(
+        host: ReactiveControllerHost & ReactiveElement,
+        value: LitWidgetMap
+    ): { setValue: (value: LitWidgetMap) => void } {
         const controller = new ContextProvider(host, {
             context: widgetsContext,
             initialValue: value,
@@ -177,7 +162,9 @@ export const widgetsContextPort: ContextPort<LitWidgetMap> = {
             },
         };
     },
-    consume(host) {
+    consume(host: ReactiveControllerHost & ReactiveElement): {
+        readonly value?: LitWidgetMap;
+    } {
         const consumer = new ContextConsumer(host, {
             context: widgetsContext,
             subscribe: true,
