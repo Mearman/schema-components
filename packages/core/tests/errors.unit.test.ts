@@ -10,6 +10,10 @@ import {
     SchemaFieldError,
 } from "../src/core/errors.ts";
 import { renderToHtml } from "../src/html/renderToHtml.ts";
+import {
+    renderToHtmlChunks,
+    renderToHtmlStream,
+} from "../src/html/renderToHtmlStream.ts";
 
 // ---------------------------------------------------------------------------
 // Error class hierarchy
@@ -318,5 +322,97 @@ describe("Render errors", () => {
                 },
             })
         ).toThrow(/Custom resolver broke/);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Streaming HTML renderers — resolver throws mid-stream
+// ---------------------------------------------------------------------------
+
+describe("Streaming renderer — resolver errors", () => {
+    it("propagates a resolver error from renderToHtmlChunks after earlier chunks were yielded", () => {
+        // Multiple string fields under a single object so the iterator
+        // produces at least one successful chunk before the throwing
+        // renderer fires on a later field. The error must surface to
+        // the caller exactly as `next()` is pulled, not be swallowed
+        // by the iterator protocol.
+        const schema = z.object({
+            ok: z.string(),
+            broken: z.number(),
+        });
+
+        let stringRenders = 0;
+        const iter = renderToHtmlChunks(schema, {
+            value: { ok: "fine", broken: 42 },
+            resolver: {
+                string: () => {
+                    stringRenders++;
+                    return "<span>ok</span>";
+                },
+                number: () => {
+                    throw new Error("Streaming resolver broke");
+                },
+            },
+        })[Symbol.iterator]();
+
+        const chunks: string[] = [];
+        let threw: unknown;
+        try {
+            for (let next = iter.next(); !next.done; next = iter.next()) {
+                chunks.push(next.value);
+            }
+        } catch (err) {
+            threw = err;
+        }
+
+        expect(stringRenders).toBe(1);
+        expect(chunks.length).toBeGreaterThan(0);
+        expect(threw).toBeInstanceOf(Error);
+        expect((threw as Error).message).toMatch(/Streaming resolver broke/);
+    });
+
+    it("propagates a resolver error from renderToHtmlChunks on the first chunk", () => {
+        // A scalar root schema means the very first yield calls the
+        // throwing resolver. The error must surface from the iterator's
+        // first `next()` rather than silently producing an empty stream.
+        const schema = z.string();
+        const iter = renderToHtmlChunks(schema, {
+            value: "anything",
+            resolver: {
+                string: () => {
+                    throw new Error("First-chunk error");
+                },
+            },
+        })[Symbol.iterator]();
+
+        expect(() => iter.next()).toThrow(/First-chunk error/);
+    });
+
+    it("propagates a resolver error through renderToHtmlStream (async iterable)", async () => {
+        const schema = z.object({
+            ok: z.string(),
+            broken: z.number(),
+        });
+
+        let threw: unknown;
+        const chunks: string[] = [];
+        try {
+            for await (const chunk of renderToHtmlStream(schema, {
+                value: { ok: "fine", broken: 1 },
+                resolver: {
+                    number: () => {
+                        throw new Error("Async resolver broke");
+                    },
+                },
+            })) {
+                chunks.push(chunk);
+            }
+        } catch (err) {
+            threw = err;
+        }
+
+        expect(chunks.length).toBeGreaterThan(0);
+        expect(threw).toBeInstanceOf(Error);
+        expect((threw as Error).message).toMatch(/Async resolver broke/);
     });
 });
