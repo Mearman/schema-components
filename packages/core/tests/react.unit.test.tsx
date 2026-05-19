@@ -35,6 +35,16 @@ import {
 import { SchemaView } from "../src/react/SchemaView.tsx";
 import type { __SchemaInferenceFellBack } from "../src/core/typeInference.ts";
 import * as fieldPath from "../src/core/fieldPath.ts";
+import { IS_PREACT } from "./helpers.ts";
+
+/**
+ * `@testing-library/react`'s `fireEvent.change` does not propagate to
+ * React-style `onChange` handlers under `preact/compat` aliasing. The
+ * `setNestedValue` call-count contract still holds on the React side and
+ * is verified by the `unit` project run; skipping under Preact avoids a
+ * false negative that has nothing to do with the regression being pinned.
+ */
+const itReact = IS_PREACT ? it.skip : it;
 
 afterEach(() => {
     cleanup();
@@ -130,45 +140,48 @@ describe("SchemaField.handleChange — single setNestedValue per change", () => 
      * keystroke must result in exactly one call regardless of whether
      * `validate` is on.
      */
-    it("calls setNestedValue exactly once per change when validate is true", () => {
-        const schema = z.object({
-            user: z.object({
-                name: z.string(),
-            }),
-        });
-        const spy = vi.spyOn(fieldPath, "setNestedValue");
-
-        function Controlled(): ReactElement {
-            const [value, setValue] = useState<unknown>({
-                user: { name: "Ada" },
+    itReact(
+        "calls setNestedValue exactly once per change when validate is true",
+        () => {
+            const schema = z.object({
+                user: z.object({
+                    name: z.string(),
+                }),
             });
-            return (
-                <SchemaField
-                    schema={schema}
-                    path="user.name"
-                    value={value}
-                    validate
-                    onChange={(next) => {
-                        setValue(next);
-                    }}
-                />
-            );
+            const spy = vi.spyOn(fieldPath, "setNestedValue");
+
+            function Controlled(): ReactElement {
+                const [value, setValue] = useState<unknown>({
+                    user: { name: "Ada" },
+                });
+                return (
+                    <SchemaField
+                        schema={schema}
+                        path="user.name"
+                        value={value}
+                        validate
+                        onChange={(next) => {
+                            setValue(next);
+                        }}
+                    />
+                );
+            }
+
+            render(<Controlled />);
+            const input = screen.getByDisplayValue("Ada");
+            if (!(input instanceof HTMLInputElement)) {
+                throw new Error("Expected text input");
+            }
+
+            spy.mockClear();
+            fireEvent.change(input, { target: { value: "Linus" } });
+
+            // One call per change — the validate branch and the onChange
+            // dispatch must share a single computed root value.
+            expect(spy).toHaveBeenCalledTimes(1);
+            spy.mockRestore();
         }
-
-        render(<Controlled />);
-        const input = screen.getByDisplayValue("Ada");
-        if (!(input instanceof HTMLInputElement)) {
-            throw new Error("Expected text input");
-        }
-
-        spy.mockClear();
-        fireEvent.change(input, { target: { value: "Linus" } });
-
-        // One call per change — the validate branch and the onChange
-        // dispatch must share a single computed root value.
-        expect(spy).toHaveBeenCalledTimes(1);
-        spy.mockRestore();
-    });
+    );
 });
 
 // ---------------------------------------------------------------------------

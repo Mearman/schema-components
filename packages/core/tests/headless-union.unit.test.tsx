@@ -102,11 +102,18 @@ function isChangeHandler(value: unknown): value is ChangeHandler {
 }
 
 /**
- * Invoke a host element's `onChange` with a synthetic event-shaped payload.
- * Throws when the element lacks an `onChange` handler.
+ * Invoke a host element's change handler with a synthetic event-shaped
+ * payload. Throws when the element lacks any change-style handler.
+ *
+ * Under React, the handler is exposed on the vnode as `onChange`. Under
+ * `preact/compat`, the vnode normaliser rewrites `onChange` to the DOM
+ * event name `oninput` (see preact/compat/src/render.js). Accepting either
+ * key keeps the assertion stable across runtimes — both refer to the
+ * same controlled-input contract.
  */
 function invokeOnChange(element: ReactElement, value: string): void {
-    const handler = elementProps(element).onChange;
+    const props = elementProps(element);
+    const handler = props.onChange ?? props.oninput;
     if (!isChangeHandler(handler)) {
         throw new Error("Element has no onChange handler");
     }

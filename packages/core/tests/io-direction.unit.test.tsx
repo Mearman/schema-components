@@ -26,6 +26,15 @@ import { useState, type ReactElement } from "react";
 import { z } from "zod";
 import { SchemaComponent } from "../src/react/SchemaComponent.tsx";
 import { SchemaView } from "../src/react/SchemaView.tsx";
+import { IS_PREACT } from "./helpers.ts";
+
+/**
+ * `@testing-library/react`'s `fireEvent.change` does not propagate to
+ * React-style `onChange` handlers under `preact/compat` aliasing. Tests
+ * that rely on a typed-in change firing the codec's validation are skipped
+ * under Preact; the same contract is pinned by the `unit` project run.
+ */
+const itReact = IS_PREACT ? it.skip : it;
 
 afterEach(() => {
     cleanup();
@@ -185,32 +194,35 @@ describe("SchemaComponent — io='input' routes validation through safeParse", (
         expect(onValidationError).not.toHaveBeenCalled();
     });
 
-    it("typing an input-side string that fails to decode surfaces the validation error", () => {
-        // Asymmetric codecs whose `decode` returns NaN should still
-        // surface a validation error — the input side runs through
-        // the FORWARD direction (`safeParse`), and the output
-        // schema (`z.number()`) rejects NaN. This pins the contract
-        // that validation actually fires; the previous case proves
-        // it does not over-fire on valid input.
-        const onValidationError = vi.fn();
+    itReact(
+        "typing an input-side string that fails to decode surfaces the validation error",
+        () => {
+            // Asymmetric codecs whose `decode` returns NaN should still
+            // surface a validation error — the input side runs through
+            // the FORWARD direction (`safeParse`), and the output
+            // schema (`z.number()`) rejects NaN. This pins the contract
+            // that validation actually fires; the previous case proves
+            // it does not over-fire on valid input.
+            const onValidationError = vi.fn();
 
-        render(
-            <CodecHarness
-                schema={stringToNumber}
-                io="input"
-                initialValue=""
-                onValidationError={onValidationError}
-            />
-        );
+            render(
+                <CodecHarness
+                    schema={stringToNumber}
+                    io="input"
+                    initialValue=""
+                    onValidationError={onValidationError}
+                />
+            );
 
-        const input = screen.getByRole("textbox");
-        if (!(input instanceof HTMLInputElement)) {
-            throw new Error("Expected text input");
+            const input = screen.getByRole("textbox");
+            if (!(input instanceof HTMLInputElement)) {
+                throw new Error("Expected text input");
+            }
+            fireEvent.change(input, { target: { value: "not-a-number" } });
+
+            expect(onValidationError).toHaveBeenCalledTimes(1);
         }
-        fireEvent.change(input, { target: { value: "not-a-number" } });
-
-        expect(onValidationError).toHaveBeenCalledTimes(1);
-    });
+    );
 });
 
 describe("SchemaComponent — io='output' (default) routes validation through safeEncode", () => {

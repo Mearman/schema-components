@@ -59,8 +59,15 @@ describe("writeOnly — headless React", () => {
                 writeOnly: true,
             })
         );
-        // The select should have empty value, not "admin"
-        expect(html).toMatch(/value=""/);
+        // The placeholder option must carry an empty value — not the
+        // current selection ("admin"). React renders the empty attribute
+        // as `value=""`, while `preact/render-to-string` emits the HTML5
+        // boolean-attribute shorthand `value` on its own. Either form
+        // means the same thing at the DOM level; the assertion accepts
+        // both, and pins the load-bearing negative: the rendered HTML
+        // must not retain "admin" as a selected value.
+        expect(html).toMatch(/<option[^>]*\bvalue(?:=""|>)/);
+        expect(html).not.toMatch(/<option[^>]*\bvalue="admin"[^>]*\bselected/);
     });
 
     it("blanks unknown value", () => {

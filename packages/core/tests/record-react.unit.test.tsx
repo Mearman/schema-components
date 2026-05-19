@@ -168,9 +168,16 @@ function collectClickables(node: ReactNode): Clickable[] {
 
 /**
  * Read host element props as a known shape. Tests target intrinsic React
- * elements (button, input, div), so the prop set is well-defined. The cast
- * is unavoidable: React's `Element.props` is `unknown` and `object` has no
- * index signature in TypeScript.
+ * elements (button, input, div), so the prop set is well-defined.
+ *
+ * Under `preact/compat`, the vnode normaliser rewrites React-style event
+ * names to lowercase DOM event names (`onChange` → `oninput`, `onBlur`
+ * → `onfocusout`). Normalise back here so call sites can read `onChange`
+ * / `onBlur` regardless of which runtime is active — the rendered DOM
+ * behaviour is identical on both sides.
+ *
+ * The cast is unavoidable: React's `Element.props` is `unknown` and
+ * `object` has no index signature in TypeScript.
  */
 function readHostProps(el: ReactElement): {
     "aria-label"?: unknown;
@@ -183,7 +190,22 @@ function readHostProps(el: ReactElement): {
 } {
     const props = el.props;
     if (typeof props !== "object" || props === null) return {};
-    return props;
+    // Index-signature cast: `object` has no string indexer, so we use the
+    // narrower `Record<string, unknown>` shape to look up rewritten event
+    // names without losing type-safety on the rest of the prop bag.
+    const indexed = props as Record<string, unknown>;
+    const onBlur = indexed.onBlur ?? indexed.onfocusout;
+    const onChange = indexed.onChange ?? indexed.oninput;
+    const shape: ReturnType<typeof readHostProps> = { ...indexed };
+    if (typeof onBlur === "function") {
+        shape.onBlur = onBlur as (e: { target: { value: string } }) => void;
+    }
+    if (typeof onChange === "function") {
+        shape.onChange = onChange as (e: {
+            target: { value: string; checked?: boolean };
+        }) => void;
+    }
+    return shape;
 }
 
 interface CapturedInput {

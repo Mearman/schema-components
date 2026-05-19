@@ -4,6 +4,7 @@
  * These functions throw with a descriptive message when a value is
  * undefined, and return the narrowed type for TypeScript.
  */
+import { createElement } from "react";
 import type {
     WalkedField,
     ObjectField,
@@ -259,3 +260,43 @@ export function fileConstraintsOf(
 ): import("../src/core/types.ts").FileConstraints | undefined {
     return f.type === "file" ? f.constraints : undefined;
 }
+
+// ---------------------------------------------------------------------------
+// Runtime detection: React vs Preact (preact/compat alias)
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect whether the active React runtime is `preact/compat` rather than
+ * React itself.
+ *
+ * The Preact `unit-preact` Vitest project aliases `react` to `preact/compat`.
+ * Several documented divergences between the two runtimes cause specific
+ * tests to fail under Preact even though the React-side behaviour is
+ * correct — see the "Preact support" section of `packages/core/README.md`.
+ *
+ * Detection probes `createElement`'s prop-shape contract: React 19 surfaces
+ * `ref` as a regular prop (so `"ref" in element.props === true`), whereas
+ * `preact/compat` retains the React 16/17 behaviour of stripping `ref` out
+ * of the prop bag. The check is computed once at module load so individual
+ * test files can branch via `(IS_PREACT ? it.skip : it)`.
+ */
+function detectPreactRuntime(): boolean {
+    // The cast is unavoidable: createElement's element type is opaque,
+    // but the React/Preact contract guarantees a `.props` object on the
+    // returned vnode.
+    const element = createElement("div", { ref: "probe", "data-x": "1" }) as {
+        props: Record<string, unknown>;
+    };
+    return !("ref" in element.props);
+}
+
+/**
+ * True when the active React-shaped runtime is `preact/compat` rather than
+ * React. Computed once at module load; safe to use directly inside
+ * `describe`/`it` factory expressions, e.g.:
+ *
+ * ```ts
+ * (IS_PREACT ? it.skip : it)("…", () => { … });
+ * ```
+ */
+export const IS_PREACT: boolean = detectPreactRuntime();
