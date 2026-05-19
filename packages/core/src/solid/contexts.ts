@@ -7,12 +7,14 @@
  * mirroring the React adapter's `UserResolverContext` and
  * `WidgetsContext`.
  *
- * The ports are framework-agnostic at the type boundary; consumers in
- * Solid templates instead use the named contexts (`UserResolverContext`,
- * `WidgetsContext`) directly because Solid's `<Provider>` JSX is the
- * idiomatic provide-shape. The ports exist so the generic
- * {@link ContextPort} contract can be satisfied for code that depends on
- * the abstract port (e.g. testing harnesses, cross-framework checkers).
+ * Unlike React's wrapping `<Provider>` JSX, Solid's `<Context.Provider>`
+ * is itself a JSX component and must be invoked from inside a JSX tree.
+ * The {@link ContextPort.provide} adapter therefore cannot construct the
+ * Solid `<Provider>` element directly — it returns `children` unchanged,
+ * relying on the Solid `<SchemaProvider>` template to wrap descendants
+ * with the underlying `Context.Provider`. The ports exist so the generic
+ * {@link ContextPort} contract has a concrete Solid implementation that
+ * cross-framework consumers can introspect.
  */
 
 import { createContext, useContext } from "solid-js";
@@ -45,13 +47,17 @@ export const WidgetsContext: Context<SolidWidgetMap | undefined> =
  * Solid implementation alongside the React, Vue and Svelte bindings —
  * generic consumers (cross-framework testing, port-driven adapters)
  * can read the resolver without depending on Solid's native context
- * shape.
+ * shape. The Solid {@link SchemaProvider} component performs the actual
+ * `<Context.Provider>` wrapping in its template.
  */
 export const userResolverPort: ContextPort<SolidComponentResolver | undefined> =
     {
-        defaultValue: undefined,
-        Provider: UserResolverContext.Provider,
-        use: () => useContext(UserResolverContext),
+        provide(_value, children) {
+            return children;
+        },
+        consume() {
+            return useContext(UserResolverContext);
+        },
     };
 
 /**
@@ -59,7 +65,10 @@ export const userResolverPort: ContextPort<SolidComponentResolver | undefined> =
  * to {@link userResolverPort}.
  */
 export const widgetsPort: ContextPort<SolidWidgetMap | undefined> = {
-    defaultValue: undefined,
-    Provider: WidgetsContext.Provider,
-    use: () => useContext(WidgetsContext),
+    provide(_value, children) {
+        return children;
+    },
+    consume() {
+        return useContext(WidgetsContext);
+    },
 };
