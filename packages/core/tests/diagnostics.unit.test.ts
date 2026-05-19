@@ -135,6 +135,28 @@ describe("walker diagnostics", () => {
         expect(unsup.pointer).toBe("/inner");
     });
 
+    // Empty enum is spec-invalid per Draft 2020-12 §6.1.2 — the enum
+    // array must be non-empty. The walker surfaces this through the
+    // `enum-empty` diagnostic but continues to emit an `EnumField`
+    // with no values so renderers do not crash on malformed input.
+    it("emits enum-empty for an empty enum array", () => {
+        const diags = collectDiagnostics((sink) => {
+            walk({ enum: [] }, { diagnostics: { diagnostics: sink } });
+        });
+        const empty = diags.filter((d) => d.code === "enum-empty");
+        expect(empty.length).toBe(1);
+        const result = walk({ enum: [] });
+        expect(result.type).toBe("enum");
+        expect(result.type === "enum" ? result.enumValues : null).toEqual([]);
+    });
+
+    it("does not emit enum-empty for a non-empty enum", () => {
+        const diags = collectDiagnostics((sink) => {
+            walk({ enum: ["a", "b"] }, { diagnostics: { diagnostics: sink } });
+        });
+        expect(diags.filter((d) => d.code === "enum-empty").length).toBe(0);
+    });
+
     it("emits unknown-format for unrecognised format string", () => {
         const diags = collectDiagnostics((sink) => {
             walk(

@@ -46,6 +46,7 @@ export type DiagnosticCode =
     | "duplicate-body-parameter"
     | "duplicate-operation-id"
     | "dynamic-ref-degraded"
+    | "enum-empty"
     | "enum-value-filtered"
     | "external-ref"
     | "invalid-const"

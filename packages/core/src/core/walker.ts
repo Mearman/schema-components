@@ -628,6 +628,23 @@ function walkEnum(
     // `displayJsonValue`. The original array is cloned (not aliased)
     // so downstream mutation of the field cannot affect the input
     // schema.
+    //
+    // Draft 2020-12 §6.1.2 also requires the enum array to be non-empty
+    // ("Elements in the array SHOULD be unique" — and the array itself
+    // "MUST be a non-empty array"). An empty enum is structurally
+    // unsatisfiable, so emit `enum-empty` to surface the spec
+    // violation. The field is still rendered as an enum with no values
+    // — the downstream renderer treats it as an empty select rather
+    // than crashing — but consumers wired into the diagnostics channel
+    // see the malformed input.
+    if (enumValues.length === 0) {
+        emitDiagnostic(ctx.diagnostics, {
+            code: "enum-empty",
+            message:
+                "`enum` array is empty; per Draft 2020-12 §6.1.2 it must be non-empty. The schema describes an unsatisfiable value set.",
+            pointer: ctx.pointer,
+        });
+    }
     return {
         ...buildBase(schema, ctx),
         type: "enum",
