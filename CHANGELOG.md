@@ -1,3 +1,16 @@
+## [3.0.1](https://github.com/Mearman/schema-components/compare/v3.0.0...v3.0.1) (2026-05-19)
+
+### Refactoring
+
+* **svelte:** rename Svelte generic parameter from Ref to SchemaRef ([746ef74](https://github.com/Mearman/schema-components/commit/746ef74374b39f301a1cd9dd3aee0a509706bcaa))
+
+### Tests
+
+* **lit:** cover schemaRef OpenAPI ref resolution ([400b021](https://github.com/Mearman/schema-components/commit/400b021383088d57be90847223b6a1b41dd7c1cf))
+* **solid:** cover schemaRef OpenAPI ref resolution ([f87dc17](https://github.com/Mearman/schema-components/commit/f87dc175adb425746c5269f6e84889ebba9c3af9))
+* **svelte:** cover schemaRef OpenAPI ref resolution ([0f150a3](https://github.com/Mearman/schema-components/commit/0f150a3e7cc481cb5644975039e1054d8852ca39))
+* **vue:** cover schemaRef OpenAPI ref resolution ([f2fbb47](https://github.com/Mearman/schema-components/commit/f2fbb47ed9f609a0db13dfa7ece07be32b2fec8c))
+
 ## [3.0.0](https://github.com/Mearman/schema-components/compare/v2.1.1...v3.0.0) (2026-05-19)
 
 ### ⚠ BREAKING CHANGES
