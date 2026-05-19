@@ -42,3 +42,57 @@ describe("derived id helpers", () => {
         expect(tabIdFor(path, 2)).toBe("sc-user-preferences-tab-2");
     });
 });
+
+describe("non-ASCII field name disambiguation", () => {
+    // The whitelist-based collapse previously turned every non-ASCII run
+    // into the same single hyphen, then stripped trailing hyphens, so
+    // distinct property names like `名前`, `用户名`, and `🦄` all
+    // produced the empty segment and collided on the bare `sc-` prefix.
+    // The disambiguator must guarantee uniqueness while keeping the
+    // result a valid CSS identifier.
+
+    const cssIdPattern = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+    it("produces unique ids for inputs that collapse to the same prefix", () => {
+        const inputs = ["café", "名前", "用户名", "🦄", "café "];
+        const ids = inputs.map((s) => fieldDomId(s));
+        const unique = new Set(ids);
+        expect(unique.size).toBe(inputs.length);
+    });
+
+    it("every generated id matches the CSS identifier pattern", () => {
+        const inputs = [
+            "café",
+            "名前",
+            "用户名",
+            "🦄",
+            "name",
+            "user.preferences",
+            "tags[0]",
+        ];
+        for (const input of inputs) {
+            expect(fieldDomId(input)).toMatch(cssIdPattern);
+        }
+    });
+
+    it("normalisation is deterministic across calls", () => {
+        for (const input of ["café", "名前", "用户名", "🦄"]) {
+            expect(normaliseIdSegment(input)).toBe(normaliseIdSegment(input));
+            expect(fieldDomId(input)).toBe(fieldDomId(input));
+        }
+    });
+
+    it("preserves the readable prefix when characters are dropped", () => {
+        // `café` collapses to `caf` under the whitelist, but the
+        // disambiguator should still expose the readable prefix —
+        // appending a hash, not replacing the whole segment.
+        const id = fieldDomId("café");
+        expect(id.startsWith("sc-caf-")).toBe(true);
+    });
+
+    it("distinguishes inputs whose visible characters survive the collapse identically", () => {
+        // `café` and `cafè` both whitelist down to `caf`, but they are
+        // distinct property names and so must produce distinct ids.
+        expect(fieldDomId("café")).not.toBe(fieldDomId("cafè"));
+    });
+});
