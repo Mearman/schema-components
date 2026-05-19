@@ -631,31 +631,83 @@ export function renderArray(props: RenderProps): ReactNode {
     const element = props.tree.element;
     if (element === undefined) return null;
 
-    // Suppress empty arrays — there is nothing to display. This prevents
-    // orphaned "Children" labels on leaf nodes in recursive schemas.
-    if (arr.length === 0) return null;
-
-    return (
-        <div role="group" aria-label={ariaLabel(props.meta.description)}>
-            {arr.map((item, i) => {
-                const childOnChange = (v: unknown) => {
-                    const next = arr.slice();
-                    next[i] = v;
-                    props.onChange(next);
-                };
-                return (
-                    <div key={String(i)}>
+    // Read-only mode: render the list without controls. An empty array
+    // produces no list so leaf nodes in recursive schemas do not get
+    // orphaned "Children" labels.
+    if (props.readOnly) {
+        if (arr.length === 0) return null;
+        return (
+            <ul role="group" aria-label={ariaLabel(props.meta.description)}>
+                {arr.map((item, i) => (
+                    <li key={String(i)}>
                         {toReactNode(
                             props.renderChild(
                                 element,
                                 item,
-                                childOnChange,
+                                () => {
+                                    /* read-only: noop */
+                                },
                                 `[${String(i)}]`
                             )
                         )}
-                    </div>
-                );
-            })}
+                    </li>
+                ))}
+            </ul>
+        );
+    }
+
+    // Editable mode: every row has a Remove button and a footer Add
+    // button appends a new entry. Mirrors `renderRecord`'s contract. Use
+    // `<button type="button">` so the controls work keyboard-accessibly
+    // (Space / Enter) without needing custom key handlers, and so they
+    // don't accidentally submit an enclosing form.
+    const handleRemove = (index: number) => {
+        const next = arr.slice();
+        next.splice(index, 1);
+        props.onChange(next);
+    };
+
+    const handleAdd = () => {
+        const next = arr.slice();
+        next.push(defaultRecordValue(element));
+        props.onChange(next);
+    };
+
+    return (
+        <div role="group" aria-label={ariaLabel(props.meta.description)}>
+            <ul>
+                {arr.map((item, i) => {
+                    const childOnChange = (v: unknown) => {
+                        const nextArr = arr.slice();
+                        nextArr[i] = v;
+                        props.onChange(nextArr);
+                    };
+                    return (
+                        <li key={String(i)}>
+                            {toReactNode(
+                                props.renderChild(
+                                    element,
+                                    item,
+                                    childOnChange,
+                                    `[${String(i)}]`
+                                )
+                            )}
+                            <button
+                                type="button"
+                                aria-label={`Remove item ${String(i)}`}
+                                onClick={() => {
+                                    handleRemove(i);
+                                }}
+                            >
+                                Remove
+                            </button>
+                        </li>
+                    );
+                })}
+            </ul>
+            <button type="button" aria-label="Add item" onClick={handleAdd}>
+                Add
+            </button>
         </div>
     );
 }

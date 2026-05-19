@@ -137,6 +137,7 @@ describe("React headless renderer — array add/remove controls (AC10)", () => {
         });
         const html = renderToString(
             <SchemaComponent
+                idPrefix="root"
                 schema={schema}
                 value={{ tags: ["alpha", "beta"] }}
             />
