@@ -40,6 +40,7 @@ import {
 import {
     joinPath,
     sanitisePrefix,
+    type InferFields,
     type InferredValue,
 } from "./SchemaComponent.tsx";
 import { headlessResolver } from "./headless.tsx";
@@ -49,6 +50,7 @@ import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import { SchemaNormalisationError, SchemaRenderError } from "../core/errors.ts";
+import { toRecordOrUndefined } from "../core/guards.ts";
 import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
 import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
 
@@ -97,8 +99,12 @@ export interface SchemaViewProps<
      * schemas where the value type cannot be statically inferred.
      */
     value?: InferredValue<T, Ref, undefined, Mode>;
-    /** Per-field meta overrides. */
-    fields?: Record<string, unknown>;
+    /**
+     * Per-field meta overrides — nested object mirroring schema shape.
+     * Typed against {@link InferFields} so a typed `schema` prop drives
+     * autocomplete on the override map, matching `<SchemaComponent>`.
+     */
+    fields?: InferFields<T, Ref>;
     /** Meta overrides applied to the root schema. */
     meta?: SchemaMeta;
     /** Convenience: sets description on the root. */
@@ -215,11 +221,18 @@ export function SchemaView<
         );
     }
 
+    // Coerce the typed `fields` into the loose runtime record shape
+    // the walker consumes. `InferFields<T, Ref>` widens to a union that
+    // includes `__SchemaInferenceFellBack` (Swagger 2.0) and typed
+    // `FieldOverrides<...>` variants — neither is structurally
+    // assignable to the walker's `Record<string, unknown>` slot.
+    const fieldsRecord = toRecordOrUndefined(fields);
+
     // Walk the JSON Schema tree
     const walkOptions: WalkOptions = {
         componentMeta: mergedMeta,
         rootMeta,
-        fieldOverrides: fields,
+        fieldOverrides: fieldsRecord,
         rootDocument,
         ...(diagnostics !== undefined ? { diagnostics } : {}),
     };

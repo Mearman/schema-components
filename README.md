@@ -409,7 +409,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 </details>
 
 <details>
-<summary><code>react/*</code> — 45 exports</summary>
+<summary><code>react/*</code> — 46 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -441,6 +441,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`renderUnion`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.renderUnion.html) | `react/headlessRenderers` | Function | Headless renderer for plain `UnionField` — picks the matching option and renders it. |  |
 | [`renderUnknown`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.renderUnknown.html) | `react/headlessRenderers` | Function | Headless renderer for `UnknownField` — JSON-encoded fallback for unconstrained values. |  |
 | [`toReactNode`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.toReactNode.html) | `react/headlessRenderers` | Function | Coerce an unknown render result into a React node. |  |
+| [`InferFields`](https://mearman.github.io/schema-components/types/react_SchemaComponent.InferFields.html) | `react/SchemaComponent` | Type | Recursive mapped type that mirrors a schema's shape for per-field overrides. |  |
 | [`InferredInputValue`](https://mearman.github.io/schema-components/types/react_SchemaComponent.InferredInputValue.html) | `react/SchemaComponent` | Type | Companion to InferredOutputValue for `"input"`-mode shapes. |  |
 | [`InferredOutputValue`](https://mearman.github.io/schema-components/types/react_SchemaComponent.InferredOutputValue.html) | `react/SchemaComponent` | Type | Public alias mapping a schema input to the rendered value type. |  |
 | [`InferredValue`](https://mearman.github.io/schema-components/types/react_SchemaComponent.InferredValue.html) | `react/SchemaComponent` | Type | Resolve the schema-driven value type for either I/O direction. |  |

@@ -155,7 +155,18 @@ export function __clearGlobalWidgets(): void {
 // Generic props with type-safe fields dispatch
 // ---------------------------------------------------------------------------
 
-type InferFields<T, Ref extends string | undefined> =
+/**
+ * Recursive mapped type that mirrors a schema's shape for per-field
+ * overrides. Dispatches on the schema kind in the same order as
+ * {@link InferSchemaValue} so the inferred override map tracks the
+ * inferred value shape.
+ *
+ * Exported so `<SchemaView>` and other consumers can type their
+ * `fields` prop against the same machinery `<SchemaComponent>` uses.
+ *
+ * @group Components
+ */
+export type InferFields<T, Ref extends string | undefined> =
     IsSwagger2Doc<T> extends true
         ? __SchemaInferenceFellBack
         : T extends z.ZodType
