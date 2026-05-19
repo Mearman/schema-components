@@ -37,6 +37,8 @@ import type {
     InferParameterOverrides,
     InferRequestBodyFields,
     InferResponseFields,
+    OpenAPIRequestBodyType,
+    OpenAPIResponseType,
 } from "../core/typeInference.ts";
 import { isObject, toRecordOrUndefined } from "../core/guards.ts";
 import { isSafeHyperlink } from "../core/uri.ts";
@@ -526,13 +528,59 @@ export interface ApiOperationProps<
     Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
     ContentType extends RequestContentTypesOf<Doc, Path, Method> =
         RequestContentTypesOf<Doc, Path, Method>,
+    ResponseStatus extends StatusKeysOf<Doc, Path, Method> = StatusKeysOf<
+        Doc,
+        Path,
+        Method
+    >,
+    ResponseContentType extends ResponseContentTypesOf<
+        Doc,
+        Path,
+        Method,
+        ResponseStatus
+    > = ResponseContentTypesOf<Doc, Path, Method, ResponseStatus>,
 > extends ApiDiagnosticsProps {
     schema: Doc;
     path: Path;
     method: Method;
-    requestBodyValue?: unknown;
-    onRequestBodyChange?: (value: unknown) => void;
-    responseValue?: unknown;
+    /**
+     * Current request body value. Inferred from the operation's
+     * request body schema via {@link OpenAPIRequestBodyType} so a
+     * typed `schema` argument drives the rendered value's shape.
+     */
+    requestBodyValue?: OpenAPIRequestBodyType<
+        Doc,
+        Path & string,
+        Method & string,
+        ContentType & string
+    >;
+    /**
+     * Called when the request body value changes. Parameter type
+     * mirrors {@link ApiOperationProps.requestBodyValue}.
+     */
+    onRequestBodyChange?: (
+        value: OpenAPIRequestBodyType<
+            Doc,
+            Path & string,
+            Method & string,
+            ContentType & string
+        >
+    ) => void;
+    /**
+     * Current response value. Inferred via {@link OpenAPIResponseType}
+     * from the operation's response schema for the supplied
+     * `responseStatus` (defaulting to the union of declared statuses)
+     * and `responseContentType` (defaulting to the union of declared
+     * media types). The same value is rendered against every response
+     * card the component emits.
+     */
+    responseValue?: OpenAPIResponseType<
+        Doc,
+        Path & string,
+        Method & string,
+        ResponseStatus & string,
+        ResponseContentType & string
+    >;
     meta?: SchemaMeta;
     /**
      * Media type whose request body schema drives `requestBodyFields`
@@ -543,6 +591,20 @@ export interface ApiOperationProps<
      * same precision as `<ApiRequestBody>`.
      */
     requestBodyContentType?: ContentType;
+    /**
+     * Status code whose response schema drives `responseValue`
+     * inference. Defaults to the union of declared statuses so
+     * callers can omit it; supply explicitly to narrow inference to
+     * a specific response (e.g. `"200"`).
+     */
+    responseStatus?: ResponseStatus;
+    /**
+     * Media type whose response schema drives `responseValue`
+     * inference. Defaults to the union of declared content types so
+     * callers can omit it; supply explicitly to narrow inference to
+     * a specific media type.
+     */
+    responseContentType?: ResponseContentType;
     requestBodyFields?: Doc extends Record<string, unknown>
         ? InferRequestBodyFields<
               Doc,
@@ -580,6 +642,17 @@ export function ApiOperation<
     Method extends MethodKeysOf<Doc, Path> = MethodKeysOf<Doc, Path>,
     ContentType extends RequestContentTypesOf<Doc, Path, Method> =
         RequestContentTypesOf<Doc, Path, Method>,
+    ResponseStatus extends StatusKeysOf<Doc, Path, Method> = StatusKeysOf<
+        Doc,
+        Path,
+        Method
+    >,
+    ResponseContentType extends ResponseContentTypesOf<
+        Doc,
+        Path,
+        Method,
+        ResponseStatus
+    > = ResponseContentTypesOf<Doc, Path, Method, ResponseStatus>,
 >({
     schema: doc,
     path,
@@ -592,7 +665,14 @@ export function ApiOperation<
     widgets,
     onDiagnostic,
     strict,
-}: ApiOperationProps<Doc, Path, Method, ContentType>): ReactNode {
+}: ApiOperationProps<
+    Doc,
+    Path,
+    Method,
+    ContentType,
+    ResponseStatus,
+    ResponseContentType
+>): ReactNode {
     const diagnostics = buildDiagnostics(onDiagnostic, strict);
     const instancePrefix = sanitisePrefix(useId());
     const rootDoc = resolveRootDoc(doc, diagnostics);
@@ -661,6 +741,16 @@ export function ApiOperation<
                     )}
                     {renderSchema(resolved.requestBody.schema, rootDoc, {
                         value: requestBodyValue,
+                        // Runtime boundary: `onRequestBodyChange` is
+                        // typed against the inferred request body shape,
+                        // but `renderSchema` accepts `(value: unknown)`
+                        // because the walker emits `unknown` values. The
+                        // shape matches the schema we just walked so
+                        // the runtime call is sound; TypeScript cannot
+                        // prove the generic-parameter assignment in a
+                        // contravariant position. Same pattern as
+                        // `<SchemaComponent>`'s `onChange` dispatcher.
+                        // @ts-expect-error — contravariant onChange call.
                         onChange: onRequestBodyChange,
                         fields: requestBodyFields,
                         meta,
