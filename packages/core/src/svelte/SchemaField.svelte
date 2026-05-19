@@ -40,7 +40,7 @@
         /** The schema to extract the field from. */
         schema: T;
         /** OpenAPI ref string. */
-        ref?: Ref;
+        schemaRef?: Ref;
         /** Direction (`"output"` / `"input"`) for codec / transform schemas. */
         io?: SchemaIoSide;
         /** Current value of the root schema. */
@@ -59,7 +59,7 @@
     const {
         path,
         schema,
-        ref,
+        schemaRef,
         io,
         value,
         onChange,
@@ -80,7 +80,7 @@
     }
 
     const normalisedResult = $derived<NormalisedShape>(
-        normaliseOrThrow(schema, ref, io)
+        normaliseOrThrow(schema, schemaRef, io)
     );
 
     const walkOptions = $derived<WalkOptions>({

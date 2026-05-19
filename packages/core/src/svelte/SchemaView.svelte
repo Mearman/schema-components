@@ -51,7 +51,7 @@
 
     interface Props {
         schema: T;
-        ref?: Ref;
+        schemaRef?: Ref;
         io?: SchemaIoSide;
         value?: InferredValue<T, Ref, undefined, "output">;
         fields?: InferFields<T, Ref>;
@@ -68,7 +68,7 @@
 
     const {
         schema,
-        ref,
+        schemaRef,
         io,
         value,
         fields,
@@ -113,7 +113,7 @@
     }
 
     const normalisedResult = $derived<NormalisedShape>(
-        normaliseOrThrow(schema, ref, io, diagnostics)
+        normaliseOrThrow(schema, schemaRef, io, diagnostics)
     );
 
     const fieldsRecord = $derived(toRecordOrUndefined(fields));

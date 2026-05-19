@@ -78,7 +78,7 @@
         /** Zod 4, JSON Schema, or OpenAPI document. */
         schema: T;
         /** OpenAPI ref string, e.g. "#/components/schemas/User". */
-        ref?: Ref;
+        schemaRef?: Ref;
         /** Direction (`"output"` / `"input"`) for codec / transform schemas. */
         io?: SchemaIoSide;
         /** Current value to render. */
@@ -119,7 +119,7 @@
 
     const {
         schema,
-        ref,
+        schemaRef,
         io,
         value,
         onChange,
@@ -176,7 +176,7 @@
     }
 
     const normalisedResult = $derived<NormalisedShape | SchemaError>(
-        normaliseSafely(schema, ref, io, diagnostics)
+        normaliseSafely(schema, schemaRef, io, diagnostics)
     );
 
     /**
