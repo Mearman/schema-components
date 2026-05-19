@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { svelteTesting } from "@testing-library/svelte/vite";
+import solid from "vite-plugin-solid";
 
 export default defineConfig({
     test: {
@@ -23,7 +24,12 @@ export default defineConfig({
                 functions: 80,
                 perFile: true,
             },
-            exclude: ["src/react/**", "src/themes/**", "src/svelte/**"],
+            exclude: [
+                "src/react/**",
+                "src/themes/**",
+                "src/svelte/**",
+                "src/solid/**",
+            ],
         },
         projects: [
             {
@@ -35,13 +41,16 @@ export default defineConfig({
                         "tests/**/*.integration.test.ts",
                     ],
                     // Keep the existing React/HTML/OpenAPI suite running on
-                    // the same default environment. Vue tests run in the
-                    // sibling `unit-vue` project below so the `@vitejs/plugin-vue`
-                    // compilation step (which adds a measurable amount of
-                    // start-up time) only fires when actually needed.
-                    // Svelte tests live under `tests/svelte/**` and are
-                    // routed to the sibling `unit-svelte` project.
-                    exclude: ["tests/**/*.vue.unit.test.ts", "tests/svelte/**"],
+                    // the same default environment. Vue/Svelte/Solid tests run
+                    // in their sibling projects so each framework's compile
+                    // step only fires when actually needed.
+                    exclude: [
+                        "tests/**/*.vue.unit.test.ts",
+                        "tests/svelte/**",
+                        "tests/**/*.solid.unit.test.ts",
+                        "tests/**/*.solid.unit.test.tsx",
+                        "node_modules/**",
+                    ],
                 },
             },
             {
@@ -86,7 +95,12 @@ export default defineConfig({
                         "tests/**/*.unit.test.tsx",
                         "tests/**/*.integration.test.ts",
                     ],
-                    exclude: ["tests/**/*.vue.unit.test.ts", "tests/svelte/**"],
+                    exclude: [
+                        "tests/**/*.vue.unit.test.ts",
+                        "tests/svelte/**",
+                        "tests/**/*.solid.unit.test.ts",
+                        "tests/**/*.solid.unit.test.tsx",
+                    ],
                     // `@testing-library/react` and `react-dom` ship as CJS
                     // and resolve their React peer via `require("react")`,
                     // which bypasses Vitest's ESM resolve.alias. Force them
@@ -135,6 +149,32 @@ export default defineConfig({
                         "tests/svelte/**/*.svelte.unit.test.tsx",
                     ],
                     setupFiles: [],
+                },
+            },
+            {
+                // Solid-flavoured unit tests need vite-plugin-solid to
+                // compile the Solid JSX pragma plus the renderers' fine-
+                // grained reactivity scopes. Solid's tests run against
+                // a separate project so the React JSX setup never sees
+                // a Solid-pragma file.
+                plugins: [solid()],
+                test: {
+                    name: "unit-solid",
+                    environment: "happy-dom",
+                    include: [
+                        "tests/**/*.solid.unit.test.ts",
+                        "tests/**/*.solid.unit.test.tsx",
+                    ],
+                    // Resolve `solid-js` to its ESM browser build so
+                    // `vite-plugin-solid` reaches the correct entry.
+                    server: {
+                        deps: {
+                            inline: [/solid-js/, /@solidjs\/testing-library/],
+                        },
+                    },
+                },
+                resolve: {
+                    conditions: ["development", "browser"],
                 },
             },
         ],

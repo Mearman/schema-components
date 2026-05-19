@@ -50,6 +50,10 @@
                 "vitest.config.ts"
             ]
         },
+        "_test:solid": {
+            "dependsOn": ["_typecheck"],
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
+        },
         "_test:coverage": {
             "dependsOn": ["_typecheck"],
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"]
@@ -102,6 +106,9 @@
         },
         "test:svelte": {
             "dependsOn": ["_test:svelte"]
+        },
+        "test:solid": {
+            "dependsOn": ["_test:solid"]
         },
         "test:coverage": {
             "dependsOn": ["_test:coverage"]
