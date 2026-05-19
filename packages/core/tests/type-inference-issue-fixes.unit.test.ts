@@ -955,10 +955,10 @@ describe("Issue 6: schema value helpers narrow from Zod / JSON Schema / OpenAPI"
 });
 
 // ---------------------------------------------------------------------------
-// Issue 7 — path-typed prop on SchemaComponentProps narrows value helpers
+// Issue 7 — path-typed helper aliases narrow value types
 // ---------------------------------------------------------------------------
 
-describe("Issue 7: SchemaComponentProps accepts a typed path generic", () => {
+describe("Issue 7: InferredOutputValue / InferredInputValue accept a path argument", () => {
     const schema = z.object({
         address: z.object({
             city: z.string(),
@@ -984,18 +984,17 @@ describe("Issue 7: SchemaComponentProps accepts a typed path generic", () => {
         void addr;
     });
 
-    it("SchemaComponentProps accepts the third generic argument", () => {
-        type Props = SchemaComponentProps<
-            typeof schema,
-            undefined,
-            "address.city"
-        >;
-        // The `path` prop must accept the requested literal — earlier
-        // revisions had no `path` field on SchemaComponentProps.
+    it("SchemaField is the supported way to render a sub-path at runtime", () => {
+        // SchemaComponent no longer accepts a `path` prop. Sub-path
+        // rendering is provided by `<SchemaField>`, which threads the
+        // path through `resolvePath` / `setNestedValue` properly.
+        type Props = SchemaComponentProps<typeof schema>;
         const props: Props = {
             schema,
-            path: "address.city",
-            value: "London",
+            value: {
+                address: { city: "London", postcode: "SW1" },
+                name: "Ada",
+            },
             onChange: (v) => {
                 void v;
             },

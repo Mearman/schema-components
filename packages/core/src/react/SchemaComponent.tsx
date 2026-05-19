@@ -280,7 +280,6 @@ export type InferredValue<
 export interface SchemaComponentProps<
     T = unknown,
     Ref extends string | undefined = undefined,
-    P extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
 > {
     /**
@@ -296,21 +295,6 @@ export interface SchemaComponentProps<
     schema: RejectUnrepresentableZod<T>;
     /** For OpenAPI: a ref string like "#/components/schemas/User" or "/users/post". */
     ref?: Ref;
-    /**
-     * Optional dot-separated path used purely for type narrowing.
-     * When the schema is typed, the path is restricted to the valid
-     * dot-paths reachable through the schema's inferred value.
-     *
-     * RUNTIME CAVEAT: this prop is currently type-level only. The
-     * render pipeline still operates on the root schema; sub-path
-     * value resolution is provided by the dedicated `<SchemaField>`
-     * component, which already implements `resolvePath` /
-     * `setNestedValue`. The `path` prop here documents intent at the
-     * type level (and prepares the API surface) so consumers can
-     * declare narrow typed wrappers without runtime regressions. Use
-     * `<SchemaField>` when a sub-path render is required at runtime.
-     */
-    path?: P;
     /**
      * Which side of every transform / pipe / codec to render.
      *
@@ -335,9 +319,7 @@ export interface SchemaComponentProps<
     /**
      * Current value to render. Typed against `InferSchemaValue<T,
      * Ref, Mode>` so the prop tracks the schema's inferred shape for
-     * the chosen `io` direction. Narrowed further by `P` when a
-     * `path` is supplied (currently type-level only — see the JSDoc
-     * on {@link SchemaComponentProps.path}).
+     * the chosen `io` direction.
      *
      * Falls back to `unknown` when the schema's value type cannot be
      * statically inferred (runtime `Record<string, unknown>` JSON
@@ -352,7 +334,7 @@ export interface SchemaComponentProps<
      * <SchemaComponent schema={userSchema} value={user} readOnly />
      * ```
      */
-    value?: NarrowAtPath<InferSchemaValue<T, Ref, Mode>, P>;
+    value?: InferSchemaValue<T, Ref, Mode>;
     /**
      * Called when the value changes (editable fields). The parameter
      * shares the same shape as {@link SchemaComponentProps.value} so
@@ -362,7 +344,7 @@ export interface SchemaComponentProps<
      * Falls back to `unknown` for schemas whose value type cannot be
      * statically inferred — see {@link SchemaComponentProps.value}.
      */
-    onChange?: (value: NarrowAtPath<InferSchemaValue<T, Ref, Mode>, P>) => void;
+    onChange?: (value: InferSchemaValue<T, Ref, Mode>) => void;
     /** Run schema.safeParse() on change and surface errors via onValidationError. */
     validate?: boolean;
     /** Called with the ZodError when validation fails. */
@@ -424,13 +406,8 @@ export interface SchemaComponentProps<
 export function SchemaComponent<
     T = unknown,
     Ref extends string | undefined = undefined,
-    P extends string | undefined = undefined,
     Mode extends SchemaIoSide = "output",
->(props: SchemaComponentProps<T, Ref, P, Mode>): ReactNode {
-    // `path` is currently type-level only — see the JSDoc on
-    // `SchemaComponentProps.path`. It is intentionally not destructured
-    // here because the render pipeline always operates on the root
-    // schema; sub-path rendering belongs to `<SchemaField>`.
+>(props: SchemaComponentProps<T, Ref, Mode>): ReactNode {
     const {
         schema: schemaInput,
         ref: refInput,
