@@ -184,7 +184,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 <!-- @generated:api-inventory:start -->
 <details>
-<summary><code>core/*</code> — 227 exports</summary>
+<summary><code>core/*</code> — 230 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -307,6 +307,9 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`RESOLVER_KEYS`](https://mearman.github.io/schema-components/variables/core_renderer.RESOLVER_KEYS.html) | `core/renderer` | Variable | Canonical list of resolver keys, one per WalkedField variant. |  |
 | [`typeToKey`](https://mearman.github.io/schema-components/functions/core_renderer.typeToKey.html) | `core/renderer` | Function | Map a schema type to the resolver key that handles it. |  |
 | [`WidgetMap`](https://mearman.github.io/schema-components/types/core_renderer.WidgetMap.html) | `core/renderer` | Type | Widget map — maps component hints (from `.meta({ component })`) to render functions. | [Extensibility/Widgets](https://mearman.github.io/schema-components/storybook/?path=/docs/extensibility-widgets--docs) |
+| [`DispatchArgs`](https://mearman.github.io/schema-components/interfaces/core_renderField.DispatchArgs.html) | `core/renderField` | Interface | Arguments accepted by dispatchRenderField. |  |
+| [`DispatchConfig`](https://mearman.github.io/schema-components/interfaces/core_renderField.DispatchConfig.html) | `core/renderField` | Interface | Per-adapter configuration consumed by dispatchRenderField. |  |
+| [`dispatchRenderField`](https://mearman.github.io/schema-components/functions/core_renderField.dispatchRenderField.html) | `core/renderField` | Function | Framework-agnostic dispatch loop shared by the React, HTML, and future adapters. |  |
 | [`normaliseSwagger2Document`](https://mearman.github.io/schema-components/functions/core_swagger2.normaliseSwagger2Document.html) | `core/swagger2` | Function | Transform a Swagger 2.0 document into an OpenAPI 3.1-compatible structure. |  |
 | [`__SchemaInferenceFellBack`](https://mearman.github.io/schema-components/interfaces/core_typeInference.__SchemaInferenceFellBack.html) | `core/typeInference` | Interface | Marker type emitted when OpenAPI $ref resolution hits the type-level recursion depth limit. |  |
 | [`DEFAULT_MAX_DEPTH`](https://mearman.github.io/schema-components/types/core_typeInference.DEFAULT_MAX_DEPTH.html) | `core/typeInference` | Type | Type-level recursion bound for $ref resolution. |  |
