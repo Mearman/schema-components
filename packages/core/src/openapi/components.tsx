@@ -1014,7 +1014,7 @@ export interface ApiResponseProps<
  * picked out of `schema` by `path`, `method`, and `status`.
  *
  * Status resolution follows the OpenAPI priority order: concrete code
- * (e.g. `"200"`) > class wildcard (e.g. `"2XX"`) > `"default"`. When
+ * (e.g. `"200"`) \> class wildcard (e.g. `"2XX"`) \> `"default"`. When
  * `schema` is typed `as const`, `fields` autocomplete resolves from
  * the response schema; pass `contentType` to narrow inference to a
  * specific media type.
