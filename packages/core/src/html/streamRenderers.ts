@@ -429,7 +429,11 @@ function* streamObject(
                 ),
                 raw(childChunks),
             ];
-            const hint = buildHintElement(key, field.constraints);
+            // Hint element id must derive from the already-prefixed input id
+            // (`sc-…`) so the input's `aria-describedby` resolves correctly.
+            // Passing the raw structural key here would emit `name-hint`
+            // while the input's `aria-describedby` points at `sc-name-hint`.
+            const hint = buildHintElement(fieldId, field.constraints);
             if (hint !== undefined) fieldChildren.push(hint);
 
             const fieldDiv = h(

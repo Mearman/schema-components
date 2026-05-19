@@ -257,4 +257,22 @@ describe("constraint hints with aria-describedby (HTML)", () => {
         expect(html).toMatch(/aria-describedby="sc-name-hint"/);
         expect(html).toMatch(/id="sc-name-hint"/);
     });
+
+    it("links input to hint via aria-describedby in the streaming renderer", () => {
+        // Regression: the streaming renderer previously passed the raw
+        // structural key (e.g. `"name"`) into `buildHintElement`, producing
+        // a hint id of `name-hint` while the input's `aria-describedby`
+        // pointed at `sc-name-hint`. The mismatch broke the association.
+        const schema = z.object({
+            name: z.string().min(3).max(50).meta({ description: "Name" }),
+        });
+        const chunks = [
+            ...renderToHtmlChunks(schema, { value: { name: "Ada" } }),
+        ];
+        const html = chunks.join("");
+        expect(html).toMatch(/aria-describedby="sc-name-hint"/);
+        expect(html).toMatch(/id="sc-name-hint"/);
+        // And the buggy unprefixed form must not appear.
+        expect(html).not.toMatch(/id="name-hint"/);
+    });
 });
