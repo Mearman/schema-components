@@ -769,7 +769,12 @@ function DiscriminatedUnionTabs({
                         type="button"
                         role="tab"
                         id={tabIdFor(path, i)}
-                        aria-selected={i === activeIndex ? "true" : undefined}
+                        // Emit the literal `"false"` rather than omitting
+                        // the attribute on inactive tabs — some screen
+                        // readers (NVDA, JAWS in browse mode) only
+                        // announce selection state when `aria-selected`
+                        // is explicitly present on every tab.
+                        aria-selected={i === activeIndex ? "true" : "false"}
                         aria-controls={panelId}
                         tabIndex={i === activeIndex ? 0 : -1}
                         onClick={() => {

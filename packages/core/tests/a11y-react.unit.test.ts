@@ -98,6 +98,32 @@ describe("discriminated union — ARIA tabs (HTML)", () => {
         expect(html).toMatch(/aria-selected="true"/);
     });
 
+    it("emits aria-selected=false literal on every inactive tab", () => {
+        // Some screen readers only announce selection state when
+        // `aria-selected` is explicitly present on every tab.
+        const html = renderToHtml(schema, {
+            value: { type: "email", address: "user@example.com" },
+        });
+        // Two tabs total; one selected="true", one selected="false".
+        const trueMatches = html.match(/aria-selected="true"/g) ?? [];
+        const falseMatches = html.match(/aria-selected="false"/g) ?? [];
+        expect(trueMatches.length).toBe(1);
+        expect(falseMatches.length).toBe(1);
+    });
+
+    it("emits aria-selected=false literal on every inactive tab in the streaming renderer", () => {
+        const chunks = [
+            ...renderToHtmlChunks(schema, {
+                value: { type: "phone", number: "+1234567890" },
+            }),
+        ];
+        const html = chunks.join("");
+        const trueMatches = html.match(/aria-selected="true"/g) ?? [];
+        const falseMatches = html.match(/aria-selected="false"/g) ?? [];
+        expect(trueMatches.length).toBe(1);
+        expect(falseMatches.length).toBe(1);
+    });
+
     it("sets tabindex=0 on active tab, -1 on inactive", () => {
         const html = renderToHtml(schema, {
             value: { type: "email", address: "user@example.com" },

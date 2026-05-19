@@ -732,7 +732,11 @@ function* streamDiscriminatedUnion(
             role: "tab",
             class: i === activeIndex ? SC_CLASSES.tabActive : SC_CLASSES.tab,
             id: tabId(path, i),
-            "aria-selected": i === activeIndex ? "true" : undefined,
+            // Emit the literal `"false"` rather than omitting the
+            // attribute on inactive tabs — some screen readers only
+            // announce selection state when `aria-selected` is
+            // explicitly present on every tab.
+            "aria-selected": i === activeIndex ? "true" : "false",
             "aria-controls": tabPanelId,
             tabindex: i === activeIndex ? "0" : "-1",
         };
