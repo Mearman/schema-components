@@ -92,9 +92,13 @@ describe("<schema-component>", () => {
     it("resolves the `schemaRef` property against an OpenAPI document", async () => {
         // Regression guard for the cross-framework `ref` → `schemaRef`
         // rename. Mirrors the React assertion in
-        // `openapi30.unit.test.ts` (lines 885–915): set the OpenAPI
-        // document on `schema` and a JSON-pointer `schemaRef`, then
-        // confirm the shadow DOM reflects the resolved sub-schema.
+        // `openapi30.unit.test.ts` (lines 885–915), and matches the
+        // peer-adapter pattern (Vue/Solid/Svelte): the fixture places
+        // a structurally-distinct *decoy* schema FIRST and points
+        // `schemaRef` at a later schema. A bug that always resolves
+        // to the first `components/schemas` entry (the precise
+        // failure mode the rename was designed to prevent) would
+        // surface the decoy's `code` field and fail the assertions.
         //
         // `schemaRef` on the Lit element is property-only (declared
         // with `attribute: false`) — assign it via property, not
@@ -106,6 +110,14 @@ describe("<schema-component>", () => {
             paths: {},
             components: {
                 schemas: {
+                    // Decoy — listed first so the test fails if
+                    // `schemaRef` is dropped and the renderer falls
+                    // back to the first schema in the document.
+                    Status: {
+                        type: "object",
+                        properties: { code: { type: "integer" } },
+                        required: ["code"],
+                    },
                     User: {
                         type: "object",
                         properties: {
@@ -130,30 +142,37 @@ describe("<schema-component>", () => {
         // and normalisation produced the bare OpenAPI document, which
         // has no top-level `type`).
         const root = el.shadowRoot;
-        expect(root).not.toBeNull();
-        const objectEl = root?.querySelector("sc-object");
-        expect(objectEl).not.toBeNull();
-
-        if (objectEl !== null && objectEl !== undefined) {
-            // The walked tree passed to `<sc-object>` must carry the
-            // two `User` properties (`name`, `age`) — proving the
-            // `schemaRef` was honoured rather than ignored.
-            const tree = getProp(objectEl, "tree");
-            expect(tree).toBeDefined();
-            if (typeof tree === "object" && tree !== null && "fields" in tree) {
-                const fields = tree.fields;
-                expect(fields).toBeDefined();
-                if (typeof fields === "object" && fields !== null) {
-                    expect(Object.keys(fields)).toEqual(["name", "age"]);
-                }
-            }
-
-            // The supplied value should thread through to `<sc-object>`,
-            // proving the resolved schema and the value share a
-            // coordinate frame.
-            const v = getProp(objectEl, "value");
-            expect(v).toEqual({ name: "Ada", age: 36 });
+        if (root === null) throw new Error("shadowRoot is null");
+        const objectEl = root.querySelector("sc-object");
+        if (objectEl === null) {
+            throw new Error("expected <sc-object> in shadow root");
         }
+
+        // Past the existence gate, assert unconditionally. Using
+        // `toMatchObject` fails cleanly if the tree shape is wrong;
+        // wrapping in `if` guards would silently skip the assertion
+        // if the property is missing.
+        const tree = getProp(objectEl, "tree");
+        expect(tree).toMatchObject({
+            type: "object",
+            fields: {
+                name: expect.anything() as unknown,
+                age: expect.anything() as unknown,
+            },
+        });
+
+        // Negative assertion — proves the decoy schema's `code` field
+        // was NOT resolved, so the test would fail on a "always pick
+        // first schema" regression.
+        const fields = (tree as { fields: Record<string, unknown> }).fields;
+        expect(Object.keys(fields)).toEqual(["name", "age"]);
+        expect(fields).not.toHaveProperty("code");
+
+        // The supplied value should thread through to `<sc-object>`,
+        // proving the resolved schema and the value share a
+        // coordinate frame.
+        const v = getProp(objectEl, "value");
+        expect(v).toEqual({ name: "Ada", age: 36 });
         el.remove();
     });
 });
