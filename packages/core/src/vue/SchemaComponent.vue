@@ -40,7 +40,7 @@ const props = withDefaults(
         /** Zod schema, JSON Schema object, or OpenAPI document. */
         schema: unknown;
         /** For OpenAPI: a ref string like `#/components/schemas/User`. */
-        refPath?: string;
+        schemaRef?: string;
         /** v-model binding for the current value. */
         modelValue?: unknown;
         /**
@@ -72,7 +72,7 @@ const props = withDefaults(
         onError?: (error: SchemaNormalisationError) => void;
     }>(),
     {
-        refPath: undefined,
+        schemaRef: undefined,
         modelValue: undefined,
         onChange: undefined,
         readOnly: false,
@@ -141,7 +141,7 @@ const normalised = computed<Normalised>(() => {
         // consistency with the React adapter, which receives raw
         // values directly.
         const rawSchema = toRaw(props.schema);
-        const result = normaliseSchema(rawSchema, props.refPath, opts);
+        const result = normaliseSchema(rawSchema, props.schemaRef, opts);
         return {
             jsonSchema: result.jsonSchema,
             rootMeta: result.rootMeta,

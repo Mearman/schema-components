@@ -38,7 +38,7 @@ const props = withDefaults(
         /** Zod schema, JSON Schema object, or OpenAPI document. */
         schema: unknown;
         /** For OpenAPI: a ref string. */
-        refPath?: string;
+        schemaRef?: string;
         /** Current value to render. */
         value?: unknown;
         /** Meta overrides applied to the root schema. */
@@ -63,7 +63,7 @@ const props = withDefaults(
         strict?: boolean;
     }>(),
     {
-        refPath: undefined,
+        schemaRef: undefined,
         value: undefined,
         meta: () => ({}),
         description: undefined,
@@ -110,7 +110,7 @@ const normalised = computed<Normalised>(() => {
         // `_zod` data members that Vue's default Proxy cannot mirror).
         // See the matching comment in `SchemaComponent.vue`.
         const rawSchema = toRaw(props.schema);
-        const result = normaliseSchema(rawSchema, props.refPath, opts);
+        const result = normaliseSchema(rawSchema, props.schemaRef, opts);
         return {
             jsonSchema: result.jsonSchema,
             rootMeta: result.rootMeta,

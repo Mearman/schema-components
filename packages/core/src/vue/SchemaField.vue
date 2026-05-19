@@ -41,7 +41,7 @@ const props = withDefaults(
         /** The schema to extract the field from. */
         schema: unknown;
         /** For OpenAPI: a ref string. */
-        refPath?: string;
+        schemaRef?: string;
         /** Current value of the root object the field belongs to. */
         modelValue?: unknown;
         /** Explicit onChange callback. Wired alongside `update:modelValue`. */
@@ -52,7 +52,7 @@ const props = withDefaults(
         idPrefix?: string;
     }>(),
     {
-        refPath: undefined,
+        schemaRef: undefined,
         modelValue: undefined,
         onChange: undefined,
         meta: () => ({}),
@@ -80,7 +80,7 @@ const normalised = computed<Normalised>(() => {
         // Zod schemas carry non-configurable members that Vue's
         // default reactive Proxy cannot mirror.
         const rawSchema = toRaw(props.schema);
-        const result = normaliseSchema(rawSchema, props.refPath);
+        const result = normaliseSchema(rawSchema, props.schemaRef);
         return {
             jsonSchema: result.jsonSchema,
             rootMeta: result.rootMeta,
