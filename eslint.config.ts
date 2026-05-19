@@ -9,6 +9,7 @@ import importPlugin from "eslint-plugin-import";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 import noOnlyTests from "eslint-plugin-no-only-tests";
 import eslintPluginPrettier from "eslint-plugin-prettier";
+import eslintPluginTsdoc from "eslint-plugin-tsdoc";
 import { configs } from "typescript-eslint";
 
 const noPointlessReassignments: Rule.RuleModule = {
@@ -203,6 +204,7 @@ const sharedPluginRules = {
     import: importPlugin,
     "no-only-tests": noOnlyTests,
     prettier: eslintPluginPrettier,
+    tsdoc: eslintPluginTsdoc,
 };
 
 const sharedRules: Record<string, unknown> = {
@@ -210,6 +212,7 @@ const sharedRules: Record<string, unknown> = {
     "custom/no-barrel-files": "error",
     "custom/no-re-exports": "error",
     "prettier/prettier": "error",
+    "tsdoc/syntax": "warn",
     "@typescript-eslint/consistent-type-assertions": [
         "error",
         { assertionStyle: "never" },
