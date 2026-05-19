@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { svelteTesting } from "@testing-library/svelte/vite";
 
 export default defineConfig({
     test: {
@@ -21,7 +23,7 @@ export default defineConfig({
                 functions: 80,
                 perFile: true,
             },
-            exclude: ["src/react/**", "src/themes/**"],
+            exclude: ["src/react/**", "src/themes/**", "src/svelte/**"],
         },
         projects: [
             {
@@ -37,7 +39,9 @@ export default defineConfig({
                     // sibling `unit-vue` project below so the `@vitejs/plugin-vue`
                     // compilation step (which adds a measurable amount of
                     // start-up time) only fires when actually needed.
-                    exclude: ["tests/**/*.vue.unit.test.ts"],
+                    // Svelte tests live under `tests/svelte/**` and are
+                    // routed to the sibling `unit-svelte` project.
+                    exclude: ["tests/**/*.vue.unit.test.ts", "tests/svelte/**"],
                 },
             },
             {
@@ -82,7 +86,7 @@ export default defineConfig({
                         "tests/**/*.unit.test.tsx",
                         "tests/**/*.integration.test.ts",
                     ],
-                    exclude: ["tests/**/*.vue.unit.test.ts"],
+                    exclude: ["tests/**/*.vue.unit.test.ts", "tests/svelte/**"],
                     // `@testing-library/react` and `react-dom` ship as CJS
                     // and resolve their React peer via `require("react")`,
                     // which bypasses Vitest's ESM resolve.alias. Force them
@@ -112,6 +116,25 @@ export default defineConfig({
                     name: "unit-vue",
                     environment: "happy-dom",
                     include: ["tests/**/*.vue.unit.test.ts"],
+                },
+            },
+            {
+                // `svelte()` compiles `.svelte` files in test mode.
+                // `svelteTesting()` switches the Svelte package's
+                // `exports` to the `browser` condition so Svelte 5's
+                // `mount()` (which is browser-only —
+                // `index-server.js` throws `lifecycle_function_unavailable`)
+                // resolves to the client implementation, and registers
+                // an auto-cleanup hook that runs after each test.
+                plugins: [svelte(), svelteTesting()],
+                test: {
+                    name: "unit-svelte",
+                    environment: "happy-dom",
+                    include: [
+                        "tests/svelte/**/*.svelte.unit.test.ts",
+                        "tests/svelte/**/*.svelte.unit.test.tsx",
+                    ],
+                    setupFiles: [],
                 },
             },
         ],
