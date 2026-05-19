@@ -41,7 +41,7 @@
     constraint Vue, Solid, and React impose on shared mutable
     state and is documented in the package README.
 -->
-<script lang="ts" generics="T = unknown, Ref extends string | undefined = undefined">
+<script lang="ts" generics="T = unknown, SchemaRef extends string | undefined = undefined">
     import { z } from "zod";
     import { walk } from "../core/walker.ts";
     import type { WalkOptions } from "../core/walkBuilders.ts";
@@ -78,13 +78,13 @@
         /** Zod 4, JSON Schema, or OpenAPI document. */
         schema: T;
         /** OpenAPI ref string, e.g. "#/components/schemas/User". */
-        schemaRef?: Ref;
+        schemaRef?: SchemaRef;
         /** Direction (`"output"` / `"input"`) for codec / transform schemas. */
         io?: SchemaIoSide;
         /** Current value to render. */
-        value?: InferSchemaValue<T, Ref, "output">;
+        value?: InferSchemaValue<T, SchemaRef, "output">;
         /** Called when the value changes. */
-        onChange?: (value: InferSchemaValue<T, Ref, "output">) => void;
+        onChange?: (value: InferSchemaValue<T, SchemaRef, "output">) => void;
         /** Run `safeParse` / `safeEncode` on change. */
         validate?: boolean;
         /** Called with the ZodError on validation failure. */
@@ -96,7 +96,7 @@
         /** When true, any diagnostic becomes a thrown error. */
         strict?: boolean;
         /** Per-field meta overrides. */
-        fields?: InferFields<T, Ref>;
+        fields?: InferFields<T, SchemaRef>;
         /** Meta overrides applied to the root schema. */
         meta?: SchemaMeta;
         /** Convenience: sets readOnly on all fields. */
@@ -234,7 +234,7 @@
             // contravariant assignment cannot be proven by
             // TypeScript and is the same pattern used in
             // `react/SchemaComponent.tsx`.
-            onChange(nextValue as InferSchemaValue<T, Ref, "output">);
+            onChange(nextValue as InferSchemaValue<T, SchemaRef, "output">);
         }
     }
 

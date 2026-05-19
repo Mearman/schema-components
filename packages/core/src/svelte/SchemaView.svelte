@@ -20,7 +20,7 @@
       - No global widget lookup — Svelte SSR mustn't read
         module-level mutable state.
 -->
-<script lang="ts" generics="T = unknown, Ref extends string | undefined = undefined">
+<script lang="ts" generics="T = unknown, SchemaRef extends string | undefined = undefined">
     import { walk } from "../core/walker.ts";
     import type { WalkOptions } from "../core/walkBuilders.ts";
     import {
@@ -51,10 +51,10 @@
 
     interface Props {
         schema: T;
-        schemaRef?: Ref;
+        schemaRef?: SchemaRef;
         io?: SchemaIoSide;
-        value?: InferredValue<T, Ref, undefined, "output">;
-        fields?: InferFields<T, Ref>;
+        value?: InferredValue<T, SchemaRef, undefined, "output">;
+        fields?: InferFields<T, SchemaRef>;
         meta?: SchemaMeta;
         description?: string;
         /** Theme resolver — Svelte SSR has no context fallthrough, pass explicitly. */

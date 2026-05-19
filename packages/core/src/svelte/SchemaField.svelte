@@ -7,7 +7,7 @@
     fields inside bespoke layouts when `<SchemaComponent>` would
     render too much.
 -->
-<script lang="ts" generics="T = unknown, Ref extends string | undefined = undefined">
+<script lang="ts" generics="T = unknown, SchemaRef extends string | undefined = undefined">
     import { walk } from "../core/walker.ts";
     import type { WalkOptions } from "../core/walkBuilders.ts";
     import {
@@ -40,7 +40,7 @@
         /** The schema to extract the field from. */
         schema: T;
         /** OpenAPI ref string. */
-        schemaRef?: Ref;
+        schemaRef?: SchemaRef;
         /** Direction (`"output"` / `"input"`) for codec / transform schemas. */
         io?: SchemaIoSide;
         /** Current value of the root schema. */
