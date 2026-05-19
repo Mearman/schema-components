@@ -34,6 +34,37 @@ import { isPrototypePollutingKey } from "../core/uri.ts";
  * Resolver function for external documents.
  * Called with the URI portion of an external $ref (everything before `#`).
  * Returns the parsed JSON document.
+ *
+ * ### Security warning — SSRF and local-file disclosure
+ *
+ * Consumers MUST validate the URI before fetching the target document.
+ * The bundler hands the resolver the raw `$ref` URI from the OpenAPI
+ * document — which is typically user-controlled — and any network or
+ * filesystem access the resolver performs runs with the host
+ * application's full privileges. An attacker-crafted document that
+ * references an internal endpoint or a local filesystem path will
+ * happily exfiltrate or expose data the application never intended to
+ * surface.
+ *
+ * At a minimum the resolver should:
+ *
+ * - Refuse non-`https:` schemes by default. Permit `http:` only on an
+ *   explicit allow-list. Refuse `file:`, `data:`, `javascript:`,
+ *   `ftp:`, `gopher:`, and every other scheme outright.
+ * - Resolve the URI's hostname and refuse loopback addresses
+ *   (`127.0.0.0/8`, `::1`), link-local addresses (`169.254.0.0/16`,
+ *   `fe80::/10`), private ranges (`10.0.0.0/8`, `172.16.0.0/12`,
+ *   `192.168.0.0/16`, `fc00::/7`), and cloud-metadata IPs
+ *   (`169.254.169.254`, `fd00:ec2::254`).
+ * - Apply a strict allow-list of permitted hosts where possible.
+ * - Set request timeouts and a maximum response size.
+ * - Disable HTTP redirects, or re-validate the redirected URL against
+ *   the same denylist before following.
+ * - Reject responses that are not `application/json` or
+ *   `application/yaml`.
+ *
+ * The bundler itself performs no validation — that responsibility sits
+ * exclusively with the resolver implementation supplied by the caller.
  */
 export type BundleResolver = (uri: string) => unknown;
 
