@@ -20,6 +20,7 @@ import {
     SWAGGER_2_METHODS,
 } from "./openapiConstants.ts";
 import { resolveRefChain } from "./refChain.ts";
+import { isPrototypePollutingKey } from "./uri.ts";
 
 // ---------------------------------------------------------------------------
 // Document-level transformation
@@ -427,7 +428,10 @@ function normaliseSwaggerOperation(
     const produces: unknown[] = producesResolution.types;
     const consumes: unknown[] = consumesResolution.types;
 
-    // Copy non-special fields
+    // Copy non-special fields. Refuse to copy a prototype-polluting
+    // property name — a hostile Swagger 2.0 document parsed via
+    // `JSON.parse` can carry `__proto__` as an own property, and a
+    // direct assignment would mutate the runtime prototype chain.
     for (const [key, value] of Object.entries(operation)) {
         if (
             key !== "parameters" &&
@@ -435,6 +439,15 @@ function normaliseSwaggerOperation(
             key !== "produces" &&
             key !== "consumes"
         ) {
+            if (isPrototypePollutingKey(key)) {
+                emitDiagnostic(diagnostics, {
+                    code: "prototype-polluting-property",
+                    message: `Refusing to copy prototype-polluting property name into normalised operation: ${key}`,
+                    pointer: appendPointer(`/paths/${path}/${method}`, key),
+                    detail: { propertyName: key },
+                });
+                continue;
+            }
             result[key] = value;
         }
     }
@@ -858,6 +871,19 @@ function normaliseSwaggerParameter(
             // re-emitted via buildSchemaFromSwaggerParameterShape.
             continue;
         }
+        if (isPrototypePollutingKey(key)) {
+            // A hostile parameter parsed via `JSON.parse` can carry
+            // `__proto__` as an own enumerable property. Refuse to copy
+            // it across — assignment to the prototype-polluting key on
+            // the fresh result would mutate the runtime prototype chain.
+            emitDiagnostic(diagnostics, {
+                code: "prototype-polluting-property",
+                message: `Refusing to copy prototype-polluting property name into normalised parameter: ${key}`,
+                pointer: appendPointer(pointer, key),
+                detail: { propertyName: key },
+            });
+            continue;
+        }
         result[key] = value;
     }
 
@@ -1126,6 +1152,27 @@ function normaliseSwaggerSingleResponse(
     // OpenAPI 3.x form before the renderer sees them.
     for (const [key, value] of Object.entries(resolved)) {
         if (key !== "schema" && key !== "headers") {
+            if (isPrototypePollutingKey(key)) {
+                // A response object parsed via `JSON.parse` can carry
+                // `__proto__` as an own enumerable property. Refuse to
+                // copy it across — assignment would otherwise mutate
+                // the runtime prototype chain.
+                emitDiagnostic(diagnostics, {
+                    code: "prototype-polluting-property",
+                    message: `Refusing to copy prototype-polluting property name into normalised response: ${key}`,
+                    pointer:
+                        path !== undefined &&
+                        method !== undefined &&
+                        statusCode !== undefined
+                            ? appendPointer(
+                                  `/paths/${path}/${method}/responses/${statusCode}`,
+                                  key
+                              )
+                            : key,
+                    detail: { propertyName: key },
+                });
+                continue;
+            }
             normalised[key] = value;
         }
     }
@@ -1229,6 +1276,19 @@ function normaliseSwaggerHeader(
 
     for (const [key, value] of Object.entries(header)) {
         if (PARAM_KEYWORDS_LIFTED_INTO_SCHEMA.has(key)) {
+            continue;
+        }
+        if (isPrototypePollutingKey(key)) {
+            // A header object parsed via `JSON.parse` can carry
+            // `__proto__` as an own enumerable property. Refuse to copy
+            // it across — assignment would mutate the runtime prototype
+            // chain.
+            emitDiagnostic(diagnostics, {
+                code: "prototype-polluting-property",
+                message: `Refusing to copy prototype-polluting property name into normalised header: ${key}`,
+                pointer: appendPointer(pointer, key),
+                detail: { propertyName: key },
+            });
             continue;
         }
         result[key] = value;

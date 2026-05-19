@@ -6,8 +6,9 @@
  */
 
 import { isObject } from "./guards.ts";
+import { isPrototypePollutingKey } from "./uri.ts";
 import type { DiagnosticsOptions } from "./diagnostics.ts";
-import { emitDiagnostic } from "./diagnostics.ts";
+import { appendPointer, emitDiagnostic } from "./diagnostics.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -205,6 +206,22 @@ export function mergeAllOf(
         const props = getObject(entry, "properties");
         if (props !== undefined) {
             for (const [key, value] of Object.entries(props)) {
+                // Defence in depth: refuse to merge `__proto__`,
+                // `constructor`, or `prototype` as own properties. The
+                // walker emits the same diagnostic when it traverses the
+                // composite schema, but the silent drop here would
+                // otherwise hide the fact that an allOf branch tried to
+                // smuggle a prototype-polluting key into the merged
+                // shape.
+                if (isPrototypePollutingKey(key)) {
+                    emitDiagnostic(diagnostics, {
+                        code: "prototype-polluting-property",
+                        message: `Refusing to merge prototype-polluting property name from allOf branch: ${key}`,
+                        pointer: appendPointer(pointer, `properties/${key}`),
+                        detail: { propertyName: key },
+                    });
+                    continue;
+                }
                 properties[key] = value;
             }
         }
