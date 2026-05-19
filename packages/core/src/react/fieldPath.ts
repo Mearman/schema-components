@@ -8,6 +8,7 @@
 
 import type { WalkedField } from "../core/types.ts";
 import { isObject } from "../core/guards.ts";
+import { isPrototypePollutingKey } from "../core/uri.ts";
 
 // ---------------------------------------------------------------------------
 // Tree path resolution
@@ -60,6 +61,12 @@ export function resolvePath(
 /**
  * Resolve a dot-separated path through a data value.
  * Supports array index notation: `field[0]`.
+ *
+ * Path segments naming a prototype-polluting property (`__proto__`,
+ * `constructor`, `prototype`) refuse to resolve and return `undefined`.
+ * Without the refusal, an attacker-supplied path would read
+ * `Object.prototype` (or similar) and surface fields injected into the
+ * runtime prototype chain as if they belonged to the user's data.
  */
 export function resolveValue(root: unknown, path: string): unknown {
     if (path.length === 0) return root;
@@ -73,6 +80,7 @@ export function resolveValue(root: unknown, path: string): unknown {
         const bracketMatch = /^(.+)\[(\d+)\]$/.exec(part);
         if (bracketMatch?.[1] !== undefined && bracketMatch[2] !== undefined) {
             const key = bracketMatch[1];
+            if (isPrototypePollutingKey(key)) return undefined;
             const index = Number(bracketMatch[2]);
             const arr = current[key];
             if (Array.isArray(arr)) {
@@ -81,6 +89,7 @@ export function resolveValue(root: unknown, path: string): unknown {
                 return undefined;
             }
         } else {
+            if (isPrototypePollutingKey(part)) return undefined;
             current = current[part];
         }
     }
@@ -95,6 +104,15 @@ export function resolveValue(root: unknown, path: string): unknown {
 /**
  * Set a value at a dot-separated path, producing a new root object.
  * Does not mutate the input — returns a shallow-updated copy at each level.
+ *
+ * Refuses paths whose segments name a prototype-polluting property
+ * (`__proto__`, `constructor`, `prototype`). Such a path could otherwise
+ * mutate `Object.prototype` (or similar) through the assignment, planting
+ * fields visible to every plain object in the runtime. The input `root`
+ * is returned unchanged so the caller's onChange handler treats the
+ * write as a no-op rather than propagating a poisoned state. This
+ * matches the silent-refusal semantics of `dereference` in `core/ref.ts`
+ * when a JSON Pointer segment names a prototype-polluting key.
  */
 export function setNestedValue(
     root: unknown,
@@ -104,6 +122,15 @@ export function setNestedValue(
     if (path.length === 0) return leafValue;
 
     const parts = path.split(".");
+    for (const part of parts) {
+        const bracketMatch = /^(.+)\[(\d+)\]$/.exec(part);
+        const key =
+            bracketMatch?.[1] !== undefined && bracketMatch[2] !== undefined
+                ? bracketMatch[1]
+                : part;
+        if (isPrototypePollutingKey(key)) return root;
+    }
+
     const result = isObject(root) ? { ...root } : {};
 
     let current: Record<string, unknown> = result;
