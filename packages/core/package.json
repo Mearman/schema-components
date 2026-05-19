@@ -13,6 +13,10 @@
             "types": "./dist/react/*.d.mts",
             "import": "./dist/react/*.mjs"
         },
+        "./preact/*": {
+            "types": "./dist/preact/*.d.mts",
+            "import": "./dist/preact/*.mjs"
+        },
         "./openapi/*": {
             "types": "./dist/openapi/*.d.mts",
             "import": "./dist/openapi/*.mjs"
@@ -77,8 +81,14 @@
         "provenance": true
     },
     "peerDependencies": {
+        "preact": ">=10.0.0",
         "react": "^18.0.0 || ^19.0.0",
         "zod": "^4.0.0"
+    },
+    "peerDependenciesMeta": {
+        "preact": {
+            "optional": true
+        }
     },
     "devDependencies": {
         "@eslint/js": "10.0.1",
