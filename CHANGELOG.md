@@ -1,3 +1,9 @@
+## [3.0.2](https://github.com/Mearman/schema-components/compare/v3.0.1...v3.0.2) (2026-05-19)
+
+### Tests
+
+* **lit:** strengthen schemaRef test with decoy schema and unconditional assertions ([62319c6](https://github.com/Mearman/schema-components/commit/62319c683fb4fbff5ed2e24ba5d797bbac6ea923))
+
 ## [3.0.1](https://github.com/Mearman/schema-components/compare/v3.0.0...v3.0.1) (2026-05-19)
 
 ### Refactoring
