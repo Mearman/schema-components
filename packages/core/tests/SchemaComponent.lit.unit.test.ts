@@ -88,4 +88,72 @@ describe("<schema-component>", () => {
         expect(el.hasAttribute("readonly")).toBe(true);
         el.remove();
     });
+
+    it("resolves the `schemaRef` property against an OpenAPI document", async () => {
+        // Regression guard for the cross-framework `ref` → `schemaRef`
+        // rename. Mirrors the React assertion in
+        // `openapi30.unit.test.ts` (lines 885–915): set the OpenAPI
+        // document on `schema` and a JSON-pointer `schemaRef`, then
+        // confirm the shadow DOM reflects the resolved sub-schema.
+        //
+        // `schemaRef` on the Lit element is property-only (declared
+        // with `attribute: false`) — assign it via property, not
+        // attribute. Lit updates asynchronously, so await
+        // `updateComplete` before asserting on rendered output.
+        const oasDoc = {
+            openapi: "3.1.0",
+            info: { title: "Users", version: "1.0" },
+            paths: {},
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string" },
+                            age: { type: "integer" },
+                        },
+                        required: ["name"],
+                    },
+                },
+            },
+        };
+        const el = document.createElement("schema-component");
+        Reflect.set(el, "schema", oasDoc);
+        Reflect.set(el, "schemaRef", "#/components/schemas/User");
+        Reflect.set(el, "value", { name: "Ada", age: 36 });
+        document.body.appendChild(el);
+        await awaitReady(el);
+
+        // The resolved `User` schema is an object — the renderer must
+        // dispatch through `<sc-object>` and not leave the shadow root
+        // empty (which would happen if `schemaRef` failed to resolve
+        // and normalisation produced the bare OpenAPI document, which
+        // has no top-level `type`).
+        const root = el.shadowRoot;
+        expect(root).not.toBeNull();
+        const objectEl = root?.querySelector("sc-object");
+        expect(objectEl).not.toBeNull();
+
+        if (objectEl !== null && objectEl !== undefined) {
+            // The walked tree passed to `<sc-object>` must carry the
+            // two `User` properties (`name`, `age`) — proving the
+            // `schemaRef` was honoured rather than ignored.
+            const tree = getProp(objectEl, "tree");
+            expect(tree).toBeDefined();
+            if (typeof tree === "object" && tree !== null && "fields" in tree) {
+                const fields = tree.fields;
+                expect(fields).toBeDefined();
+                if (typeof fields === "object" && fields !== null) {
+                    expect(Object.keys(fields)).toEqual(["name", "age"]);
+                }
+            }
+
+            // The supplied value should thread through to `<sc-object>`,
+            // proving the resolved schema and the value share a
+            // coordinate frame.
+            const v = getProp(objectEl, "value");
+            expect(v).toEqual({ name: "Ada", age: 36 });
+        }
+        el.remove();
+    });
 });
