@@ -26,7 +26,7 @@
  * is passed explicitly.
  */
 
-import { createElement, isValidElement, useId, type ReactNode } from "react";
+import { isValidElement, useId, type ReactNode } from "react";
 import type {
     ComponentResolver,
     RenderProps,
@@ -37,6 +37,7 @@ import {
     getRenderFunction,
     mergeResolvers,
 } from "../core/renderer.ts";
+import { dispatchRenderField } from "../core/renderField.ts";
 import {
     joinPath,
     sanitisePrefix,
@@ -45,11 +46,10 @@ import {
 } from "./SchemaComponent.tsx";
 import { headlessResolver } from "./headless.tsx";
 import { normaliseSchema, type SchemaIoSide } from "../core/adapter.ts";
-import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import { walk } from "../core/walker.ts";
 import type { WalkOptions } from "../core/walkBuilders.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
-import { SchemaNormalisationError, SchemaRenderError } from "../core/errors.ts";
+import { SchemaNormalisationError } from "../core/errors.ts";
 import { toRecordOrUndefined } from "../core/guards.ts";
 import type { DiagnosticsOptions, Diagnostic } from "../core/diagnostics.ts";
 import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
@@ -246,8 +246,9 @@ export function SchemaView<
             ? mergeResolvers(resolver, headlessResolver)
             : headlessResolver;
 
-    // Recursive render — no hooks, pure functions. Depth limit prevents
-    // infinite recursion on circular schema references.
+    // Recursive render — no hooks, pure functions. The depth cap lives
+    // in the shared `dispatchRenderField` dispatcher and is threaded
+    // through the `depth` argument here.
     const makeRenderChild =
         (currentDepth: number, parentPath: string) =>
         (
@@ -256,24 +257,14 @@ export function SchemaView<
             pathSuffix?: string
         ): ReactNode => {
             const childPath = joinPath(parentPath, pathSuffix);
-            if (currentDepth >= MAX_RENDER_DEPTH) {
-                const label =
-                    typeof childTree.meta.description === "string"
-                        ? childTree.meta.description
-                        : "schema";
-                return createElement(
-                    "fieldset",
-                    null,
-                    createElement("em", null, `\u21bb ${label} (recursive)`)
-                );
-            }
             return renderFieldServer(
                 childTree,
                 childValue,
                 userResolver,
                 makeRenderChild(currentDepth + 1, childPath),
                 childPath,
-                widgets
+                widgets,
+                currentDepth + 1
             );
         };
 
@@ -285,13 +276,20 @@ export function SchemaView<
         userResolver,
         renderChild,
         rootPath,
-        widgets
+        widgets,
+        0
     );
 }
 
 // ---------------------------------------------------------------------------
-// Field rendering — mirrors renderField from SchemaComponent but
-// without hooks, error boundaries, or widget registry.
+// Field rendering — mirrors renderField from SchemaComponent but without
+// hooks, error boundaries, or the global widget registry. Thin
+// RSC-friendly wrapper around the framework-agnostic
+// `dispatchRenderField` dispatcher: builds a `DispatchConfig` whose
+// widget lookup consults the per-instance `widgets` map only (no global
+// registry, no React context — SchemaView must be server-safe) and
+// reuses the recursion sentinel / fallback / result coercion rules
+// described in the dispatcher.
 // ---------------------------------------------------------------------------
 
 function renderFieldServer(
@@ -304,7 +302,8 @@ function renderFieldServer(
         pathSuffix?: string
     ) => ReactNode,
     path: string,
-    widgets?: WidgetMap
+    widgets?: WidgetMap,
+    depth = 0
 ): ReactNode {
     if (path.length === 0) {
         throw new Error(
@@ -321,60 +320,87 @@ function renderFieldServer(
         pathSuffix
     ) => renderChild(childTree, childValue, pathSuffix);
 
-    // Check widgets before resolver — instance widgets take priority
-    const componentHint = tree.meta.component;
-    if (typeof componentHint === "string") {
-        const widget = widgets?.get(componentHint);
-        if (widget !== undefined) {
-            const props = buildRenderProps(
-                tree,
-                value,
-                undefined,
-                adaptedRenderChild,
-                path
-            );
-            const result: unknown = widget(props);
-            if (result !== undefined && result !== null) {
+    return dispatchRenderField<RenderProps, ReactNode, ComponentResolver>({
+        tree,
+        value,
+        path,
+        depth,
+        resolver,
+        config: {
+            buildProps: (fieldTree, fieldPath) =>
+                buildRenderProps(
+                    fieldTree,
+                    value,
+                    undefined,
+                    adaptedRenderChild,
+                    fieldPath
+                ),
+            lookupRenderFn: (type, mergedResolver) =>
+                getRenderFunction(type, mergedResolver),
+            // SchemaView consults only the per-instance widget map.
+            // Server Components can't read React context, and the
+            // module-level `globalWidgets` registry from
+            // `SchemaComponent.tsx` is mutable state that does not
+            // belong on the server-render path. Spread under
+            // exactOptionalPropertyTypes so the field is omitted
+            // entirely when no widget map was supplied.
+            ...(widgets !== undefined
+                ? { lookupWidget: (name: string) => widgets.get(name) }
+                : {}),
+            recursionSentinel: (fieldTree) => {
+                const label =
+                    typeof fieldTree.meta.description === "string"
+                        ? fieldTree.meta.description
+                        : "schema";
+                return (
+                    <fieldset>
+                        <em>{`↻ ${label} (recursive)`}</em>
+                    </fieldset>
+                );
+            },
+            fallback: (_fieldTree, fieldValue) => {
+                if (fieldValue === undefined || fieldValue === null)
+                    return <span>{"—"}</span>;
+                return (
+                    <span>
+                        {typeof fieldValue === "string"
+                            ? fieldValue
+                            : JSON.stringify(fieldValue)}
+                    </span>
+                );
+            },
+            coerceResult: (result, step) => {
+                // Widget step — undefined/null falls through to the
+                // resolver (historic RSC behaviour: a widget that
+                // returns nothing yields control to the resolver
+                // chain).
+                if (step === "widget") {
+                    if (result === undefined || result === null)
+                        return undefined;
+                    if (isValidElement(result)) return result;
+                    if (
+                        typeof result === "string" ||
+                        typeof result === "number"
+                    )
+                        return result;
+                    // SchemaView historically fell through to the
+                    // resolver when a widget returned an unrenderable
+                    // shape — there was no `return null` rescue path
+                    // like the client-side renderField. Preserve that
+                    // by returning `undefined`.
+                    return undefined;
+                }
+                // Resolver step — undefined/null falls through to the
+                // fallback (RSC behaviour differs from the client-side
+                // renderField, which short-circuits with `null`). The
+                // fallback then renders the unset placeholder or
+                // stringified value.
+                if (result === undefined || result === null) return undefined;
                 if (isValidElement(result)) return result;
                 if (typeof result === "string" || typeof result === "number")
                     return result;
-            }
-        }
-    }
-
-    const renderFn = getRenderFunction(tree.type, resolver);
-
-    if (renderFn !== undefined) {
-        const props = buildRenderProps(
-            tree,
-            value,
-            undefined,
-            adaptedRenderChild,
-            path
-        );
-
-        try {
-            const result: unknown = renderFn(props);
-            if (result !== undefined && result !== null) {
-                if (isValidElement(result)) return result;
-                if (typeof result === "string" || typeof result === "number")
-                    return result;
-            }
-        } catch (err: unknown) {
-            throw new SchemaRenderError(
-                err instanceof Error
-                    ? err.message
-                    : `Render function threw for type "${tree.type}"`,
-                tree,
-                tree.type,
-                err
-            );
-        }
-    }
-
-    // Fallback
-    if (value === undefined || value === null) return <span>{"\u2014"}</span>;
-    return (
-        <span>{typeof value === "string" ? value : JSON.stringify(value)}</span>
-    );
+                return undefined;
+            },
+        },
+    });
 }

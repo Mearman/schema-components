@@ -31,7 +31,6 @@ import {
     normaliseSchema,
     type SchemaIoSide,
 } from "../core/adapter.ts";
-import { MAX_RENDER_DEPTH } from "../core/limits.ts";
 import {
     buildRenderProps,
     getRenderFunction,
@@ -42,6 +41,7 @@ import type {
     RenderProps,
     WidgetMap,
 } from "../core/renderer.ts";
+import { dispatchRenderField } from "../core/renderField.ts";
 import type { SchemaMeta, WalkedField } from "../core/types.ts";
 import type {
     FromJSONSchema,
@@ -63,11 +63,7 @@ import {
     setNestedValue,
 } from "../core/fieldPath.ts";
 import { isObject, toRecordOrUndefined } from "../core/guards.ts";
-import {
-    SchemaNormalisationError,
-    SchemaFieldError,
-    SchemaRenderError,
-} from "../core/errors.ts";
+import { SchemaNormalisationError, SchemaFieldError } from "../core/errors.ts";
 
 // ---------------------------------------------------------------------------
 // Context — theme adapter and scoped widgets
@@ -711,6 +707,13 @@ function runValidation(
  * {@link SchemaComponent} and {@link SchemaField}, exported so other
  * React-side components (e.g. the OpenAPI renderers) can dispatch
  * into the same fallback chain.
+ *
+ * Thin React-flavoured wrapper around the framework-agnostic
+ * `dispatchRenderField` (from `core/renderField`): it constructs a
+ * React-shaped `DispatchConfig` (widget lookup against the
+ * instance → context → global chain, recursion sentinel as a React
+ * `<fieldset>`, fallback as a `<span>`-wrapped value) and forwards
+ * the call.
  */
 export function renderField(
     tree: WalkedField,
@@ -735,82 +738,92 @@ export function renderField(
                 "and use renderChild's pathSuffix to derive child paths."
         );
     }
-    // 0. Depth limit — prevent infinite recursion on circular schemas
-    if (depth >= MAX_RENDER_DEPTH) {
-        const label =
-            typeof tree.meta.description === "string"
-                ? tree.meta.description
-                : "schema";
-        return (
-            <fieldset>
-                <em>↻ {label} (recursive)</em>
-            </fieldset>
-        );
-    }
 
-    // 1. Check widget registry for .meta({ component }) hint
-    //    Resolution order: instance → context → global
-    const componentHint = tree.meta.component;
-    if (typeof componentHint === "string") {
-        const widget =
-            instanceWidgets?.get(componentHint) ??
-            contextWidgets?.get(componentHint) ??
-            globalWidgets.get(componentHint);
-        if (widget !== undefined) {
-            const props = buildRenderProps(
-                tree,
-                value,
-                onChange,
-                renderChild,
-                path
-            );
-            const result: unknown = widget(props);
-            if (result !== undefined && result !== null) {
-                if (isValidElement(result)) return result;
-                if (typeof result === "string" || typeof result === "number")
-                    return result;
-                return null;
-            }
-        }
-    }
-
-    // 2. Build merged resolver: user overrides → headless fallback
+    // Build the merged resolver once per dispatch — user overrides on
+    // top of the headless fallback, mirroring the historic behaviour.
     const resolver =
         userResolver !== undefined
             ? mergeResolvers(userResolver, headlessResolver)
             : headlessResolver;
 
-    // 3. Look up the render function for this schema type
-    const renderFn = getRenderFunction(tree.type, resolver);
-    if (renderFn !== undefined) {
-        let result: unknown;
-        try {
-            result = renderFn(
-                buildRenderProps(tree, value, onChange, renderChild, path)
-            );
-        } catch (err: unknown) {
-            throw new SchemaRenderError(
-                err instanceof Error
-                    ? err.message
-                    : `Render function threw for type "${tree.type}"`,
-                tree,
-                tree.type,
-                err
-            );
-        }
-        // Resolver returned null — propagate (e.g. empty array suppressed
-        // in read-only mode). Do NOT fall through to the final fallback.
-        if (result === null || result === undefined) return null;
-        if (isValidElement(result)) return result;
-        if (typeof result === "string" || typeof result === "number")
-            return result;
-    }
-
-    // 4. Final fallback for unhandled types
-    if (value === undefined || value === null) return <span>—</span>;
-    return (
-        <span>{typeof value === "string" ? value : JSON.stringify(value)}</span>
-    );
+    return dispatchRenderField<RenderProps, ReactNode, ComponentResolver>({
+        tree,
+        value,
+        path,
+        depth,
+        resolver,
+        config: {
+            buildProps: (fieldTree, fieldPath) =>
+                buildRenderProps(
+                    fieldTree,
+                    value,
+                    onChange,
+                    renderChild,
+                    fieldPath
+                ),
+            lookupRenderFn: (type, mergedResolver) =>
+                getRenderFunction(type, mergedResolver),
+            // Widget lookup follows the canonical React resolution
+            // order: instance → context → global. Pulled out as a
+            // closure so the dispatcher remains agnostic to how widget
+            // maps are scoped.
+            lookupWidget: (name) =>
+                instanceWidgets?.get(name) ??
+                contextWidgets?.get(name) ??
+                globalWidgets.get(name),
+            recursionSentinel: (fieldTree) => {
+                const label =
+                    typeof fieldTree.meta.description === "string"
+                        ? fieldTree.meta.description
+                        : "schema";
+                return (
+                    <fieldset>
+                        <em>↻ {label} (recursive)</em>
+                    </fieldset>
+                );
+            },
+            fallback: (_fieldTree, fieldValue) => {
+                if (fieldValue === undefined || fieldValue === null)
+                    return <span>—</span>;
+                return (
+                    <span>
+                        {typeof fieldValue === "string"
+                            ? fieldValue
+                            : JSON.stringify(fieldValue)}
+                    </span>
+                );
+            },
+            coerceResult: (result, step) => {
+                // Widget step: null / undefined return → fall through
+                // to the resolver, matching the historic React loop
+                // where an opt-out widget yields control to the
+                // resolver chain.
+                if (step === "widget") {
+                    if (result === undefined || result === null)
+                        return undefined;
+                    if (isValidElement(result)) return result;
+                    if (
+                        typeof result === "string" ||
+                        typeof result === "number"
+                    )
+                        return result;
+                    // Widget returned a value but not in a
+                    // React-renderable shape — historically rendered
+                    // as `null` (no further fall-through).
+                    return null;
+                }
+                // Resolver step: null / undefined short-circuits with
+                // `null` so an empty-array suppression renders
+                // nothing. An unrecognised shape falls through to the
+                // final fallback (no return value here).
+                if (result === undefined || result === null) return null;
+                if (isValidElement(result)) return result;
+                if (typeof result === "string" || typeof result === "number")
+                    return result;
+                return undefined;
+            },
+        },
+    });
 }
 
 // buildRenderProps and mergeResolvers imported from core/renderer.ts

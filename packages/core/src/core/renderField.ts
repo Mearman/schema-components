@@ -72,11 +72,19 @@ export interface DispatchConfig<Props, Output, Resolver> {
      * adapter wires this to its own `getRenderFunction` /
      * `getHtmlRenderFn` lookup so the dispatcher does not need to know
      * which resolver shape applies.
+     *
+     * The returned render function's output is typed `unknown` rather
+     * than `Output` so adapters whose render functions historically
+     * returned a broader type (React's
+     * `RenderFunction\<unknown, RenderProps\>`) compose naturally. The
+     * dispatcher hands the `unknown` return value to
+     * {@link DispatchConfig.coerceResult}, which narrows it to
+     * `Output` once per dispatch.
      */
     lookupRenderFn: (
         type: WalkedField["type"],
         resolver: Resolver
-    ) => RenderFunction<Output, Props> | undefined;
+    ) => RenderFunction<unknown, Props> | undefined;
     /**
      * Produce the output emitted when the dispatcher hits
      * {@link MAX_RENDER_DEPTH}. Adapters return their own sentinel
@@ -94,25 +102,39 @@ export interface DispatchConfig<Props, Output, Resolver> {
      */
     fallback: (tree: WalkedField, value: unknown, path: string) => Output;
     /**
-     * Coerce the raw `unknown` return value of a widget or render
-     * function into the adapter's `Output` type, or `undefined` if
-     * the result should be discarded (so the dispatcher falls
-     * through to the next step).
+     * Coerce the raw `unknown` return value of a render function or
+     * widget into the adapter's `Output` type, or `undefined` if the
+     * result should be discarded (so the dispatcher falls through to
+     * the next step).
+     *
+     * The `step` argument identifies which dispatch stage produced
+     * the result — `"widget"` for a `.meta({ component })` match,
+     * `"resolver"` for the per-type render function. The two cases
+     * historically differed in how they treated `null` /
+     * `undefined` returns (widget falls through; resolver
+     * short-circuits with `null` so empty-array suppressions render
+     * nothing), and adapters can preserve that asymmetry by
+     * branching on `step`.
      *
      * Each adapter applies its own validity check here — React
      * narrows via `isValidElement`/string/number, HTML treats every
-     * string as valid, etc. When `coerceResult` returns `undefined`
-     * the dispatcher behaves as if no renderer produced output.
+     * string as valid, etc. Returning `undefined` makes the
+     * dispatcher behave as if no renderer produced output.
      */
-    coerceResult: (result: unknown) => Output | undefined;
+    coerceResult: (
+        result: unknown,
+        step: "widget" | "resolver"
+    ) => Output | undefined;
     /**
      * Optional widget-lookup hook. When present, the dispatcher
      * consults it before the resolver lookup. Called once per
      * dispatch with the value of `tree.meta.component`; should
      * return the registered render function or `undefined` if no
-     * widget matches.
+     * widget matches. The returned function's output type matches
+     * the resolver lookup (`unknown`) — see
+     * {@link DispatchConfig.lookupRenderFn}.
      */
-    lookupWidget?: (name: string) => RenderFunction<Output, Props> | undefined;
+    lookupWidget?: (name: string) => RenderFunction<unknown, Props> | undefined;
     /**
      * Wrap a render-time error in a {@link SchemaRenderError} (or a
      * caller-specified subclass) so every adapter routes thrown
@@ -193,7 +215,7 @@ export function dispatchRenderField<Props, Output, Resolver>(
         if (widget !== undefined) {
             const props = config.buildProps(tree, path);
             const rawResult: unknown = widget(props);
-            const coerced = config.coerceResult(rawResult);
+            const coerced = config.coerceResult(rawResult, "widget");
             if (coerced !== undefined) return coerced;
         }
     }
@@ -220,7 +242,7 @@ export function dispatchRenderField<Props, Output, Resolver>(
                 err
             );
         }
-        const coerced = config.coerceResult(rawResult);
+        const coerced = config.coerceResult(rawResult, "resolver");
         if (coerced !== undefined) return coerced;
     }
 
