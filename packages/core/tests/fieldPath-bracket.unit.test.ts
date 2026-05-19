@@ -117,45 +117,40 @@ describe("resolvePath — WalkedField traversal", () => {
     // nested `users` array of objects with a `name` string.
     const stringField: WalkedField = {
         type: "string",
-        path: "",
         meta: {},
-        editability: "read-write",
+        editability: "editable",
         constraints: {},
     };
     const userObjectField: WalkedField = {
         type: "object",
-        path: "users.0",
         meta: {},
-        editability: "read-write",
+        editability: "editable",
         constraints: {},
-        fields: { name: { ...stringField, path: "users.0.name" } },
-        required: ["name"],
+        fields: { name: stringField },
+        requiredFields: ["name"],
     };
     const tree: WalkedField = {
         type: "object",
-        path: "",
         meta: {},
-        editability: "read-write",
+        editability: "editable",
         constraints: {},
         fields: {
             items: {
                 type: "array",
-                path: "items",
                 meta: {},
-                editability: "read-write",
+                editability: "editable",
                 constraints: {},
-                element: { ...stringField, path: "items.0" },
+                element: stringField,
             },
             users: {
                 type: "array",
-                path: "users",
                 meta: {},
-                editability: "read-write",
+                editability: "editable",
                 constraints: {},
                 element: userObjectField,
             },
         },
-        required: [],
+        requiredFields: [],
     };
 
     it("returns the tree itself for an empty path", () => {
