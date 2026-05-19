@@ -370,7 +370,7 @@ export function walkSubSchemaMap<T>(
     return result;
 }
 
-/** Walk a dependentRequired map (Record<string, string[]>). */
+/** Walk a dependentRequired map (`Record<string, string[]>`). */
 export function walkDependentRequiredMap(
     map: Record<string, unknown>
 ): Record<string, string[]> {
