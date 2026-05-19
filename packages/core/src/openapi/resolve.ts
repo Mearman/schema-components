@@ -15,6 +15,7 @@ import {
     type OpenApiDocument,
     type OperationInfo,
     type ParameterInfo,
+    type RequestBodyInfo,
     type ResponseInfo,
 } from "./parser.ts";
 import { getProperty, isObject } from "../core/guards.ts";
@@ -350,7 +351,7 @@ export interface ResolvedOperation {
     operation: OperationInfo;
     pathItem: PathItemInfo;
     parameters: ParameterInfo[];
-    requestBody: ReturnType<typeof getRequestBody>;
+    requestBody: RequestBodyInfo | undefined;
     responses: ResponseInfo[];
 }
 
@@ -601,7 +602,7 @@ export function resolveRequestBodyFromParsed(
     parsed: OpenApiDocument,
     path: string,
     method: string
-): ReturnType<typeof getRequestBody> {
+): RequestBodyInfo | undefined {
     return getRequestBody(parsed, path, method);
 }
 
@@ -616,7 +617,7 @@ export function resolveRequestBody(
     path: string,
     method: string,
     diagnostics?: DiagnosticsOptions
-): ReturnType<typeof getRequestBody> {
+): RequestBodyInfo | undefined {
     return resolveRequestBodyFromParsed(
         getParsed(doc, diagnostics),
         path,
