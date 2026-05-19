@@ -184,7 +184,7 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 
 <!-- @generated:api-inventory:start -->
 <details>
-<summary><code>core/*</code> — 218 exports</summary>
+<summary><code>core/*</code> — 223 exports</summary>
 
 | Symbol | Sub-path | Kind | Summary | Stories |
 | --- | --- | --- | --- | --- |
@@ -238,6 +238,11 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`normaliseIdSegment`](https://mearman.github.io/schema-components/functions/core_idPath.normaliseIdSegment.html) | `core/idPath` | Function | Normalise a structural path into the id segment used after the `sc-` prefix. |  |
 | [`panelIdFor`](https://mearman.github.io/schema-components/functions/core_idPath.panelIdFor.html) | `core/idPath` | Function | Derive the tab panel id for a discriminated-union container at `path`. |  |
 | [`tabIdFor`](https://mearman.github.io/schema-components/functions/core_idPath.tabIdFor.html) | `core/idPath` | Function | Derive the id for tab `i` within a discriminated-union container at `path`. |  |
+| [`InferFields`](https://mearman.github.io/schema-components/types/core_inferValue.InferFields.html) | `core/inferValue` | Type | Recursive mapped type that mirrors a schema's shape for per-field overrides. |  |
+| [`InferredInputValue`](https://mearman.github.io/schema-components/types/core_inferValue.InferredInputValue.html) | `core/inferValue` | Type | Companion to InferredOutputValue for `"input"`-mode shapes. |  |
+| [`InferredOutputValue`](https://mearman.github.io/schema-components/types/core_inferValue.InferredOutputValue.html) | `core/inferValue` | Type | Public alias mapping a schema input to the rendered value type. |  |
+| [`InferredValue`](https://mearman.github.io/schema-components/types/core_inferValue.InferredValue.html) | `core/inferValue` | Type | Resolve the schema-driven value type for either I/O direction. |  |
+| [`InferSchemaValue`](https://mearman.github.io/schema-components/types/core_inferValue.InferSchemaValue.html) | `core/inferValue` | Type | Infer the data type carried by the schema input. |  |
 | [`MAX_PATH_ITEM_REF_HOPS`](https://mearman.github.io/schema-components/variables/core_limits.MAX_PATH_ITEM_REF_HOPS.html) | `core/limits` | Variable | Maximum number of `$ref` hops permitted when walking a chain of OpenAPI Path Item Object references. |  |
 | [`MAX_REF_DEPTH`](https://mearman.github.io/schema-components/variables/core_limits.MAX_REF_DEPTH.html) | `core/limits` | Variable | Runtime constant matching the type-level MaxRefDepth bound. |  |
 | [`MAX_RENDER_DEPTH`](https://mearman.github.io/schema-components/variables/core_limits.MAX_RENDER_DEPTH.html) | `core/limits` | Variable | Maximum recursion depth for the schema walker, the React renderers, the streaming HTML renderer, and the server-side renderer. |  |
@@ -450,10 +455,10 @@ Every public export, auto-generated from JSDoc. Click a name for full signature,
 | [`renderUnion`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.renderUnion.html) | `react/headlessRenderers` | Function | Headless renderer for plain `UnionField` — picks the matching option and renders it. |  |
 | [`renderUnknown`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.renderUnknown.html) | `react/headlessRenderers` | Function | Headless renderer for `UnknownField` — JSON-encoded fallback for unconstrained values. |  |
 | [`toReactNode`](https://mearman.github.io/schema-components/functions/react_headlessRenderers.toReactNode.html) | `react/headlessRenderers` | Function | Coerce an unknown render result into a React node. |  |
-| [`InferFields`](https://mearman.github.io/schema-components/types/react_SchemaComponent.InferFields.html) | `react/SchemaComponent` | Type | Recursive mapped type that mirrors a schema's shape for per-field overrides. |  |
-| [`InferredInputValue`](https://mearman.github.io/schema-components/types/react_SchemaComponent.InferredInputValue.html) | `react/SchemaComponent` | Type | Companion to InferredOutputValue for `"input"`-mode shapes. |  |
-| [`InferredOutputValue`](https://mearman.github.io/schema-components/types/react_SchemaComponent.InferredOutputValue.html) | `react/SchemaComponent` | Type | Public alias mapping a schema input to the rendered value type. |  |
-| [`InferredValue`](https://mearman.github.io/schema-components/types/react_SchemaComponent.InferredValue.html) | `react/SchemaComponent` | Type | Resolve the schema-driven value type for either I/O direction. |  |
+| `InferFields` | `react/SchemaComponent` | Re-export | Recursive mapped type that mirrors a schema's shape for per-field overrides. |  |
+| `InferredInputValue` | `react/SchemaComponent` | Re-export | Companion to InferredOutputValue for `"input"`-mode shapes. |  |
+| `InferredOutputValue` | `react/SchemaComponent` | Re-export | Public alias mapping a schema input to the rendered value type. |  |
+| `InferredValue` | `react/SchemaComponent` | Re-export | Resolve the schema-driven value type for either I/O direction. |  |
 | [`joinPath`](https://mearman.github.io/schema-components/functions/react_SchemaComponent.joinPath.html) | `react/SchemaComponent` | Function | Append a child path suffix to a parent path. |  |
 | [`registerWidget`](https://mearman.github.io/schema-components/functions/react_SchemaComponent.registerWidget.html) | `react/SchemaComponent` | Function | Register a widget globally. | [Extensibility/Widgets](https://mearman.github.io/schema-components/storybook/?path=/docs/extensibility-widgets--docs) |
 | [`renderField`](https://mearman.github.io/schema-components/functions/react_SchemaComponent.renderField.html) | `react/SchemaComponent` | Function | Render a single walked field through the resolved widget / resolver / headless pipeline. |  |

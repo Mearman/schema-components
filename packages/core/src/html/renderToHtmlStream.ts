@@ -21,7 +21,7 @@ import { mergeHtmlResolvers } from "../core/renderer.ts";
 import type { HtmlResolver } from "../core/renderer.ts";
 import type { RejectUnrepresentableZod } from "../core/typeInference.ts";
 import { toRecordOrUndefined } from "../core/guards.ts";
-import type { InferFields, InferredValue } from "../react/SchemaComponent.tsx";
+import type { InferFields, InferredValue } from "../core/inferValue.ts";
 import { defaultHtmlResolver } from "./renderers.ts";
 import { streamField } from "./streamRenderers.ts";
 
