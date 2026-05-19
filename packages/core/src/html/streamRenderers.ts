@@ -584,6 +584,10 @@ function* streamRecord(
         const container = h("div", attrs);
         yield yieldOpen(container);
         for (const [key, val] of Object.entries(obj)) {
+            // Derive the child input id the same way the leaf renderers do
+            // (via `buildInputId(parentPath, key)`) so the `<label for>`
+            // resolves to the entry's input rather than dangling.
+            const childInputId = buildInputId(path, key);
             const childPath = joinPath(path, key);
             const childHtml = renderFieldSync(
                 valueType,
@@ -598,7 +602,11 @@ function* streamRecord(
                 h(
                     "div",
                     { class: SC_CLASSES.field },
-                    h("label", { class: SC_CLASSES.label }, key),
+                    h(
+                        "label",
+                        { class: SC_CLASSES.label, for: childInputId },
+                        key
+                    ),
                     raw(childHtml)
                 )
             );

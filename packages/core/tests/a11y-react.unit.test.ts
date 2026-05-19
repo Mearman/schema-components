@@ -185,6 +185,38 @@ describe("role attributes (HTML)", () => {
         );
         expect(html).toMatch(/role="group"/);
     });
+
+    it("pairs record entry labels with their inputs via for=", () => {
+        // Regression: the HTML record renderer emitted `<label>` without
+        // a `for=` attribute, so screen readers could not associate the
+        // visible label with the entry's input.
+        const html = renderToHtml(
+            {
+                type: "object",
+                additionalProperties: { type: "string" },
+            },
+            { value: { foo: "bar", baz: "qux" } }
+        );
+        expect(html).toMatch(/for="sc-foo"/);
+        expect(html).toMatch(/id="sc-foo"/);
+        expect(html).toMatch(/for="sc-baz"/);
+        expect(html).toMatch(/id="sc-baz"/);
+    });
+
+    it("pairs record entry labels with their inputs in the streaming renderer", () => {
+        const chunks = [
+            ...renderToHtmlChunks(
+                {
+                    type: "object",
+                    additionalProperties: { type: "string" },
+                },
+                { value: { alpha: "1", beta: "2" } }
+            ),
+        ];
+        const html = chunks.join("");
+        expect(html).toMatch(/for="sc-alpha"/);
+        expect(html).toMatch(/for="sc-beta"/);
+    });
 });
 
 // ---------------------------------------------------------------------------

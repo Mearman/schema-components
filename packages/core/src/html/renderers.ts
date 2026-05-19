@@ -473,12 +473,15 @@ function renderRecordNode(props: HtmlRenderProps): HtmlNode {
 
     const children: HtmlNode[] = [];
     for (const [key, val] of Object.entries(obj)) {
+        // Derive the child id the same way `renderObjectNode` does so the
+        // `<label for>` resolves to the leaf input rendered for this entry.
+        const childInputId = buildInputId(props.path, key);
         const childHtml = props.renderChild(valueType, val, key);
         children.push(
             h(
                 "div",
                 { class: SC_CLASSES.field },
-                h("label", { class: SC_CLASSES.label }, key),
+                h("label", { class: SC_CLASSES.label, for: childInputId }, key),
                 raw(childHtml)
             )
         );
