@@ -43,6 +43,7 @@ function numberField(): NumberField {
         editability: "editable",
         meta: {},
         constraints: {},
+        isInteger: false,
     };
 }
 
