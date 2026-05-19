@@ -3,10 +3,12 @@ import { defineConfig } from "eslint/config";
 import type { Rule } from "eslint";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 import importPlugin from "eslint-plugin-import";
-import eslintPluginPrettier from "eslint-plugin-prettier";
-// eslint-plugin-jsx-a11y ships no `.d.ts`; the local ambient declaration in
-// `types/eslint-plugin-jsx-a11y.d.ts` describes the flat-config surface used here.
+// eslint-plugin-jsx-a11y and eslint-plugin-no-only-tests both ship without
+// usable `.d.ts` files. Local ambient declarations in `types/` describe the
+// surface used by this config (default-export ESLint plugins).
 import jsxA11y from "eslint-plugin-jsx-a11y";
+import noOnlyTests from "eslint-plugin-no-only-tests";
+import eslintPluginPrettier from "eslint-plugin-prettier";
 import { configs } from "typescript-eslint";
 
 const noPointlessReassignments: Rule.RuleModule = {
@@ -199,6 +201,7 @@ const sharedPluginRules = {
         },
     },
     import: importPlugin,
+    "no-only-tests": noOnlyTests,
     prettier: eslintPluginPrettier,
 };
 
@@ -351,6 +354,9 @@ export default defineConfig(
         rules: {
             "@typescript-eslint/no-floating-promises": "off",
             "@typescript-eslint/consistent-type-assertions": "off",
+            // Catch focused `it.only` / `describe.only` / `test.only` calls
+            // that would silently skip the rest of the suite in CI.
+            "no-only-tests/no-only-tests": "error",
         },
     },
 
