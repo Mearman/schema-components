@@ -223,7 +223,6 @@ export interface ComponentResolver {
     discriminatedUnion?: RenderFunction;
     conditional?: RenderFunction;
     negation?: RenderFunction;
-    recursive?: RenderFunction;
     literal?: RenderFunction;
     file?: RenderFunction;
     never?: RenderFunction;
@@ -255,7 +254,6 @@ export interface HtmlResolver {
     discriminatedUnion?: HtmlRenderFunction;
     conditional?: HtmlRenderFunction;
     negation?: HtmlRenderFunction;
-    recursive?: HtmlRenderFunction;
     literal?: HtmlRenderFunction;
     file?: HtmlRenderFunction;
     never?: HtmlRenderFunction;
