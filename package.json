@@ -25,16 +25,16 @@
         "prepublishOnly": "pnpm validate"
     },
     "devDependencies": {
-        "@commitlint/cli": "21.0.0",
-        "@commitlint/config-conventional": "21.0.0",
+        "@commitlint/cli": "21.0.1",
+        "@commitlint/config-conventional": "21.0.1",
         "@semantic-release/changelog": "6.0.3",
         "@semantic-release/git": "10.0.1",
         "@semantic-release/github": "12.0.8",
         "conventional-changelog-conventionalcommits": "9.3.1",
         "husky": "9.1.7",
-        "lint-staged": "17.0.4",
+        "lint-staged": "17.0.5",
         "semantic-release": "25.0.3",
-        "turbo": "2.9.12"
+        "turbo": "2.9.14"
     },
     "packageManager": "pnpm@10.33.1"
 }
