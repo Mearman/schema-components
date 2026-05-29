@@ -61,8 +61,7 @@ function renderConstraints(field: BuilderField, onChange: OnFieldChange) {
                 <StringConfig
                     constraints={field.constraints}
                     onChange={(c) => {
-                        const narrowed = field;
-                        onChange(() => ({ ...narrowed, constraints: c }));
+                        onChange(() => ({ ...field, constraints: c }));
                     }}
                 />
             );
@@ -72,8 +71,7 @@ function renderConstraints(field: BuilderField, onChange: OnFieldChange) {
                 <NumberConfig
                     constraints={field.constraints}
                     onChange={(c) => {
-                        const narrowed = field;
-                        onChange(() => ({ ...narrowed, constraints: c }));
+                        onChange(() => ({ ...field, constraints: c }));
                     }}
                 />
             );
@@ -82,8 +80,7 @@ function renderConstraints(field: BuilderField, onChange: OnFieldChange) {
                 <EnumConfig
                     constraints={field.constraints}
                     onChange={(c) => {
-                        const narrowed = field;
-                        onChange(() => ({ ...narrowed, constraints: c }));
+                        onChange(() => ({ ...field, constraints: c }));
                     }}
                 />
             );
@@ -252,9 +249,7 @@ function EnumConfig({
                             next.splice(i, 1);
                             onChange({
                                 ...constraints,
-                                values: next.length === 0
-                                    ? ["option1"]
-                                    : next,
+                                values: next.length === 0 ? ["option1"] : next,
                             });
                         }}
                         aria-label={`Remove ${val}`}

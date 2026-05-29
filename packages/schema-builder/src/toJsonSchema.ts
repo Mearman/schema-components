@@ -44,9 +44,7 @@ function fieldToJsonSchema(field: BuilderField): JsonSchemaObject {
             break;
         case "enum": {
             const c = field.constraints;
-            const allNumeric = c.values.every(
-                (v) => !Number.isNaN(Number(v)),
-            );
+            const allNumeric = c.values.every((v) => !Number.isNaN(Number(v)));
             base.type = allNumeric ? "number" : "string";
             base.enum = allNumeric
                 ? c.values.map((v) => Number(v))
@@ -60,7 +58,7 @@ function fieldToJsonSchema(field: BuilderField): JsonSchemaObject {
 
 function applyNumberConstraints(
     base: Record<string, unknown>,
-    c: NumberConstraints,
+    c: NumberConstraints
 ): void {
     if (c.minimum !== undefined) base.minimum = c.minimum;
     if (c.maximum !== undefined) base.maximum = c.maximum;
@@ -107,18 +105,12 @@ export function toJsonSchema(schema: BuilderSchema): JsonSchemaObject {
  * Returns a constraint object whose shape matches the specific field type,
  * enabling the discriminated-union narrowing on `BuilderField`.
  */
+export function defaultConstraints(type: FieldType): FieldConstraints;
+export function defaultConstraints(type: "string"): StringConstraints;
 export function defaultConstraints(
-    type: FieldType,
-): FieldConstraints;
-export function defaultConstraints(
-    type: "string",
-): StringConstraints;
-export function defaultConstraints(
-    type: "number" | "integer",
+    type: "number" | "integer"
 ): NumberConstraints;
-export function defaultConstraints(
-    type: "boolean",
-): Record<string, never>;
+export function defaultConstraints(type: "boolean"): Record<string, never>;
 export function defaultConstraints(type: "enum"): EnumConstraints;
 export function defaultConstraints(type: FieldType): FieldConstraints {
     switch (type) {

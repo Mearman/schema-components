@@ -3,7 +3,12 @@
  * field list + add button + optional JSON preview.
  */
 import { useState, useCallback } from "react";
-import type { BuilderField, BuilderSchema, FieldUpdater, FieldType } from "./types.ts";
+import type {
+    BuilderField,
+    BuilderSchema,
+    FieldUpdater,
+    FieldType,
+} from "./types.ts";
 import { FieldList } from "./FieldList.tsx";
 import { SchemaPreview } from "./SchemaPreview.tsx";
 
@@ -22,7 +27,11 @@ function createField(name: string, type: FieldType = "string"): BuilderField {
         case "boolean":
             return { ...base, type: "boolean", constraints: {} };
         case "enum":
-            return { ...base, type: "enum", constraints: { values: ["option1"] } };
+            return {
+                ...base,
+                type: "enum",
+                constraints: { values: ["option1"] },
+            };
     }
 }
 
@@ -61,9 +70,7 @@ export function SchemaBuilder({
     };
 
     const handleFieldChange = (id: string, updater: FieldUpdater) => {
-        const fields = schema.fields.map((f) =>
-            f.id === id ? updater(f) : f
-        );
+        const fields = schema.fields.map((f) => (f.id === id ? updater(f) : f));
         update({ ...schema, fields });
     };
 
