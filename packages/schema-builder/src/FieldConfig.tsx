@@ -58,6 +58,7 @@ function renderConstraints(
 
     switch (field.type) {
         case "string":
+            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
             return (
                 <StringConfig
                     constraints={field.constraints as StringConstraints}
@@ -66,6 +67,7 @@ function renderConstraints(
             );
         case "number":
         case "integer":
+            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
             return (
                 <NumberConfig
                     constraints={field.constraints as NumberConstraints}
@@ -73,13 +75,14 @@ function renderConstraints(
                 />
             );
         case "enum":
+            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
             return (
                 <EnumConfig
                     constraints={field.constraints as EnumConstraints}
                     onChange={update}
                 />
             );
-        default:
+        case "boolean":
             return null;
     }
 }
@@ -234,7 +237,7 @@ function EnumConfig({
                         type="text"
                         className="sb-field-config__input"
                         value={val}
-                        placeholder={`Option ${i + 1}`}
+                        placeholder={`Option ${String(i + 1)}`}
                         onChange={(e) => {
                             const next = [...constraints.values];
                             next[i] = e.target.value;

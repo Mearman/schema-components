@@ -48,6 +48,7 @@ export function FieldTypePicker({
                         <li
                             key={t.value}
                             role="option"
+                            tabIndex={0}
                             aria-selected={t.value === value}
                             className={
                                 t.value === value
@@ -57,6 +58,12 @@ export function FieldTypePicker({
                             onClick={() => {
                                 onChange(t.value);
                                 setOpen(false);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                    onChange(t.value);
+                                    setOpen(false);
+                                }
                             }}
                         >
                             {t.label}

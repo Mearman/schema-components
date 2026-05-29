@@ -21,6 +21,7 @@ function fieldToJsonSchema(field: BuilderField): JsonSchemaObject {
     switch (field.type) {
         case "string": {
             base.type = "string";
+            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
             const c = field.constraints as StringConstraints;
             if (c.minLength !== undefined) base.minLength = c.minLength;
             if (c.maxLength !== undefined) base.maxLength = c.maxLength;
@@ -30,27 +31,26 @@ function fieldToJsonSchema(field: BuilderField): JsonSchemaObject {
         }
         case "number": {
             base.type = "number";
-            applyNumberConstraints(
-                base,
-                field.constraints as NumberConstraints
-            );
+            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
+            applyNumberConstraints(base, field.constraints as NumberConstraints);
             break;
         }
         case "integer": {
             base.type = "integer";
-            applyNumberConstraints(
-                base,
-                field.constraints as NumberConstraints
-            );
+            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
+            applyNumberConstraints(base, field.constraints as NumberConstraints);
             break;
         }
         case "boolean":
             base.type = "boolean";
             break;
         case "enum": {
+            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
             const c = field.constraints as EnumConstraints;
             // If all enum values parse as numbers, emit a numeric enum.
-            const allNumeric = c.values.every((v) => !Number.isNaN(Number(v)));
+            const allNumeric = c.values.every(
+                (v) => !Number.isNaN(Number(v))
+            );
             base.type = allNumeric ? "number" : "string";
             base.enum = allNumeric
                 ? c.values.map((v) => Number(v))

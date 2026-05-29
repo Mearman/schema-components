@@ -11,8 +11,9 @@ import { SchemaPreview } from "./SchemaPreview.tsx";
 let nextId = 1;
 
 function createField(name: string, type: FieldType = "string"): BuilderField {
+    const id = `field_${String(nextId++)}`;
     return {
-        id: `field_${nextId++}`,
+        id,
         name,
         type,
         required: false,
@@ -31,7 +32,7 @@ export interface SchemaBuilderProps {
     readonly value?: BuilderSchema;
     /** Called when the schema changes. */
     readonly onChange?: (schema: BuilderSchema) => void;
-    /** Show the JSON Schema preview panel. @default true */
+    /** Show the JSON Schema preview panel. */
     readonly showPreview?: boolean;
 }
 
@@ -73,7 +74,7 @@ export function SchemaBuilder({
 
     const handleAddField = () => {
         const index = schema.fields.length + 1;
-        const field = createField(`field_${index}`);
+        const field = createField(`field_${String(index)}`);
         update({ ...schema, fields: [...schema.fields, field] });
     };
 
