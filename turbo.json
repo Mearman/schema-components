@@ -79,17 +79,6 @@
             ],
             "outputs": ["../docs/src/generated/api-urls.ts"]
         },
-        "_readme": {
-            "dependsOn": ["_typedoc"],
-            "inputs": [
-                "scripts/build-readme-inventory.mjs",
-                "typedoc-static/project.json",
-                "../../README.md",
-                "../docs/stories/*.stories.tsx"
-            ],
-            "outputs": ["../../README.md"],
-            "cache": false
-        },
         "_check": {
             "dependsOn": ["_typecheck", "_lint", "_build"]
         },
@@ -125,9 +114,6 @@
         },
         "api-urls": {
             "dependsOn": ["_api-urls"]
-        },
-        "readme": {
-            "dependsOn": ["_readme"]
         },
         "test-storybook": {},
         "build-storybook": {

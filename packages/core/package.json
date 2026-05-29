@@ -73,7 +73,6 @@
         "_build": "tsdown && cp src/html/styles.css dist/html/styles.css",
         "_typedoc": "typedoc",
         "_api-urls": "node scripts/build-api-urls.mjs",
-        "_readme": "node scripts/build-readme-inventory.mjs",
         "typecheck": "turbo run _typecheck",
         "lint": "turbo run _lint",
         "lint:fix": "turbo run _lint:fix",
@@ -88,7 +87,6 @@
         "build": "turbo run _build",
         "typedoc": "turbo run _typedoc",
         "api-urls": "turbo run _api-urls",
-        "readme": "turbo run _readme"
     },
     "keywords": [
         "react",

@@ -18,7 +18,6 @@
         "storybook": "pnpm --filter @schema-components/docs storybook",
         "build-storybook": "pnpm --filter @schema-components/docs build-storybook",
         "typedoc": "turbo run typedoc --filter=schema-components",
-        "readme": "turbo run readme --filter=schema-components",
         "release": "semantic-release",
         "release:dry": "semantic-release --dry-run",
         "prepare": "husky",
