@@ -110,13 +110,13 @@ export function renderString(props: RenderProps): ReactNode {
         const format = props.constraints.format;
         if (format === "email" && isSafeMailtoAddress(strValue))
             return (
-                <a href={`mailto:${strValue}`} id={id} aria-readonly="true">
+                <a href={`mailto:${strValue}`} id={id}>
                     {strValue}
                 </a>
             );
         if ((format === "uri" || format === "url") && isSafeHyperlink(strValue))
             return (
-                <a href={strValue} id={id} aria-readonly="true">
+                <a href={strValue} id={id}>
                     {strValue}
                 </a>
             );
@@ -927,6 +927,7 @@ function DiscriminatedUnionTabs({
                 role="tablist"
                 aria-label="Select variant"
                 aria-orientation="horizontal"
+                tabIndex={-1}
                 style={{
                     display: "flex",
                     gap: "0.25rem",

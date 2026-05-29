@@ -100,13 +100,13 @@ export function renderString(props: SolidRenderProps): JSX.Element {
         const format = props.constraints.format;
         if (format === "email" && isSafeMailtoAddress(strValue))
             return (
-                <a href={`mailto:${strValue}`} id={id} aria-readonly="true">
+                <a href={`mailto:${strValue}`} id={id}>
                     {strValue}
                 </a>
             );
         if ((format === "uri" || format === "url") && isSafeHyperlink(strValue))
             return (
-                <a href={strValue} id={id} aria-readonly="true">
+                <a href={strValue} id={id}>
                     {strValue}
                 </a>
             );
@@ -833,6 +833,7 @@ function DiscriminatedUnionTabs(props: {
                 role="tablist"
                 aria-label="Select variant"
                 aria-orientation="horizontal"
+                tabIndex={-1}
                 style={tablistStyle}
                 onKeyDown={handleKeyDown}
             >
