@@ -10,7 +10,11 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SchemaBuilder } from "schema-builder-ui/SchemaBuilder";
-import type { BuilderSchema } from "schema-builder-ui/types";
+import type {
+    BuilderSchema,
+    BuilderField,
+    FieldMeta,
+} from "schema-builder-ui/types";
 import { toJsonSchema } from "schema-builder-ui/toJsonSchema";
 import {
     SchemaComponent,
@@ -184,6 +188,333 @@ function tryParseJson(
 }
 
 // ---------------------------------------------------------------------------
+// Schema format conversion helpers
+// ---------------------------------------------------------------------------
+
+function extractSchemaFromOpenApi(doc: unknown, ref: string): unknown {
+    if (!isRecord(doc)) return undefined;
+    if (ref === "") {
+        if (isRecord(doc.components) && isRecord(doc.components.schemas)) {
+            const firstKey = Object.keys(doc.components.schemas)[0];
+            return firstKey !== undefined
+                ? doc.components.schemas[firstKey]
+                : undefined;
+        }
+        return undefined;
+    }
+    if (!ref.startsWith("#/")) return undefined;
+    const parts = ref.slice(2).split("/");
+    let current: unknown = doc;
+    for (const part of parts) {
+        if (!isRecord(current)) return undefined;
+        current = current[part];
+    }
+    return current;
+}
+
+function wrapInOpenApi(schema: unknown): {
+    readonly doc: unknown;
+    readonly ref: string;
+} {
+    const schemaTitle =
+        isRecord(schema) &&
+        typeof schema.title === "string" &&
+        schema.title !== ""
+            ? schema.title
+            : "Schema";
+    const schemaName = schemaTitle.replace(/\s+/g, "");
+    return {
+        doc: {
+            openapi: "3.1.0",
+            info: { title: `${schemaTitle} API`, version: "1.0.0" },
+            components: { schemas: { [schemaName]: schema } },
+        },
+        ref: `#/components/schemas/${schemaName}`,
+    };
+}
+
+function parseFieldMeta(schema: Record<string, unknown>): FieldMeta {
+    return {
+        ...(typeof schema.title === "string" &&
+            schema.title !== "" && { title: schema.title }),
+        ...(schema.readOnly === true && { readOnly: true }),
+        ...(schema.writeOnly === true && { writeOnly: true }),
+        ...(schema.deprecated === true && { deprecated: true }),
+        ...(typeof schema["x-component"] === "string" && {
+            component: schema["x-component"],
+        }),
+        ...(typeof schema["x-order"] === "number" && {
+            order: schema["x-order"],
+        }),
+        ...(schema.default !== undefined && {
+            defaultRaw: JSON.stringify(schema.default),
+        }),
+        ...(Array.isArray(schema.examples) &&
+            schema.examples.length > 0 && {
+                examplesRaw: schema.examples.map(String).join(", "),
+            }),
+    };
+}
+
+function jsonSchemaToBuilderField(
+    name: string,
+    schema: unknown,
+    required: boolean
+): BuilderField | undefined {
+    if (!isRecord(schema)) return undefined;
+    const description =
+        typeof schema.description === "string" ? schema.description : "";
+    const meta = parseFieldMeta(schema);
+    const base = { id: crypto.randomUUID(), name, required, description, meta };
+
+    if ("const" in schema) {
+        return {
+            ...base,
+            type: "literal",
+            constraints: { valueRaw: JSON.stringify(schema.const) },
+        };
+    }
+
+    if (Array.isArray(schema.enum)) {
+        return {
+            ...base,
+            type: "enum",
+            constraints: { values: schema.enum.map(String) },
+        };
+    }
+
+    const { type } = schema;
+
+    if (type === "string") {
+        if (schema.contentEncoding === "base64") {
+            return {
+                ...base,
+                type: "file",
+                constraints:
+                    typeof schema.contentMediaType === "string"
+                        ? { contentMediaType: schema.contentMediaType }
+                        : {},
+            };
+        }
+        return {
+            ...base,
+            type: "string",
+            constraints: {
+                ...(typeof schema.minLength === "number" && {
+                    minLength: schema.minLength,
+                }),
+                ...(typeof schema.maxLength === "number" && {
+                    maxLength: schema.maxLength,
+                }),
+                ...(typeof schema.pattern === "string" && {
+                    pattern: schema.pattern,
+                }),
+                ...(typeof schema.format === "string" && {
+                    format: schema.format,
+                }),
+                ...(typeof schema.contentEncoding === "string" && {
+                    contentEncoding: schema.contentEncoding,
+                }),
+                ...(typeof schema.contentMediaType === "string" && {
+                    contentMediaType: schema.contentMediaType,
+                }),
+            },
+        };
+    }
+
+    if (type === "number") {
+        return {
+            ...base,
+            type: "number",
+            constraints: {
+                ...(typeof schema.minimum === "number" && {
+                    minimum: schema.minimum,
+                }),
+                ...(typeof schema.maximum === "number" && {
+                    maximum: schema.maximum,
+                }),
+                ...(typeof schema.exclusiveMinimum === "number" && {
+                    exclusiveMinimum: schema.exclusiveMinimum,
+                }),
+                ...(typeof schema.exclusiveMaximum === "number" && {
+                    exclusiveMaximum: schema.exclusiveMaximum,
+                }),
+                ...(typeof schema.multipleOf === "number" && {
+                    multipleOf: schema.multipleOf,
+                }),
+            },
+        };
+    }
+
+    if (type === "integer") {
+        return {
+            ...base,
+            type: "integer",
+            constraints: {
+                ...(typeof schema.minimum === "number" && {
+                    minimum: schema.minimum,
+                }),
+                ...(typeof schema.maximum === "number" && {
+                    maximum: schema.maximum,
+                }),
+                ...(typeof schema.exclusiveMinimum === "number" && {
+                    exclusiveMinimum: schema.exclusiveMinimum,
+                }),
+                ...(typeof schema.exclusiveMaximum === "number" && {
+                    exclusiveMaximum: schema.exclusiveMaximum,
+                }),
+                ...(typeof schema.multipleOf === "number" && {
+                    multipleOf: schema.multipleOf,
+                }),
+            },
+        };
+    }
+
+    if (type === "boolean") {
+        return { ...base, type: "boolean", constraints: {} };
+    }
+
+    if (type === "null") {
+        return { ...base, type: "null", constraints: {} };
+    }
+
+    if (
+        type === "object" ||
+        isRecord(schema.properties) ||
+        isRecord(schema.additionalProperties)
+    ) {
+        if (
+            !isRecord(schema.properties) &&
+            isRecord(schema.additionalProperties)
+        ) {
+            const valueField = jsonSchemaToBuilderField(
+                "value",
+                schema.additionalProperties,
+                false
+            );
+            if (valueField !== undefined) {
+                const propertyNamesPattern =
+                    isRecord(schema.propertyNames) &&
+                    typeof schema.propertyNames.pattern === "string"
+                        ? schema.propertyNames.pattern
+                        : undefined;
+                return {
+                    ...base,
+                    type: "record",
+                    constraints:
+                        propertyNamesPattern !== undefined
+                            ? { propertyNamesPattern }
+                            : {},
+                    valueField,
+                };
+            }
+        }
+        const properties = isRecord(schema.properties) ? schema.properties : {};
+        const requiredArr = Array.isArray(schema.required)
+            ? schema.required.filter((v): v is string => typeof v === "string")
+            : [];
+        const children: BuilderField[] = [];
+        for (const [childName, childSchema] of Object.entries(properties)) {
+            const child = jsonSchemaToBuilderField(
+                childName,
+                childSchema,
+                requiredArr.includes(childName)
+            );
+            if (child !== undefined) children.push(child);
+        }
+        return {
+            ...base,
+            type: "object",
+            constraints: {
+                ...(typeof schema.minProperties === "number" && {
+                    minProperties: schema.minProperties,
+                }),
+                ...(typeof schema.maxProperties === "number" && {
+                    maxProperties: schema.maxProperties,
+                }),
+            },
+            children,
+        };
+    }
+
+    if (type === "array") {
+        if (Array.isArray(schema.prefixItems)) {
+            const prefixItems: BuilderField[] = [];
+            for (let i = 0; i < schema.prefixItems.length; i++) {
+                const item: unknown = schema.prefixItems[i];
+                const f = jsonSchemaToBuilderField(
+                    `item${String(i)}`,
+                    item,
+                    false
+                );
+                if (f !== undefined) prefixItems.push(f);
+            }
+            return {
+                ...base,
+                type: "tuple",
+                constraints: {},
+                prefixItems,
+                closed: schema.items === false,
+            };
+        }
+        const itemSchema: unknown =
+            schema.items !== undefined ? schema.items : {};
+        const fallbackItemField: BuilderField = {
+            id: crypto.randomUUID(),
+            name: "item",
+            required: false,
+            description: "",
+            meta: {},
+            type: "string",
+            constraints: {},
+        };
+        const itemField =
+            jsonSchemaToBuilderField("item", itemSchema, false) ??
+            fallbackItemField;
+        return {
+            ...base,
+            type: "array",
+            constraints: {
+                ...(typeof schema.minItems === "number" && {
+                    minItems: schema.minItems,
+                }),
+                ...(typeof schema.maxItems === "number" && {
+                    maxItems: schema.maxItems,
+                }),
+                ...(schema.uniqueItems === true && { uniqueItems: true }),
+            },
+            itemField,
+        };
+    }
+
+    return undefined;
+}
+
+function fromJsonSchema(schema: unknown): BuilderSchema | undefined {
+    if (!isRecord(schema)) return undefined;
+    if (schema.type !== "object" && !isRecord(schema.properties))
+        return undefined;
+    const title =
+        typeof schema.title === "string" && schema.title !== ""
+            ? schema.title
+            : "MySchema";
+    const properties = isRecord(schema.properties) ? schema.properties : {};
+    const requiredArr = Array.isArray(schema.required)
+        ? schema.required.filter((v): v is string => typeof v === "string")
+        : [];
+    const fields: BuilderField[] = [];
+    for (const [name, fieldSchema] of Object.entries(properties)) {
+        const field = jsonSchemaToBuilderField(
+            name,
+            fieldSchema,
+            requiredArr.includes(name)
+        );
+        if (field !== undefined) fields.push(field);
+    }
+    return { title, fields };
+}
+
+// ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
 
@@ -278,6 +609,45 @@ export function App() {
         previewTab,
         colourScheme,
     ]);
+
+    const handleInputFormatChange = useCallback(
+        (newFormat: InputFormat) => {
+            if (newFormat === inputFormat) return;
+
+            // Derive the source schema from the current format before switching.
+            let sourceSchema: unknown;
+            if (inputFormat === "builder") {
+                sourceSchema = toJsonSchema(schema);
+            } else if (inputFormat === "jsonschema") {
+                const result = tryParseJson(rawJsonSchema);
+                if (result.error === undefined) sourceSchema = result.value;
+            } else {
+                const result = tryParseJson(rawOpenApi);
+                if (result.error === undefined) {
+                    sourceSchema = extractSchemaFromOpenApi(
+                        result.value,
+                        openApiRef
+                    );
+                }
+            }
+
+            if (sourceSchema !== undefined) {
+                if (newFormat === "jsonschema") {
+                    setRawJsonSchema(JSON.stringify(sourceSchema, null, 2));
+                } else if (newFormat === "builder") {
+                    const next = fromJsonSchema(sourceSchema);
+                    if (next !== undefined) setSchema(next);
+                } else {
+                    const { doc, ref } = wrapInOpenApi(sourceSchema);
+                    setRawOpenApi(JSON.stringify(doc, null, 2));
+                    setOpenApiRef(ref);
+                }
+            }
+
+            setInputFormat(newFormat);
+        },
+        [inputFormat, schema, rawJsonSchema, rawOpenApi, openApiRef]
+    );
 
     const handleSchemaChange = useCallback((next: BuilderSchema) => {
         setSchema(next);
@@ -393,7 +763,7 @@ export function App() {
                                         : css.tab
                                 }
                                 onClick={() => {
-                                    setInputFormat(fmt);
+                                    handleInputFormatChange(fmt);
                                 }}
                             >
                                 {fmt === "builder"
