@@ -1,3 +1,9 @@
+## [3.2.1](https://github.com/Mearman/schema-components/compare/v3.2.0...v3.2.1) (2026-05-29)
+
+### Refactoring
+
+* rename editable toggle to read-only in builder app ([5371997](https://github.com/Mearman/schema-components/commit/5371997c24b91eed20e5f9da9e886131fca384af))
+
 ## [3.2.0](https://github.com/Mearman/schema-components/compare/v3.1.1...v3.2.0) (2026-05-29)
 
 ### Features
