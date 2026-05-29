@@ -1,10 +1,12 @@
 packages:
-    - "packages/*"
-    - "apps/*"
+  - "packages/*"
+  - "apps/*"
 
 overrides:
-    # Pin past devalue@5.8.0 DoS via sparse array deserialization
-    # (GHSA-77vg-94rm-hx3p). Patched in 5.8.1. Forces svelte's
-    # transitive devalue dep to the patched release.
-    devalue: ">=5.8.1"
-    js-cookie: "3.0.7"
+  # Pin past devalue@5.8.0 DoS via sparse array deserialization
+  # (GHSA-77vg-94rm-hx3p). Patched in 5.8.1. Forces svelte's
+  # transitive devalue dep to the patched release.
+  devalue: ">=5.8.1"
+  js-cookie: "3.0.7"
+patchedDependencies:
+  '@tailwindcss/node@4.3.0': patches/@tailwindcss__node@4.3.0.patch
