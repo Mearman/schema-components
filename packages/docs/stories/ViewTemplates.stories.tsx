@@ -153,6 +153,7 @@ function ViewTemplateEditor({
 
 const meta = {
     title: "Extensibility/View Templates",
+    component: SchemaComponent,
     tags: ["editable", "interactive", "zod"],
     parameters: {
         apiSymbols: ["SchemaComponent"],
