@@ -6,17 +6,36 @@ import { useState, useCallback } from "react";
 import type {
     BuilderField,
     BuilderSchema,
+    FieldMeta,
     FieldUpdater,
     FieldType,
 } from "./types.ts";
+import { emptyMeta } from "./toJsonSchema.ts";
 import { FieldList } from "./FieldList.tsx";
 import { SchemaPreview } from "./SchemaPreview.tsx";
 
 let nextId = 1;
 
-function createField(name: string, type: FieldType = "string"): BuilderField {
-    const id = `field_${String(nextId++)}`;
-    const base = { id, name, required: false, description: "" };
+interface FieldBaseOverrides {
+    readonly id?: string;
+    readonly required?: boolean;
+    readonly description?: string;
+    readonly meta?: FieldMeta;
+}
+
+export function createField(
+    name: string,
+    type: FieldType = "string",
+    overrides: FieldBaseOverrides = {}
+): BuilderField {
+    const id = overrides.id ?? `field_${String(nextId++)}`;
+    const base = {
+        id,
+        name,
+        required: overrides.required ?? false,
+        description: overrides.description ?? "",
+        meta: overrides.meta ?? emptyMeta,
+    };
     switch (type) {
         case "string":
             return { ...base, type: "string", constraints: {} };
@@ -32,6 +51,40 @@ function createField(name: string, type: FieldType = "string"): BuilderField {
                 type: "enum",
                 constraints: { values: ["option1"] },
             };
+        case "object":
+            return { ...base, type: "object", constraints: {}, children: [] };
+        case "array":
+            return {
+                ...base,
+                type: "array",
+                constraints: {},
+                itemField: createField("item"),
+            };
+        case "record":
+            return {
+                ...base,
+                type: "record",
+                constraints: {},
+                valueField: createField("value"),
+            };
+        case "tuple":
+            return {
+                ...base,
+                type: "tuple",
+                constraints: {},
+                prefixItems: [],
+                closed: false,
+            };
+        case "literal":
+            return {
+                ...base,
+                type: "literal",
+                constraints: { valueRaw: '"value"' },
+            };
+        case "null":
+            return { ...base, type: "null", constraints: {} };
+        case "file":
+            return { ...base, type: "file", constraints: {} };
     }
 }
 

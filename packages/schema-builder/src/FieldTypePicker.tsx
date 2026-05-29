@@ -1,5 +1,5 @@
 /**
- * Field type picker — dropdown selecting from primitive types.
+ * Field type picker — dropdown selecting from all supported field types.
  */
 import { useState } from "react";
 import type { FieldType } from "./types.ts";
@@ -13,6 +13,13 @@ const FIELD_TYPES: readonly {
     { value: "integer", label: "Integer" },
     { value: "boolean", label: "Boolean" },
     { value: "enum", label: "Enum" },
+    { value: "object", label: "Object" },
+    { value: "array", label: "Array" },
+    { value: "record", label: "Record" },
+    { value: "tuple", label: "Tuple" },
+    { value: "literal", label: "Literal" },
+    { value: "null", label: "Null" },
+    { value: "file", label: "File" },
 ];
 
 export function FieldTypePicker({
