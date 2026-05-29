@@ -2,13 +2,7 @@
  * Per-field configuration panel — description, required toggle, type-specific
  * constraints.
  */
-import type {
-    BuilderField,
-    FieldConstraints,
-    StringConstraints,
-    NumberConstraints,
-    EnumConstraints,
-} from "./types.ts";
+import type { BuilderField, FieldConstraints, StringConstraints, NumberConstraints, EnumConstraints } from "./types.ts";
 
 export function FieldConfig({
     field,
@@ -26,9 +20,7 @@ export function FieldConfig({
                     className="sb-field-config__input"
                     value={field.description}
                     placeholder="Field description"
-                    onChange={(e) => {
-                        onChange({ description: e.target.value });
-                    }}
+                    onChange={(e) => onChange({ description: e.target.value })}
                 />
             </label>
 
@@ -36,9 +28,7 @@ export function FieldConfig({
                 <input
                     type="checkbox"
                     checked={field.required}
-                    onChange={(e) => {
-                        onChange({ required: e.target.checked });
-                    }}
+                    onChange={(e) => onChange({ required: e.target.checked })}
                 />
                 Required
             </label>
@@ -50,11 +40,9 @@ export function FieldConfig({
 
 function renderConstraints(
     field: BuilderField,
-    onChange: (patch: Partial<BuilderField>) => void
+    onChange: (patch: Partial<BuilderField>) => void,
 ) {
-    const update = (c: FieldConstraints) => {
-        onChange({ constraints: c });
-    };
+    const update = (c: FieldConstraints) => onChange({ constraints: c });
 
     switch (field.type) {
         case "string":
@@ -103,10 +91,11 @@ function StringConfig({
                     min={0}
                     onChange={(e) => {
                         const v = e.target.value;
-                        onChange({
+                        const next: StringConstraints = {
                             ...constraints,
-                            minLength: v === "" ? undefined : Number(v),
-                        });
+                            ...(v === "" ? {} : { minLength: Number(v) }),
+                        };
+                        onChange(next);
                     }}
                 />
             </label>
@@ -119,10 +108,11 @@ function StringConfig({
                     min={0}
                     onChange={(e) => {
                         const v = e.target.value;
-                        onChange({
+                        const next: StringConstraints = {
                             ...constraints,
-                            maxLength: v === "" ? undefined : Number(v),
-                        });
+                            ...(v === "" ? {} : { maxLength: Number(v) }),
+                        };
+                        onChange(next);
                     }}
                 />
             </label>
@@ -134,10 +124,12 @@ function StringConfig({
                     value={constraints.pattern ?? ""}
                     placeholder="^[a-z]+$"
                     onChange={(e) => {
-                        onChange({
+                        const v = e.target.value;
+                        const next: StringConstraints = {
                             ...constraints,
-                            pattern: e.target.value || undefined,
-                        });
+                            ...(v === "" ? {} : { pattern: v }),
+                        };
+                        onChange(next);
                     }}
                 />
             </label>
@@ -147,10 +139,12 @@ function StringConfig({
                     className="sb-field-config__select"
                     value={constraints.format ?? ""}
                     onChange={(e) => {
-                        onChange({
+                        const v = e.target.value;
+                        const next: StringConstraints = {
                             ...constraints,
-                            format: e.target.value || undefined,
-                        });
+                            ...(v === "" ? {} : { format: v }),
+                        };
+                        onChange(next);
                     }}
                 >
                     <option value="">— none —</option>
@@ -184,10 +178,11 @@ function NumberConfig({
                     value={constraints.minimum ?? ""}
                     onChange={(e) => {
                         const v = e.target.value;
-                        onChange({
+                        const next: NumberConstraints = {
                             ...constraints,
-                            minimum: v === "" ? undefined : Number(v),
-                        });
+                            ...(v === "" ? {} : { minimum: Number(v) }),
+                        };
+                        onChange(next);
                     }}
                 />
             </label>
@@ -199,10 +194,11 @@ function NumberConfig({
                     value={constraints.maximum ?? ""}
                     onChange={(e) => {
                         const v = e.target.value;
-                        onChange({
+                        const next: NumberConstraints = {
                             ...constraints,
-                            maximum: v === "" ? undefined : Number(v),
-                        });
+                            ...(v === "" ? {} : { maximum: Number(v) }),
+                        };
+                        onChange(next);
                     }}
                 />
             </label>
@@ -254,12 +250,12 @@ function EnumConfig({
             <button
                 type="button"
                 className="sb-field-config__enum-add"
-                onClick={() => {
+                onClick={() =>
                     onChange({
                         ...constraints,
                         values: [...constraints.values, ""],
-                    });
-                }}
+                    })
+                }
             >
                 + Add option
             </button>
