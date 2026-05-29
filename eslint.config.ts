@@ -147,11 +147,13 @@ const configFiles = [
     "release.config.ts",
     "lint-staged.config.ts",
     "packages/core/tsdown.config.ts",
+    "packages/core/vitest.config.ts",
     "packages/docs/.storybook/main.ts",
     "packages/docs/.storybook/preview.ts",
     "packages/docs/.storybook/vitest.setup.ts",
-    "packages/core/vitest.config.ts",
     "packages/docs/vitest.config.ts",
+    "packages/schema-builder/tsdown.config.ts",
+    "apps/builder/vite.config.ts",
 ];
 
 // ---------------------------------------------------------------------------
@@ -329,6 +331,48 @@ export default defineConfig(
         rules: sharedRules,
     },
 
+    // packages/schema-builder
+    {
+        files: [
+            "packages/schema-builder/src/**/*.ts",
+            "packages/schema-builder/src/**/*.tsx",
+        ],
+        extends: [
+            eslint.configs.recommended,
+            ...configs.strictTypeChecked,
+            ...configs.stylisticTypeChecked,
+        ],
+        languageOptions: {
+            parserOptions: {
+                projectService: true,
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+        plugins: sharedPluginRules,
+        rules: sharedRules,
+    },
+
+    // apps/builder
+    {
+        files: [
+            "apps/builder/src/**/*.ts",
+            "apps/builder/src/**/*.tsx",
+        ],
+        extends: [
+            eslint.configs.recommended,
+            ...configs.strictTypeChecked,
+            ...configs.stylisticTypeChecked,
+        ],
+        languageOptions: {
+            parserOptions: {
+                projectService: true,
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+        plugins: sharedPluginRules,
+        rules: sharedRules,
+    },
+
     // Story files — packages/docs
     {
         files: [
@@ -390,6 +434,10 @@ export default defineConfig(
             "packages/docs/stories/**/*.ts",
             "packages/docs/stories/**/*.tsx",
             "packages/docs/.storybook/**/*.ts",
+            "packages/schema-builder/src/**/*.ts",
+            "packages/schema-builder/src/**/*.tsx",
+            "apps/builder/src/**/*.ts",
+            "apps/builder/src/**/*.tsx",
         ],
         linterOptions: {
             noInlineConfig: true,
@@ -404,6 +452,8 @@ export default defineConfig(
             "packages/core/src/**/*.tsx",
             "packages/core/tests/**/*.tsx",
             "packages/docs/stories/**/*.tsx",
+            "packages/schema-builder/src/**/*.tsx",
+            "apps/builder/src/**/*.tsx",
         ],
         ...jsxA11y.flatConfigs.recommended,
     },
@@ -418,6 +468,8 @@ export default defineConfig(
             "packages/core/src/**/*.tsx",
             "packages/core/tests/**/*.tsx",
             "packages/docs/stories/**/*.tsx",
+            "packages/schema-builder/src/**/*.tsx",
+            "apps/builder/src/**/*.tsx",
         ],
         rules: {
             // TODO: elevate to `error` after W4 removes `aria-readonly` from

@@ -17,4 +17,10 @@ export default {
     "packages/docs/.storybook/**/*.ts": [
         "eslint --cache --fix",
     ],
+    "packages/schema-builder/src/**/*.{ts,tsx}": [
+        "eslint --cache --fix",
+    ],
+    "apps/builder/src/**/*.{ts,tsx}": [
+        "eslint --cache --fix",
+    ],
 };
