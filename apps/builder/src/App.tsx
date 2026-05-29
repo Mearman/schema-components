@@ -2,9 +2,9 @@
  * Standalone schema builder app.
  *
  * Three input formats: visual builder, raw JSON Schema, or raw OpenAPI document.
- * Preview panel: interactive form powered by SchemaComponent (toggleable read-only) with
- * a swappable theme adapter, an optional validation pass, a raw JSON Schema
- * view, and a collapsible HTML output panel.
+ * Preview panel: tabbed view of the interactive preview, raw JSON Schema output,
+ * and raw HTML output — powered by schema-components with a swappable theme
+ * adapter and optional validation pass.
  *
  * All user state persists to localStorage under a versioned key.
  */
@@ -29,11 +29,13 @@ import type { ComponentResolver } from "schema-components/core/renderer";
 // Persistence
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "schema-builder-app-v3";
-const STORAGE_VERSION = 3;
+const STORAGE_KEY = "schema-builder-app-v4";
+const STORAGE_VERSION = 4;
 
 type InputFormat = "builder" | "jsonschema" | "openapi";
 type ThemeName = "headless" | "shadcn" | "mui" | "mantine" | "radix";
+type PreviewTab = "preview" | "jsonschema" | "html";
+type ColourScheme = "light" | "dark";
 
 interface PersistedState {
     readonly version: number;
@@ -46,6 +48,8 @@ interface PersistedState {
     readonly readOnly: boolean;
     readonly validate: boolean;
     readonly theme: ThemeName;
+    readonly previewTab: PreviewTab;
+    readonly colourScheme: ColourScheme;
 }
 
 const DEFAULT_STATE: PersistedState = {
@@ -59,6 +63,8 @@ const DEFAULT_STATE: PersistedState = {
     readOnly: false,
     validate: false,
     theme: "headless",
+    previewTab: "preview",
+    colourScheme: "light",
 };
 
 function isInputFormat(x: unknown): x is InputFormat {
@@ -73,6 +79,14 @@ function isThemeName(x: unknown): x is ThemeName {
         x === "mantine" ||
         x === "radix"
     );
+}
+
+function isPreviewTab(x: unknown): x is PreviewTab {
+    return x === "preview" || x === "jsonschema" || x === "html";
+}
+
+function isColourScheme(x: unknown): x is ColourScheme {
+    return x === "light" || x === "dark";
 }
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -91,6 +105,8 @@ function isPersistedState(x: unknown): x is PersistedState {
     if (typeof x.readOnly !== "boolean") return false;
     if (typeof x.validate !== "boolean") return false;
     if (!isThemeName(x.theme)) return false;
+    if (!isPreviewTab(x.previewTab)) return false;
+    if (!isColourScheme(x.colourScheme)) return false;
     return true;
 }
 
@@ -140,6 +156,15 @@ const INPUT_FORMATS: readonly InputFormat[] = [
     "openapi",
 ];
 
+const PREVIEW_TABS: readonly {
+    readonly id: PreviewTab;
+    readonly label: string;
+}[] = [
+    { id: "preview", label: "Preview" },
+    { id: "jsonschema", label: "JSON Schema" },
+    { id: "html", label: "HTML" },
+];
+
 // ---------------------------------------------------------------------------
 // JSON Schema helpers
 // ---------------------------------------------------------------------------
@@ -178,7 +203,12 @@ export function App() {
     const [readOnly, setReadOnly] = useState(initial.readOnly);
     const [validate, setValidate] = useState(initial.validate);
     const [theme, setTheme] = useState<ThemeName>(initial.theme);
-    const [htmlOpen, setHtmlOpen] = useState(false);
+    const [previewTab, setPreviewTab] = useState<PreviewTab>(
+        initial.previewTab
+    );
+    const [colourScheme, setColourScheme] = useState<ColourScheme>(
+        initial.colourScheme
+    );
 
     // Track previous JSON Schema string so we can reset previewValue on structural change.
     const prevEffectiveSchemaRef = useRef<string>("");
@@ -231,6 +261,8 @@ export function App() {
             readOnly,
             validate,
             theme,
+            previewTab,
+            colourScheme,
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }, [
@@ -243,6 +275,8 @@ export function App() {
         readOnly,
         validate,
         theme,
+        previewTab,
+        colourScheme,
     ]);
 
     const handleSchemaChange = useCallback((next: BuilderSchema) => {
@@ -257,9 +291,9 @@ export function App() {
 
     const resolver = RESOLVERS[theme];
 
-    // HTML output — computed lazily when panel is open.
+    // HTML output — computed lazily when the HTML tab is active.
     let htmlOutput: string | undefined;
-    if (htmlOpen && effectiveSchema !== undefined) {
+    if (previewTab === "html" && effectiveSchema !== undefined) {
         try {
             htmlOutput = renderToHtml(effectiveSchema, {
                 value: previewValue,
@@ -271,7 +305,7 @@ export function App() {
     }
 
     return (
-        <div style={css.page}>
+        <div style={css.page} data-sb-theme={colourScheme}>
             <header style={css.header}>
                 <div>
                     <h1 style={css.title}>Schema Builder</h1>
@@ -281,7 +315,10 @@ export function App() {
                     </p>
                 </div>
                 <div style={css.toolbar}>
-                    <label style={css.toolbarItem}>
+                    <label
+                        style={css.toolbarItem}
+                        title="Theme adapter used to render preview components."
+                    >
                         Theme
                         <select
                             style={css.select}
@@ -298,7 +335,10 @@ export function App() {
                             ))}
                         </select>
                     </label>
-                    <label style={css.toolbarCheck}>
+                    <label
+                        style={css.toolbarCheck}
+                        title="Render the preview without inputs — useful for view-only mode."
+                    >
                         <input
                             type="checkbox"
                             checked={readOnly}
@@ -308,7 +348,10 @@ export function App() {
                         />
                         Read-only
                     </label>
-                    <label style={css.toolbarCheck}>
+                    <label
+                        style={css.toolbarCheck}
+                        title="Validate the live preview value against the schema."
+                    >
                         <input
                             type="checkbox"
                             checked={validate}
@@ -317,6 +360,21 @@ export function App() {
                             }}
                         />
                         Validate
+                    </label>
+                    <label
+                        style={css.toolbarCheck}
+                        title="Toggle between light and dark colour scheme."
+                    >
+                        <input
+                            type="checkbox"
+                            checked={colourScheme === "dark"}
+                            onChange={(e) => {
+                                setColourScheme(
+                                    e.target.checked ? "dark" : "light"
+                                );
+                            }}
+                        />
+                        Dark mode
                     </label>
                 </div>
             </header>
@@ -413,87 +471,89 @@ export function App() {
                     )}
                 </div>
 
-                {/* Right panel — preview */}
+                {/* Right panel — tabbed preview */}
                 <div style={css.panel}>
-                    <section style={css.section}>
-                        <h2 style={css.sectionTitle}>Preview</h2>
-                        {effectiveSchema !== undefined ? (
-                            <SchemaProvider resolver={resolver}>
-                                <SchemaErrorBoundary
-                                    fallback={(err, reset) => (
-                                        <div style={css.errorFallback}>
-                                            <p style={css.errorMsg}>
-                                                {err.message}
-                                            </p>
-                                            <button
-                                                type="button"
-                                                style={css.resetBtn}
-                                                onClick={reset}
-                                            >
-                                                Reset
-                                            </button>
-                                        </div>
-                                    )}
-                                >
-                                    <SchemaComponent
-                                        schema={effectiveSchema}
-                                        {...(inputFormat === "openapi" &&
-                                        openApiRef !== ""
-                                            ? { schemaRef: openApiRef }
-                                            : {})}
-                                        value={previewValue}
-                                        onChange={handlePreviewChange}
-                                        readOnly={readOnly}
-                                        validate={validate}
-                                    />
-                                </SchemaErrorBoundary>
-                            </SchemaProvider>
-                        ) : (
-                            <p style={css.emptyState}>
-                                {inputFormat === "builder"
-                                    ? "Add fields in the builder to see a preview."
-                                    : "Paste a valid schema above to see a preview."}
-                            </p>
-                        )}
-                    </section>
+                    <div style={css.tabs}>
+                        {PREVIEW_TABS.map(({ id, label }) => (
+                            <button
+                                key={id}
+                                type="button"
+                                style={
+                                    previewTab === id ? css.tabActive : css.tab
+                                }
+                                onClick={() => {
+                                    setPreviewTab(id);
+                                }}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
 
-                    <section style={css.section}>
-                        <h2 style={css.sectionTitle}>JSON Schema</h2>
+                    {previewTab === "preview" && (
+                        <>
+                            {effectiveSchema !== undefined ? (
+                                <SchemaProvider resolver={resolver}>
+                                    <SchemaErrorBoundary
+                                        fallback={(err, reset) => (
+                                            <div style={css.errorFallback}>
+                                                <p style={css.errorMsg}>
+                                                    {err.message}
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    style={css.resetBtn}
+                                                    onClick={reset}
+                                                >
+                                                    Reset
+                                                </button>
+                                            </div>
+                                        )}
+                                    >
+                                        <SchemaComponent
+                                            schema={effectiveSchema}
+                                            {...(inputFormat === "openapi" &&
+                                            openApiRef !== ""
+                                                ? { schemaRef: openApiRef }
+                                                : {})}
+                                            value={previewValue}
+                                            onChange={handlePreviewChange}
+                                            readOnly={readOnly}
+                                            validate={validate}
+                                        />
+                                    </SchemaErrorBoundary>
+                                </SchemaProvider>
+                            ) : (
+                                <p style={css.emptyState}>
+                                    {inputFormat === "builder"
+                                        ? "Add fields in the builder to see a preview."
+                                        : "Paste a valid schema above to see a preview."}
+                                </p>
+                            )}
+                        </>
+                    )}
+
+                    {previewTab === "jsonschema" && (
                         <pre style={css.code}>
                             {effectiveSchema !== undefined
                                 ? JSON.stringify(effectiveSchema, null, 2)
                                 : "—"}
                         </pre>
-                    </section>
+                    )}
 
-                    <section style={css.section}>
-                        <button
-                            type="button"
-                            style={css.collapseToggle}
-                            onClick={() => {
-                                setHtmlOpen((o) => !o);
-                            }}
-                            aria-expanded={htmlOpen}
-                        >
-                            <span style={css.sectionTitle}>HTML output</span>
-                            <span aria-hidden="true">
-                                {htmlOpen ? " ▾" : " ▸"}
-                            </span>
-                        </button>
-                        {htmlOpen && (
-                            <div>
-                                <pre style={css.code}>{htmlOutput ?? "—"}</pre>
-                                {htmlOutput !== undefined && (
-                                    <iframe
-                                        style={css.iframe}
-                                        title="HTML preview"
-                                        srcDoc={htmlOutput}
-                                        sandbox="allow-same-origin"
-                                    />
-                                )}
-                            </div>
-                        )}
-                    </section>
+                    {previewTab === "html" && (
+                        <>
+                            <pre style={css.code}>{htmlOutput ?? "—"}</pre>
+                            {htmlOutput !== undefined && (
+                                <iframe
+                                    style={css.iframe}
+                                    title="HTML preview"
+                                    srcDoc={htmlOutput}
+                                    sandbox="allow-same-origin"
+                                />
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
         </div>
@@ -600,18 +660,6 @@ const css = {
         color: "#4338ca",
         fontWeight: 500,
     },
-    section: {
-        marginBottom: "1.25rem",
-    },
-    sectionTitle: {
-        fontSize: "0.8125rem",
-        fontWeight: 600,
-        color: "#6b7280",
-        textTransform: "uppercase" as const,
-        letterSpacing: "0.05em",
-        margin: "0 0 0.5rem",
-        display: "block" as const,
-    },
     code: {
         padding: "0.75rem",
         background: "#1e293b",
@@ -620,7 +668,7 @@ const css = {
         fontSize: "0.8125rem",
         lineHeight: 1.6,
         overflow: "auto",
-        maxHeight: "16rem",
+        maxHeight: "32rem",
         margin: 0,
         whiteSpace: "pre-wrap" as const,
         wordBreak: "break-word" as const,
@@ -671,17 +719,6 @@ const css = {
         borderRadius: "0.375rem",
         fontSize: "0.875rem",
         background: "#fff",
-    },
-    collapseToggle: {
-        background: "none",
-        border: "none",
-        padding: "0 0 0.5rem",
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.25rem",
-        width: "100%",
-        textAlign: "left" as const,
     },
     errorFallback: {
         padding: "0.75rem",
