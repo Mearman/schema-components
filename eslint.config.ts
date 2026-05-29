@@ -258,14 +258,18 @@ const layerBoundaryZones: ReadonlyArray<{
             "core/ must not import from sibling layers — it is the shared foundation every other layer depends on.",
     },
     {
-        target: "./packages/core/src/openapi",
+        // Only the pure-data .ts files in openapi/ are restricted from
+        // importing React. The .tsx component files (components.tsx,
+        // ApiCallbacks.tsx, etc.) render JSX and legitimately depend on
+        // react/renderField.tsx — restricting them would be wrong.
+        target: "./packages/core/src/openapi/*.ts",
         from: [
             "./packages/core/src/react",
             "./packages/core/src/html",
             "./packages/core/src/themes",
         ],
         message:
-            "openapi/ must not import from react/, html/, or themes/. Move the dependency into core/.",
+            "openapi/ data files must not import from react/, html/, or themes/. Move shared utilities into core/.",
     },
     {
         target: "./packages/core/src/react",
@@ -472,35 +476,21 @@ export default defineConfig(
             "apps/builder/src/**/*.tsx",
         ],
         rules: {
-            // TODO: elevate to `error` after W4 removes `aria-readonly` from
-            // `<a>` (and updates the tests asserting its presence).
-            "jsx-a11y/role-supports-aria-props": "warn",
-            // TODO: elevate to `error` after W4 finalises the tablist focus
-            // model — the inner tab buttons are focusable, but the tablist
-            // container itself currently is not.
-            "jsx-a11y/interactive-supports-focus": "warn",
+            "jsx-a11y/role-supports-aria-props": "error",
+            "jsx-a11y/interactive-supports-focus": "error",
         },
     },
 
     // Layer-boundary enforcement — see `layerBoundaryZones` above.
     // Applied to `packages/core/src/**` only; tests are allowed to cross
     // layers because integration assertions naturally span them.
-    //
-    // Severity is `warn`, not `error`, until the W3 worktree finishes moving
-    // shared render helpers (`WidgetMap`, `joinPath`, `renderField`,
-    // `sanitisePrefix`) from `react/SchemaComponent.tsx` into `core/`. The
-    // project bans inline `eslint-disable` comments via `noInlineConfig`, so
-    // a targeted downgrade is the cleanest deferral mechanism here.
     {
         files: [
             "packages/core/src/**/*.ts",
             "packages/core/src/**/*.tsx",
         ],
         rules: {
-            // TODO: elevate to `error` after W3 moves the shared render
-            // helpers out of `react/SchemaComponent.tsx`. The two surviving
-            // violations in `openapi/components.tsx` will disappear then.
-            "import/no-restricted-paths": ["warn", noRestrictedPathsOption],
+            "import/no-restricted-paths": ["error", noRestrictedPathsOption],
         },
     },
     eslintConfigPrettier
