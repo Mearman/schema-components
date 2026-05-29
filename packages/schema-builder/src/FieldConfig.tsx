@@ -260,10 +260,7 @@ function MetaConfig({
                         type="checkbox"
                         checked={meta.readOnly === true}
                         onChange={(e) => {
-                            onChange({
-                                ...meta,
-                                readOnly: e.target.checked || undefined,
-                            });
+                            onChange({ ...meta, readOnly: e.target.checked });
                         }}
                     />
                     Read-only
@@ -273,10 +270,7 @@ function MetaConfig({
                         type="checkbox"
                         checked={meta.writeOnly === true}
                         onChange={(e) => {
-                            onChange({
-                                ...meta,
-                                writeOnly: e.target.checked || undefined,
-                            });
+                            onChange({ ...meta, writeOnly: e.target.checked });
                         }}
                     />
                     Write-only
@@ -286,10 +280,7 @@ function MetaConfig({
                         type="checkbox"
                         checked={meta.deprecated === true}
                         onChange={(e) => {
-                            onChange({
-                                ...meta,
-                                deprecated: e.target.checked || undefined,
-                            });
+                            onChange({ ...meta, deprecated: e.target.checked });
                         }}
                     />
                     Deprecated
@@ -625,7 +616,7 @@ function ArrayConfig({
                     onChange={(e) => {
                         onChange({
                             ...constraints,
-                            uniqueItems: e.target.checked || undefined,
+                            uniqueItems: e.target.checked,
                         });
                     }}
                 />
