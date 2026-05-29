@@ -1,3 +1,31 @@
+## [3.4.0](https://github.com/Mearman/schema-components/compare/v3.3.0...v3.4.0) (2026-05-29)
+
+### Features
+
+* **core:** add joinPath and sanitisePrefix to idPath.ts ([7b985c1](https://github.com/Mearman/schema-components/commit/7b985c164d286c63f3267bcfa73cd1ba63493afe))
+* sync data between Builder, JSON Schema, and OpenAPI input tabs ([f701284](https://github.com/Mearman/schema-components/commit/f701284e89c0f6dbe66063940abaadb3877ca52f))
+
+### Bug Fixes
+
+* **core:** remove trailing comma from package.json ([0a8fa93](https://github.com/Mearman/schema-components/commit/0a8fa93200ddf8db25eb6a0f5b449ecf29fdb6c0))
+* **deps:** patch @tailwindcss/node to skip module.register() on Node v23.5+ ([7492555](https://github.com/Mearman/schema-components/commit/749255585e158d34f01aadfecbd6b4f2ca622a93))
+* **react:** remove aria-readonly from anchors; add tabIndex to tablist ([9bbd133](https://github.com/Mearman/schema-components/commit/9bbd133eca5160688d846d526456bab4c1a2a1f8))
+
+### Refactoring
+
+* **openapi:** import renderField and path utils from canonical modules ([df33171](https://github.com/Mearman/schema-components/commit/df33171f32691e3401136c885545dc16f31c964a))
+* **react:** extract renderField and widget registry into renderField.tsx ([ee33d97](https://github.com/Mearman/schema-components/commit/ee33d974167dedcb5333c408738c55d9bb2436d8))
+
+### CI
+
+* remove readme API inventory steps (script removed) ([df57431](https://github.com/Mearman/schema-components/commit/df5743120de2b1ceeb526204eef957b9f2eaaab6))
+
+### Chores
+
+* **build:** promote layer-boundary and a11y lint rules from warn to error ([a869162](https://github.com/Mearman/schema-components/commit/a8691627bc77d1a7eca64b4c1a4c677745f7a0b9))
+* **deps:** move pnpm.overrides from package.json to pnpm-workspace.yaml ([8ab5c9d](https://github.com/Mearman/schema-components/commit/8ab5c9d7dc68dcab9e08d3897e2c9376ba9415b3))
+* remove generated API inventory from README ([99eeb77](https://github.com/Mearman/schema-components/commit/99eeb77e369553cdd58d9ee0466debd3e580cd15))
+
 ## [3.3.0](https://github.com/Mearman/schema-components/compare/v3.2.1...v3.3.0) (2026-05-29)
 
 ### Features
