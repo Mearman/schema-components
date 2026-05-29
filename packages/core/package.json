@@ -86,7 +86,7 @@
         "validate": "turbo run _validate",
         "build": "turbo run _build",
         "typedoc": "turbo run _typedoc",
-        "api-urls": "turbo run _api-urls",
+        "api-urls": "turbo run _api-urls"
     },
     "keywords": [
         "react",
