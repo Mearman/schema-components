@@ -1,3 +1,37 @@
+## [3.1.0](https://github.com/Mearman/schema-components/compare/v3.0.2...v3.1.0) (2026-05-29)
+
+### Features
+
+* add schema-builder-ui package and standalone builder app ([2e06b0d](https://github.com/Mearman/schema-components/commit/2e06b0dee3ae94edbe4295476dfa4e745e2202f7))
+* **storybook:** add view templates story ([cc14eea](https://github.com/Mearman/schema-components/commit/cc14eea3562461acf89ea80504229f40542acbd9))
+
+### Bug Fixes
+
+* add component annotation to ViewTemplates story meta ([b2c7d43](https://github.com/Mearman/schema-components/commit/b2c7d43e5c0dc75ebeddce56d4b7e14dcfa1aeda))
+* add eslint and plugins as devDependencies of schema-builder-ui ([a0a93e5](https://github.com/Mearman/schema-components/commit/a0a93e52cf81fa33bc89f7ecdc91a9a27f3260ca))
+* **ci:** auto-update README API inventory in release job ([283054d](https://github.com/Mearman/schema-components/commit/283054d1c20bc0c45dd00d168f527a6df475c276))
+* resolve eslint errors and restore apps/* in workspace config ([79659c4](https://github.com/Mearman/schema-components/commit/79659c4a21aa189e34c40a8fbcce6ab9e2d6b5af))
+* resolve eslint errors in schema-builder-ui ([93abefc](https://github.com/Mearman/schema-components/commit/93abefc93ff5a5a25552e3015326f495a7c5305b))
+* resolve exactOptionalPropertyTypes errors in FieldConfig ([2e7127e](https://github.com/Mearman/schema-components/commit/2e7127e59a87cdfb85d90d8a4d78a79f3ed680b9))
+* use pnpm exec eslint in schema-builder-ui lint script ([47f0295](https://github.com/Mearman/schema-components/commit/47f029547816a55b2fe9dc1043ea7dc7e110c588))
+
+### Refactoring
+
+* use discriminated union for BuilderField ([fc2562a](https://github.com/Mearman/schema-components/commit/fc2562aa88ac8966e774c0d6253b30110e6638e7))
+
+### Styles
+
+* fix prettier formatting in schema-builder-ui ([79f2d6b](https://github.com/Mearman/schema-components/commit/79f2d6b5232b55cf04649c86becb9061481ce87e))
+
+### CI
+
+* add builder app to Pages deploy and check jobs ([a101580](https://github.com/Mearman/schema-components/commit/a101580eec92c65b0bd43b93cd4c3aa53a7c4b3d))
+* build schema-builder-ui before checking builder app ([f06b2a4](https://github.com/Mearman/schema-components/commit/f06b2a406e6bd54c9699a05ce050ed9b1b2690f5))
+
+### Chores
+
+* extend pre-push hook to validate schema-builder-ui and builder app ([f7e9ac5](https://github.com/Mearman/schema-components/commit/f7e9ac519afc185f7997783d697122d9cf2d73aa))
+
 ## [3.0.2](https://github.com/Mearman/schema-components/compare/v3.0.1...v3.0.2) (2026-05-19)
 
 ### Tests
