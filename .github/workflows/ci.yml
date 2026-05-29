@@ -90,6 +90,9 @@ jobs:
                   pnpm --filter schema-builder-ui typecheck
                   pnpm --filter schema-builder-ui lint
 
+            - name: Build schema-builder-ui
+              run: pnpm --filter schema-builder-ui build
+
             - name: Check builder app
               run: pnpm --filter @schema-components/builder-app exec tsc --noEmit
 
