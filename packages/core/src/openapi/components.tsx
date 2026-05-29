@@ -27,11 +27,8 @@ import {
 } from "./parser.ts";
 import type { PathItemInfo } from "./resolve.ts";
 import { walk } from "../core/walker.ts";
-import {
-    joinPath,
-    renderField,
-    sanitisePrefix,
-} from "../react/SchemaComponent.tsx";
+import { renderField } from "../react/renderField.tsx";
+import { joinPath, sanitisePrefix } from "../core/idPath.ts";
 import type { FieldOverride, SchemaMeta, WalkedField } from "../core/types.ts";
 import type {
     InferParameterOverrides,
