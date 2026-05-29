@@ -7,3 +7,4 @@ overrides:
     # (GHSA-77vg-94rm-hx3p). Patched in 5.8.1. Forces svelte's
     # transitive devalue dep to the patched release.
     devalue: ">=5.8.1"
+    js-cookie: "3.0.7"
