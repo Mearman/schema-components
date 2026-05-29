@@ -42,7 +42,7 @@
     "scripts": {
         "build": "tsdown && cp src/styles.css dist/styles.css",
         "typecheck": "tsc --noEmit",
-        "lint": "eslint --cache 'src/**/*.{ts,tsx}'"
+        "lint": "pnpm exec eslint --cache 'src/**/*.{ts,tsx}'"
     },
     "keywords": [
         "react",
