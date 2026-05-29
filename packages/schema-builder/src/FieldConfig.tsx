@@ -2,7 +2,13 @@
  * Per-field configuration panel — description, required toggle, type-specific
  * constraints.
  */
-import type { BuilderField, FieldConstraints, StringConstraints, NumberConstraints, EnumConstraints } from "./types.ts";
+import type {
+    BuilderField,
+    FieldConstraints,
+    StringConstraints,
+    NumberConstraints,
+    EnumConstraints,
+} from "./types.ts";
 
 export function FieldConfig({
     field,
@@ -20,7 +26,9 @@ export function FieldConfig({
                     className="sb-field-config__input"
                     value={field.description}
                     placeholder="Field description"
-                    onChange={(e) => onChange({ description: e.target.value })}
+                    onChange={(e) => {
+                        onChange({ description: e.target.value });
+                    }}
                 />
             </label>
 
@@ -28,7 +36,9 @@ export function FieldConfig({
                 <input
                     type="checkbox"
                     checked={field.required}
-                    onChange={(e) => onChange({ required: e.target.checked })}
+                    onChange={(e) => {
+                        onChange({ required: e.target.checked });
+                    }}
                 />
                 Required
             </label>
@@ -40,9 +50,11 @@ export function FieldConfig({
 
 function renderConstraints(
     field: BuilderField,
-    onChange: (patch: Partial<BuilderField>) => void,
+    onChange: (patch: Partial<BuilderField>) => void
 ) {
-    const update = (c: FieldConstraints) => onChange({ constraints: c });
+    const update = (c: FieldConstraints) => {
+        onChange({ constraints: c });
+    };
 
     switch (field.type) {
         case "string":
@@ -250,12 +262,12 @@ function EnumConfig({
             <button
                 type="button"
                 className="sb-field-config__enum-add"
-                onClick={() =>
+                onClick={() => {
                     onChange({
                         ...constraints,
                         values: [...constraints.values, ""],
-                    })
-                }
+                    });
+                }}
             >
                 + Add option
             </button>

@@ -1,5 +1,6 @@
 packages:
     - "packages/*"
+    - "apps/*"
 
 overrides:
     # Pin past devalue@5.8.0 DoS via sparse array deserialization
