@@ -1,7 +1,8 @@
 /**
- * Per-field configuration panel — description, required toggle, type-specific
- * constraints, and shared metadata.
+ * Per-field configuration panel — tabbed into Basics, Validation, and
+ * Schema meta to prevent the wall-of-fieldsets anti-pattern.
  */
+import { useState } from "react";
 import type {
     BuilderField,
     FieldMeta,
@@ -16,6 +17,50 @@ import type {
     FileConstraints,
 } from "./types.ts";
 
+type ConfigTab = "basics" | "validation" | "meta";
+
+// ---------------------------------------------------------------------------
+// Live JSON parse feedback
+// ---------------------------------------------------------------------------
+
+function JsonFeedback({ raw }: { readonly raw: string | undefined }) {
+    if (raw === undefined || raw.trim() === "") return null;
+    try {
+        const parsed: unknown = JSON.parse(raw);
+        const typeStr = (() => {
+            if (parsed === null) return "null";
+            if (Array.isArray(parsed)) return `array(${String(parsed.length)})`;
+            if (typeof parsed === "object") return "object";
+            return typeof parsed;
+        })();
+        const preview = (() => {
+            if (typeof parsed === "string") {
+                const s = parsed.slice(0, 20);
+                return `"${s}${parsed.length > 20 ? "…" : ""}"`;
+            }
+            if (typeof parsed === "number" || typeof parsed === "boolean")
+                return String(parsed);
+            return undefined;
+        })();
+        return (
+            <span className="sb-field-config__json-chip">
+                {typeStr}
+                {preview !== undefined ? ` · ${preview}` : ""}
+            </span>
+        );
+    } catch (err) {
+        return (
+            <span className="sb-field-config__json-error">
+                {err instanceof Error ? err.message : "Invalid JSON"}
+            </span>
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Main config panel
+// ---------------------------------------------------------------------------
+
 export function FieldConfig({
     field,
     onChange,
@@ -23,32 +68,75 @@ export function FieldConfig({
     readonly field: BuilderField;
     readonly onChange: OnFieldChange;
 }) {
+    const [activeTab, setActiveTab] = useState<ConfigTab>("basics");
+
     return (
         <div className="sb-field-config">
-            <label className="sb-field-config__label">
-                Description
-                <input
-                    type="text"
-                    className="sb-field-config__input"
-                    value={field.description}
-                    placeholder="Field description"
-                    onChange={(e) => {
-                        onChange((f) => ({
-                            ...f,
-                            description: e.target.value,
-                        }));
-                    }}
-                />
-            </label>
+            <div className="sb-field-config__tabs" role="tablist">
+                {(["basics", "validation", "meta"] as const).map((tab) => (
+                    <button
+                        key={tab}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === tab}
+                        className={
+                            activeTab === tab
+                                ? "sb-field-config__tab sb-field-config__tab--active"
+                                : "sb-field-config__tab"
+                        }
+                        onClick={() => {
+                            setActiveTab(tab);
+                        }}
+                    >
+                        {tab === "basics"
+                            ? "Basics"
+                            : tab === "validation"
+                              ? "Validation"
+                              : "Schema meta"}
+                    </button>
+                ))}
+            </div>
 
-            {renderConstraints(field, onChange)}
+            {activeTab === "basics" && (
+                <div className="sb-field-config__panel">
+                    <label className="sb-field-config__label">
+                        Description
+                        <input
+                            type="text"
+                            className="sb-field-config__input"
+                            value={field.description}
+                            placeholder="Field description"
+                            onChange={(e) => {
+                                onChange((f) => ({
+                                    ...f,
+                                    description: e.target.value,
+                                }));
+                            }}
+                        />
+                    </label>
+                </div>
+            )}
 
-            <MetaConfig
-                meta={field.meta}
-                onChange={(meta) => {
-                    onChange((f) => ({ ...f, meta }));
-                }}
-            />
+            {activeTab === "validation" && (
+                <div className="sb-field-config__panel">
+                    {renderConstraints(field, onChange) ?? (
+                        <p className="sb-field-config__empty-hint">
+                            No constraints for this type.
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {activeTab === "meta" && (
+                <div className="sb-field-config__panel">
+                    <SchemaMetaPanel
+                        meta={field.meta}
+                        onChange={(meta) => {
+                            onChange((f) => ({ ...f, meta }));
+                        }}
+                    />
+                </div>
+            )}
         </div>
     );
 }
@@ -151,19 +239,25 @@ function renderConstraints(field: BuilderField, onChange: OnFieldChange) {
 }
 
 // ---------------------------------------------------------------------------
-// Shared meta panel
+// Schema meta panel
 // ---------------------------------------------------------------------------
 
-function MetaConfig({
+function SchemaMetaPanel({
     meta,
     onChange,
 }: {
     readonly meta: FieldMeta;
     readonly onChange: (meta: FieldMeta) => void;
 }) {
+    const examplesCount = meta.examplesRaw
+        ? meta.examplesRaw
+              .split(",")
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0).length
+        : 0;
+
     return (
-        <fieldset className="sb-field-config__group">
-            <legend>Metadata</legend>
+        <div className="sb-field-config__meta-grid">
             <label className="sb-field-config__label">
                 Title
                 <input
@@ -195,6 +289,7 @@ function MetaConfig({
                         });
                     }}
                 />
+                <JsonFeedback raw={meta.defaultRaw} />
             </label>
             <label className="sb-field-config__label">
                 Examples (comma-separated)
@@ -211,9 +306,15 @@ function MetaConfig({
                         });
                     }}
                 />
+                {examplesCount > 0 && (
+                    <span className="sb-field-config__json-chip">
+                        {examplesCount} example
+                        {examplesCount !== 1 ? "s" : ""}
+                    </span>
+                )}
             </label>
             <label className="sb-field-config__label">
-                Widget component hint
+                Widget hint
                 <input
                     type="text"
                     className="sb-field-config__input"
@@ -269,13 +370,16 @@ function MetaConfig({
                         type="checkbox"
                         checked={meta.deprecated === true}
                         onChange={(e) => {
-                            onChange({ ...meta, deprecated: e.target.checked });
+                            onChange({
+                                ...meta,
+                                deprecated: e.target.checked,
+                            });
                         }}
                     />
                     Deprecated
                 </label>
             </div>
-        </fieldset>
+        </div>
     );
 }
 
@@ -712,6 +816,7 @@ function LiteralConfig({
                         onChange({ ...constraints, valueRaw: e.target.value });
                     }}
                 />
+                <JsonFeedback raw={constraints.valueRaw} />
             </label>
         </fieldset>
     );

@@ -218,10 +218,12 @@ function WrapperFieldRow({
 
 export function FieldRow({
     field,
+    siblingNames,
     onChange,
     onRemove,
 }: {
     readonly field: BuilderField;
+    readonly siblingNames?: readonly string[];
     readonly onChange: OnFieldChange;
     readonly onRemove: () => void;
 }) {
@@ -242,6 +244,13 @@ export function FieldRow({
         transition,
         opacity: isDragging ? 0.5 : 1,
     };
+
+    const nameError: string | undefined = (() => {
+        if (field.name.trim() === "") return "Name is required";
+        if (siblingNames?.includes(field.name))
+            return "Duplicate name — another field uses this name";
+        return undefined;
+    })();
 
     const handleTypeChange = (next: FieldType) => {
         if (willLoseData(field)) {
@@ -324,9 +333,14 @@ export function FieldRow({
 
                 <input
                     type="text"
-                    className="sb-field-row__name"
+                    className={
+                        nameError !== undefined
+                            ? "sb-field-row__name sb-field-row__name--error"
+                            : "sb-field-row__name"
+                    }
                     value={field.name}
                     placeholder="field_name"
+                    aria-invalid={nameError !== undefined}
                     onChange={(e) => {
                         onChange((f) => ({ ...f, name: e.target.value }));
                     }}
@@ -372,6 +386,12 @@ export function FieldRow({
                     ×
                 </button>
             </div>
+
+            {nameError !== undefined && (
+                <p className="sb-field-row__name-hint" role="alert">
+                    {nameError}
+                </p>
+            )}
 
             {pendingType !== null && (
                 <TypeChangeConfirm

@@ -54,18 +54,24 @@ export function FieldList({
                 strategy={verticalListSortingStrategy}
             >
                 <div className="sb-field-list">
-                    {fields.map((field) => (
-                        <FieldRow
-                            key={field.id}
-                            field={field}
-                            onChange={(updater) => {
-                                onChange(field.id, updater);
-                            }}
-                            onRemove={() => {
-                                onRemove(field.id);
-                            }}
-                        />
-                    ))}
+                    {fields.map((field) => {
+                        const siblingNames = fields
+                            .filter((f) => f.id !== field.id)
+                            .map((f) => f.name);
+                        return (
+                            <FieldRow
+                                key={field.id}
+                                field={field}
+                                siblingNames={siblingNames}
+                                onChange={(updater) => {
+                                    onChange(field.id, updater);
+                                }}
+                                onRemove={() => {
+                                    onRemove(field.id);
+                                }}
+                            />
+                        );
+                    })}
                 </div>
             </SortableContext>
         </DndContext>
