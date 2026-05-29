@@ -2,7 +2,7 @@
  * Standalone schema builder app.
  *
  * Three input formats: visual builder, raw JSON Schema, or raw OpenAPI document.
- * Preview panel: editable (or read-only) form powered by SchemaComponent with
+ * Preview panel: interactive form powered by SchemaComponent (toggleable read-only) with
  * a swappable theme adapter, an optional validation pass, a raw JSON Schema
  * view, and a collapsible HTML output panel.
  *
@@ -29,8 +29,8 @@ import type { ComponentResolver } from "schema-components/core/renderer";
 // Persistence
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "schema-builder-app-v2";
-const STORAGE_VERSION = 2;
+const STORAGE_KEY = "schema-builder-app-v3";
+const STORAGE_VERSION = 3;
 
 type InputFormat = "builder" | "jsonschema" | "openapi";
 type ThemeName = "headless" | "shadcn" | "mui" | "mantine" | "radix";
@@ -43,7 +43,7 @@ interface PersistedState {
     readonly rawJsonSchema: string;
     readonly rawOpenApi: string;
     readonly openApiRef: string;
-    readonly editable: boolean;
+    readonly readOnly: boolean;
     readonly validate: boolean;
     readonly theme: ThemeName;
 }
@@ -56,7 +56,7 @@ const DEFAULT_STATE: PersistedState = {
     rawJsonSchema: "",
     rawOpenApi: "",
     openApiRef: "",
-    editable: true,
+    readOnly: false,
     validate: false,
     theme: "headless",
 };
@@ -88,7 +88,7 @@ function isPersistedState(x: unknown): x is PersistedState {
     if (typeof x.rawJsonSchema !== "string") return false;
     if (typeof x.rawOpenApi !== "string") return false;
     if (typeof x.openApiRef !== "string") return false;
-    if (typeof x.editable !== "boolean") return false;
+    if (typeof x.readOnly !== "boolean") return false;
     if (typeof x.validate !== "boolean") return false;
     if (!isThemeName(x.theme)) return false;
     return true;
@@ -175,7 +175,7 @@ export function App() {
     const [rawJsonSchema, setRawJsonSchema] = useState(initial.rawJsonSchema);
     const [rawOpenApi, setRawOpenApi] = useState(initial.rawOpenApi);
     const [openApiRef, setOpenApiRef] = useState(initial.openApiRef);
-    const [editable, setEditable] = useState(initial.editable);
+    const [readOnly, setReadOnly] = useState(initial.readOnly);
     const [validate, setValidate] = useState(initial.validate);
     const [theme, setTheme] = useState<ThemeName>(initial.theme);
     const [htmlOpen, setHtmlOpen] = useState(false);
@@ -228,7 +228,7 @@ export function App() {
             rawJsonSchema,
             rawOpenApi,
             openApiRef,
-            editable,
+            readOnly,
             validate,
             theme,
         };
@@ -240,7 +240,7 @@ export function App() {
         rawJsonSchema,
         rawOpenApi,
         openApiRef,
-        editable,
+        readOnly,
         validate,
         theme,
     ]);
@@ -263,7 +263,7 @@ export function App() {
         try {
             htmlOutput = renderToHtml(effectiveSchema, {
                 value: previewValue,
-                readOnly: !editable,
+                readOnly,
             });
         } catch {
             htmlOutput = undefined;
@@ -301,12 +301,12 @@ export function App() {
                     <label style={css.toolbarCheck}>
                         <input
                             type="checkbox"
-                            checked={editable}
+                            checked={readOnly}
                             onChange={(e) => {
-                                setEditable(e.target.checked);
+                                setReadOnly(e.target.checked);
                             }}
                         />
-                        Editable preview
+                        Read-only
                     </label>
                     <label style={css.toolbarCheck}>
                         <input
@@ -416,7 +416,7 @@ export function App() {
                 {/* Right panel — preview */}
                 <div style={css.panel}>
                     <section style={css.section}>
-                        <h2 style={css.sectionTitle}>Live preview</h2>
+                        <h2 style={css.sectionTitle}>Preview</h2>
                         {effectiveSchema !== undefined ? (
                             <SchemaProvider resolver={resolver}>
                                 <SchemaErrorBoundary
@@ -442,10 +442,8 @@ export function App() {
                                             ? { schemaRef: openApiRef }
                                             : {})}
                                         value={previewValue}
-                                        {...(editable
-                                            ? { onChange: handlePreviewChange }
-                                            : {})}
-                                        readOnly={!editable}
+                                        onChange={handlePreviewChange}
+                                        readOnly={readOnly}
                                         validate={validate}
                                     />
                                 </SchemaErrorBoundary>
