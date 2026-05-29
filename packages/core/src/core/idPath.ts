@@ -161,3 +161,51 @@ export function panelIdFor(path: string): string {
 export function tabIdFor(path: string, index: number): string {
     return `${fieldDomId(path)}-tab-${String(index)}`;
 }
+
+// ---------------------------------------------------------------------------
+// Path threading
+// ---------------------------------------------------------------------------
+
+/**
+ * Append a child path suffix to a parent path. When the suffix is omitted
+ * (e.g. transparent wrappers like union options), the parent path is
+ * returned unchanged so the child inherits the parent's id.
+ *
+ * Bracketed array indices like `[0]` append directly so `tags` + `[0]`
+ * becomes `tags[0]` rather than `tags.[0]` — matching the canonical form
+ * used by `core/fieldPath.ts` `resolvePath`, which already parses bracket
+ * notation when navigating WalkedField trees.
+ *
+ * This is the single authoritative implementation. The copies in
+ * `react/SchemaComponent.tsx`, `html/a11y.ts`, `solid/SchemaComponent.tsx`,
+ * and `vue/idPrefix.ts` are kept for backward compatibility but delegate
+ * here.
+ */
+export function joinPath(parent: string, suffix: string | undefined): string {
+    if (suffix === undefined || suffix.length === 0) return parent;
+    if (parent.length === 0) return suffix;
+    if (suffix.startsWith("[")) return `${parent}${suffix}`;
+    return `${parent}.${suffix}`;
+}
+
+/**
+ * Normalise a framework `useId()`-style value into a DOM-id-safe prefix.
+ * Framework `useId` implementations often return values containing `:` or
+ * other characters that are invalid in CSS selectors. This function replaces
+ * any run of non-alphanumeric characters with a single hyphen and trims
+ * leading/trailing hyphens.
+ *
+ * Throws when the sanitised result is empty so callers receive an actionable
+ * error rather than a silent empty-string id.
+ */
+export function sanitisePrefix(value: string): string {
+    const sanitised = value
+        .replace(/[^a-zA-Z0-9_]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    if (sanitised.length === 0) {
+        throw new Error(
+            `Cannot derive a DOM-safe id prefix from "${value}". Pass an explicit idPrefix prop.`
+        );
+    }
+    return sanitised;
+}
