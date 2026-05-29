@@ -41,17 +41,6 @@ export function FieldConfig({
                 />
             </label>
 
-            <label className="sb-field-config__check">
-                <input
-                    type="checkbox"
-                    checked={field.required}
-                    onChange={(e) => {
-                        onChange((f) => ({ ...f, required: e.target.checked }));
-                    }}
-                />
-                Required
-            </label>
-
             {renderConstraints(field, onChange)}
 
             <MetaConfig

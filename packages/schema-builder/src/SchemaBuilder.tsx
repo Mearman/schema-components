@@ -157,20 +157,34 @@ export function SchemaBuilder({
                 />
             </label>
 
-            <FieldList
-                fields={schema.fields}
-                onChange={handleFieldChange}
-                onRemove={handleFieldRemove}
-                onReorder={handleReorder}
-            />
-
-            <button
-                type="button"
-                className="sb-builder__add"
-                onClick={handleAddField}
-            >
-                + Add field
-            </button>
+            {schema.fields.length === 0 ? (
+                <div className="sb-builder__empty">
+                    <p className="sb-builder__empty-text">No fields yet.</p>
+                    <button
+                        type="button"
+                        className="sb-builder__add"
+                        onClick={handleAddField}
+                    >
+                        + Add the first field
+                    </button>
+                </div>
+            ) : (
+                <>
+                    <FieldList
+                        fields={schema.fields}
+                        onChange={handleFieldChange}
+                        onRemove={handleFieldRemove}
+                        onReorder={handleReorder}
+                    />
+                    <button
+                        type="button"
+                        className="sb-builder__add"
+                        onClick={handleAddField}
+                    >
+                        + Add field
+                    </button>
+                </>
+            )}
 
             {showPreview && <SchemaPreview schema={schema} />}
         </div>

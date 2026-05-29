@@ -1,5 +1,6 @@
 /**
- * Single field row — drag handle, name input, type picker, expand/config, remove.
+ * Single field row — drag handle, name input, type select, required toggle,
+ * expand/config, remove.
  *
  * For composite types (object, array, record, tuple), renders child fields
  * inline below the config panel.
@@ -14,9 +15,206 @@ import type {
     FieldUpdater,
 } from "./types.ts";
 import { createField } from "./SchemaBuilder.tsx";
-import { FieldTypePicker } from "./FieldTypePicker.tsx";
 import { FieldConfig } from "./FieldConfig.tsx";
 import { FieldList } from "./FieldList.tsx";
+
+// ---------------------------------------------------------------------------
+// Field type list
+// ---------------------------------------------------------------------------
+
+const FIELD_TYPES: readonly {
+    readonly value: FieldType;
+    readonly label: string;
+}[] = [
+    { value: "string", label: "String" },
+    { value: "number", label: "Number" },
+    { value: "integer", label: "Integer" },
+    { value: "boolean", label: "Boolean" },
+    { value: "enum", label: "Enum" },
+    { value: "object", label: "Object" },
+    { value: "array", label: "Array" },
+    { value: "record", label: "Record" },
+    { value: "tuple", label: "Tuple" },
+    { value: "literal", label: "Literal" },
+    { value: "null", label: "Null" },
+    { value: "file", label: "File" },
+];
+
+function isFieldType(x: unknown): x is FieldType {
+    return FIELD_TYPES.some((t) => t.value === x);
+}
+
+function typeLabel(type: FieldType): string {
+    return FIELD_TYPES.find((t) => t.value === type)?.label ?? type;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function willLoseData(field: BuilderField): boolean {
+    if (field.type === "object") return field.children.length > 0;
+    if (field.type === "tuple") return field.prefixItems.length > 0;
+    if (field.type === "array") {
+        const item = field.itemField;
+        return (
+            Object.keys(field.constraints).length > 0 ||
+            item.type !== "string" ||
+            Object.keys(item.constraints).length > 0
+        );
+    }
+    if (field.type === "record") {
+        const val = field.valueField;
+        return (
+            Object.keys(field.constraints).length > 0 ||
+            val.type !== "string" ||
+            Object.keys(val.constraints).length > 0
+        );
+    }
+    return Object.keys(field.constraints).length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Type select
+// ---------------------------------------------------------------------------
+
+function TypeSelect({
+    value,
+    onChange,
+}: {
+    readonly value: FieldType;
+    readonly onChange: (next: FieldType) => void;
+}) {
+    return (
+        <select
+            className="sb-field-row__type"
+            value={value}
+            onChange={(e) => {
+                const val = e.target.value;
+                if (isFieldType(val)) onChange(val);
+            }}
+        >
+            {FIELD_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                    {t.label}
+                </option>
+            ))}
+        </select>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Confirm dialog
+// ---------------------------------------------------------------------------
+
+function TypeChangeConfirm({
+    pendingType,
+    onConfirm,
+    onCancel,
+}: {
+    readonly pendingType: FieldType;
+    readonly onConfirm: () => void;
+    readonly onCancel: () => void;
+}) {
+    return (
+        <div className="sb-field-row__confirm" role="alert">
+            <span className="sb-field-row__confirm-text">
+                ⚠ Change to {typeLabel(pendingType)}? This discards all
+                constraints and child fields.
+            </span>
+            <button
+                type="button"
+                className="sb-field-row__confirm-btn sb-field-row__confirm-btn--ok"
+                onClick={onConfirm}
+            >
+                Confirm
+            </button>
+            <button
+                type="button"
+                className="sb-field-row__confirm-btn"
+                onClick={onCancel}
+            >
+                Cancel
+            </button>
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Wrapper row — array items / record value (no drag, no remove)
+// ---------------------------------------------------------------------------
+
+function WrapperFieldRow({
+    label,
+    field,
+    onChange,
+}: {
+    readonly label: string;
+    readonly field: BuilderField;
+    readonly onChange: OnFieldChange;
+}) {
+    const [expanded, setExpanded] = useState(false);
+    const [pendingType, setPendingType] = useState<FieldType | null>(null);
+
+    const handleTypeChange = (next: FieldType) => {
+        if (willLoseData(field)) {
+            setPendingType(next);
+        } else {
+            onChange(() =>
+                createField(field.name, next, {
+                    id: field.id,
+                    description: field.description,
+                    meta: field.meta,
+                })
+            );
+        }
+    };
+
+    return (
+        <div className="sb-wrapper-row">
+            <div className="sb-wrapper-row__header">
+                <span className="sb-wrapper-row__label">{label}</span>
+                <TypeSelect value={field.type} onChange={handleTypeChange} />
+                <button
+                    type="button"
+                    className="sb-field-row__expand"
+                    aria-expanded={expanded}
+                    aria-label={expanded ? "Collapse config" : "Expand config"}
+                    onClick={() => {
+                        setExpanded((e) => !e);
+                    }}
+                >
+                    {expanded ? "▾" : "▸"}
+                </button>
+            </div>
+
+            {pendingType !== null && (
+                <TypeChangeConfirm
+                    pendingType={pendingType}
+                    onConfirm={() => {
+                        setPendingType(null);
+                        onChange(() =>
+                            createField(field.name, pendingType, {
+                                id: field.id,
+                                description: field.description,
+                                meta: field.meta,
+                            })
+                        );
+                    }}
+                    onCancel={() => {
+                        setPendingType(null);
+                    }}
+                />
+            )}
+
+            {expanded && <FieldConfig field={field} onChange={onChange} />}
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Main field row
+// ---------------------------------------------------------------------------
 
 export function FieldRow({
     field,
@@ -28,6 +226,7 @@ export function FieldRow({
     readonly onRemove: () => void;
 }) {
     const [expanded, setExpanded] = useState(false);
+    const [pendingType, setPendingType] = useState<FieldType | null>(null);
 
     const {
         attributes,
@@ -45,13 +244,18 @@ export function FieldRow({
     };
 
     const handleTypeChange = (next: FieldType) => {
-        const fresh = createField(field.name, next, {
-            id: field.id,
-            required: field.required,
-            description: field.description,
-            meta: field.meta,
-        });
-        onChange(() => fresh);
+        if (willLoseData(field)) {
+            setPendingType(next);
+        } else {
+            onChange(() =>
+                createField(field.name, next, {
+                    id: field.id,
+                    required: field.required,
+                    description: field.description,
+                    meta: field.meta,
+                })
+            );
+        }
     };
 
     // Handlers for object children.
@@ -128,10 +332,24 @@ export function FieldRow({
                     }}
                 />
 
-                <FieldTypePicker
-                    value={field.type}
-                    onChange={handleTypeChange}
-                />
+                <TypeSelect value={field.type} onChange={handleTypeChange} />
+
+                <label
+                    className="sb-field-row__required-label"
+                    title="Mark this field as required in the JSON Schema output"
+                >
+                    <input
+                        type="checkbox"
+                        checked={field.required}
+                        onChange={(e) => {
+                            onChange((f) => ({
+                                ...f,
+                                required: e.target.checked,
+                            }));
+                        }}
+                    />
+                    Req
+                </label>
 
                 <button
                     type="button"
@@ -155,6 +373,26 @@ export function FieldRow({
                 </button>
             </div>
 
+            {pendingType !== null && (
+                <TypeChangeConfirm
+                    pendingType={pendingType}
+                    onConfirm={() => {
+                        setPendingType(null);
+                        onChange(() =>
+                            createField(field.name, pendingType, {
+                                id: field.id,
+                                required: field.required,
+                                description: field.description,
+                                meta: field.meta,
+                            })
+                        );
+                    }}
+                    onCancel={() => {
+                        setPendingType(null);
+                    }}
+                />
+            )}
+
             {expanded && <FieldConfig field={field} onChange={onChange} />}
 
             {/* Recursive child list for object type */}
@@ -176,11 +414,11 @@ export function FieldRow({
                 </div>
             )}
 
-            {/* Inline item field editor for array type */}
+            {/* Wrapper row for array items — no drag, no remove */}
             {field.type === "array" && (
                 <div className="sb-field-children">
-                    <p className="sb-field-children__label">Items schema</p>
-                    <FieldRow
+                    <WrapperFieldRow
+                        label="Items schema"
                         field={field.itemField}
                         onChange={(updater) => {
                             onChange(() => ({
@@ -188,33 +426,20 @@ export function FieldRow({
                                 itemField: updater(field.itemField),
                             }));
                         }}
-                        onRemove={() => {
-                            // Item field cannot be removed — reset to default string.
-                            onChange(() => ({
-                                ...field,
-                                itemField: createField("item"),
-                            }));
-                        }}
                     />
                 </div>
             )}
 
-            {/* Inline value schema editor for record type */}
+            {/* Wrapper row for record values — no drag, no remove */}
             {field.type === "record" && (
                 <div className="sb-field-children">
-                    <p className="sb-field-children__label">Value schema</p>
-                    <FieldRow
+                    <WrapperFieldRow
+                        label="Value schema"
                         field={field.valueField}
                         onChange={(updater) => {
                             onChange(() => ({
                                 ...field,
                                 valueField: updater(field.valueField),
-                            }));
-                        }}
-                        onRemove={() => {
-                            onChange(() => ({
-                                ...field,
-                                valueField: createField("value"),
                             }));
                         }}
                     />
