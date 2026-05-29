@@ -14,5 +14,10 @@ pnpm audit --audit-level high
 echo "→ pnpm validate (typecheck, lint, build, test)"
 pnpm validate
 
+# Validate packages outside the turbo filter
+pnpm --filter schema-builder-ui typecheck
+pnpm --filter schema-builder-ui lint
+pnpm --filter @schema-components/builder-app exec tsc --noEmit
+
 echo "→ pnpm test:coverage (enforces coverage thresholds)"
 pnpm test:coverage
