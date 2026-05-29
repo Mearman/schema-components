@@ -85,6 +85,14 @@ jobs:
 
             - run: pnpm check
 
+            - name: Check schema-builder-ui
+              run: |
+                  pnpm --filter schema-builder-ui typecheck
+                  pnpm --filter schema-builder-ui lint
+
+            - name: Check builder app
+              run: pnpm --filter @schema-components/builder-app exec tsc --noEmit
+
             - name: Verify README API inventory is up to date
               run: |
                   pnpm readme
@@ -253,12 +261,20 @@ jobs:
                   STORYBOOK_BASE_PATH: /schema-components/storybook/
               run: pnpm build-storybook
 
+            - name: Build builder app
+              run: |
+                  pnpm --filter schema-builder-ui build
+                  pnpm --filter @schema-components/builder-app exec tsc --noEmit
+                  pnpm --filter @schema-components/builder-app exec vite build
+
             - name: Assemble Pages site
               run: |
                   mkdir -p site
                   cp -R packages/core/typedoc-static/. site/
                   mkdir -p site/storybook
                   cp -R packages/docs/storybook-static/. site/storybook/
+                  mkdir -p site/builder
+                  cp -R apps/builder/dist/. site/builder/
 
             - uses: actions/upload-pages-artifact@v5.0.0
               with:
