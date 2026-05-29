@@ -4,7 +4,7 @@
  */
 import type {
     BuilderField,
-    FieldConstraints,
+    OnFieldChange,
     StringConstraints,
     NumberConstraints,
     EnumConstraints,
@@ -15,7 +15,7 @@ export function FieldConfig({
     onChange,
 }: {
     readonly field: BuilderField;
-    readonly onChange: (patch: Partial<BuilderField>) => void;
+    readonly onChange: OnFieldChange;
 }) {
     return (
         <div className="sb-field-config">
@@ -27,7 +27,10 @@ export function FieldConfig({
                     value={field.description}
                     placeholder="Field description"
                     onChange={(e) => {
-                        onChange({ description: e.target.value });
+                        onChange((f) => ({
+                            ...f,
+                            description: e.target.value,
+                        }));
                     }}
                 />
             </label>
@@ -37,7 +40,10 @@ export function FieldConfig({
                     type="checkbox"
                     checked={field.required}
                     onChange={(e) => {
-                        onChange({ required: e.target.checked });
+                        onChange((f) => ({
+                            ...f,
+                            required: e.target.checked,
+                        }));
                     }}
                 />
                 Required
@@ -48,38 +54,37 @@ export function FieldConfig({
     );
 }
 
-function renderConstraints(
-    field: BuilderField,
-    onChange: (patch: Partial<BuilderField>) => void
-) {
-    const update = (c: FieldConstraints) => {
-        onChange({ constraints: c });
-    };
-
+function renderConstraints(field: BuilderField, onChange: OnFieldChange) {
     switch (field.type) {
         case "string":
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
             return (
                 <StringConfig
-                    constraints={field.constraints as StringConstraints}
-                    onChange={update}
+                    constraints={field.constraints}
+                    onChange={(c) => {
+                        const narrowed = field;
+                        onChange(() => ({ ...narrowed, constraints: c }));
+                    }}
                 />
             );
         case "number":
         case "integer":
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
             return (
                 <NumberConfig
-                    constraints={field.constraints as NumberConstraints}
-                    onChange={update}
+                    constraints={field.constraints}
+                    onChange={(c) => {
+                        const narrowed = field;
+                        onChange(() => ({ ...narrowed, constraints: c }));
+                    }}
                 />
             );
         case "enum":
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
             return (
                 <EnumConfig
-                    constraints={field.constraints as EnumConstraints}
-                    onChange={update}
+                    constraints={field.constraints}
+                    onChange={(c) => {
+                        const narrowed = field;
+                        onChange(() => ({ ...narrowed, constraints: c }));
+                    }}
                 />
             );
         case "boolean":
@@ -92,7 +97,7 @@ function StringConfig({
     onChange,
 }: {
     readonly constraints: StringConstraints;
-    readonly onChange: (c: FieldConstraints) => void;
+    readonly onChange: (c: StringConstraints) => void;
 }) {
     return (
         <fieldset className="sb-field-config__group">
@@ -106,11 +111,10 @@ function StringConfig({
                     min={0}
                     onChange={(e) => {
                         const v = e.target.value;
-                        const next: StringConstraints = {
+                        onChange({
                             ...constraints,
                             ...(v === "" ? {} : { minLength: Number(v) }),
-                        };
-                        onChange(next);
+                        });
                     }}
                 />
             </label>
@@ -123,11 +127,10 @@ function StringConfig({
                     min={0}
                     onChange={(e) => {
                         const v = e.target.value;
-                        const next: StringConstraints = {
+                        onChange({
                             ...constraints,
                             ...(v === "" ? {} : { maxLength: Number(v) }),
-                        };
-                        onChange(next);
+                        });
                     }}
                 />
             </label>
@@ -140,11 +143,10 @@ function StringConfig({
                     placeholder="^[a-z]+$"
                     onChange={(e) => {
                         const v = e.target.value;
-                        const next: StringConstraints = {
+                        onChange({
                             ...constraints,
                             ...(v === "" ? {} : { pattern: v }),
-                        };
-                        onChange(next);
+                        });
                     }}
                 />
             </label>
@@ -155,11 +157,10 @@ function StringConfig({
                     value={constraints.format ?? ""}
                     onChange={(e) => {
                         const v = e.target.value;
-                        const next: StringConstraints = {
+                        onChange({
                             ...constraints,
                             ...(v === "" ? {} : { format: v }),
-                        };
-                        onChange(next);
+                        });
                     }}
                 >
                     <option value="">— none —</option>
@@ -180,7 +181,7 @@ function NumberConfig({
     onChange,
 }: {
     readonly constraints: NumberConstraints;
-    readonly onChange: (c: FieldConstraints) => void;
+    readonly onChange: (c: NumberConstraints) => void;
 }) {
     return (
         <fieldset className="sb-field-config__group">
@@ -193,11 +194,10 @@ function NumberConfig({
                     value={constraints.minimum ?? ""}
                     onChange={(e) => {
                         const v = e.target.value;
-                        const next: NumberConstraints = {
+                        onChange({
                             ...constraints,
                             ...(v === "" ? {} : { minimum: Number(v) }),
-                        };
-                        onChange(next);
+                        });
                     }}
                 />
             </label>
@@ -209,11 +209,10 @@ function NumberConfig({
                     value={constraints.maximum ?? ""}
                     onChange={(e) => {
                         const v = e.target.value;
-                        const next: NumberConstraints = {
+                        onChange({
                             ...constraints,
                             ...(v === "" ? {} : { maximum: Number(v) }),
-                        };
-                        onChange(next);
+                        });
                     }}
                 />
             </label>
@@ -226,7 +225,7 @@ function EnumConfig({
     onChange,
 }: {
     readonly constraints: EnumConstraints;
-    readonly onChange: (c: FieldConstraints) => void;
+    readonly onChange: (c: EnumConstraints) => void;
 }) {
     return (
         <fieldset className="sb-field-config__group">
@@ -253,7 +252,9 @@ function EnumConfig({
                             next.splice(i, 1);
                             onChange({
                                 ...constraints,
-                                values: next.length === 0 ? ["option1"] : next,
+                                values: next.length === 0
+                                    ? ["option1"]
+                                    : next,
                             });
                         }}
                         aria-label={`Remove ${val}`}

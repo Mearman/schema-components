@@ -14,7 +14,7 @@ import {
     verticalListSortingStrategy,
     arrayMove,
 } from "@dnd-kit/sortable";
-import type { BuilderField } from "./types.ts";
+import type { BuilderField, FieldUpdater } from "./types.ts";
 import { FieldRow } from "./FieldRow.tsx";
 
 export function FieldList({
@@ -24,7 +24,7 @@ export function FieldList({
     onReorder,
 }: {
     readonly fields: readonly BuilderField[];
-    readonly onChange: (id: string, patch: Partial<BuilderField>) => void;
+    readonly onChange: (id: string, updater: FieldUpdater) => void;
     readonly onRemove: (id: string) => void;
     readonly onReorder: (fields: readonly BuilderField[]) => void;
 }) {
@@ -58,8 +58,8 @@ export function FieldList({
                         <FieldRow
                             key={field.id}
                             field={field}
-                            onChange={(patch) => {
-                                onChange(field.id, patch);
+                            onChange={(updater) => {
+                                onChange(field.id, updater);
                             }}
                             onRemove={() => {
                                 onRemove(field.id);

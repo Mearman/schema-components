@@ -3,8 +3,7 @@
  * field list + add button + optional JSON preview.
  */
 import { useState, useCallback } from "react";
-import type { BuilderField, BuilderSchema, FieldType } from "./types.ts";
-import { defaultConstraints } from "./toJsonSchema.ts";
+import type { BuilderField, BuilderSchema, FieldUpdater, FieldType } from "./types.ts";
 import { FieldList } from "./FieldList.tsx";
 import { SchemaPreview } from "./SchemaPreview.tsx";
 
@@ -12,14 +11,19 @@ let nextId = 1;
 
 function createField(name: string, type: FieldType = "string"): BuilderField {
     const id = `field_${String(nextId++)}`;
-    return {
-        id,
-        name,
-        type,
-        required: false,
-        description: "",
-        constraints: defaultConstraints(type),
-    };
+    const base = { id, name, required: false, description: "" };
+    switch (type) {
+        case "string":
+            return { ...base, type: "string", constraints: {} };
+        case "number":
+            return { ...base, type: "number", constraints: {} };
+        case "integer":
+            return { ...base, type: "integer", constraints: {} };
+        case "boolean":
+            return { ...base, type: "boolean", constraints: {} };
+        case "enum":
+            return { ...base, type: "enum", constraints: { values: ["option1"] } };
+    }
 }
 
 const EMPTY_SCHEMA: BuilderSchema = {
@@ -56,9 +60,9 @@ export function SchemaBuilder({
         update({ ...schema, title });
     };
 
-    const handleFieldChange = (id: string, patch: Partial<BuilderField>) => {
+    const handleFieldChange = (id: string, updater: FieldUpdater) => {
         const fields = schema.fields.map((f) =>
-            f.id === id ? { ...f, ...patch } : f
+            f.id === id ? updater(f) : f
         );
         update({ ...schema, fields });
     };

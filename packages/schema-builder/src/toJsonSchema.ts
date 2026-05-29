@@ -6,6 +6,7 @@ import type {
     BuilderSchema,
     EnumConstraints,
     FieldConstraints,
+    FieldType,
     JsonSchemaObject,
     NumberConstraints,
     StringConstraints,
@@ -21,8 +22,7 @@ function fieldToJsonSchema(field: BuilderField): JsonSchemaObject {
     switch (field.type) {
         case "string": {
             base.type = "string";
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
-            const c = field.constraints as StringConstraints;
+            const c = field.constraints;
             if (c.minLength !== undefined) base.minLength = c.minLength;
             if (c.maxLength !== undefined) base.maxLength = c.maxLength;
             if (c.pattern !== undefined) base.pattern = c.pattern;
@@ -31,25 +31,21 @@ function fieldToJsonSchema(field: BuilderField): JsonSchemaObject {
         }
         case "number": {
             base.type = "number";
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
-            applyNumberConstraints(base, field.constraints as NumberConstraints);
+            applyNumberConstraints(base, field.constraints);
             break;
         }
         case "integer": {
             base.type = "integer";
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
-            applyNumberConstraints(base, field.constraints as NumberConstraints);
+            applyNumberConstraints(base, field.constraints);
             break;
         }
         case "boolean":
             base.type = "boolean";
             break;
         case "enum": {
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- switch narrows type but not constraints
-            const c = field.constraints as EnumConstraints;
-            // If all enum values parse as numbers, emit a numeric enum.
+            const c = field.constraints;
             const allNumeric = c.values.every(
-                (v) => !Number.isNaN(Number(v))
+                (v) => !Number.isNaN(Number(v)),
             );
             base.type = allNumeric ? "number" : "string";
             base.enum = allNumeric
@@ -64,7 +60,7 @@ function fieldToJsonSchema(field: BuilderField): JsonSchemaObject {
 
 function applyNumberConstraints(
     base: Record<string, unknown>,
-    c: NumberConstraints
+    c: NumberConstraints,
 ): void {
     if (c.minimum !== undefined) base.minimum = c.minimum;
     if (c.maximum !== undefined) base.maximum = c.maximum;
@@ -107,10 +103,24 @@ export function toJsonSchema(schema: BuilderSchema): JsonSchemaObject {
 
 /**
  * Default constraints for each field type.
+ *
+ * Returns a constraint object whose shape matches the specific field type,
+ * enabling the discriminated-union narrowing on `BuilderField`.
  */
 export function defaultConstraints(
-    type: BuilderField["type"]
-): FieldConstraints {
+    type: FieldType,
+): FieldConstraints;
+export function defaultConstraints(
+    type: "string",
+): StringConstraints;
+export function defaultConstraints(
+    type: "number" | "integer",
+): NumberConstraints;
+export function defaultConstraints(
+    type: "boolean",
+): Record<string, never>;
+export function defaultConstraints(type: "enum"): EnumConstraints;
+export function defaultConstraints(type: FieldType): FieldConstraints {
     switch (type) {
         case "string":
             return {};

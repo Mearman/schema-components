@@ -4,8 +4,7 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { BuilderField, FieldType } from "./types.ts";
-import { defaultConstraints } from "./toJsonSchema.ts";
+import type { BuilderField, OnFieldChange, FieldType } from "./types.ts";
 import { FieldTypePicker } from "./FieldTypePicker.tsx";
 import { FieldConfig } from "./FieldConfig.tsx";
 
@@ -15,7 +14,7 @@ export function FieldRow({
     onRemove,
 }: {
     readonly field: BuilderField;
-    readonly onChange: (patch: Partial<BuilderField>) => void;
+    readonly onChange: OnFieldChange;
     readonly onRemove: () => void;
 }) {
     const [expanded, setExpanded] = useState(false);
@@ -36,8 +35,35 @@ export function FieldRow({
     };
 
     const handleTypeChange = (next: FieldType) => {
-        // Reset constraints when the type changes.
-        onChange({ type: next, constraints: defaultConstraints(next) });
+        const base = {
+            id: field.id,
+            name: field.name,
+            required: field.required,
+            description: field.description,
+        };
+        let updated: BuilderField;
+        switch (next) {
+            case "string":
+                updated = { ...base, type: "string", constraints: {} };
+                break;
+            case "number":
+                updated = { ...base, type: "number", constraints: {} };
+                break;
+            case "integer":
+                updated = { ...base, type: "integer", constraints: {} };
+                break;
+            case "boolean":
+                updated = { ...base, type: "boolean", constraints: {} };
+                break;
+            case "enum":
+                updated = {
+                    ...base,
+                    type: "enum",
+                    constraints: { values: ["option1"] },
+                };
+                break;
+        }
+        onChange(() => updated);
     };
 
     return (
@@ -59,7 +85,7 @@ export function FieldRow({
                     value={field.name}
                     placeholder="field_name"
                     onChange={(e) => {
-                        onChange({ name: e.target.value });
+                        onChange((f) => ({ ...f, name: e.target.value }));
                     }}
                 />
 

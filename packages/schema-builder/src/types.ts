@@ -33,15 +33,48 @@ export type FieldConstraints =
     | EnumConstraints
     | Record<string, never>;
 
-/** A single field in the builder. */
-export interface BuilderField {
+/** Base properties shared by every field variant. */
+interface BuilderFieldBase {
     readonly id: string;
     readonly name: string;
-    readonly type: FieldType;
     readonly required: boolean;
     readonly description: string;
-    readonly constraints: FieldConstraints;
 }
+
+/**
+ * A single field in the builder — discriminated by `.type`.
+ *
+ * The union structure means switching on `field.type` narrows
+ * `field.constraints` to the matching constraint type, eliminating the
+ * need for type assertions.
+ */
+export type BuilderField =
+    | (BuilderFieldBase & {
+          readonly type: "string";
+          readonly constraints: StringConstraints;
+      })
+    | (BuilderFieldBase & {
+          readonly type: "number";
+          readonly constraints: NumberConstraints;
+      })
+    | (BuilderFieldBase & {
+          readonly type: "integer";
+          readonly constraints: NumberConstraints;
+      })
+    | (BuilderFieldBase & {
+          readonly type: "boolean";
+          readonly constraints: Record<string, never>;
+      })
+    | (BuilderFieldBase & {
+          readonly type: "enum";
+          readonly constraints: EnumConstraints;
+      });
+
+/** Callback that produces the next field from the current one. */
+export type FieldUpdater = (field: BuilderField) => BuilderField;
+
+/** Accepts an updater function to transform a field. */
+export type OnFieldChange = (updater: FieldUpdater) => void;
 
 /** Top-level builder schema. */
 export interface BuilderSchema {
