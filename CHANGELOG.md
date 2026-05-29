@@ -1,3 +1,11 @@
+## [3.3.0](https://github.com/Mearman/schema-components/compare/v3.2.1...v3.3.0) (2026-05-29)
+
+### Features
+
+* app shell polish — tabbed preview panel, dark mode, CSS variables, tooltips ([c72e5ea](https://github.com/Mearman/schema-components/commit/c72e5eacb6cf08b645d4bd66bb83b035b3771e79))
+* improve builder row header UX and nesting clarity ([617ad24](https://github.com/Mearman/schema-components/commit/617ad2442e2230cdd8603ef2a0316de10cd3ad1e))
+* reorganise FieldConfig into tabs with live JSON feedback and name validation ([2f8e15b](https://github.com/Mearman/schema-components/commit/2f8e15b82c76029b2f44576c95cd226378f7efd7))
+
 ## [3.2.1](https://github.com/Mearman/schema-components/compare/v3.2.0...v3.2.1) (2026-05-29)
 
 ### Refactoring
