@@ -1,3 +1,9 @@
+## [3.1.1](https://github.com/Mearman/schema-components/compare/v3.1.0...v3.1.1) (2026-05-29)
+
+### Bug Fixes
+
+* set builder app base path to /schema-components/builder/ ([1f2835a](https://github.com/Mearman/schema-components/commit/1f2835aef7d4fc87d1f186068c9e872a3d1cb6bb))
+
 ## [3.1.0](https://github.com/Mearman/schema-components/compare/v3.0.2...v3.1.0) (2026-05-29)
 
 ### Features
