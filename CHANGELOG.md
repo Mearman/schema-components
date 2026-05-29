@@ -1,3 +1,10 @@
+## [3.2.0](https://github.com/Mearman/schema-components/compare/v3.1.1...v3.2.0) (2026-05-29)
+
+### Features
+
+* extend schema-builder-ui to cover all field types ([c5cac44](https://github.com/Mearman/schema-components/commit/c5cac44acae6fb354a92d71b59287b71476172a6))
+* upgrade builder app shell to surface all schema-components features ([b3f19a9](https://github.com/Mearman/schema-components/commit/b3f19a97149b26a5b86d921f12cececc021c019d))
+
 ## [3.1.1](https://github.com/Mearman/schema-components/compare/v3.1.0...v3.1.1) (2026-05-29)
 
 ### Bug Fixes
