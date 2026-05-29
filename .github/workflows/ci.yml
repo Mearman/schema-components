@@ -96,14 +96,6 @@ jobs:
             - name: Check builder app
               run: pnpm --filter @schema-components/builder-app exec tsc --noEmit
 
-            - name: Verify README API inventory is up to date
-              run: |
-                  pnpm readme
-                  if ! git diff --exit-code README.md; then
-                      echo "::error file=README.md::README API inventory is out of date. Run 'pnpm readme' locally and commit the result."
-                      exit 1
-                  fi
-
     test:
         name: Test — Node ${{ matrix.node-version }}
         needs: audit
@@ -204,17 +196,6 @@ jobs:
                       turbo-${{ runner.os }}-
 
             - run: pnpm build
-
-            - name: Update README API inventory
-              run: |
-                  pnpm readme
-                  if ! git diff --exit-code README.md; then
-                      git config user.name "github-actions[bot]"
-                      git config user.email "github-actions[bot]@users.noreply.github.com"
-                      git add README.md
-                      git commit -m "chore: update README API inventory"
-                      git push
-                  fi
 
             - name: Release
               id: detect-release
