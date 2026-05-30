@@ -1,3 +1,9 @@
+## [3.7.0](https://github.com/Mearman/schema-components/compare/v3.6.1...v3.7.0) (2026-05-30)
+
+### Features
+
+* **docs:** add Adapter setup tab to builder preview panel ([c796221](https://github.com/Mearman/schema-components/commit/c79622124eae731bac2a5c4cf96ac3e1e5f6c1f3))
+
 ## [3.6.1](https://github.com/Mearman/schema-components/compare/v3.6.0...v3.6.1) (2026-05-30)
 
 ### Bug Fixes
