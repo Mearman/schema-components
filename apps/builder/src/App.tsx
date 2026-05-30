@@ -9,6 +9,8 @@
  * All user state persists to localStorage under a versioned key.
  */
 import { useState, useEffect, useCallback, useRef } from "react";
+import { z } from "zod";
+import { EXAMPLES } from "@schema-components/examples";
 import { SchemaBuilder } from "schema-builder-ui/SchemaBuilder";
 import type {
     BuilderSchema,
@@ -668,6 +670,47 @@ export function App() {
         }
     }, []);
 
+    const handleExampleSelect = useCallback(
+        (id: string) => {
+            if (id === "") return;
+            const ex = EXAMPLES.find((e) => e.id === id);
+            if (ex === undefined) return;
+
+            const nonEmpty =
+                schema.fields.length > 0 ||
+                rawJsonSchema.trim() !== "" ||
+                rawOpenApi.trim() !== "";
+            if (
+                nonEmpty &&
+                !window.confirm(
+                    `Load "${ex.name}"? This replaces your current schema.`
+                )
+            ) {
+                return;
+            }
+
+            if (ex.format === "zod") {
+                const js: unknown = z.toJSONSchema(ex.schema);
+                const next = fromJsonSchema(js);
+                if (next !== undefined) {
+                    setSchema(next);
+                    setInputFormat("builder");
+                } else {
+                    setRawJsonSchema(JSON.stringify(js, null, 2));
+                    setInputFormat("jsonschema");
+                }
+                if (isRecord(ex.data)) setPreviewValue(ex.data);
+                else setPreviewValue({});
+            } else {
+                setRawOpenApi(JSON.stringify(ex.spec, null, 2));
+                setOpenApiRef(ex.ref);
+                setInputFormat("openapi");
+                setPreviewValue(ex.data);
+            }
+        },
+        [schema.fields.length, rawJsonSchema, rawOpenApi]
+    );
+
     const resolver = RESOLVERS[theme];
 
     // HTML output — computed lazily when the HTML tab is active.
@@ -756,6 +799,26 @@ export function App() {
                             <option value="auto">Auto</option>
                             <option value="light">Light</option>
                             <option value="dark">Dark</option>
+                        </select>
+                    </label>
+                    <label
+                        style={css.toolbarItem}
+                        title="Load a worked example into the builder."
+                    >
+                        Examples
+                        <select
+                            style={css.select}
+                            value=""
+                            onChange={(e) => {
+                                handleExampleSelect(e.target.value);
+                            }}
+                        >
+                            <option value="">Load…</option>
+                            {EXAMPLES.map((ex) => (
+                                <option key={ex.id} value={ex.id}>
+                                    {ex.name}
+                                </option>
+                            ))}
                         </select>
                     </label>
                 </div>
