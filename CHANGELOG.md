@@ -1,3 +1,9 @@
+## [3.5.1](https://github.com/Mearman/schema-components/compare/v3.5.0...v3.5.1) (2026-05-30)
+
+### Bug Fixes
+
+* **docs:** extend colour scheme to body background to remove white side strips ([b27f749](https://github.com/Mearman/schema-components/commit/b27f74978e2d8eaa83d3628ae9908455badfb1bb))
+
 ## [3.5.0](https://github.com/Mearman/schema-components/compare/v3.4.0...v3.5.0) (2026-05-30)
 
 ### Features
