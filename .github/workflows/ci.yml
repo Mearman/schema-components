@@ -79,8 +79,9 @@ jobs:
             - uses: actions/cache@v5.0.5
               with:
                   path: .turbo
-                  key: turbo-${{ runner.os }}-${{ github.sha }}
+                  key: turbo-${{ runner.os }}-check-${{ github.sha }}
                   restore-keys: |
+                      turbo-${{ runner.os }}-check-
                       turbo-${{ runner.os }}-
 
             - run: pnpm check
@@ -121,8 +122,9 @@ jobs:
             - uses: actions/cache@v5.0.5
               with:
                   path: .turbo
-                  key: turbo-${{ runner.os }}-${{ github.sha }}
+                  key: turbo-${{ runner.os }}-test-${{ matrix.node-version }}-${{ github.sha }}
                   restore-keys: |
+                      turbo-${{ runner.os }}-test-${{ matrix.node-version }}-
                       turbo-${{ runner.os }}-
 
             - run: pnpm test
@@ -156,8 +158,10 @@ jobs:
             - uses: actions/cache@v5.0.5
               with:
                   path: .turbo
-                  key: turbo-${{ runner.os }}-${{ github.sha }}
+                  key: turbo-${{ runner.os }}-storybook-${{ github.sha }}
                   restore-keys: |
+                      turbo-${{ runner.os }}-storybook-
+                      turbo-${{ runner.os }}-check-
                       turbo-${{ runner.os }}-
 
             - run: pnpm build
@@ -191,8 +195,10 @@ jobs:
             - uses: actions/cache@v5.0.5
               with:
                   path: .turbo
-                  key: turbo-${{ runner.os }}-${{ github.sha }}
+                  key: turbo-${{ runner.os }}-release-${{ github.sha }}
                   restore-keys: |
+                      turbo-${{ runner.os }}-release-
+                      turbo-${{ runner.os }}-check-
                       turbo-${{ runner.os }}-
 
             - run: pnpm build
@@ -232,8 +238,10 @@ jobs:
             - uses: actions/cache@v5.0.5
               with:
                   path: .turbo
-                  key: turbo-${{ runner.os }}-${{ github.sha }}
+                  key: turbo-${{ runner.os }}-pages-${{ github.sha }}
                   restore-keys: |
+                      turbo-${{ runner.os }}-pages-
+                      turbo-${{ runner.os }}-check-
                       turbo-${{ runner.os }}-
 
             - run: pnpm build
