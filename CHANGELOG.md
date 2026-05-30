@@ -1,3 +1,13 @@
+## [3.5.0](https://github.com/Mearman/schema-components/compare/v3.4.0...v3.5.0) (2026-05-30)
+
+### Features
+
+* **docs:** add auto/light/dark colour scheme switcher to builder app ([9135a61](https://github.com/Mearman/schema-components/commit/9135a616ba0a73fe40c5ae65894bac0742880366))
+
+### Bug Fixes
+
+* **deps:** correct @tailwindcss/node patch to use synchronous registerHooks ([f75cd7d](https://github.com/Mearman/schema-components/commit/f75cd7d98c961b58f2bb1a3693efd53acd9c16b7)), closes [#20028](https://github.com/Mearman/schema-components/issues/20028)
+
 ## [3.4.0](https://github.com/Mearman/schema-components/compare/v3.3.0...v3.4.0) (2026-05-29)
 
 ### Features
