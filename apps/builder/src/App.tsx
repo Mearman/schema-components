@@ -571,6 +571,15 @@ export function App() {
 
     const effectiveSchemaStr = JSON.stringify(effectiveSchema);
 
+    // Sync colour scheme to <html> so CSS variables cascade to <body> and
+    // the page background fills edge-to-edge beyond the max-width container.
+    useEffect(() => {
+        document.documentElement.dataset.sbTheme = colourScheme;
+        return () => {
+            delete document.documentElement.dataset.sbTheme;
+        };
+    }, [colourScheme]);
+
     // Reset preview value when the schema structure changes.
     useEffect(() => {
         if (effectiveSchemaStr !== prevEffectiveSchemaRef.current) {
