@@ -34,12 +34,12 @@ import type { ComponentResolver } from "schema-components/core/renderer";
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = "schema-builder-app-v4";
-const STORAGE_VERSION = 4;
+const STORAGE_VERSION = 5;
 
 type InputFormat = "builder" | "jsonschema" | "openapi";
 type ThemeName = "headless" | "shadcn" | "mui" | "mantine" | "radix";
 type PreviewTab = "preview" | "jsonschema" | "html";
-type ColourScheme = "light" | "dark";
+type ColourScheme = "auto" | "light" | "dark";
 
 interface PersistedState {
     readonly version: number;
@@ -68,7 +68,7 @@ const DEFAULT_STATE: PersistedState = {
     validate: false,
     theme: "headless",
     previewTab: "preview",
-    colourScheme: "light",
+    colourScheme: "auto",
 };
 
 function isInputFormat(x: unknown): x is InputFormat {
@@ -90,7 +90,7 @@ function isPreviewTab(x: unknown): x is PreviewTab {
 }
 
 function isColourScheme(x: unknown): x is ColourScheme {
-    return x === "light" || x === "dark";
+    return x === "auto" || x === "light" || x === "dark";
 }
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -732,19 +732,22 @@ export function App() {
                         Validate
                     </label>
                     <label
-                        style={css.toolbarCheck}
-                        title="Toggle between light and dark colour scheme."
+                        style={css.toolbarItem}
+                        title="Colour scheme for the builder UI. Auto follows your OS setting."
                     >
-                        <input
-                            type="checkbox"
-                            checked={colourScheme === "dark"}
+                        Scheme
+                        <select
+                            style={css.select}
+                            value={colourScheme}
                             onChange={(e) => {
-                                setColourScheme(
-                                    e.target.checked ? "dark" : "light"
-                                );
+                                if (isColourScheme(e.target.value))
+                                    setColourScheme(e.target.value);
                             }}
-                        />
-                        Dark mode
+                        >
+                            <option value="auto">Auto</option>
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
                     </label>
                 </div>
             </header>
@@ -942,7 +945,8 @@ const css = {
         padding: "1.5rem",
         fontFamily: "system-ui, -apple-system, sans-serif",
         minHeight: "100vh",
-        background: "#f9fafb",
+        background: "var(--sb-bg-subtle)",
+        color: "var(--sb-fg)",
     },
     header: {
         display: "flex",
@@ -958,7 +962,7 @@ const css = {
         margin: "0 0 0.25rem",
     },
     subtitle: {
-        color: "#6b7280",
+        color: "var(--sb-fg-muted)",
         fontSize: "0.9375rem",
         margin: 0,
     },
@@ -973,21 +977,22 @@ const css = {
         alignItems: "center",
         gap: "0.375rem",
         fontSize: "0.875rem",
-        color: "#374151",
+        color: "var(--sb-fg-secondary)",
     },
     toolbarCheck: {
         display: "flex",
         alignItems: "center",
         gap: "0.375rem",
         fontSize: "0.875rem",
-        color: "#374151",
+        color: "var(--sb-fg-secondary)",
         cursor: "pointer",
     },
     select: {
         padding: "0.25rem 0.5rem",
         borderRadius: "0.375rem",
-        border: "1px solid #d1d5db",
-        background: "#fff",
+        border: "1px solid var(--sb-border-input)",
+        background: "var(--sb-bg)",
+        color: "var(--sb-fg)",
         fontSize: "0.875rem",
         cursor: "pointer",
     },
@@ -998,8 +1003,8 @@ const css = {
         alignItems: "start",
     },
     panel: {
-        background: "#fff",
-        border: "1px solid #e5e7eb",
+        background: "var(--sb-bg)",
+        border: "1px solid var(--sb-border)",
         borderRadius: "0.75rem",
         padding: "1rem",
         boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
@@ -1008,17 +1013,17 @@ const css = {
         display: "flex",
         gap: "0.25rem",
         marginBottom: "1rem",
-        borderBottom: "1px solid #e5e7eb",
+        borderBottom: "1px solid var(--sb-border)",
         paddingBottom: "0.75rem",
     },
     tab: {
         padding: "0.375rem 0.75rem",
         borderRadius: "0.375rem",
-        border: "1px solid #e5e7eb",
-        background: "#f9fafb",
+        border: "1px solid var(--sb-border)",
+        background: "var(--sb-bg-subtle)",
         fontSize: "0.875rem",
         cursor: "pointer",
-        color: "#6b7280",
+        color: "var(--sb-fg-muted)",
     },
     tabActive: {
         padding: "0.375rem 0.75rem",
@@ -1032,8 +1037,8 @@ const css = {
     },
     code: {
         padding: "0.75rem",
-        background: "#1e293b",
-        color: "#e2e8f0",
+        background: "var(--sb-code-bg)",
+        color: "var(--sb-code-fg)",
         borderRadius: "0.5rem",
         fontSize: "0.8125rem",
         lineHeight: 1.6,
@@ -1046,13 +1051,13 @@ const css = {
     iframe: {
         width: "100%",
         minHeight: "12rem",
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--sb-border)",
         borderRadius: "0.5rem",
         marginTop: "0.5rem",
-        background: "#fff",
+        background: "var(--sb-bg)",
     },
     emptyState: {
-        color: "#9ca3af",
+        color: "var(--sb-fg-muted)",
         fontSize: "0.875rem",
         margin: "0.5rem 0",
     },
@@ -1063,14 +1068,15 @@ const css = {
         fontFamily: "ui-monospace, monospace",
         fontSize: "0.8125rem",
         lineHeight: 1.6,
-        border: "1px solid #d1d5db",
+        border: "1px solid var(--sb-border-input)",
         borderRadius: "0.5rem",
         resize: "vertical" as const,
         boxSizing: "border-box" as const,
-        background: "#f9fafb",
+        background: "var(--sb-bg-subtle)",
+        color: "var(--sb-fg)",
     },
     parseError: {
-        color: "#dc2626",
+        color: "var(--sb-danger)",
         fontSize: "0.8125rem",
         marginTop: "0.375rem",
         fontFamily: "ui-monospace, monospace",
@@ -1080,33 +1086,35 @@ const css = {
         flexDirection: "column" as const,
         gap: "0.25rem",
         fontSize: "0.875rem",
-        color: "#374151",
+        color: "var(--sb-fg-secondary)",
         marginBottom: "0.5rem",
     },
     input: {
         padding: "0.375rem 0.625rem",
-        border: "1px solid #d1d5db",
+        border: "1px solid var(--sb-border-input)",
         borderRadius: "0.375rem",
         fontSize: "0.875rem",
-        background: "#fff",
+        background: "var(--sb-bg)",
+        color: "var(--sb-fg)",
     },
     errorFallback: {
         padding: "0.75rem",
-        background: "#fef2f2",
-        border: "1px solid #fecaca",
+        background: "var(--sb-danger-bg)",
+        border: "1px solid var(--sb-danger-border)",
         borderRadius: "0.5rem",
         fontSize: "0.875rem",
     },
     errorMsg: {
-        color: "#dc2626",
+        color: "var(--sb-danger)",
         margin: "0 0 0.5rem",
         fontFamily: "ui-monospace, monospace",
     },
     resetBtn: {
         padding: "0.25rem 0.75rem",
-        border: "1px solid #d1d5db",
+        border: "1px solid var(--sb-border-input)",
         borderRadius: "0.375rem",
-        background: "#fff",
+        background: "var(--sb-bg)",
+        color: "var(--sb-fg)",
         fontSize: "0.8125rem",
         cursor: "pointer",
     },
