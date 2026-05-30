@@ -40,7 +40,7 @@ const STORAGE_VERSION = 5;
 
 type InputFormat = "builder" | "jsonschema" | "openapi";
 type ThemeName = "headless" | "shadcn" | "mui" | "mantine" | "radix";
-type PreviewTab = "preview" | "jsonschema" | "html";
+type PreviewTab = "preview" | "jsonschema" | "html" | "setup";
 type ColourScheme = "auto" | "light" | "dark";
 
 interface PersistedState {
@@ -88,7 +88,9 @@ function isThemeName(x: unknown): x is ThemeName {
 }
 
 function isPreviewTab(x: unknown): x is PreviewTab {
-    return x === "preview" || x === "jsonschema" || x === "html";
+    return (
+        x === "preview" || x === "jsonschema" || x === "html" || x === "setup"
+    );
 }
 
 function isColourScheme(x: unknown): x is ColourScheme {
@@ -156,6 +158,82 @@ const THEME_NAMES: readonly ThemeName[] = [
     "radix",
 ];
 
+const ADAPTER_SNIPPETS: Readonly<Record<ThemeName, string>> = {
+    headless: `import { SchemaComponent } from "schema-components/react/SchemaComponent";
+
+// No extra setup needed — renders with plain HTML inputs.
+<SchemaComponent schema={schema} value={value} onChange={setValue} />`,
+
+    shadcn: `import { shadcnResolver } from "schema-components/themes/shadcn";
+import { SchemaProvider, SchemaComponent } from "schema-components/react/SchemaComponent";
+import "./tailwind.css"; // your Tailwind stylesheet
+
+<SchemaProvider resolver={shadcnResolver}>
+  <SchemaComponent schema={schema} value={value} onChange={setValue} />
+</SchemaProvider>`,
+
+    mui: `import { createMuiResolver } from "schema-components/themes/mui";
+import TextField from "@mui/material/TextField";
+import Checkbox from "@mui/material/Checkbox";
+import Typography from "@mui/material/Typography";
+import Box from "@mui/material/Box";
+import MenuItem from "@mui/material/MenuItem";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import { SchemaProvider, SchemaComponent } from "schema-components/react/SchemaComponent";
+
+const resolver = createMuiResolver({
+  TextField,
+  Checkbox,
+  Typography,
+  Box,
+  MenuItem,
+  FormControlLabel,
+});
+
+<SchemaProvider resolver={resolver}>
+  <SchemaComponent schema={schema} value={value} onChange={setValue} />
+</SchemaProvider>`,
+
+    mantine: `import { createMantineResolver } from "schema-components/themes/mantine";
+import { TextInput, NumberInput, Switch, Select, Fieldset, Text } from "@mantine/core";
+import "@mantine/core/styles.css";
+import { SchemaProvider, SchemaComponent } from "schema-components/react/SchemaComponent";
+
+const resolver = createMantineResolver({
+  TextInput,
+  NumberInput,
+  Switch,
+  Select,
+  Fieldset,
+  Text,
+});
+
+<SchemaProvider resolver={resolver}>
+  <SchemaComponent schema={schema} value={value} onChange={setValue} />
+</SchemaProvider>`,
+
+    radix: `import { createRadixResolver } from "schema-components/themes/radix";
+import { Box, Checkbox, Flex, Select, Text, TextField } from "@radix-ui/themes";
+import "@radix-ui/themes/styles.css";
+import { SchemaProvider, SchemaComponent } from "schema-components/react/SchemaComponent";
+
+const resolver = createRadixResolver({
+  Box,
+  Checkbox,
+  Flex,
+  SelectRoot: Select.Root,
+  SelectTrigger: Select.Trigger,
+  SelectContent: Select.Content,
+  SelectItem: Select.Item,
+  Text,
+  TextField: TextField.Root,
+});
+
+<SchemaProvider resolver={resolver}>
+  <SchemaComponent schema={schema} value={value} onChange={setValue} />
+</SchemaProvider>`,
+};
+
 const INPUT_FORMATS: readonly InputFormat[] = [
     "builder",
     "jsonschema",
@@ -169,6 +247,7 @@ const PREVIEW_TABS: readonly {
     { id: "preview", label: "Preview" },
     { id: "jsonschema", label: "JSON Schema" },
     { id: "html", label: "HTML" },
+    { id: "setup", label: "Adapter setup" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -543,6 +622,7 @@ export function App() {
         initial.colourScheme
     );
     const [isDirty, setIsDirty] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     // Track previous JSON Schema string so we can reset previewValue on structural change.
     const prevEffectiveSchemaRef = useRef<string>("");
@@ -710,6 +790,14 @@ export function App() {
         [isDirty]
     );
 
+    const handleCopySnippet = useCallback(() => {
+        void navigator.clipboard.writeText(ADAPTER_SNIPPETS[theme]);
+        setCopied(true);
+        setTimeout(() => {
+            setCopied(false);
+        }, 2000);
+    }, [theme]);
+
     const resolver = RESOLVERS[theme];
 
     // HTML output — computed lazily when the HTML tab is active.
@@ -738,15 +826,18 @@ export function App() {
                 <div style={css.toolbar}>
                     <label
                         style={css.toolbarItem}
-                        title="Theme adapter used to render preview components."
+                        title="Component-library adapter used to render preview components."
                     >
-                        Theme
+                        Adapter
                         <select
                             style={css.select}
                             value={theme}
                             onChange={(e) => {
                                 const val = e.target.value;
-                                if (isThemeName(val)) setTheme(val);
+                                if (isThemeName(val)) {
+                                    setTheme(val);
+                                    setCopied(false);
+                                }
                             }}
                         >
                             {THEME_NAMES.map((t) => (
@@ -1000,6 +1091,26 @@ export function App() {
                             )}
                         </>
                     )}
+
+                    {previewTab === "setup" && (
+                        <div>
+                            <div style={css.snippetHeader}>
+                                <span style={css.snippetLabel}>
+                                    {THEME_LABELS[theme]}
+                                </span>
+                                <button
+                                    type="button"
+                                    style={css.copyBtn}
+                                    onClick={handleCopySnippet}
+                                >
+                                    {copied ? "Copied!" : "Copy"}
+                                </button>
+                            </div>
+                            <pre style={css.code}>
+                                {ADAPTER_SNIPPETS[theme]}
+                            </pre>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -1190,5 +1301,26 @@ const css = {
         color: "var(--sb-fg)",
         fontSize: "0.8125rem",
         cursor: "pointer",
+    },
+    snippetHeader: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: "0.5rem",
+    },
+    snippetLabel: {
+        fontSize: "0.875rem",
+        fontWeight: 500,
+        color: "var(--sb-fg-secondary)",
+    },
+    copyBtn: {
+        padding: "0.25rem 0.75rem",
+        border: "1px solid var(--sb-border-input)",
+        borderRadius: "0.375rem",
+        background: "var(--sb-bg)",
+        color: "var(--sb-fg)",
+        fontSize: "0.8125rem",
+        cursor: "pointer",
+        minWidth: "4.5rem",
     },
 } as const;
