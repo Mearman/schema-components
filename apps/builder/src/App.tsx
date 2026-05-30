@@ -716,7 +716,7 @@ export function App() {
                     </label>
                     <label
                         style={css.toolbarCheck}
-                        title="Render the preview without inputs — useful for view-only mode."
+                        title="Render the preview without inputs — shows what the form looks like in view-only mode."
                     >
                         <input
                             type="checkbox"
@@ -725,7 +725,7 @@ export function App() {
                                 setReadOnly(e.target.checked);
                             }}
                         />
-                        Read-only
+                        View mode
                     </label>
                     <label
                         style={css.toolbarCheck}
