@@ -1,3 +1,9 @@
+## [3.6.1](https://github.com/Mearman/schema-components/compare/v3.6.0...v3.6.1) (2026-05-30)
+
+### Bug Fixes
+
+* **docs:** only confirm example load if user has modified the schema ([ba5be59](https://github.com/Mearman/schema-components/commit/ba5be593941ec69104cfa8bca8b234ad9b2f94d9))
+
 ## [3.6.0](https://github.com/Mearman/schema-components/compare/v3.5.2...v3.6.0) (2026-05-30)
 
 ### Features
