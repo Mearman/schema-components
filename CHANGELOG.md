@@ -1,3 +1,9 @@
+## [3.7.1](https://github.com/Mearman/schema-components/compare/v3.7.0...v3.7.1) (2026-05-30)
+
+### CI
+
+* fix turbo cache key collisions between jobs ([f397d0a](https://github.com/Mearman/schema-components/commit/f397d0a68b9b6a8722e7b4387b4ad2ae26008a36))
+
 ## [3.7.0](https://github.com/Mearman/schema-components/compare/v3.6.1...v3.7.0) (2026-05-30)
 
 ### Features
