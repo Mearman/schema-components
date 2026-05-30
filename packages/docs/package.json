@@ -49,6 +49,7 @@
         "@mantine/hooks": "9.1.1",
         "@mui/material": "9.0.1",
         "@radix-ui/themes": "3.3.0",
+        "@schema-components/examples": "workspace:*",
         "autoprefixer": "10.5.0",
         "postcss": "8.5.14",
         "tailwindcss": "4.3.0"

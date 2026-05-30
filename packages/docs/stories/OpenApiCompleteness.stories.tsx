@@ -5,7 +5,7 @@ import {
     ApiRequestBody,
     ApiResponse,
 } from "schema-components/openapi/components";
-import { complexOpenApiSpec } from "../src/demo-schemas.ts";
+import { complexOpenApiSpec } from "@schema-components/examples";
 import { DemoCard, DemoGrid, StoryPage } from "../src/story-layout.tsx";
 
 function OpenApiCompleteness() {

@@ -1,0 +1,13 @@
+{
+    "name": "@schema-components/examples",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "devDependencies": {
+        "typescript": "6.0.3",
+        "zod": "4.4.3"
+    }
+}

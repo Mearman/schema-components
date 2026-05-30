@@ -3,7 +3,10 @@ import { linkTo } from "@storybook/addon-links";
 import { SchemaComponent } from "schema-components/react/SchemaComponent";
 import { renderToHtml } from "schema-components/html/renderToHtml";
 import { renderToHtmlChunks } from "schema-components/html/renderToHtmlStream";
-import { kitchenSinkData, kitchenSinkSchema } from "../src/demo-schemas.ts";
+import {
+    kitchenSinkData,
+    kitchenSinkSchema,
+} from "@schema-components/examples";
 import {
     DemoCard,
     DemoGrid,

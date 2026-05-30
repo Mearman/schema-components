@@ -4,7 +4,7 @@ import {
     discriminatedUnionSchema,
     kitchenSinkData,
     kitchenSinkSchema,
-} from "../src/demo-schemas.ts";
+} from "@schema-components/examples";
 import {
     DemoCard,
     DemoGrid,

@@ -5,7 +5,7 @@ import { SchemaComponent } from "schema-components/react/SchemaComponent";
 import {
     discriminatedUnionData,
     discriminatedUnionSchema,
-} from "../src/demo-schemas.ts";
+} from "@schema-components/examples";
 import {
     DemoCard,
     DemoGrid,

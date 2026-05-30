@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { linkTo } from "@storybook/addon-links";
-import { profileData, profileSchema } from "../src/demo-schemas.ts";
+import { profileData, profileSchema } from "@schema-components/examples";
 import { DemoCard, DemoGrid, StoryPage } from "../src/story-layout.tsx";
 import { ThemeSchemaDemo, themeNames } from "../src/theme-renderers.tsx";
 
