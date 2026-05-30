@@ -1,6 +1,6 @@
 {
     "name": "schema-components",
-    "version": "3.5.2",
+    "version": "3.6.0",
     "description": "React components that render UI from Zod schemas, JSON Schema, and OpenAPI documents",
     "type": "module",
     "exports": {

@@ -1,3 +1,13 @@
+## [3.6.0](https://github.com/Mearman/schema-components/compare/v3.5.2...v3.6.0) (2026-05-30)
+
+### Features
+
+* **docs:** add Examples dropdown to builder app ([b296a08](https://github.com/Mearman/schema-components/commit/b296a0892dc80ab0bd1261991fa63af4639f8d6d))
+
+### Refactoring
+
+* **docs:** extract demo schemas into shared examples package ([b255d6c](https://github.com/Mearman/schema-components/commit/b255d6c73539e6705457e40d3ee5fc3cd029a408))
+
 ## [3.5.2](https://github.com/Mearman/schema-components/compare/v3.5.1...v3.5.2) (2026-05-30)
 
 ### Bug Fixes
