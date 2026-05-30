@@ -1,3 +1,9 @@
+## [3.5.2](https://github.com/Mearman/schema-components/compare/v3.5.1...v3.5.2) (2026-05-30)
+
+### Bug Fixes
+
+* **docs:** rename Read-only toggle to View mode in builder toolbar ([8aaf299](https://github.com/Mearman/schema-components/commit/8aaf29902824d31aefeef5ea2d005e116a0c28ed))
+
 ## [3.5.1](https://github.com/Mearman/schema-components/compare/v3.5.0...v3.5.1) (2026-05-30)
 
 ### Bug Fixes
