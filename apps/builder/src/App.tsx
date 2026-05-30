@@ -542,6 +542,7 @@ export function App() {
     const [colourScheme, setColourScheme] = useState<ColourScheme>(
         initial.colourScheme
     );
+    const [isDirty, setIsDirty] = useState(false);
 
     // Track previous JSON Schema string so we can reset previewValue on structural change.
     const prevEffectiveSchemaRef = useRef<string>("");
@@ -661,6 +662,7 @@ export function App() {
     );
 
     const handleSchemaChange = useCallback((next: BuilderSchema) => {
+        setIsDirty(true);
         setSchema(next);
     }, []);
 
@@ -676,12 +678,8 @@ export function App() {
             const ex = EXAMPLES.find((e) => e.id === id);
             if (ex === undefined) return;
 
-            const nonEmpty =
-                schema.fields.length > 0 ||
-                rawJsonSchema.trim() !== "" ||
-                rawOpenApi.trim() !== "";
             if (
-                nonEmpty &&
+                isDirty &&
                 !window.confirm(
                     `Load "${ex.name}"? This replaces your current schema.`
                 )
@@ -707,8 +705,9 @@ export function App() {
                 setInputFormat("openapi");
                 setPreviewValue(ex.data);
             }
+            setIsDirty(false);
         },
-        [schema.fields.length, rawJsonSchema, rawOpenApi]
+        [isDirty]
     );
 
     const resolver = RESOLVERS[theme];
@@ -868,6 +867,7 @@ export function App() {
                                 }
                                 spellCheck={false}
                                 onChange={(e) => {
+                                    setIsDirty(true);
                                     setRawJsonSchema(e.target.value);
                                 }}
                             />
@@ -903,6 +903,7 @@ export function App() {
                                 }
                                 spellCheck={false}
                                 onChange={(e) => {
+                                    setIsDirty(true);
                                     setRawOpenApi(e.target.value);
                                 }}
                             />
