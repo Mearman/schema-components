@@ -1,3 +1,13 @@
+## [3.7.2](https://github.com/Mearman/schema-components/compare/v3.7.1...v3.7.2) (2026-10-29)
+
+### Bug Fixes
+
+* **deps:** upgrade dependencies with high and critical audit advisories ([f87d97c](https://github.com/Mearman/schema-components/commit/f87d97cbfa1fdd3c39c3fdf84d71233211402286))
+
+### Documentation
+
+* add the standard badge row to the README ([d4d2d62](https://github.com/Mearman/schema-components/commit/d4d2d626ba21b6ae91e4c7371e045a72bfa4e84f))
+
 ## [3.7.1](https://github.com/Mearman/schema-components/compare/v3.7.0...v3.7.1) (2026-05-30)
 
 ### CI
